@@ -72,7 +72,7 @@
 
 **前端框架**：Flutter（Dart）
 
-**文件处理库**：pdfx（PDF按页提取文本）、epub_kitty（EPUB章节解析）
+**文件处理库**：pdfx（PDF按页提取文本）、epubx（EPUB章节解析）
 
 **AI服务**：集成主流大语言模型API
 
