@@ -1,0 +1,60 @@
+name: zhidu
+description: "智读AI分层阅读器 - 通过AI分层解析，实现先读薄，再读厚的阅读体验"
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  
+  # 文件处理
+  pdfx: ^2.6.0
+  epub_kitty: ^1.0.0
+  file_picker: ^6.1.1
+  path_provider: ^2.1.2
+  
+  # AI服务
+  http: ^1.2.0
+  
+  # 状态管理
+  flutter_riverpod: ^2.4.9
+  
+  # 本地存储
+  shared_preferences: ^2.2.2
+  
+  # UI组件
+  flutter_card_swiper: ^6.0.0
+  flip_card: ^0.7.0
+
+  # 其他工具
+  intl: ^0.19.0
+  yaml: ^3.1.2
+  markdown: ^7.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+
+  fonts:
+    - family: NotoSansSC
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Regular.otf
+        - asset: assets/fonts/NotoSansSC-Bold.otf
+          weight: 700
+    - family: NotoSerifSC
+      fonts:
+        - asset: assets/fonts/NotoSerifSC-Regular.otf
+        - asset: assets/fonts/NotoSerifSC-Bold.otf
+          weight: 700
