@@ -14,7 +14,7 @@ dependencies:
   # 文件处理
   pdfx: ^2.6.0
   epubx: ^4.0.0
-  file_picker: ^6.1.1
+  file_picker: ^10.3.10
   path_provider: ^2.1.2
   archive: ^3.4.10
   
@@ -22,24 +22,24 @@ dependencies:
   http: ^1.2.0
   
   # 状态管理
-  flutter_riverpod: ^2.4.9
+  flutter_riverpod: ^3.3.1
   
   # 本地存储
   shared_preferences: ^2.2.2
   
   # UI组件
-  flutter_card_swiper: ^6.0.0
+  flutter_card_swiper: ^7.2.0
   flip_card: ^0.7.0
 
   # 其他工具
-  intl: ^0.19.0
+  intl: ^0.20.2
   yaml: ^3.1.2
   markdown: ^7.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.1
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
@@ -48,14 +48,14 @@ flutter:
     - assets/images/
     - assets/icons/
 
-  fonts:
-    - family: NotoSansSC
-      fonts:
-        - asset: assets/fonts/NotoSansSC-Regular.otf
-        - asset: assets/fonts/NotoSansSC-Bold.otf
-          weight: 700
-    - family: NotoSerifSC
-      fonts:
-        - asset: assets/fonts/NotoSerifSC-Regular.otf
-        - asset: assets/fonts/NotoSerifSC-Bold.otf
-          weight: 700
+  # fonts:
+  #   - family: NotoSansSC
+  #     fonts:
+  #       - asset: assets/fonts/NotoSansSC-Regular.otf
+  #       - asset: assets/fonts/NotoSansSC-Bold.otf
+  #         weight: 700
+  #   - family: NotoSerifSC
+  #     fonts:
+  #       - asset: assets/fonts/NotoSerifSC-Regular.otf
+  #       - asset: assets/fonts/NotoSerifSC-Bold.otf
+  #         weight: 700
