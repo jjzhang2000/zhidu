@@ -1,16 +1,18 @@
-class ChapterSummary {
+class SectionSummary {
   final String bookId;
   final int chapterIndex;
-  final String chapterTitle;
+  final int sectionIndex;
+  final String sectionTitle;
   final String objectiveSummary;
   final String aiInsight;
   final List<String> keyPoints;
   final DateTime createdAt;
 
-  ChapterSummary({
+  SectionSummary({
     required this.bookId,
     required this.chapterIndex,
-    required this.chapterTitle,
+    required this.sectionIndex,
+    required this.sectionTitle,
     required this.objectiveSummary,
     required this.aiInsight,
     required this.keyPoints,
@@ -21,7 +23,8 @@ class ChapterSummary {
     return {
       'bookId': bookId,
       'chapterIndex': chapterIndex,
-      'chapterTitle': chapterTitle,
+      'sectionIndex': sectionIndex,
+      'sectionTitle': sectionTitle,
       'objectiveSummary': objectiveSummary,
       'aiInsight': aiInsight,
       'keyPoints': keyPoints,
@@ -29,35 +32,16 @@ class ChapterSummary {
     };
   }
 
-  factory ChapterSummary.fromJson(Map<String, dynamic> json) {
-    return ChapterSummary(
+  factory SectionSummary.fromJson(Map<String, dynamic> json) {
+    return SectionSummary(
       bookId: json['bookId'] ?? '',
       chapterIndex: json['chapterIndex'] ?? 0,
-      chapterTitle: json['chapterTitle'] ?? '',
+      sectionIndex: json['sectionIndex'] ?? 0,
+      sectionTitle: json['sectionTitle'] ?? '',
       objectiveSummary: json['objectiveSummary'] ?? '',
       aiInsight: json['aiInsight'] ?? '',
       keyPoints: List<String>.from(json['keyPoints'] ?? []),
       createdAt: DateTime.parse(json['createdAt']),
-    );
-  }
-
-  ChapterSummary copyWith({
-    String? bookId,
-    int? chapterIndex,
-    String? chapterTitle,
-    String? objectiveSummary,
-    String? aiInsight,
-    List<String>? keyPoints,
-    DateTime? createdAt,
-  }) {
-    return ChapterSummary(
-      bookId: bookId ?? this.bookId,
-      chapterIndex: chapterIndex ?? this.chapterIndex,
-      chapterTitle: chapterTitle ?? this.chapterTitle,
-      objectiveSummary: objectiveSummary ?? this.objectiveSummary,
-      aiInsight: aiInsight ?? this.aiInsight,
-      keyPoints: keyPoints ?? this.keyPoints,
-      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

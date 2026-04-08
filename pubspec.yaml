@@ -12,29 +12,24 @@ dependencies:
   cupertino_icons: ^1.0.6
   
   # 文件处理
-  pdfx: ^2.6.0
-  epubx: ^4.0.0
-  file_picker: ^10.3.10
-  path_provider: ^2.1.2
+  epub_plus: ^5.1.0
+  file_picker: ^6.1.1
+  path_provider: ^2.1.1
+  path: ^1.8.3
   archive: ^3.4.10
-  
-  # AI服务
-  http: ^1.2.0
-  
-  # 状态管理
-  flutter_riverpod: ^3.3.1
-  
-  # 本地存储
-  shared_preferences: ^2.2.2
+  image: ^4.3.0
+  xml: ^6.5.0
   
   # UI组件
-  flutter_card_swiper: ^7.2.0
-  flip_card: ^0.7.0
-
-  # 其他工具
-  intl: ^0.20.2
-  yaml: ^3.1.2
-  markdown: ^7.1.1
+  flutter_html: ^3.0.0-beta.2
+  
+  # 工具库
+  uuid: ^4.2.1
+  shared_preferences: ^2.2.2
+  intl: ^0.18.1
+  
+  # 网络请求
+  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:
@@ -43,19 +38,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  
-  assets:
-    - assets/images/
-    - assets/icons/
-
-  # fonts:
-  #   - family: NotoSansSC
-  #     fonts:
-  #       - asset: assets/fonts/NotoSansSC-Regular.otf
-  #       - asset: assets/fonts/NotoSansSC-Bold.otf
-  #         weight: 700
-  #   - family: NotoSerifSC
-  #     fonts:
-  #       - asset: assets/fonts/NotoSerifSC-Regular.otf
-  #       - asset: assets/fonts/NotoSerifSC-Bold.otf
-  #         weight: 700

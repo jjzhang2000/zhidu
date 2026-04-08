@@ -50,7 +50,6 @@ class BookSummary {
   String toMarkdown() {
     final buffer = StringBuffer();
     
-    // YAML frontmatter
     buffer.writeln('---');
     buffer.writeln('title: $bookTitle');
     buffer.writeln('author: $author');
@@ -59,26 +58,25 @@ class BookSummary {
     buffer.writeln('---');
     buffer.writeln();
     
-    // Chapters
     for (final chapter in chapters) {
       buffer.writeln('## ${chapter.chapterTitle}');
       buffer.writeln();
       
-      buffer.writeln('### 核心观点');
-      for (final point in chapter.keyPoints) {
-        buffer.writeln('- $point');
-      }
+      buffer.writeln('### 客观摘要');
+      buffer.writeln(chapter.objectiveSummary);
       buffer.writeln();
       
-      buffer.writeln('### 关键论据');
-      for (final argument in chapter.keyArguments) {
-        buffer.writeln('- $argument');
-      }
+      buffer.writeln('### AI见解');
+      buffer.writeln(chapter.aiInsight);
       buffer.writeln();
       
-      buffer.writeln('### AI评价');
-      buffer.writeln('> ${chapter.aiEvaluation}');
-      buffer.writeln();
+      if (chapter.keyPoints.isNotEmpty) {
+        buffer.writeln('### 关键要点');
+        for (final point in chapter.keyPoints) {
+          buffer.writeln('- $point');
+        }
+        buffer.writeln();
+      }
     }
     
     return buffer.toString();

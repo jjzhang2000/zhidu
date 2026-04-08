@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class AppTheme {
@@ -7,11 +6,11 @@ class AppTheme {
   static const Color accentColor = Color(0xFFE67E22);
   static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color cardColor = Colors.white;
-  
+
   // 客观摘要区颜色
   static const Color objectiveSummaryColor = Color(0xFF3498DB);
   static const Color objectiveSummaryBgColor = Color(0xFFE8F4FD);
-  
+
   // AI观点区颜色
   static const Color aiOpinionColor = Color(0xFFE67E22);
   static const Color aiOpinionBgColor = Color(0xFFFDF2E9);
@@ -39,6 +38,7 @@ class AppTheme {
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: accentColor,
         foregroundColor: Colors.white,
+        shape: CircleBorder(),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         selectedItemColor: primaryColor,
@@ -95,6 +95,7 @@ class AppTheme {
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: accentColor,
         foregroundColor: Colors.white,
+        shape: CircleBorder(),
       ),
     );
   }

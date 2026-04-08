@@ -11,6 +11,7 @@ class Book {
   final double readingProgress;
   final DateTime addedAt;
   final DateTime? lastReadAt;
+  final String? aiIntroduction;
 
   Book({
     required this.id,
@@ -24,6 +25,7 @@ class Book {
     this.readingProgress = 0.0,
     required this.addedAt,
     this.lastReadAt,
+    this.aiIntroduction,
   });
 
   Book copyWith({
@@ -38,6 +40,7 @@ class Book {
     double? readingProgress,
     DateTime? addedAt,
     DateTime? lastReadAt,
+    String? aiIntroduction,
   }) {
     return Book(
       id: id ?? this.id,
@@ -51,6 +54,7 @@ class Book {
       readingProgress: readingProgress ?? this.readingProgress,
       addedAt: addedAt ?? this.addedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
+      aiIntroduction: aiIntroduction ?? this.aiIntroduction,
     );
   }
 
@@ -67,6 +71,7 @@ class Book {
       'readingProgress': readingProgress,
       'addedAt': addedAt.toIso8601String(),
       'lastReadAt': lastReadAt?.toIso8601String(),
+      'aiIntroduction': aiIntroduction,
     };
   }
 
@@ -88,6 +93,7 @@ class Book {
       lastReadAt: json['lastReadAt'] != null
           ? DateTime.parse(json['lastReadAt'])
           : null,
+      aiIntroduction: json['aiIntroduction'],
     );
   }
 }
