@@ -27,15 +27,81 @@ class SummaryScreen extends StatefulWidget {
 class _SummaryScreenState extends State<SummaryScreen> {
   final _aiService = AIService();
   final _summaryService = SummaryService();
+  final _epubService = EpubService();
 
   ChapterSummary? _summary;
   bool _isGenerating = false;
   String? _error;
 
+  bool _isLoadingContent = false;
+  String _content = '';
+  String _title = '';
+
   @override
   void initState() {
     super.initState();
+    _initializeContent();
     _loadSummary();
+  }
+
+  Future<void> _initializeContent() async {
+    if (widget.chapterContent != null && widget.chapterContent!.isNotEmpty) {
+      _content = widget.chapterContent!;
+      _title = widget.chapterTitle;
+      setState(() => _isLoadingContent = false);
+      return;
+    }
+
+    if (widget.filePath != null) {
+      setState(() => _isLoadingContent = true);
+      await _loadChapterContent();
+      return;
+    }
+
+    setState(() {
+      _error = '未提供章节内容或文件路径';
+      _isLoadingContent = false;
+    });
+  }
+
+  Future<void> _loadChapterContent() async {
+    try {
+      final chapters = await _epubService.getChapterList(widget.filePath!);
+
+      if (widget.chapterIndex < 0 || widget.chapterIndex >= chapters.length) {
+        setState(() {
+          _error = '章节索引超出范围: ${widget.chapterIndex}';
+          _isLoadingContent = false;
+        });
+        return;
+      }
+
+      final chapter = chapters[widget.chapterIndex];
+      _title = chapter.title;
+
+      final html = await _epubService.getChapterHtml(
+        widget.filePath!,
+        widget.chapterIndex,
+      );
+
+      if (html == null || html.isEmpty) {
+        setState(() {
+          _error = '章节内容为空';
+          _isLoadingContent = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _content = html;
+        _isLoadingContent = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = '加载章节内容失败: $e';
+        _isLoadingContent = false;
+      });
+    }
   }
 
   Future<void> _loadSummary() async {
