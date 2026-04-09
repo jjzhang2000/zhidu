@@ -1,9 +1,9 @@
+import 'package:drift/drift.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import '../data/database/database.dart';
 import '../models/book.dart';
-import 'storage_service.dart';
 import 'epub_service.dart';
-import 'ai_service.dart';
 import 'log_service.dart';
 
 class BookService {
@@ -11,9 +11,8 @@ class BookService {
   factory BookService() => _instance;
   BookService._internal();
 
-  final _storageService = StorageService.instance;
+  late final AppDatabase _db;
   final _epubService = EpubService();
-  final _aiService = AIService();
   final _log = LogService();
 
   List<Book> _books = [];
@@ -21,9 +20,14 @@ class BookService {
 
   Future<void> init() async {
     _log.v('BookService', 'init 开始执行');
-    await _storageService.init();
-    _books = await _storageService.getBooks();
+    _db = AppDatabase();
+    await _loadBooks();
     _log.v('BookService', 'init 执行完成, 加载书籍数量: ${_books.length}');
+  }
+
+  Future<void> _loadBooks() async {
+    final bookTables = await _db.select(_db.books).get();
+    _books = bookTables.map(_tableToModel).toList();
   }
 
   Future<Book?> importBook() async {
@@ -73,7 +77,7 @@ class BookService {
           return existingBook;
         }
 
-        await _storageService.addBook(book);
+        await _db.into(_db.books).insert(_modelToCompanion(book));
         _books.add(book);
         _log.d('BookService', '书籍已添加到列表，当前书籍数量: ${_books.length}');
 
@@ -90,7 +94,21 @@ class BookService {
   Future<void> updateBook(Book book) async {
     _log.v('BookService',
         'updateBook 开始执行, bookId: ${book.id}, title: ${book.title}');
-    await _storageService.updateBook(book);
+
+    await (_db.update(_db.books)..where((b) => b.id.equals(book.id))).write(
+      BooksCompanion(
+        title: Value(book.title),
+        author: Value(book.author),
+        filePath: Value(book.filePath),
+        coverPath: Value(book.coverPath),
+        currentChapter: Value(book.currentChapter),
+        readingProgress: Value(book.readingProgress),
+        lastReadAt: Value(book.lastReadAt?.millisecondsSinceEpoch),
+        aiIntroduction: Value(book.aiIntroduction),
+        totalChapters: Value(book.totalChapters),
+      ),
+    );
+
     final index = _books.indexWhere((b) => b.id == book.id);
     if (index != -1) {
       _books[index] = book;
@@ -103,9 +121,16 @@ class BookService {
 
   Future<void> deleteBook(String bookId) async {
     _log.v('BookService', 'deleteBook 开始执行, bookId: $bookId');
-    await _storageService.deleteBook(bookId);
+
+    await (_db.delete(_db.books)..where((b) => b.id.equals(bookId))).go();
+    await (_db.delete(_db.chapterSummaries)
+          ..where((s) => s.bookId.equals(bookId)))
+        .go();
+    await (_db.delete(_db.bookSummaries)..where((s) => s.bookId.equals(bookId)))
+        .go();
+
     _books.removeWhere((b) => b.id == bookId);
-    _log.v('BookService', 'deleteBook 执行完成, 书籍已从内存和存储中删除');
+    _log.v('BookService', 'deleteBook 执行完成, 书籍已从内存和数据库中删除');
   }
 
   Book? getBookById(String id) {
@@ -148,5 +173,37 @@ class BookService {
     } else {
       _log.v('BookService', 'updateReadingProgress 书籍未找到, bookId: $bookId');
     }
+  }
+
+  Book _tableToModel(BookTable table) {
+    return Book(
+      id: table.id,
+      title: table.title,
+      author: table.author,
+      filePath: table.filePath,
+      coverPath: table.coverPath,
+      currentChapter: table.currentChapter,
+      readingProgress: table.readingProgress,
+      lastReadAt: table.lastReadAt != null
+          ? DateTime.fromMillisecondsSinceEpoch(table.lastReadAt!)
+          : null,
+      aiIntroduction: table.aiIntroduction,
+      totalChapters: table.totalChapters,
+    );
+  }
+
+  BooksCompanion _modelToCompanion(Book model) {
+    return BooksCompanion(
+      id: Value(model.id),
+      title: Value(model.title),
+      author: Value(model.author),
+      filePath: Value(model.filePath),
+      coverPath: Value(model.coverPath),
+      currentChapter: Value(model.currentChapter),
+      readingProgress: Value(model.readingProgress),
+      lastReadAt: Value(model.lastReadAt?.millisecondsSinceEpoch),
+      aiIntroduction: Value(model.aiIntroduction),
+      totalChapters: Value(model.totalChapters),
+    );
   }
 }
