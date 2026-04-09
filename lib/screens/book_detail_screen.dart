@@ -25,6 +25,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   final _log = LogService();
   late Book _book;
   List<ChapterInfo> _chapters = [];
+  List<ChapterInfo> _flatChapters = [];
   bool _isLoadingChapters = false;
   bool _showChapterStructure = false;
   bool _isGeneratingIntroduction = false;
@@ -42,16 +43,22 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     try {
       final chapters =
           await _epubService.getHierarchicalChapterList(_book.filePath);
+
+      final flatChapters = await _epubService.getChapterList(_book.filePath);
+
       if (mounted) {
         setState(() {
           _chapters = chapters;
+          _flatChapters = flatChapters;
           _isLoadingChapters = false;
         });
       }
     } catch (e, stackTrace) {
       _log.e('BookDetailScreen', '加载章节列表失败', e, stackTrace);
       if (mounted) {
-        setState(() => _isLoadingChapters = false);
+        setState(() {
+          _isLoadingChapters = false;
+        });
       }
     }
   }
