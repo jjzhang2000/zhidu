@@ -3,11 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/book.dart';
 import '../services/book_service.dart';
-import '../services/summary_service.dart';
 import '../services/epub_service.dart' show EpubService, ChapterInfo;
 import '../services/ai_service.dart';
 import '../services/log_service.dart';
-import 'chapter_list_screen.dart';
 import 'summary_screen.dart';
 
 class BookDetailScreen extends StatefulWidget {
@@ -404,10 +402,35 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     return SingleChildScrollView(
       child: InkWell(
         onTap: () {
+          if (_flatChapters.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('章节列表未加载完成')),
+            );
+            return;
+          }
+
+          // Determine chapter index
+          final targetIndex =
+              _book.currentChapter >= 1 ? _book.currentChapter : 0;
+
+          if (targetIndex >= _flatChapters.length) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('章节索引超出范围')),
+            );
+            return;
+          }
+
+          final chapter = _flatChapters[targetIndex];
+
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ChapterListScreen(book: _book),
+              builder: (context) => SummaryScreen(
+                bookId: _book.id,
+                chapterIndex: targetIndex,
+                chapterTitle: chapter.title,
+                filePath: _book.filePath,
+              ),
             ),
           );
         },
