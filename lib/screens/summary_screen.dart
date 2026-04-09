@@ -241,7 +241,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_summary?.chapterTitle ?? widget.chapterTitle),
+        title: Text(_title.isNotEmpty ? _title : widget.chapterTitle),
         centerTitle: true,
         actions: [
           if (_summary != null)
@@ -257,6 +257,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildBody() {
+    if (_isLoadingContent) {
+      return _buildContentLoadingView();
+    }
+
     if (_isGenerating) {
       return _buildGeneratingView();
     }
@@ -270,6 +274,25 @@ class _SummaryScreenState extends State<SummaryScreen> {
     }
 
     return _buildSummaryView();
+  }
+
+  Widget _buildContentLoadingView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(
+            '正在加载章节内容...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyView() {
