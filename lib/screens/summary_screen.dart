@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import '../models/chapter_summary.dart';
@@ -73,7 +74,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   void _checkContentLength() {
     final textContent = _extractTextContent(_content);
-    _contentTooShort = textContent.length < 100;
+    final byteLength = utf8.encode(textContent).length;
+    _contentTooShort = byteLength < 1000;
     if (_contentTooShort && _summary == null) {
       _showOriginalText = true;
     }
