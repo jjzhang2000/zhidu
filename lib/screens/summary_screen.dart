@@ -2,19 +2,22 @@ import 'package:flutter/material.dart';
 import '../models/chapter_summary.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
+import '../services/epub_service.dart';
 
 class SummaryScreen extends StatefulWidget {
   final String bookId;
   final int chapterIndex;
   final String chapterTitle;
-  final String chapterContent;
+  final String? chapterContent;
+  final String? filePath;
 
   const SummaryScreen({
     super.key,
     required this.bookId,
     required this.chapterIndex,
     required this.chapterTitle,
-    required this.chapterContent,
+    this.chapterContent,
+    this.filePath,
   });
 
   @override
@@ -57,8 +60,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
 
     try {
-      // 检查原始内容是否为空
-      if (widget.chapterContent.isEmpty) {
+      if (widget.chapterContent == null || widget.chapterContent!.isEmpty) {
         setState(() {
           _error = '章节内容为空，无法生成摘要\n\n可能原因：\n1. 章节文件读取失败\n2. EPUB文件格式问题';
           _isGenerating = false;
@@ -66,12 +68,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
         return;
       }
 
-      final content = _extractTextContent(widget.chapterContent);
+      final content = _extractTextContent(widget.chapterContent!);
 
       if (content.length < 100) {
         setState(() {
           _error =
-              '章节内容太短（仅 ${content.length} 个字符），无法生成摘要\n\n原始内容长度：${widget.chapterContent.length}';
+              '章节内容太短（仅 ${content.length} 个字符），无法生成摘要\n\n原始内容长度：${widget.chapterContent!.length}';
           _isGenerating = false;
         });
         return;
