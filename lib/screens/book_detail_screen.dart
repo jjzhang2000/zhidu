@@ -5,6 +5,7 @@ import '../models/book.dart';
 import '../services/book_service.dart';
 import '../services/epub_service.dart' show EpubService, ChapterInfo;
 import '../services/ai_service.dart';
+import '../services/summary_service.dart';
 import '../services/log_service.dart';
 import 'summary_screen.dart';
 
@@ -21,6 +22,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   final _bookService = BookService();
   final _epubService = EpubService();
   final _aiService = AIService();
+  final _summaryService = SummaryService();
   final _log = LogService();
   late Book _book;
   List<ChapterInfo> _chapters = [];
@@ -28,6 +30,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   bool _isLoadingChapters = false;
   bool _showChapterStructure = false;
   bool _isGeneratingIntroduction = false;
+  bool _isPreGenerating = false;
 
   @override
   void initState() {
@@ -35,6 +38,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     _book = widget.book;
     _loadChapters();
     _loadOrGenerateIntroduction();
+    _startPreGeneration();
   }
 
   Future<void> _loadChapters() async {
@@ -60,6 +64,34 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         });
       }
     }
+  }
+
+  /// 后台静默预生成章节摘要
+  void _startPreGeneration() {
+    if (!_aiService.isConfigured) {
+      _log.d('BookDetailScreen', 'AI服务未配置，跳过预生成');
+      return;
+    }
+
+    if (_isPreGenerating) {
+      _log.d('BookDetailScreen', '已在预生成中，跳过');
+      return;
+    }
+
+    _isPreGenerating = true;
+
+    // 异步执行，不阻塞UI
+    Future(() async {
+      try {
+        _log.d('BookDetailScreen', '开始后台预生成章节摘要');
+        await _summaryService.generateSummariesForBook(_book);
+        _log.d('BookDetailScreen', '后台预生成章节摘要完成');
+      } catch (e, stackTrace) {
+        _log.e('BookDetailScreen', '后台预生成章节摘要失败', e, stackTrace);
+      } finally {
+        _isPreGenerating = false;
+      }
+    });
   }
 
   List<ChapterInfo> _flattenChapters(List<ChapterInfo> chapters) {
