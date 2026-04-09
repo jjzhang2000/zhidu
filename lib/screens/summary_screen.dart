@@ -242,14 +242,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
       appBar: AppBar(
         title: Text(_title.isNotEmpty ? _title : widget.chapterTitle),
         centerTitle: true,
-        actions: [
-          if (_summary != null)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _isGenerating ? null : _generateSummary,
-              tooltip: '重新生成',
-            ),
-        ],
       ),
       body: _buildBody(),
     );
@@ -427,24 +419,15 @@ class _SummaryScreenState extends State<SummaryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionCard(
-            title: '客观摘要',
-            icon: Icons.article_outlined,
+            title: '本章摘要',
+            icon: Icons.auto_awesome,
             color: Colors.blue,
             content: _summary!.objectiveSummary,
-          ),
-          const SizedBox(height: 16),
-          _buildSectionCard(
-            title: 'AI 见解',
-            icon: Icons.lightbulb_outline,
-            color: Colors.orange,
-            content: _summary!.aiInsight,
           ),
           if (_summary!.keyPoints.isNotEmpty) ...[
             const SizedBox(height: 16),
             _buildKeyPointsCard(),
           ],
-          const SizedBox(height: 16),
-          _buildMetaInfo(),
         ],
       ),
     );
@@ -533,29 +516,5 @@ class _SummaryScreenState extends State<SummaryScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildMetaInfo() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
-          const SizedBox(width: 4),
-          Text(
-            '生成于 ${_formatDateTime(_summary!.createdAt)}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDateTime(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
-        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
