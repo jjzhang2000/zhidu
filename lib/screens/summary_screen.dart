@@ -75,7 +75,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   void _checkContentLength() {
     final textContent = _extractTextContent(_content);
     final byteLength = utf8.encode(textContent).length;
-    _contentTooShort = byteLength < 1000;
+    _contentTooShort = byteLength < 2000;
     if (_contentTooShort && _summary == null) {
       _showOriginalText = true;
     }
