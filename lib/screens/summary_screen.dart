@@ -134,22 +134,21 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
 
     try {
-      if (widget.chapterContent == null || widget.chapterContent!.isEmpty) {
+      if (_content.isEmpty) {
         if (!mounted) return;
         setState(() {
-          _error = '章节内容为空，无法生成摘要\n\n可能原因：\n1. 章节文件读取失败\n2. EPUB文件格式问题';
+          _error = '章节内容为空，无法生成摘要';
           _isGenerating = false;
         });
         return;
       }
 
-      final content = _extractTextContent(widget.chapterContent!);
+      final content = _extractTextContent(_content);
 
       if (content.length < 100) {
         if (!mounted) return;
         setState(() {
-          _error =
-              '章节内容太短（仅 ${content.length} 个字符），无法生成摘要\n\n原始内容长度：${widget.chapterContent!.length}';
+          _error = '章节内容太短（仅 ${content.length} 个字符），无法生成摘要';
           _isGenerating = false;
         });
         return;
