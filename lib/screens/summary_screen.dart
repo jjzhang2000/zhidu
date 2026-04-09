@@ -44,8 +44,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeContent();
-    _loadSummary();
+    _initializeContent().then((_) {
+      // 内容加载完成后再加载摘要，这样可以正确判断是否需要自动生成
+      _loadSummary();
+    });
   }
 
   Future<void> _initializeContent() async {
@@ -133,6 +135,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
     setState(() {
       _summary = summary;
     });
+
+    // 如果没有摘要且内容足够长，自动生成
+    if (summary == null &&
+        !_contentTooShort &&
+        _content.isNotEmpty &&
+        _aiService.isConfigured) {
+      _generateSummary();
+    }
   }
 
   Future<void> _generateSummary() async {
