@@ -8,6 +8,7 @@ import '../services/epub_service.dart' show EpubService, ChapterInfo;
 import '../services/ai_service.dart';
 import '../services/log_service.dart';
 import 'chapter_list_screen.dart';
+import 'summary_screen.dart';
 
 class BookDetailScreen extends StatefulWidget {
   final Book book;
@@ -448,10 +449,33 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           onTap: () {
+            if (_flatChapters.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('章节列表未加载完成')),
+              );
+              return;
+            }
+
+            final index = _flatChapters.indexWhere(
+              (c) => c.title == chapter.title,
+            );
+
+            if (index < 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('无法找到章节：${chapter.title}')),
+              );
+              return;
+            }
+
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ChapterListScreen(book: _book),
+                builder: (context) => SummaryScreen(
+                  bookId: _book.id,
+                  chapterIndex: index,
+                  chapterTitle: chapter.title,
+                  filePath: _book.filePath,
+                ),
               ),
             );
           },
