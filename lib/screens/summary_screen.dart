@@ -415,60 +415,64 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildSummaryView() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 左侧切换按钮
-        Padding(
-          padding: const EdgeInsets.only(left: 8, top: 16, right: 8),
-          child: InkWell(
-            onTap: () {
-              setState(() {
-                _showOriginalText = !_showOriginalText;
-              });
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withAlpha(30),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                _showOriginalText ? Icons.auto_awesome : Icons.menu_book,
-                size: 20,
-                color: Theme.of(context).colorScheme.primary,
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _showOriginalText = !_showOriginalText;
+                });
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withAlpha(30),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  _showOriginalText ? Icons.auto_awesome : Icons.menu_book,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
           ),
-        ),
-        // 右侧内容区域
-        Expanded(
-          child: _showOriginalText
-              ? _buildOriginalTextView()
-              : _buildSummaryContent(),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: _showOriginalText
+                ? _buildOriginalTextView()
+                : _buildSummaryContent(),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildSummaryContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionCard(
-            title: '本章摘要',
-            icon: Icons.auto_awesome,
-            color: Colors.blue,
-            content: _summary!.objectiveSummary,
-          ),
-          if (_summary!.keyPoints.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildKeyPointsCard(),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionCard(
+              title: '本章摘要',
+              icon: Icons.auto_awesome,
+              color: Colors.blue,
+              content: _summary!.objectiveSummary,
+            ),
+            if (_summary!.keyPoints.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildKeyPointsCard(),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
