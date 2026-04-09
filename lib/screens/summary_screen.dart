@@ -421,7 +421,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.only(left: 8, top: 16),
             child: InkWell(
               onTap: () {
                 setState(() {
@@ -455,31 +455,27 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildSummaryContent() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionCard(
-              title: '本章摘要',
-              icon: Icons.auto_awesome,
-              color: Colors.blue,
-              content: _summary!.objectiveSummary,
-            ),
-            if (_summary!.keyPoints.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _buildKeyPointsCard(),
-            ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionCard(
+            title: '本章摘要',
+            icon: Icons.auto_awesome,
+            color: Colors.blue,
+            content: _summary!.objectiveSummary,
+          ),
+          if (_summary!.keyPoints.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildKeyPointsCard(),
           ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildOriginalTextView() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
