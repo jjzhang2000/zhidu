@@ -182,6 +182,10 @@ class BookService {
       author: table.author,
       filePath: table.filePath,
       coverPath: table.coverPath,
+      format: BookFormat.values.firstWhere(
+        (e) => e.name == table.format,
+        orElse: () => BookFormat.epub,
+      ),
       currentChapter: table.currentChapter,
       readingProgress: table.readingProgress,
       lastReadAt: table.lastReadAt != null
@@ -189,6 +193,7 @@ class BookService {
           : null,
       aiIntroduction: table.aiIntroduction,
       totalChapters: table.totalChapters,
+      addedAt: DateTime.fromMillisecondsSinceEpoch(table.addedAt),
     );
   }
 
@@ -204,6 +209,8 @@ class BookService {
       lastReadAt: Value(model.lastReadAt?.millisecondsSinceEpoch),
       aiIntroduction: Value(model.aiIntroduction),
       totalChapters: Value(model.totalChapters),
+      format: Value(model.format.name),
+      addedAt: Value(model.addedAt.millisecondsSinceEpoch),
     );
   }
 }

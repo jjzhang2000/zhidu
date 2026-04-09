@@ -74,6 +74,19 @@ class SummaryService {
     return summaries.length;
   }
 
+  Future<List<ChapterSummary>> getSummariesForBook(String bookId) async {
+    final tables = await (_db.select(_db.chapterSummaries)
+          ..where((s) => s.bookId.equals(bookId))
+          ..orderBy([(s) => OrderingTerm(expression: s.chapterIndex)]))
+        .get();
+    return tables.map(_tableToChapterSummary).toList();
+  }
+
+  Future<List<ChapterSummary>> getAllSummaries() async {
+    final tables = await _db.select(_db.chapterSummaries).get();
+    return tables.map(_tableToChapterSummary).toList();
+  }
+
   ChapterSummary _tableToChapterSummary(ChapterSummaryTable table) {
     return ChapterSummary(
       bookId: table.bookId,

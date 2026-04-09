@@ -611,15 +611,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       itemBuilder: (context, index) {
         final chapter = _chapters[index];
         final isCurrentChapter = index == _currentChapterIndex;
-        final hasSummary = _summaryService.hasSummary(widget.book.id, index);
 
         return ListTile(
           leading: isCurrentChapter
               ? Icon(Icons.play_arrow,
                   color: Theme.of(context).colorScheme.primary)
-              : null,
-          trailing: hasSummary
-              ? Icon(Icons.summarize, size: 18, color: Colors.grey[400])
               : null,
           title: Text(
             chapter.title,
