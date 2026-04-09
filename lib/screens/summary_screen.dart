@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import '../models/chapter_summary.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
@@ -36,6 +37,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   bool _isLoadingContent = false;
   String _content = '';
   String _title = '';
+  bool _showOriginalText = false; // 切换摘要/原文视图
 
   @override
   void initState() {
@@ -413,6 +415,44 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildSummaryView() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 左侧切换按钮
+        Padding(
+          padding: const EdgeInsets.only(left: 8, top: 16, right: 8),
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _showOriginalText = !_showOriginalText;
+              });
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withAlpha(30),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                _showOriginalText ? Icons.auto_awesome : Icons.menu_book,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+        // 右侧内容区域
+        Expanded(
+          child: _showOriginalText
+              ? _buildOriginalTextView()
+              : _buildSummaryContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -429,6 +469,47 @@ class _SummaryScreenState extends State<SummaryScreen> {
             _buildKeyPointsCard(),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildOriginalTextView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Html(
+            data: _content,
+            style: {
+              'body': Style(
+                fontSize: FontSize(16),
+                lineHeight: const LineHeight(1.8),
+                margin: Margins.zero,
+                padding: HtmlPaddings.zero,
+              ),
+              'p': Style(
+                margin: Margins.only(bottom: 16),
+                lineHeight: const LineHeight(1.8),
+              ),
+              'h1': Style(
+                fontSize: FontSize(20),
+                fontWeight: FontWeight.bold,
+                margin: Margins.only(bottom: 16, top: 24),
+              ),
+              'h2': Style(
+                fontSize: FontSize(18),
+                fontWeight: FontWeight.bold,
+                margin: Margins.only(bottom: 14, top: 20),
+              ),
+              'h3': Style(
+                fontSize: FontSize(17),
+                fontWeight: FontWeight.bold,
+                margin: Margins.only(bottom: 12, top: 16),
+              ),
+            },
+          ),
+        ),
       ),
     );
   }
