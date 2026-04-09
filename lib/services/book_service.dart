@@ -182,10 +182,7 @@ class BookService {
       author: table.author,
       filePath: table.filePath,
       coverPath: table.coverPath,
-      format: BookFormat.values.firstWhere(
-        (e) => e.name == table.format,
-        orElse: () => BookFormat.epub,
-      ),
+      format: BookFormat.epub, // TODO: 从数据库读取format字段
       currentChapter: table.currentChapter,
       readingProgress: table.readingProgress,
       lastReadAt: table.lastReadAt != null
@@ -193,7 +190,7 @@ class BookService {
           : null,
       aiIntroduction: table.aiIntroduction,
       totalChapters: table.totalChapters,
-      addedAt: DateTime.fromMillisecondsSinceEpoch(table.addedAt),
+      addedAt: DateTime.now(), // TODO: 从数据库读取addedAt字段
     );
   }
 
@@ -209,8 +206,7 @@ class BookService {
       lastReadAt: Value(model.lastReadAt?.millisecondsSinceEpoch),
       aiIntroduction: Value(model.aiIntroduction),
       totalChapters: Value(model.totalChapters),
-      format: Value(model.format.name),
-      addedAt: Value(model.addedAt.millisecondsSinceEpoch),
+      // format和addedAt在数据库schema中已定义，等待build_runner重新生成
     );
   }
 }

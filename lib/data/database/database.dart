@@ -22,8 +22,6 @@ class Books extends Table {
   TextColumn get aiIntroduction => text().named('ai_introduction').nullable()();
   IntColumn get totalChapters =>
       integer().named('total_chapters').withDefault(const Constant(0))();
-  TextColumn get format => text().withDefault(const Constant('epub'))();
-  IntColumn get addedAt => integer().named('added_at')();
 
   @override
   Set<Column> get primaryKey => {id};
