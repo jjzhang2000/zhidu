@@ -270,7 +270,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       children: [
         // 左侧切换按钮（在卡片外部）
         Padding(
-          padding: const EdgeInsets.only(top: 16, right: 8),
+          padding: const EdgeInsets.only(top: 14, right: 8),
           child: InkWell(
             onTap: _toggleView,
             borderRadius: BorderRadius.circular(20),

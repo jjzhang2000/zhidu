@@ -421,7 +421,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 8, top: 16),
+            padding: const EdgeInsets.only(left: 8, top: 14),
             child: InkWell(
               onTap: () {
                 setState(() {
