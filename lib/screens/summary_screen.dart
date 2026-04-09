@@ -136,12 +136,20 @@ class _SummaryScreenState extends State<SummaryScreen> {
       _summary = summary;
     });
 
-    // 如果没有摘要且内容足够长，自动生成
-    if (summary == null &&
-        !_contentTooShort &&
-        _content.isNotEmpty &&
-        _aiService.isConfigured) {
-      _generateSummary();
+    // 如果没有摘要
+    if (summary == null) {
+      // AI服务未配置：显示原文，禁用AI按钮
+      if (!_aiService.isConfigured) {
+        setState(() {
+          _showOriginalText = true;
+        });
+        return;
+      }
+
+      // 内容足够长：自动生成摘要
+      if (!_contentTooShort && _content.isNotEmpty) {
+        _generateSummary();
+      }
     }
   }
 
@@ -427,6 +435,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildSummaryView() {
+    // 判断AI按钮是否应该禁用
+    final bool aiButtonDisabled = (_contentTooShort && _showOriginalText) ||
+        (!_aiService.isConfigured && _showOriginalText && _summary == null);
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -435,7 +447,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 14),
             child: InkWell(
-              onTap: _contentTooShort && _showOriginalText
+              onTap: aiButtonDisabled
                   ? null
                   : () {
                       setState(() {
@@ -446,7 +458,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: (_contentTooShort && _showOriginalText)
+                  color: aiButtonDisabled
                       ? Colors.grey.withAlpha(30)
                       : Theme.of(context).colorScheme.primary.withAlpha(30),
                   borderRadius: BorderRadius.circular(20),
@@ -454,7 +466,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 child: Icon(
                   _showOriginalText ? Icons.auto_awesome : Icons.menu_book,
                   size: 20,
-                  color: (_contentTooShort && _showOriginalText)
+                  color: aiButtonDisabled
                       ? Colors.grey
                       : Theme.of(context).colorScheme.primary,
                 ),
