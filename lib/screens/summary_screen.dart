@@ -48,16 +48,19 @@ class _SummaryScreenState extends State<SummaryScreen> {
     if (widget.chapterContent != null && widget.chapterContent!.isNotEmpty) {
       _content = widget.chapterContent!;
       _title = widget.chapterTitle;
+      if (!mounted) return;
       setState(() => _isLoadingContent = false);
       return;
     }
 
     if (widget.filePath != null) {
+      if (!mounted) return;
       setState(() => _isLoadingContent = true);
       await _loadChapterContent();
       return;
     }
 
+    if (!mounted) return;
     setState(() {
       _error = '未提供章节内容或文件路径';
       _isLoadingContent = false;
@@ -69,6 +72,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final chapters = await _epubService.getChapterList(widget.filePath!);
 
       if (widget.chapterIndex < 0 || widget.chapterIndex >= chapters.length) {
+        if (!mounted) return;
         setState(() {
           _error = '章节索引超出范围: ${widget.chapterIndex}';
           _isLoadingContent = false;
@@ -85,6 +89,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       );
 
       if (html == null || html.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _error = '章节内容为空';
           _isLoadingContent = false;
@@ -92,11 +97,13 @@ class _SummaryScreenState extends State<SummaryScreen> {
         return;
       }
 
+      if (!mounted) return;
       setState(() {
         _content = html;
         _isLoadingContent = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = '加载章节内容失败: $e';
         _isLoadingContent = false;
@@ -107,6 +114,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   Future<void> _loadSummary() async {
     final summary =
         await _summaryService.getSummary(widget.bookId, widget.chapterIndex);
+    if (!mounted) return;
     setState(() {
       _summary = summary;
     });
@@ -127,6 +135,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
     try {
       if (widget.chapterContent == null || widget.chapterContent!.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _error = '章节内容为空，无法生成摘要\n\n可能原因：\n1. 章节文件读取失败\n2. EPUB文件格式问题';
           _isGenerating = false;
@@ -137,6 +146,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final content = _extractTextContent(widget.chapterContent!);
 
       if (content.length < 100) {
+        if (!mounted) return;
         setState(() {
           _error =
               '章节内容太短（仅 ${content.length} 个字符），无法生成摘要\n\n原始内容长度：${widget.chapterContent!.length}';
@@ -174,11 +184,13 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
         await _summaryService.saveSummary(summary);
 
+        if (!mounted) return;
         setState(() {
           _summary = summary;
           _isGenerating = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           _error =
               '生成摘要失败，AI返回内容为空\n\n可能原因：\n1. AI服务暂时不可用\n2. 内容过长或过短\n3. API配额已用完';
@@ -186,6 +198,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = '生成摘要时出错: $e';
         _isGenerating = false;
