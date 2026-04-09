@@ -25,7 +25,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   final _log = LogService();
   late Book _book;
   List<ChapterInfo> _chapters = [];
-  List<ChapterInfo> _flatChapters = [];
+  List<ChapterInfo> _flatChapters = []; // NEW: flat list for index lookup
   bool _isLoadingChapters = false;
   bool _showChapterStructure = false;
   bool _isGeneratingIntroduction = false;
