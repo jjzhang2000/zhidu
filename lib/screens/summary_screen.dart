@@ -37,7 +37,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
   bool _isLoadingContent = false;
   String _content = '';
   String _title = '';
-  bool _showOriginalText = false; // 切换摘要/原文视图
+  bool _showOriginalText = false;
+  bool _contentTooShort = false; // 切换摘要/原文视图
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     if (widget.chapterContent != null && widget.chapterContent!.isNotEmpty) {
       _content = widget.chapterContent!;
       _title = widget.chapterTitle;
+      _checkContentLength();
       if (!mounted) return;
       setState(() => _isLoadingContent = false);
       return;
@@ -67,6 +69,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
       _error = '未提供章节内容或文件路径';
       _isLoadingContent = false;
     });
+  }
+
+  void _checkContentLength() {
+    final textContent = _extractTextContent(_content);
+    _contentTooShort = textContent.length < 100;
+    if (_contentTooShort && _summary == null) {
+      _showOriginalText = true;
+    }
   }
 
   Future<void> _loadChapterContent() async {
@@ -104,6 +114,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
         _content = html;
         _isLoadingContent = false;
       });
+      _checkContentLength();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -136,25 +147,11 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
 
     try {
-      if (_content.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _error = '章节内容为空，无法生成摘要';
-          _isGenerating = false;
-        });
+      if (_content.isEmpty || _contentTooShort) {
         return;
       }
 
       final content = _extractTextContent(_content);
-
-      if (content.length < 100) {
-        if (!mounted) return;
-        setState(() {
-          _error = '章节内容太短（仅 ${content.length} 个字符），无法生成摘要';
-          _isGenerating = false;
-        });
-        return;
-      }
 
       final objectiveSummary = await _aiService.generateObjectiveSummary(
         content,
@@ -263,6 +260,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
     }
 
     if (_summary == null) {
+      if (_contentTooShort) {
+        return _buildSummaryView();
+      }
       return _buildEmptyView();
     }
 
@@ -423,22 +423,28 @@ class _SummaryScreenState extends State<SummaryScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 14),
             child: InkWell(
-              onTap: () {
-                setState(() {
-                  _showOriginalText = !_showOriginalText;
-                });
-              },
+              onTap: _contentTooShort && _showOriginalText
+                  ? null
+                  : () {
+                      setState(() {
+                        _showOriginalText = !_showOriginalText;
+                      });
+                    },
               borderRadius: BorderRadius.circular(20),
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withAlpha(30),
+                  color: (_contentTooShort && _showOriginalText)
+                      ? Colors.grey.withAlpha(30)
+                      : Theme.of(context).colorScheme.primary.withAlpha(30),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Icon(
                   _showOriginalText ? Icons.auto_awesome : Icons.menu_book,
                   size: 20,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: (_contentTooShort && _showOriginalText)
+                      ? Colors.grey
+                      : Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
