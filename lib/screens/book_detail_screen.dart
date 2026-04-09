@@ -45,7 +45,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       final chapters =
           await _epubService.getHierarchicalChapterList(_book.filePath);
 
-      final flatChapters = await _epubService.getChapterList(_book.filePath);
+      final flatChapters = _flattenChapters(chapters);
 
       if (mounted) {
         setState(() {
@@ -62,6 +62,17 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         });
       }
     }
+  }
+
+  List<ChapterInfo> _flattenChapters(List<ChapterInfo> chapters) {
+    final result = <ChapterInfo>[];
+    for (final chapter in chapters) {
+      result.add(chapter);
+      if (chapter.children.isNotEmpty) {
+        result.addAll(_flattenChapters(chapter.children));
+      }
+    }
+    return result;
   }
 
   void _toggleView() {
