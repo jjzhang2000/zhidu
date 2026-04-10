@@ -701,9 +701,76 @@ class EpubService {
       }
 
       final archive = ZipDecoder().decodeBytes(bytes);
+      final chaptersFromNcx = _extractChapterInfosFromNcxArchive(archive);
+      if (chaptersFromNcx.isNotEmpty) {
+        return chaptersFromNcx;
+      }
       return _extractChapterInfosFromArchive(archive);
     } catch (e) {
       _log.e('EpubService', '获取章节列表失败', e);
+      return [];
+    }
+  }
+
+  List<ChapterInfo> _extractChapterInfosFromNcxArchive(Archive archive) {
+    try {
+      ArchiveFile? ncxFile;
+      for (final file in archive.files) {
+        if (file.name.toLowerCase().endsWith('.ncx')) {
+          ncxFile = file;
+          break;
+        }
+      }
+
+      if (ncxFile == null) {
+        return [];
+      }
+
+      final content = utf8.decode(ncxFile.content as List<int>);
+      final document = XmlDocument.parse(content);
+      final allNavPoints = document.findAllElements('navPoint');
+
+      final chapters = <ChapterInfo>[];
+
+      void parseNavPoints(Iterable<XmlElement> points) {
+        for (final navPoint in points) {
+          final textElements = navPoint
+                  .findElements('navLabel')
+                  .firstOrNull
+                  ?.findElements('text') ??
+              [];
+          final contentElements = navPoint.findElements('content');
+
+          if (textElements.isNotEmpty) {
+            final title = textElements.first.innerText.trim();
+            final href = contentElements.isNotEmpty
+                ? contentElements.first.getAttribute('src')
+                : null;
+
+            if (title.isNotEmpty) {
+              chapters.add(ChapterInfo(
+                title: title,
+                href: href,
+                level: 0,
+                children: [],
+              ));
+            }
+          }
+
+          final childNavPoints = navPoint.findElements('navPoint');
+          if (childNavPoints.isNotEmpty) {
+            parseNavPoints(childNavPoints);
+          }
+        }
+      }
+
+      if (allNavPoints.isNotEmpty) {
+        parseNavPoints(allNavPoints);
+      }
+
+      return chapters;
+    } catch (e) {
+      _log.e('EpubService', '从archive解析toc.ncx失败', e);
       return [];
     }
   }
@@ -866,8 +933,15 @@ class EpubService {
         _log.e('EpubService', 'EpubReader解析失败，使用archive回退方案', e);
       }
 
-      // 回退方案：使用archive解析，但返回扁平化结构作为备选
+      // 回退方案：使用archive解析，优先从toc.ncx提取
       final archive = ZipDecoder().decodeBytes(bytes);
+      final chaptersFromNcx = _extractChapterInfosFromNcxArchive(archive);
+
+      if (chaptersFromNcx.isNotEmpty) {
+        return chaptersFromNcx;
+      }
+
+      // 如果toc.ncx解析失败，使用文件名排序作为最终回退
       final flatChapters = _extractChapterInfosFromArchive(archive);
 
       // 将扁平化章节转换为层级化结构（所有章节都设为同一层级）
@@ -876,7 +950,7 @@ class EpubService {
         hierarchicalChapters.add(ChapterInfo(
           title: chapter.title,
           href: chapter.href,
-          level: 0, // 设为顶层
+          level: 0,
           children: [],
         ));
       }

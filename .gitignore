@@ -36,15 +36,14 @@ ai_config.json
 /logs/
 /books.json
 
-# Build scripts and temporary files
-#
-*.bat
+# Build outputs
 *.log
-*.dll
-*_output.txt
-build_runner.log
+build_output.txt
+msbuild_output.txt
+run_output.txt
 
-# Flutter plugins dependencies (auto-generated)
-#
-.flutter-plugins
-.flutter-plugins-dependencies
+# SQLite DLL
+sqlite3.dll
+
+# Test
+/test/
