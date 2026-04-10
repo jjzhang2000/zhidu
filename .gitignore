@@ -35,3 +35,16 @@ ai_config.json
 /Covers/
 /logs/
 /books.json
+
+# Build scripts and temporary files
+#
+*.bat
+*.log
+*.dll
+*_output.txt
+build_runner.log
+
+# Flutter plugins dependencies (auto-generated)
+#
+.flutter-plugins
+.flutter-plugins-dependencies

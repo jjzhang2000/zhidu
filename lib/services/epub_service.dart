@@ -828,12 +828,43 @@ class EpubService {
 
       final bytes = await file.readAsBytes();
 
-      try {
+try {
         final epubBook = await EpubReader.readBook(bytes);
 
-        if (epubBook.chapters?.isNotEmpty == true) {
-          return _extractHierarchicalChapterInfos(epubBook.chapters!);
+        _log.d('EpubService', 'EPUB解析成功');
+
+        // 优先从 toc.ncx (navigation) 提取章节顺序
+        if (epubBook.schema?.navigation?.navMap != null &&
+            epubBook.schema!.navigation!.navMap!.points.isNotEmpty) {
+          _log.d('EpubService', '从 toc.ncx (navigation) 提取章节列表');
+          final chapters = _extractChapterInfosFromNavigation(
+              epubBook.schema!.navigation!.navMap!.points);
+          if (chapters.isNotEmpty) {
+            return chapters;
+          }
         }
+
+        // 如果没有 navigation，尝试从 chapters 提取
+        if (epubBook.chapters.isNotEmpty) {
+          _log.d('EpubService', '从 epubBook.chapters 提取章节列表');
+          final chapters = _extractChapterInfos(epubBook.chapters);
+          if (chapters.isNotEmpty) {
+            return chapters;
+          }
+        }
+
+        // 最后尝试从 content 提取
+        if (epubBook.content?.html?.isNotEmpty == true) {
+          _log.d('EpubService', '从 content.html 提取章节列表');
+          final chapters = _extractChapterInfosFromContent(
+              epubBook.content!.html!, epubBook.schema?.package?.spine?.items);
+          if (chapters.isNotEmpty) {
+            return chapters;
+          }
+        }
+      } catch (e) {
+        _log.e('EpubService', 'EpubReader解析失败，使用archive回退方案', e);
+      }
       } catch (e) {
         _log.e('EpubService', '使用EpubReader获取层级章节失败', e);
         _log.d('EpubService', '尝试使用archive回退方案...');
