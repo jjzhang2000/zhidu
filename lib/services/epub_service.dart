@@ -728,11 +728,14 @@ class EpubService {
 
       final content = utf8.decode(ncxFile.content as List<int>);
       final document = XmlDocument.parse(content);
-      final allNavPoints = document.findAllElements('navPoint');
+      final navMap = document.findAllElements('navMap').firstOrNull;
 
-      final chapters = <ChapterInfo>[];
+      if (navMap == null) {
+        return [];
+      }
 
-      void parseNavPoints(Iterable<XmlElement> points) {
+      List<ChapterInfo> parseNavPoints(Iterable<XmlElement> points, int level) {
+        final result = <ChapterInfo>[];
         for (final navPoint in points) {
           final textElements = navPoint
                   .findElements('navLabel')
@@ -748,27 +751,25 @@ class EpubService {
                 : null;
 
             if (title.isNotEmpty) {
-              chapters.add(ChapterInfo(
+              final childNavPoints = navPoint.findElements('navPoint');
+              final children = childNavPoints.isNotEmpty
+                  ? parseNavPoints(childNavPoints, level + 1)
+                  : <ChapterInfo>[];
+
+              result.add(ChapterInfo(
                 title: title,
                 href: href,
-                level: 0,
-                children: [],
+                level: level,
+                children: children,
               ));
             }
           }
-
-          final childNavPoints = navPoint.findElements('navPoint');
-          if (childNavPoints.isNotEmpty) {
-            parseNavPoints(childNavPoints);
-          }
         }
+        return result;
       }
 
-      if (allNavPoints.isNotEmpty) {
-        parseNavPoints(allNavPoints);
-      }
-
-      return chapters;
+      final navPoints = navMap.findElements('navPoint');
+      return parseNavPoints(navPoints, 0);
     } catch (e) {
       _log.e('EpubService', '从archive解析toc.ncx失败', e);
       return [];

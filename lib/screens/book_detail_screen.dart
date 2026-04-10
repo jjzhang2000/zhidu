@@ -26,7 +26,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   final _log = LogService();
   late Book _book;
   List<ChapterInfo> _chapters = [];
-  List<ChapterInfo> _flatChapters = []; // NEW: flat list for index lookup
+  List<ChapterInfo> _flatChapters = [];
+  Map<ChapterInfo, int> _chapterToIndex = {};
   bool _isLoadingChapters = false;
   bool _showChapterStructure = false;
   bool _isGeneratingIntroduction = false;
@@ -47,12 +48,13 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       final chapters =
           await _epubService.getHierarchicalChapterList(_book.filePath);
 
-      final flatChapters = _flattenChapters(chapters);
+      _chapters = chapters;
+      _flatChapters = [];
+      _chapterToIndex = {};
+      _flattenChaptersWithIndex(chapters);
 
       if (mounted) {
         setState(() {
-          _chapters = chapters;
-          _flatChapters = flatChapters;
           _isLoadingChapters = false;
         });
       }
@@ -94,15 +96,14 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     });
   }
 
-  List<ChapterInfo> _flattenChapters(List<ChapterInfo> chapters) {
-    final result = <ChapterInfo>[];
+  void _flattenChaptersWithIndex(List<ChapterInfo> chapters) {
     for (final chapter in chapters) {
-      result.add(chapter);
+      _chapterToIndex[chapter] = _flatChapters.length;
+      _flatChapters.add(chapter);
       if (chapter.children.isNotEmpty) {
-        result.addAll(_flattenChapters(chapter.children));
+        _flattenChaptersWithIndex(chapter.children);
       }
     }
-    return result;
   }
 
   void _toggleView() {
@@ -515,18 +516,13 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           onTap: () {
-            if (_flatChapters.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('章节列表未加载完成')),
-              );
-              return;
-            }
-
-            final index = _flatChapters.indexWhere(
-              (c) => c.title == chapter.title,
-            );
-
-            if (index < 0) {
+            _log.d('BookDetailScreen', '点击章节: ${chapter.title}');
+            _log.d('BookDetailScreen',
+                '_flatChapters.length: ${_flatChapters.length}');
+            _log.d('BookDetailScreen',
+                '_chapterToIndex[chapter]: ${_chapterToIndex[chapter]}');
+            final index = _chapterToIndex[chapter];
+            if (index == null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('无法找到章节：${chapter.title}')),
               );
@@ -541,6 +537,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   chapterIndex: index,
                   chapterTitle: chapter.title,
                   filePath: _book.filePath,
+                  chapters: _chapters,
                 ),
               ),
             );

@@ -5,6 +5,7 @@ import '../models/chapter_summary.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import '../services/epub_service.dart';
+import '../services/log_service.dart';
 
 class SummaryScreen extends StatefulWidget {
   final String bookId;
@@ -12,6 +13,7 @@ class SummaryScreen extends StatefulWidget {
   final String chapterTitle;
   final String? chapterContent;
   final String? filePath;
+  final List<ChapterInfo>? chapters;
 
   const SummaryScreen({
     super.key,
@@ -20,6 +22,7 @@ class SummaryScreen extends StatefulWidget {
     required this.chapterTitle,
     this.chapterContent,
     this.filePath,
+    this.chapters,
   });
 
   @override
@@ -28,6 +31,7 @@ class SummaryScreen extends StatefulWidget {
 
 class _SummaryScreenState extends State<SummaryScreen> {
   final _aiService = AIService();
+  final _log = LogService();
   final _summaryService = SummaryService();
   final _epubService = EpubService();
 
@@ -85,12 +89,34 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   Future<void> _loadChapterContent() async {
     try {
-      final chapters = await _epubService.getChapterList(widget.filePath!);
+      List<ChapterInfo> chapters = widget.chapters ?? [];
+      if (chapters.isEmpty && widget.filePath != null) {
+        chapters =
+            await _epubService.getHierarchicalChapterList(widget.filePath!);
+      }
 
-      if (widget.chapterIndex < 0 || widget.chapterIndex >= chapters.length) {
+      // 将层级章节展平
+      final flatChapters = <ChapterInfo>[];
+      void flatten(List<ChapterInfo> list) {
+        for (final c in list) {
+          flatChapters.add(c);
+          if (c.children.isNotEmpty) {
+            flatten(c.children);
+          }
+        }
+      }
+
+      flatten(chapters);
+
+      _log.d('SummaryScreen',
+          '章节总数: ${flatChapters.length}, 请求索引: ${widget.chapterIndex}');
+
+      if (widget.chapterIndex < 0 ||
+          widget.chapterIndex >= flatChapters.length) {
         if (!mounted) return;
         setState(() {
-          _error = '章节索引超出范围: ${widget.chapterIndex}';
+          _error =
+              '章节索引超出范围: ${widget.chapterIndex}, 总章节数: ${flatChapters.length}';
           _isLoadingContent = false;
         });
         return;
