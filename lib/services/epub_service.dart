@@ -828,7 +828,7 @@ class EpubService {
 
       final bytes = await file.readAsBytes();
 
-try {
+      try {
         final epubBook = await EpubReader.readBook(bytes);
 
         _log.d('EpubService', 'EPUB解析成功');
@@ -864,10 +864,6 @@ try {
         }
       } catch (e) {
         _log.e('EpubService', 'EpubReader解析失败，使用archive回退方案', e);
-      }
-      } catch (e) {
-        _log.e('EpubService', '使用EpubReader获取层级章节失败', e);
-        _log.d('EpubService', '尝试使用archive回退方案...');
       }
 
       // 回退方案：使用archive解析，但返回扁平化结构作为备选
