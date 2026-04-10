@@ -226,6 +226,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   String _extractTextContent(String htmlContent) {
     final text = htmlContent
+        .replaceAll(RegExp(r'<img[^>]*>', caseSensitive: false), '')
+        .replaceAll(
+            RegExp(r'<audio[^>]*>[\s\S]*?</audio>', caseSensitive: false), '')
+        .replaceAll(
+            RegExp(r'<video[^>]*>[\s\S]*?</video>', caseSensitive: false), '')
+        .replaceAll(
+            RegExp(r'<iframe[^>]*>[\s\S]*?</iframe>', caseSensitive: false), '')
+        .replaceAll(
+            RegExp(r'<object[^>]*>[\s\S]*?</object>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<embed[^>]*>', caseSensitive: false), '')
         .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();

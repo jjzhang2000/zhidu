@@ -339,7 +339,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: Text(
-        _showToc ? '目录' : widget.book.title,
+        _showToc
+            ? '目录'
+            : (_chapters.isNotEmpty && _currentChapterIndex < _chapters.length
+                ? _chapters[_currentChapterIndex].title
+                : widget.book.title),
         overflow: TextOverflow.ellipsis,
       ),
       centerTitle: true,
@@ -662,8 +666,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '第 ${_currentChapterIndex + 1} / ${_chapters.length} 章',
+                  _chapters.isNotEmpty &&
+                          _currentChapterIndex < _chapters.length
+                      ? _chapters[_currentChapterIndex].title
+                      : '第 ${_currentChapterIndex + 1} 章',
                   style: const TextStyle(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 const SizedBox(height: 4),
                 LinearProgressIndicator(
