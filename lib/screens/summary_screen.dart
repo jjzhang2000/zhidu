@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import '../models/chapter_summary.dart';
@@ -122,13 +123,19 @@ class _SummaryScreenState extends State<SummaryScreen> {
         return;
       }
 
-      final chapter = chapters[widget.chapterIndex];
+      final chapter = flatChapters[widget.chapterIndex];
       _title = chapter.title;
 
-      final html = await _epubService.getChapterHtml(
-        widget.filePath!,
-        widget.chapterIndex,
-      );
+      // 直接从archive获取章节内容
+      String? html;
+      try {
+        if (chapter.href != null) {
+          html = await _epubService.getChapterContentFromHref(
+              widget.filePath!, chapter.href!);
+        }
+      } catch (e) {
+        _log.e('SummaryScreen', '获取章节内容失败', e);
+      }
 
       if (html == null || html.isEmpty) {
         if (!mounted) return;
@@ -141,7 +148,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
       if (!mounted) return;
       setState(() {
-        _content = html;
+        _content = html ?? '';
         _isLoadingContent = false;
       });
       _checkContentLength();

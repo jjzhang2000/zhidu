@@ -1187,6 +1187,20 @@ class EpubService {
     }
   }
 
+  Future<String?> getChapterContentFromHref(
+      String filePath, String href) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return null;
+
+      final bytes = await file.readAsBytes();
+      return await _getChapterHtmlFromArchive(bytes, href);
+    } catch (e) {
+      _log.e('EpubService', 'getChapterContentFromHref 失败', e);
+      return null;
+    }
+  }
+
   Future<String?> _getChapterHtmlFromArchive(
       Uint8List bytes, String href) async {
     try {
