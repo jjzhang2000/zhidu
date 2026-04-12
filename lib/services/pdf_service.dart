@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:pdfrx/pdfrx.dart';
 import '../models/book.dart';
 
@@ -18,7 +19,7 @@ class PdfService {
       final title = fileName.substring(0, fileName.lastIndexOf('.'));
 
       // 检测章节结构
-      final chapters = _detectChapters(document);
+      final chapters = await _detectChapters(document);
 
       await document.dispose();
 
@@ -40,25 +41,71 @@ class PdfService {
   }
 
   /// 检测PDF中的章节结构
-  List<PdfChapter> _detectChapters(PdfDocument document) {
+  Future<List<PdfChapter>> _detectChapters(PdfDocument document) async {
     final chapters = <PdfChapter>[];
     final totalPages = document.pages.length;
 
-    // 简单的章节检测：假设每10页为一个章节（后续可改进）
-    const pagesPerChapter = 10;
-    final totalChapters = (totalPages / pagesPerChapter).ceil();
+    // 收集所有页面的文本内容
+    final pageContents = <String>[];
+    for (int i = 0; i < totalPages; i++) {
+      final page = document.pages[i];
+      final pageText = await page.loadText();
+      pageContents.add(pageText.fullText);
+    }
 
-    for (int i = 0; i < totalChapters; i++) {
-      final startPage = i * pagesPerChapter + 1;
-      final endPage = (i + 1) * pagesPerChapter < totalPages
-          ? (i + 1) * pagesPerChapter
-          : totalPages;
+    // 章节标题正则表达式模式
+    final patterns = [
+      r'第[一二三四五六七八九十百]+章',
+      r'第\d+章',
+      r'Chapter\s+\d+',
+      r'CHAPTER\s+\d+',
+      r'^\d+\.\s+[A-Za-z]',
+      r'^[A-Z][a-z]+\s+\d+',
+    ];
+
+    final chapterBoundaries = <int>[0]; // 章节起始页面索引
+
+    // 检测章节边界
+    for (int i = 0; i < pageContents.length; i++) {
+      final content = pageContents[i];
+      for (final pattern in patterns) {
+        final regex = RegExp(pattern, multiLine: true);
+        if (regex.hasMatch(content)) {
+          chapterBoundaries.add(i);
+          break;
+        }
+      }
+    }
+
+    // 添加最后一页作为边界
+    if (chapterBoundaries.last != totalPages - 1) {
+      chapterBoundaries.add(totalPages - 1);
+    }
+
+    // 创建章节对象
+    for (int i = 0; i < chapterBoundaries.length - 1; i++) {
+      final startIndex = chapterBoundaries[i];
+      final endIndex = chapterBoundaries[i + 1];
+
+      // 尝试从页面内容中提取章节标题
+      String chapterTitle = '第${i + 1}章';
+      if (startIndex < pageContents.length) {
+        final firstPageContent = pageContents[startIndex];
+        for (final pattern in patterns) {
+          final regex = RegExp(pattern, multiLine: true);
+          final match = regex.firstMatch(firstPageContent);
+          if (match != null) {
+            chapterTitle = match.group(0) ?? chapterTitle;
+            break;
+          }
+        }
+      }
 
       chapters.add(PdfChapter(
         index: i,
-        title: '第${i + 1}章',
-        startPage: startPage,
-        endPage: endPage,
+        title: chapterTitle,
+        startPage: startIndex + 1,
+        endPage: endIndex + 1,
       ));
     }
 
@@ -84,6 +131,27 @@ class PdfService {
 
     await document.dispose();
     return pages;
+  }
+
+  /// 获取指定章节的页面范围
+  Future<List<int>> getChapterPageRange(
+      String filePath, int chapterIndex) async {
+    final file = File(filePath);
+    final bytes = await file.readAsBytes();
+    final document = await PdfDocument.openData(bytes);
+
+    final chapters = await _detectChapters(document);
+    await document.dispose();
+
+    if (chapterIndex < chapters.length) {
+      final chapter = chapters[chapterIndex];
+      return List.generate(
+        chapter.endPage - chapter.startPage + 1,
+        (index) => chapter.startPage + index,
+      );
+    }
+
+    return [1]; // 默认返回第一页
   }
 
   /// 获取指定页面的内容
