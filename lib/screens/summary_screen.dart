@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../models/chapter_summary.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
@@ -45,12 +45,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
   String _title = '';
   bool _showOriginalText = false;
   bool _contentTooShort = false; // 切换摘要/原文视图
+  List<ChapterInfo> _chapters = [];
 
   @override
   void initState() {
     super.initState();
+    // 只保留第一级章节
+    if (widget.chapters != null) {
+      _chapters = widget.chapters!.where((c) => c.level == 0).toList();
+    }
     _initializeContent().then((_) {
-      // 内容加载完成后再加载摘要，这样可以正确判断是否需要自动生成
       _loadSummary();
     });
   }
@@ -92,38 +96,31 @@ class _SummaryScreenState extends State<SummaryScreen> {
     try {
       List<ChapterInfo> chapters = widget.chapters ?? [];
       if (chapters.isEmpty && widget.filePath != null) {
-        chapters =
+        final allChapters =
             await _epubService.getHierarchicalChapterList(widget.filePath!);
+        // 只取第一级章节
+        chapters = allChapters.where((c) => c.level == 0).toList();
       }
 
-      // 将层级章节展平
-      final flatChapters = <ChapterInfo>[];
-      void flatten(List<ChapterInfo> list) {
-        for (final c in list) {
-          flatChapters.add(c);
-          if (c.children.isNotEmpty) {
-            flatten(c.children);
-          }
-        }
-      }
-
-      flatten(chapters);
+      // 只取第一级章节
+      final topLevelChapters = chapters.where((c) => c.level == 0).toList();
+      _chapters = topLevelChapters;
 
       _log.d('SummaryScreen',
-          '章节总数: ${flatChapters.length}, 请求索引: ${widget.chapterIndex}');
+          '第一级章节总数: ${topLevelChapters.length}, 请求索引: ${widget.chapterIndex}');
 
       if (widget.chapterIndex < 0 ||
-          widget.chapterIndex >= flatChapters.length) {
+          widget.chapterIndex >= topLevelChapters.length) {
         if (!mounted) return;
         setState(() {
           _error =
-              '章节索引超出范围: ${widget.chapterIndex}, 总章节数: ${flatChapters.length}';
+              '章节索引超出范围: ${widget.chapterIndex}, 总章节数: ${topLevelChapters.length}';
           _isLoadingContent = false;
         });
         return;
       }
 
-      final chapter = flatChapters[widget.chapterIndex];
+      final chapter = topLevelChapters[widget.chapterIndex];
       _title = chapter.title;
 
       // 直接从archive获取章节内容
@@ -162,6 +159,33 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Future<void> _loadSummary() async {
+    final generatingFuture =
+        _summaryService.getGeneratingFuture(widget.bookId, widget.chapterIndex);
+
+    if (generatingFuture != null) {
+      _log.d('SummaryScreen', '章节摘要正在后台生成中，等待完成');
+      setState(() {
+        _isGenerating = true;
+      });
+      try {
+        await generatingFuture;
+        if (!mounted) return;
+        final summary = await _summaryService.getSummary(
+            widget.bookId, widget.chapterIndex);
+        setState(() {
+          _summary = summary;
+          _isGenerating = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _error = '生成摘要失败: $e';
+          _isGenerating = false;
+        });
+      }
+      return;
+    }
+
     final summary =
         await _summaryService.getSummary(widget.bookId, widget.chapterIndex);
     if (!mounted) return;
@@ -169,9 +193,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       _summary = summary;
     });
 
-    // 如果没有摘要
     if (summary == null) {
-      // AI服务未配置：显示原文，禁用AI按钮
       if (!_aiService.isConfigured) {
         setState(() {
           _showOriginalText = true;
@@ -179,7 +201,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
         return;
       }
 
-      // 内容足够长：自动生成摘要
       if (!_contentTooShort && _content.isNotEmpty) {
         _generateSummary();
       }
@@ -194,57 +215,36 @@ class _SummaryScreenState extends State<SummaryScreen> {
       return;
     }
 
+    if (_content.isEmpty || _contentTooShort) {
+      return;
+    }
+
     setState(() {
       _isGenerating = true;
       _error = null;
     });
 
     try {
-      if (_content.isEmpty || _contentTooShort) {
-        return;
-      }
-
       final content = _extractTextContent(_content);
-
-      final objectiveSummary = await _aiService.generateObjectiveSummary(
+      final success = await _summaryService.generateSingleSummary(
+        widget.bookId,
+        widget.chapterIndex,
+        widget.chapterTitle,
         content,
-        chapterTitle: widget.chapterTitle,
       );
 
-      final aiInsight = await _aiService.generateAIInsight(
-        content,
-        chapterTitle: widget.chapterTitle,
-      );
+      if (!mounted) return;
 
-      // 检查AI返回的内容是否为空或只有空白
-      final effectiveObjective =
-          (objectiveSummary?.trim().isEmpty ?? true) ? null : objectiveSummary;
-      final effectiveInsight =
-          (aiInsight?.trim().isEmpty ?? true) ? null : aiInsight;
-
-      if (effectiveObjective != null || effectiveInsight != null) {
-        final summary = ChapterSummary(
-          bookId: widget.bookId,
-          chapterIndex: widget.chapterIndex,
-          chapterTitle: widget.chapterTitle,
-          objectiveSummary: effectiveObjective ?? '生成失败',
-          aiInsight: effectiveInsight ?? '生成失败',
-          keyPoints: _extractKeyPoints(effectiveObjective),
-          createdAt: DateTime.now(),
-        );
-
-        await _summaryService.saveSummary(summary);
-
-        if (!mounted) return;
+      if (success) {
+        final summary = await _summaryService.getSummary(
+            widget.bookId, widget.chapterIndex);
         setState(() {
           _summary = summary;
           _isGenerating = false;
         });
       } else {
-        if (!mounted) return;
         setState(() {
-          _error =
-              '生成摘要失败，AI返回内容为空\n\n可能原因：\n1. AI服务暂时不可用\n2. 内容过长或过短\n3. API配额已用完';
+          _error = '生成摘要失败';
           _isGenerating = false;
         });
       }
@@ -279,25 +279,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
     return text;
   }
 
-  List<String> _extractKeyPoints(String? summary) {
-    if (summary == null) return [];
-
-    final points = <String>[];
-    final lines = summary.split('\n');
-
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.startsWith('•') ||
-          trimmed.startsWith('-') ||
-          trimmed.startsWith('*') ||
-          RegExp(r'^\d+\.').hasMatch(trimmed)) {
-        points.add(trimmed);
-      }
-    }
-
-    return points.take(5).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -305,7 +286,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
         title: Text(_title.isNotEmpty ? _title : widget.chapterTitle),
         centerTitle: true,
       ),
-      body: _buildBody(),
+      body: Stack(
+        children: [
+          _buildBody(),
+          if (_chapters.isNotEmpty) _buildNavigationButtons(),
+        ],
+      ),
     );
   }
 
@@ -478,7 +464,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildSummaryView() {
-    // 判断AI按钮是否应该禁用
     final bool aiButtonDisabled = (_contentTooShort && _showOriginalText) ||
         (!_aiService.isConfigured && _showOriginalText && _summary == null);
 
@@ -528,145 +513,195 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildSummaryContent() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionCard(
-            title: '本章摘要',
-            icon: Icons.auto_awesome,
-            color: Colors.blue,
-            content: _summary!.objectiveSummary,
+    final htmlContent = md.markdownToHtml(_summary!.objectiveSummary);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.auto_awesome, color: Colors.blue, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          '本章摘要',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Html(
+                      data: htmlContent,
+                      style: {
+                        'body': Style(
+                          fontSize: FontSize(14),
+                          lineHeight: const LineHeight(1.6),
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'h2': Style(
+                          fontSize: FontSize(15),
+                          fontWeight: FontWeight.bold,
+                          margin: Margins.only(bottom: 8, top: 16),
+                        ),
+                        'h3': Style(
+                          fontSize: FontSize(14),
+                          fontWeight: FontWeight.bold,
+                          margin: Margins.only(bottom: 6, top: 12),
+                        ),
+                        'p': Style(
+                          fontSize: FontSize(14),
+                          lineHeight: const LineHeight(1.6),
+                          margin: Margins.only(bottom: 8),
+                        ),
+                        'ul': Style(
+                          margin: Margins.only(bottom: 8),
+                        ),
+                        'li': Style(
+                          fontSize: FontSize(14),
+                          lineHeight: const LineHeight(1.5),
+                        ),
+                        'strong': Style(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          if (_summary!.keyPoints.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildKeyPointsCard(),
-          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildOriginalTextView() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Html(
+                  data: _content,
+                  style: {
+                    'body': Style(
+                      fontSize: FontSize(16),
+                      lineHeight: const LineHeight(1.8),
+                      margin: Margins.zero,
+                      padding: HtmlPaddings.zero,
+                    ),
+                    'p': Style(
+                      margin: Margins.only(bottom: 16),
+                      lineHeight: const LineHeight(1.8),
+                    ),
+                    'h1': Style(
+                      fontSize: FontSize(20),
+                      fontWeight: FontWeight.bold,
+                      margin: Margins.only(bottom: 16, top: 24),
+                    ),
+                    'h2': Style(
+                      fontSize: FontSize(18),
+                      fontWeight: FontWeight.bold,
+                      margin: Margins.only(bottom: 14, top: 20),
+                    ),
+                    'h3': Style(
+                      fontSize: FontSize(17),
+                      fontWeight: FontWeight.bold,
+                      margin: Margins.only(bottom: 12, top: 16),
+                    ),
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildNavigationButtons() {
+    final isFirst = widget.chapterIndex <= 0;
+    final isLast = widget.chapterIndex >= _chapters.length - 1;
+
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 16,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(76),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              onPressed: isFirst
+                  ? null
+                  : () => _navigateToChapter(widget.chapterIndex - 1),
+              icon: Icon(
+                Icons.chevron_left,
+                color: isFirst ? Colors.grey.shade600 : Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(76),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              onPressed: isLast
+                  ? null
+                  : () => _navigateToChapter(widget.chapterIndex + 1),
+              icon: Icon(
+                Icons.chevron_right,
+                color: isLast ? Colors.grey.shade600 : Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildOriginalTextView() {
-    return SingleChildScrollView(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Html(
-            data: _content,
-            style: {
-              'body': Style(
-                fontSize: FontSize(16),
-                lineHeight: const LineHeight(1.8),
-                margin: Margins.zero,
-                padding: HtmlPaddings.zero,
-              ),
-              'p': Style(
-                margin: Margins.only(bottom: 16),
-                lineHeight: const LineHeight(1.8),
-              ),
-              'h1': Style(
-                fontSize: FontSize(20),
-                fontWeight: FontWeight.bold,
-                margin: Margins.only(bottom: 16, top: 24),
-              ),
-              'h2': Style(
-                fontSize: FontSize(18),
-                fontWeight: FontWeight.bold,
-                margin: Margins.only(bottom: 14, top: 20),
-              ),
-              'h3': Style(
-                fontSize: FontSize(17),
-                fontWeight: FontWeight.bold,
-                margin: Margins.only(bottom: 12, top: 16),
-              ),
-            },
-          ),
-        ),
-      ),
-    );
-  }
+  void _navigateToChapter(int index) {
+    if (index < 0 || index >= _chapters.length) return;
 
-  Widget _buildSectionCard({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required String content,
-  }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            Text(
-              content,
-              style: const TextStyle(
-                fontSize: 14,
-                height: 1.6,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKeyPointsCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.checklist, color: Colors.green[700], size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  '关键要点',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green[700],
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            ...(_summary!.keyPoints.map((point) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.check_circle_outline,
-                          size: 16, color: Colors.green[600]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          point,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                ))),
-          ],
+    final chapter = _chapters[index];
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SummaryScreen(
+          bookId: widget.bookId,
+          chapterIndex: index,
+          chapterTitle: chapter.title,
+          filePath: widget.filePath,
+          chapters: _chapters,
         ),
       ),
     );

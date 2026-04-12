@@ -24,16 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     _log.v('HomeScreen', '_HomeScreenState initState 开始执行');
     super.initState();
-    _initBookService();
-  }
-
-  Future<void> _initBookService() async {
-    _log.v('HomeScreen', '_initBookService 开始执行');
-    await _bookService.init();
-    _log.v('HomeScreen', '_initBookService 初始化完成');
-    setState(() {
-      _log.v('HomeScreen', 'setState called after book service init');
-    });
   }
 
   @override
@@ -132,17 +122,6 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
                 });
               },
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
-              );
-            },
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -341,13 +320,17 @@ class _BookCardState extends State<BookCard> {
     );
   }
 
-  void _openBook(BuildContext context) {
-    Navigator.push(
+  void _openBook(BuildContext context) async {
+    final latestBook = _bookService.getBookById(widget.book.id) ?? widget.book;
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BookDetailScreen(book: widget.book),
+        builder: (context) => BookDetailScreen(book: latestBook),
       ),
     );
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _showDeleteConfirmDialog(BuildContext context) async {
@@ -380,22 +363,5 @@ class _BookCardState extends State<BookCard> {
         );
       }
     }
-  }
-}
-
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('我的'),
-        centerTitle: true,
-      ),
-      body: const Center(
-        child: Text('个人中心功能开发中...'),
-      ),
-    );
   }
 }

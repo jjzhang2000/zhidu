@@ -37,6 +37,11 @@ class ChapterSummaries extends Table {
   TextColumn get aiInsight => text().named('ai_insight').nullable()();
   TextColumn get keyPoints => text().named('key_points').nullable()();
   IntColumn get createdAt => integer().named('created_at')();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {bookId, chapterIndex},
+      ];
 }
 
 @DataClassName('BookSummaryTable')
@@ -52,7 +57,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -61,7 +66,10 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Future migrations will be handled here
+        if (from < 2) {
+          await customStatement(
+              'CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_summary_unique ON chapter_summaries(book_id, chapter_index)');
+        }
       },
     );
   }

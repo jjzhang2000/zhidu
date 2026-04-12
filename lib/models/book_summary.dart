@@ -1,4 +1,3 @@
-
 import 'chapter_summary.dart';
 
 class BookSummary {
@@ -49,7 +48,7 @@ class BookSummary {
 
   String toMarkdown() {
     final buffer = StringBuffer();
-    
+
     buffer.writeln('---');
     buffer.writeln('title: $bookTitle');
     buffer.writeln('author: $author');
@@ -57,19 +56,19 @@ class BookSummary {
     buffer.writeln('total_chapters: $totalChapters');
     buffer.writeln('---');
     buffer.writeln();
-    
+
     for (final chapter in chapters) {
       buffer.writeln('## ${chapter.chapterTitle}');
       buffer.writeln();
-      
+
       buffer.writeln('### 客观摘要');
       buffer.writeln(chapter.objectiveSummary);
       buffer.writeln();
-      
+
       buffer.writeln('### AI见解');
       buffer.writeln(chapter.aiInsight);
       buffer.writeln();
-      
+
       if (chapter.keyPoints.isNotEmpty) {
         buffer.writeln('### 关键要点');
         for (final point in chapter.keyPoints) {
@@ -78,12 +77,7 @@ class BookSummary {
         buffer.writeln();
       }
     }
-    
-    return buffer.toString();
-  }
 
-  factory BookSummary.fromMarkdown(String markdown, String bookId) {
-    // TODO: 实现从Markdown解析
-    throw UnimplementedError('从Markdown解析功能待实现');
+    return buffer.toString();
   }
 }

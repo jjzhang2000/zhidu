@@ -133,20 +133,20 @@ class SectionSummaryService {
         '正在生成小节摘要: ${book.title} - 章$chapterIndex - 节$sectionIndex');
 
     try {
-      final fullSummary = await _aiService.generateFullChapterSummary(
+      final markdownSummary = await _aiService.generateFullChapterSummary(
         content,
         chapterTitle: sectionTitle,
       );
 
-      if (fullSummary != null) {
+      if (markdownSummary != null) {
         final summary = SectionSummary(
           bookId: book.id,
           chapterIndex: chapterIndex,
           sectionIndex: sectionIndex,
           sectionTitle: sectionTitle,
-          objectiveSummary: fullSummary['objectiveSummary'] ?? '',
-          aiInsight: fullSummary['aiInsight'] ?? '',
-          keyPoints: List<String>.from(fullSummary['keyPoints'] ?? []),
+          objectiveSummary: markdownSummary,
+          aiInsight: '',
+          keyPoints: [],
           createdAt: DateTime.now(),
         );
         await saveSectionSummary(summary);

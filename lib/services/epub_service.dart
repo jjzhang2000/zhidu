@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'dart:convert';
 import 'package:archive/archive.dart';
 import 'package:epub_plus/epub_plus.dart';
-import 'package:image/image.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:xml/xml.dart';
@@ -623,40 +622,6 @@ class EpubService {
     return null;
   }
 
-  Future<EpubBook?> loadEpubBook(String filePath) async {
-    _log.v('EpubService', 'loadEpubBook 开始执行, filePath: $filePath');
-    try {
-      final file = File(filePath);
-      if (!await file.exists()) {
-        _log.v('EpubService', 'loadEpubBook 文件不存在, filePath: $filePath');
-        return null;
-      }
-
-      final bytes = await file.readAsBytes();
-      _log.v(
-          'EpubService', 'loadEpubBook 读取文件完成, bytes length: ${bytes.length}');
-      final result = await EpubReader.readBook(bytes);
-      _log.v('EpubService', 'loadEpubBook EPUB解析完成');
-      return result;
-    } catch (e) {
-      _log.e('EpubService', '加载EPUB文件失败', e);
-      return null;
-    }
-  }
-
-  Future<EpubBook?> loadEpubFromBytes(Uint8List bytes) async {
-    _log.v(
-        'EpubService', 'loadEpubFromBytes 开始执行, bytes length: ${bytes.length}');
-    try {
-      final result = await EpubReader.readBook(bytes);
-      _log.v('EpubService', 'loadEpubFromBytes 执行完成');
-      return result;
-    } catch (e) {
-      _log.e('EpubService', '从字节加载EPUB失败', e);
-      return null;
-    }
-  }
-
   Future<List<ChapterInfo>> getChapterList(String filePath) async {
     _log.v('EpubService', 'getChapterList 开始执行, filePath: $filePath');
     try {
@@ -983,43 +948,6 @@ class EpubService {
 
     traverseChapters(chapters, 0);
     return result;
-  }
-
-  List<ChapterInfo> _extractHierarchicalChapterInfos(
-      List<EpubChapter> chapters) {
-    final result = <ChapterInfo>[];
-
-    for (final chapter in chapters) {
-      final children = chapter.subChapters?.isNotEmpty == true
-          ? _extractHierarchicalChapterInfos(chapter.subChapters!)
-          : <ChapterInfo>[];
-
-      result.add(ChapterInfo(
-        title: chapter.title ?? '未知章节',
-        href: chapter.contentFileName,
-        level: 0, // 顶层章节
-        children: children,
-      ));
-    }
-
-    return result;
-  }
-
-  // 将层级化的章节列表扁平化（用于兼容现有代码）
-  List<ChapterInfo> flattenChapters(List<ChapterInfo> hierarchicalChapters) {
-    final flat = <ChapterInfo>[];
-
-    void flatten(List<ChapterInfo> chapters) {
-      for (final chapter in chapters) {
-        flat.add(chapter);
-        if (chapter.children.isNotEmpty) {
-          flatten(chapter.children);
-        }
-      }
-    }
-
-    flatten(hierarchicalChapters);
-    return flat;
   }
 
   List<ChapterInfo> _extractChapterInfosFromArchive(Archive archive) {

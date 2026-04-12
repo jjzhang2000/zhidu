@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../services/epub_service.dart' show EpubService, ChapterInfo;
@@ -30,16 +33,25 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   Map<ChapterInfo, int> _chapterToIndex = {};
   bool _isLoadingChapters = false;
   bool _showChapterStructure = false;
-  bool _isGeneratingIntroduction = false;
   bool _isPreGenerating = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _book = widget.book;
+    _book = _bookService.getBookById(widget.book.id) ?? widget.book;
     _loadChapters();
-    _loadOrGenerateIntroduction();
     _startPreGeneration();
+    // 定时刷新书籍信息，检测全书摘要是否生成完成
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _refreshBookIfNeeded();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadChapters() async {
@@ -86,8 +98,14 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     Future(() async {
       try {
         _log.d('BookDetailScreen', '开始后台预生成章节摘要');
+
+        // 先刷新一次，因为 generateSummariesForBook 可能在前台已完成前言摘要
+        _refreshBookIfNeeded();
+
         await _summaryService.generateSummariesForBook(_book);
         _log.d('BookDetailScreen', '后台预生成章节摘要完成');
+
+        _refreshBookIfNeeded();
       } catch (e, stackTrace) {
         _log.e('BookDetailScreen', '后台预生成章节摘要失败', e, stackTrace);
       } finally {
@@ -106,65 +124,23 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     }
   }
 
+  void _refreshBookIfNeeded() {
+    final refreshedBook = _bookService.getBookById(_book.id);
+    if (refreshedBook != null && mounted) {
+      if (refreshedBook.aiIntroduction != _book.aiIntroduction) {
+        setState(() {
+          _book = refreshedBook;
+        });
+      } else {
+        _book = refreshedBook;
+      }
+    }
+  }
+
   void _toggleView() {
     setState(() {
       _showChapterStructure = !_showChapterStructure;
     });
-  }
-
-  /// 加载或生成书籍介绍
-  Future<void> _loadOrGenerateIntroduction() async {
-    // 如果已有介绍，直接显示
-    if (_book.aiIntroduction != null && _book.aiIntroduction!.isNotEmpty) {
-      return;
-    }
-
-    // 检查AI服务是否配置
-    if (!_aiService.isConfigured) {
-      return;
-    }
-
-    setState(() {
-      _isGeneratingIntroduction = true;
-    });
-
-    try {
-      // 提取前言内容
-      final prefaceContent =
-          await _epubService.extractPrefaceContent(_book.filePath);
-
-      // 生成书籍介绍
-      final introduction = await _aiService.generateBookIntroduction(
-        title: _book.title,
-        author: _book.author,
-        prefaceContent: prefaceContent,
-        totalChapters: _book.totalChapters,
-      );
-
-      if (introduction != null && introduction.isNotEmpty) {
-        // 更新书籍对象
-        final updatedBook = _book.copyWith(aiIntroduction: introduction);
-        await _bookService.updateBook(updatedBook);
-
-        if (mounted) {
-          setState(() {
-            _book = updatedBook;
-            _isGeneratingIntroduction = false;
-          });
-        }
-      } else if (mounted) {
-        setState(() {
-          _isGeneratingIntroduction = false;
-        });
-      }
-    } catch (e, stackTrace) {
-      _log.e('BookDetailScreen', '生成书籍介绍失败', e, stackTrace);
-      if (mounted) {
-        setState(() {
-          _isGeneratingIntroduction = false;
-        });
-      }
-    }
   }
 
   @override
@@ -224,7 +200,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildInfoChip(Icons.menu_book, '${_book.totalChapters} 章'),
+                  _buildInfoChip(Icons.menu_book,
+                      _isLoadingChapters ? '加载中...' : '${_chapters.length} 章'),
                   _buildInfoChip(
                       Icons.calendar_today, _formatDate(_book.addedAt)),
                 ],
@@ -373,33 +350,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   }
 
   Widget _buildAIIntroductionContent() {
-    // 正在生成中
-    if (_isGeneratingIntroduction) {
-      return Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '正在生成内容介绍...',
-              style: TextStyle(
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 没有介绍且AI未配置
+    // 没有全书摘要
     if (_book.aiIntroduction == null || _book.aiIntroduction!.isEmpty) {
       return Center(
         child: Column(
@@ -412,67 +363,58 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              _aiService.isConfigured ? '暂无内容介绍' : 'AI服务未配置，无法生成介绍',
+              _aiService.isConfigured ? '全书摘要生成中，请稍候...' : 'AI服务未配置，无法生成全书摘要',
               style: TextStyle(
                 color: Colors.grey[600],
                 fontSize: 14,
               ),
+              textAlign: TextAlign.center,
             ),
-            if (_aiService.isConfigured) ...[
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: _loadOrGenerateIntroduction,
-                icon: const Icon(Icons.auto_awesome, size: 18),
-                label: const Text('生成介绍'),
-              ),
-            ],
           ],
         ),
       );
     }
 
-    // 显示介绍内容
+    // 显示全书摘要（Markdown渲染）
+    final htmlContent = md.markdownToHtml(_book.aiIntroduction!);
     return SingleChildScrollView(
-      child: InkWell(
-        onTap: () {
-          if (_flatChapters.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('章节列表未加载完成')),
-            );
-            return;
-          }
-
-          // Determine chapter index
-          final targetIndex =
-              _book.currentChapter >= 1 ? _book.currentChapter : 0;
-
-          if (targetIndex >= _flatChapters.length) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('章节索引超出范围')),
-            );
-            return;
-          }
-
-          final chapter = _flatChapters[targetIndex];
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SummaryScreen(
-                bookId: _book.id,
-                chapterIndex: targetIndex,
-                chapterTitle: chapter.title,
-                filePath: _book.filePath,
-              ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Html(
+          data: htmlContent,
+          style: {
+            'body': Style(
+              fontSize: FontSize(14),
+              lineHeight: const LineHeight(1.6),
+              margin: Margins.zero,
+              padding: HtmlPaddings.zero,
             ),
-          );
-        },
-        child: Text(
-          _book.aiIntroduction!,
-          style: const TextStyle(
-            fontSize: 14,
-            height: 1.6,
-          ),
+            'h2': Style(
+              fontSize: FontSize(16),
+              fontWeight: FontWeight.bold,
+              margin: Margins.only(bottom: 8, top: 16),
+            ),
+            'h3': Style(
+              fontSize: FontSize(15),
+              fontWeight: FontWeight.bold,
+              margin: Margins.only(bottom: 6, top: 12),
+            ),
+            'p': Style(
+              fontSize: FontSize(14),
+              lineHeight: const LineHeight(1.6),
+              margin: Margins.only(bottom: 8),
+            ),
+            'ul': Style(
+              margin: Margins.only(bottom: 8),
+            ),
+            'li': Style(
+              fontSize: FontSize(14),
+              lineHeight: const LineHeight(1.5),
+            ),
+            'strong': Style(
+              fontWeight: FontWeight.bold,
+            ),
+          },
         ),
       ),
     );
@@ -509,39 +451,43 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
           contentPadding: EdgeInsets.only(left: depth * 16.0),
           title: Text(
             chapter.title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
+              color: depth == 0 ? null : Colors.grey[600],
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          onTap: () {
-            _log.d('BookDetailScreen', '点击章节: ${chapter.title}');
-            _log.d('BookDetailScreen',
-                '_flatChapters.length: ${_flatChapters.length}');
-            _log.d('BookDetailScreen',
-                '_chapterToIndex[chapter]: ${_chapterToIndex[chapter]}');
-            final index = _chapterToIndex[chapter];
-            if (index == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('无法找到章节：${chapter.title}')),
-              );
-              return;
-            }
+          onTap: depth == 0
+              ? () {
+                  _log.d('BookDetailScreen', '点击章节: ${chapter.title}');
+                  final index = _chapterToIndex[chapter];
+                  if (index == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('无法找到章节：${chapter.title}')),
+                    );
+                    return;
+                  }
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SummaryScreen(
-                  bookId: _book.id,
-                  chapterIndex: index,
-                  chapterTitle: chapter.title,
-                  filePath: _book.filePath,
-                  chapters: _chapters,
-                ),
-              ),
-            );
-          },
+                  // 只传递第一级章节
+                  final topLevelChapters =
+                      _flatChapters.where((c) => c.level == 0).toList();
+                  final topLevelIndex = topLevelChapters.indexOf(chapter);
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SummaryScreen(
+                        bookId: _book.id,
+                        chapterIndex: topLevelIndex,
+                        chapterTitle: chapter.title,
+                        filePath: _book.filePath,
+                        chapters: topLevelChapters,
+                      ),
+                    ),
+                  );
+                }
+              : null,
         ),
       );
       // 递归添加子章节
