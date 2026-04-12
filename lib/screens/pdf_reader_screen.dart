@@ -22,7 +22,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   late Book _book;
   late int _chapterIndex;
   late int _currentPage;
-  String _pageContent = '';
+  late PageController _pageController;
+  List<String> _pageContents = [];
   bool _isLoading = true;
 
   @override
@@ -31,36 +32,49 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     _book = widget.book;
     _chapterIndex = widget.chapterIndex;
     _currentPage = widget.currentPage;
-    _loadPageContent();
+    _pageController = PageController(initialPage: _currentPage - 1);
+    _loadChapterPages();
   }
 
-  Future<void> _loadPageContent() async {
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadChapterPages() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final pageContent =
-          await PdfService().getPageContent(_book.filePath, _currentPage);
+      // 获取当前章节的所有页面
+      final pageRange =
+          await PdfService().getChapterPageRange(_book.filePath, _chapterIndex);
+
+      final contents = <String>[];
+      for (final pageNumber in pageRange) {
+        final pageContent =
+            await PdfService().getPageContent(_book.filePath, pageNumber);
+        contents.add(pageContent.content);
+      }
+
       setState(() {
-        _pageContent = pageContent.content;
+        _pageContents = contents;
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _pageContent = '加载页面失败: $e';
+        _pageContents = ['加载章节失败: $e'];
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _navigateToPage(int pageNumber) async {
-    if (pageNumber < 1 || pageNumber > 1000) return; // TODO: 获取实际总页数
-
+  void _onPageChanged(int pageIndex) {
     setState(() {
-      _currentPage = pageNumber;
+      _currentPage = pageIndex + 1;
     });
-    await _loadPageContent();
   }
 
   Future<void> _navigateToChapter(int chapterIndex) async {
@@ -69,7 +83,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       _chapterIndex = chapterIndex;
       _currentPage = 1; // 章节的第一页
     });
-    await _loadPageContent();
+    await _loadChapterPages();
   }
 
   @override
@@ -81,14 +95,21 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  _pageContent,
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
+          : PageView.builder(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              itemCount: _pageContents.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      _pageContents[index],
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                );
+              },
             ),
       bottomNavigationBar: BottomAppBar(
         child: Row(
@@ -101,13 +122,27 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => _navigateToPage(_currentPage - 1),
+              onPressed: () {
+                if (_currentPage > 1) {
+                  _pageController.previousPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }
+              },
               tooltip: '前一页',
             ),
-            Text('第$_currentPage页'),
+            Text('第$_currentPage页 / ${_pageContents.length}'),
             IconButton(
               icon: const Icon(Icons.arrow_forward),
-              onPressed: () => _navigateToPage(_currentPage + 1),
+              onPressed: () {
+                if (_currentPage < _pageContents.length) {
+                  _pageController.nextPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                }
+              },
               tooltip: '后一页',
             ),
             IconButton(
