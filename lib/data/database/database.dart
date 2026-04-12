@@ -14,6 +14,8 @@ class Books extends Table {
   TextColumn get author => text()();
   TextColumn get filePath => text().named('file_path')();
   TextColumn get coverPath => text().named('cover_path').nullable()();
+  TextColumn get format =>
+      text().withDefault(const Constant('epub'))(); // 添加format字段
   IntColumn get currentChapter =>
       integer().named('current_chapter').withDefault(const Constant(0))();
   RealColumn get readingProgress =>
@@ -22,6 +24,9 @@ class Books extends Table {
   TextColumn get aiIntroduction => text().named('ai_introduction').nullable()();
   IntColumn get totalChapters =>
       integer().named('total_chapters').withDefault(const Constant(0))();
+  IntColumn get addedAt => integer()
+      .named('added_at')
+      .withDefault(const Constant(0))(); // 添加addedAt字段
 
   @override
   Set<Column> get primaryKey => {id};
@@ -57,7 +62,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3; // 增加版本号
 
   @override
   MigrationStrategy get migration {
@@ -69,6 +74,13 @@ class AppDatabase extends _$AppDatabase {
         if (from < 2) {
           await customStatement(
               'CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_summary_unique ON chapter_summaries(book_id, chapter_index)');
+        }
+        if (from < 3) {
+          // 添加format和addedAt字段
+          await customStatement(
+              'ALTER TABLE books ADD COLUMN format TEXT DEFAULT \'epub\'');
+          await customStatement(
+              'ALTER TABLE books ADD COLUMN added_at INTEGER DEFAULT 0');
         }
       },
     );

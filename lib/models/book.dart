@@ -1,4 +1,3 @@
-
 class Book {
   final String id;
   final String title;
@@ -84,7 +83,7 @@ class Book {
       filePath: json['filePath'],
       format: BookFormat.values.firstWhere(
         (e) => e.name == json['format'],
-        orElse: () => BookFormat.pdf,
+        orElse: () => BookFormat.epub,
       ),
       totalChapters: json['totalChapters'] ?? 0,
       currentChapter: json['currentChapter'] ?? 0,
