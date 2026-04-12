@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import '../data/database/database.dart';
 import '../models/book.dart';
 import 'epub_service.dart';
+import 'pdf_service.dart';
 import 'log_service.dart';
 
 class BookService {
@@ -13,6 +14,7 @@ class BookService {
 
   late final AppDatabase _db;
   final _epubService = EpubService();
+  final _pdfService = PdfService();
   final _log = LogService();
 
   List<Book> _books = [];
@@ -36,8 +38,8 @@ class BookService {
       _log.d('BookService', '开始导入书籍...');
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['epub'],
-        dialogTitle: '选择EPUB电子书',
+        allowedExtensions: ['epub', 'pdf'],
+        dialogTitle: '选择电子书',
       );
 
       if (result == null || result.files.isEmpty) {
@@ -62,6 +64,10 @@ class BookService {
         _log.d('BookService', '开始解析EPUB...');
         book = await _epubService.parseEpubFile(filePath);
         _log.d('BookService', 'EPUB解析结果: ${book?.title ?? "失败"}');
+      } else if (extension == '.pdf') {
+        _log.d('BookService', '开始解析PDF...');
+        book = await _pdfService.parsePdfFile(filePath);
+        _log.d('BookService', 'PDF解析结果: ${book?.title ?? "失败"}');
       } else {
         _log.w('BookService', '不支持的文件格式: $extension');
         return null;
