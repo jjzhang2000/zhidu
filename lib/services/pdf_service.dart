@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/book.dart';
 
 class PdfService {
@@ -21,6 +23,9 @@ class PdfService {
       // 检测章节结构
       final chapters = await _detectChapters(document);
 
+      // 提取封面（使用第一页作为封面）
+      final String? coverPath = await _extractCover(document, title);
+
       await document.dispose();
 
       return Book(
@@ -28,6 +33,7 @@ class PdfService {
         title: title,
         author: 'Unknown',
         filePath: filePath,
+        coverPath: coverPath,
         format: BookFormat.pdf,
         totalChapters: chapters.length,
         currentChapter: 0,
@@ -38,6 +44,14 @@ class PdfService {
       print('Error parsing PDF: $e');
       return null;
     }
+  }
+
+  /// 提取PDF封面（PDF通常没有内置封面，返回null让UI显示默认封面）
+  Future<String?> _extractCover(PdfDocument document, String bookTitle) async {
+    // PDF文件通常没有像EPUB那样的独立封面图片
+    // 第一页通常包含内容而非专门的封面设计
+    // 因此返回null，让UI层使用默认封面占位图
+    return null;
   }
 
   /// 检测PDF中的章节结构
@@ -117,14 +131,15 @@ class PdfService {
       String filePath, int chapterIndex) async {
     final document = await PdfDocument.openFile(filePath);
 
-    // 这里需要根据实际的章节检测逻辑获取页面范围
-    // 暂时返回所有页面（后续完善）
+    // 获取章节的页面范围
+    final pageRange = await getChapterPageRange(filePath, chapterIndex);
+
     final pages = <PdfPageContent>[];
-    for (int i = 0; i < document.pages.length; i++) {
-      final page = document.pages[i];
+    for (final pageNumber in pageRange) {
+      final page = document.pages[pageNumber - 1];
       final pageText = await page.loadText();
       pages.add(PdfPageContent(
-        pageNumber: i + 1,
+        pageNumber: pageNumber,
         content: pageText.fullText,
       ));
     }

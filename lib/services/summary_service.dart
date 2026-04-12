@@ -7,6 +7,7 @@ import '../models/book.dart';
 import 'ai_service.dart';
 import 'book_service.dart';
 import 'epub_service.dart';
+import 'pdf_service.dart';
 import 'log_service.dart';
 
 class SummaryService {
@@ -17,6 +18,7 @@ class SummaryService {
   late final AppDatabase _db;
   final _aiService = AIService();
   final _epubService = EpubService();
+  final _pdfService = PdfService();
   final _bookService = BookService();
   final _log = LogService();
 
@@ -165,6 +167,154 @@ class SummaryService {
     return null;
   }
 
+  /// 为PDF书籍生成摘要
+  Future<void> _generateSummariesForPdf(Book book) async {
+    _log.d('SummaryService', '开始为PDF书籍生成摘要: ${book.title}');
+
+    try {
+      // 获取PDF文档
+      final pages = await _pdfService.getChapterPages(book.filePath, 0);
+      if (pages.isEmpty) {
+        _log.w('SummaryService', 'PDF书籍内容为空，无法生成摘要');
+        return;
+      }
+
+      // 检测章节
+      final chapterBoundaries = <int>[0];
+      final patterns = [
+        r'第[一二三四五六七八九十百]+章',
+        r'第\d+章',
+        r'Chapter\s+\d+',
+        r'CHAPTER\s+\d+',
+      ];
+
+      // 遍历所有页面，检测章节边界
+      for (int i = 0; i < pages.length; i++) {
+        final content = pages[i].content;
+        for (final pattern in patterns) {
+          final regex = RegExp(pattern, multiLine: true);
+          if (regex.hasMatch(content)) {
+            chapterBoundaries.add(i);
+            break;
+          }
+        }
+      }
+
+      // 添加最后一页作为边界
+      if (chapterBoundaries.last != pages.length - 1) {
+        chapterBoundaries.add(pages.length - 1);
+      }
+
+      _log.d(
+          'SummaryService', 'PDF章节检测完成，共 ${chapterBoundaries.length - 1} 个章节');
+
+      // 为每个章节生成摘要
+      for (int i = 0; i < chapterBoundaries.length - 1; i++) {
+        final startPage = chapterBoundaries[i];
+        final endPage = chapterBoundaries[i + 1];
+
+        if (await hasSummary(book.id, i)) {
+          _log.d('SummaryService', 'PDF章节 $i 已有摘要，跳过');
+          continue;
+        }
+
+        final key = _key(book.id, i);
+        if (_generatingKeys.contains(key)) {
+          _log.d('SummaryService', 'PDF章节 $i 正在生成中，跳过');
+          continue;
+        }
+
+        // 收集该章节的所有页面内容
+        final chapterContent = <String>[];
+        for (int p = startPage; p <= endPage && p < pages.length; p++) {
+          chapterContent.add(pages[p].content);
+        }
+        final content = chapterContent.join('\n\n');
+
+        if (content.isEmpty) {
+          _log.w('SummaryService', 'PDF章节 $i 内容为空，跳过');
+          continue;
+        }
+
+        _generatingKeys.add(key);
+        try {
+          final markdownSummary = await _aiService.generateFullChapterSummary(
+            content,
+            chapterTitle: '第${i + 1}章',
+          );
+
+          if (markdownSummary != null) {
+            final chapterSummary = ChapterSummary(
+              bookId: book.id,
+              chapterIndex: i,
+              chapterTitle: '第${i + 1}章',
+              objectiveSummary: markdownSummary,
+              aiInsight: '',
+              keyPoints: [],
+              createdAt: DateTime.now(),
+            );
+            await saveSummary(chapterSummary);
+            _log.d('SummaryService', 'PDF章节 $i 摘要已保存');
+          }
+        } finally {
+          _generatingKeys.remove(key);
+        }
+
+        await Future.delayed(const Duration(seconds: 1));
+      }
+
+      // 生成全书摘要（使用前几章的内容）
+      if (book.aiIntroduction == null || book.aiIntroduction!.isEmpty) {
+        await _generatePdfBookSummary(book, pages);
+      }
+
+      _log.d('SummaryService', 'PDF书籍所有摘要生成完成: ${book.title}');
+    } catch (e) {
+      _log.e('SummaryService', '生成PDF摘要失败', e);
+    }
+  }
+
+  /// 为PDF书籍生成全书摘要（使用前几页的内容）
+  Future<void> _generatePdfBookSummary(
+      Book book, List<PdfPageContent> pages) async {
+    try {
+      // 收集前30页的内容作为全书摘要的基础
+      final contentLimit = 15000; // 限制字符数
+      final contents = <String>[];
+      var charCount = 0;
+
+      for (int i = 0; i < pages.length && charCount < contentLimit; i++) {
+        final pageContent = pages[i].content;
+        if (pageContent.isNotEmpty) {
+          contents.add(pageContent);
+          charCount += pageContent.length;
+        }
+      }
+
+      final combinedContent = contents.join('\n\n');
+      if (combinedContent.isEmpty) {
+        _log.w('SummaryService', 'PDF书籍内容为空，无法生成全书摘要');
+        return;
+      }
+
+      // 使用generateFullChapterSummary方法生成全书摘要
+      final bookSummary = await _aiService.generateFullChapterSummary(
+        combinedContent,
+        chapterTitle: book.title,
+      );
+
+      if (bookSummary != null) {
+        final updatedBook = book.copyWith(
+          aiIntroduction: bookSummary,
+        );
+        await _bookService.updateBook(updatedBook);
+        _log.d('SummaryService', 'PDF书籍全文摘要已保存: ${book.title}');
+      }
+    } catch (e) {
+      _log.e('SummaryService', '生成PDF全书摘要失败', e);
+    }
+  }
+
   Future<void> generateSummariesForBook(Book book) async {
     if (!_aiService.isConfigured) {
       _log.w('SummaryService', 'AI服务未配置，跳过章节摘要生成');
@@ -176,6 +326,13 @@ class SummaryService {
         'SummaryService', '开始为书籍生成章节摘要: ${book.title}, 已有摘要: $existingCount');
 
     try {
+      // 根据书籍格式选择不同的处理方式
+      if (book.format == BookFormat.pdf) {
+        await _generateSummariesForPdf(book);
+        return;
+      }
+
+      // EPUB处理逻辑
       final hierarchicalChapters =
           await _epubService.getHierarchicalChapterList(book.filePath);
 
