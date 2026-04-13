@@ -1,26 +1,29 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:drift/drift.dart';
-import '../data/database/database.dart';
+import 'dart:io';
+import 'package:path/path.dart' as p;
 import '../models/chapter_summary.dart';
 import '../models/book.dart';
+import '../models/chapter.dart';
 import 'ai_service.dart';
 import 'book_service.dart';
 import 'epub_service.dart';
 import 'pdf_service.dart';
 import 'log_service.dart';
+import 'parsers/format_registry.dart';
+import 'storage_config.dart';
+import 'file_storage_service.dart';
 
 class SummaryService {
   static final SummaryService _instance = SummaryService._internal();
   factory SummaryService() => _instance;
   SummaryService._internal();
 
-  late final AppDatabase _db;
   final _aiService = AIService();
   final _epubService = EpubService();
   final _pdfService = PdfService();
   final _bookService = BookService();
   final _log = LogService();
+  final _fileStorage = FileStorageService();
 
   final Set<String> _generatingKeys = {};
   final Map<String, Future<void>> _generatingFutures = {};
@@ -36,537 +39,446 @@ class SummaryService {
   }
 
   Future<void> init() async {
-    _db = AppDatabase();
+    // 文件存储无需初始化
+    _log.d('SummaryService', '文件存储模式，无需初始化');
   }
 
   Future<ChapterSummary?> getSummary(String bookId, int chapterIndex) async {
     _log.v('SummaryService',
         'getSummary 开始执行, bookId: $bookId, chapterIndex: $chapterIndex');
 
-    final tables = await (_db.select(_db.chapterSummaries)
-          ..where((s) =>
-              s.bookId.equals(bookId) & s.chapterIndex.equals(chapterIndex)))
-        .get();
+    try {
+      final filePath =
+          await StorageConfig.getChapterSummaryPath(bookId, chapterIndex);
+      final content = await _fileStorage.readText(filePath);
 
-    if (tables.isEmpty) {
-      _log.v('SummaryService', 'getSummary 加载完成, result: 空');
+      if (content == null || content.isEmpty) {
+        _log.v('SummaryService', 'getSummary 加载完成, result: 空');
+        return null;
+      }
+
+      final summary = ChapterSummary(
+        bookId: bookId,
+        chapterIndex: chapterIndex,
+        chapterTitle: '', // 章节标题在读取时会从章节列表获取
+        objectiveSummary: content,
+        aiInsight: '',
+        keyPoints: [],
+        createdAt: DateTime.now(),
+      );
+
+      _log.v('SummaryService', 'getSummary 加载完成, result: 有内容');
+      return summary;
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'getSummary 失败', e, stackTrace);
       return null;
     }
-
-    if (tables.length > 1) {
-      _log.w('SummaryService', '发现重复记录: ${tables.length}条，保留最新');
-      final latest = tables.reduce((a, b) => a.createdAt > b.createdAt ? a : b);
-      final result = _tableToChapterSummary(latest);
-      return result;
-    }
-
-    final result = _tableToChapterSummary(tables.first);
-    _log.v('SummaryService', 'getSummary 加载完成, result: 有内容');
-    return result;
   }
 
   Future<void> saveSummary(ChapterSummary summary) async {
-    await _db.into(_db.chapterSummaries).insert(
-          _chapterSummaryToCompanion(summary),
-          mode: InsertMode.insertOrReplace,
-        );
-    _log.d(
-        'SummaryService', '摘要已保存: ${summary.bookId}_${summary.chapterIndex}');
+    try {
+      final filePath = await StorageConfig.getChapterSummaryPath(
+          summary.bookId, summary.chapterIndex);
+      await _fileStorage.writeText(filePath, summary.objectiveSummary);
+      _log.d(
+          'SummaryService', '摘要已保存: ${summary.bookId}_${summary.chapterIndex}');
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'saveSummary 失败', e, stackTrace);
+    }
   }
 
   Future<void> deleteSummary(String bookId, int chapterIndex) async {
-    await (_db.delete(_db.chapterSummaries)
-          ..where((s) =>
-              s.bookId.equals(bookId) & s.chapterIndex.equals(chapterIndex)))
-        .go();
-  }
-
-  Future<void> deleteAllSummariesForBook(String bookId) async {
-    await (_db.delete(_db.chapterSummaries)
-          ..where((s) => s.bookId.equals(bookId)))
-        .go();
-    await (_db.delete(_db.bookSummaries)..where((s) => s.bookId.equals(bookId)))
-        .go();
-  }
-
-  Future<bool> hasSummary(String bookId, int chapterIndex) async {
-    final summary = await getSummary(bookId, chapterIndex);
-    return summary != null;
-  }
-
-  Future<int> getSummaryCount(String bookId) async {
-    final summaries = await (_db.select(_db.chapterSummaries)
-          ..where((s) => s.bookId.equals(bookId)))
-        .get();
-    return summaries.length;
+    try {
+      final filePath =
+          await StorageConfig.getChapterSummaryPath(bookId, chapterIndex);
+      await _fileStorage.deleteFile(filePath);
+      _log.d('SummaryService', '摘要已删除: ${bookId}_$chapterIndex');
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'deleteSummary 失败', e, stackTrace);
+    }
   }
 
   Future<List<ChapterSummary>> getSummariesForBook(String bookId) async {
-    final tables = await (_db.select(_db.chapterSummaries)
-          ..where((s) => s.bookId.equals(bookId))
-          ..orderBy([(s) => OrderingTerm(expression: s.chapterIndex)]))
-        .get();
-    return tables.map(_tableToChapterSummary).toList();
-  }
-
-  Future<List<ChapterSummary>> getAllSummaries() async {
-    final tables = await _db.select(_db.chapterSummaries).get();
-    return tables.map(_tableToChapterSummary).toList();
-  }
-
-  ChapterSummary _tableToChapterSummary(ChapterSummaryTable table) {
-    return ChapterSummary(
-      bookId: table.bookId,
-      chapterIndex: table.chapterIndex,
-      chapterTitle: table.chapterTitle,
-      objectiveSummary: table.objectiveSummary,
-      aiInsight: table.aiInsight ?? '',
-      keyPoints: table.keyPoints != null
-          ? List<String>.from(jsonDecode(table.keyPoints!))
-          : [],
-      createdAt: DateTime.fromMillisecondsSinceEpoch(table.createdAt),
-    );
-  }
-
-  ChapterSummariesCompanion _chapterSummaryToCompanion(ChapterSummary model) {
-    return ChapterSummariesCompanion(
-      bookId: Value(model.bookId),
-      chapterIndex: Value(model.chapterIndex),
-      chapterTitle: Value(model.chapterTitle),
-      objectiveSummary: Value(model.objectiveSummary),
-      aiInsight: Value(model.aiInsight),
-      keyPoints: Value(jsonEncode(model.keyPoints)),
-      createdAt: Value(model.createdAt.millisecondsSinceEpoch),
-    );
-  }
-
-  int? _findPrefaceChapter(List<ChapterInfo> chapters) {
-    final prefaceKeywords = [
-      '前言',
-      '序言',
-      '序',
-      '自序',
-      '代序',
-      '引言',
-      '导言',
-      '导读',
-      'preface',
-      'foreword',
-      'introduction',
-      'prologue',
-    ];
-
-    for (int i = 0; i < chapters.length; i++) {
-      final title = chapters[i].title.toLowerCase();
-      for (final keyword in prefaceKeywords) {
-        if (title.contains(keyword.toLowerCase())) {
-          return i;
-        }
-      }
-    }
-    return null;
-  }
-
-  /// 为PDF书籍生成摘要
-  Future<void> _generateSummariesForPdf(Book book) async {
-    _log.d('SummaryService', '开始为PDF书籍生成摘要: ${book.title}');
-
     try {
-      // 获取PDF文档
-      final pages = await _pdfService.getChapterPages(book.filePath, 0);
-      if (pages.isEmpty) {
-        _log.w('SummaryService', 'PDF书籍内容为空，无法生成摘要');
-        return;
-      }
+      final bookDir = await StorageConfig.getBookDirectory(bookId);
+      final files =
+          await _fileStorage.listFiles(bookDir.path, extension: '.md');
 
-      // 检测章节
-      final chapterBoundaries = <int>[0];
-      final patterns = [
-        r'第[一二三四五六七八九十百]+章',
-        r'第\d+章',
-        r'Chapter\s+\d+',
-        r'CHAPTER\s+\d+',
-      ];
+      final summaries = <ChapterSummary>[];
 
-      // 遍历所有页面，检测章节边界
-      for (int i = 0; i < pages.length; i++) {
-        final content = pages[i].content;
-        for (final pattern in patterns) {
-          final regex = RegExp(pattern, multiLine: true);
-          if (regex.hasMatch(content)) {
-            chapterBoundaries.add(i);
-            break;
+      for (final file in files) {
+        final filename = p.basename(file.path);
+        if (filename.startsWith('chapter-') && filename.endsWith('.md')) {
+          final indexStr = filename.substring(8, 11); // chapter-000.md -> 000
+          final index = int.tryParse(indexStr);
+          if (index != null) {
+            final content = await _fileStorage.readText(file.path);
+            if (content != null && content.isNotEmpty) {
+              final lastModified = await file.lastModified();
+              summaries.add(ChapterSummary(
+                bookId: bookId,
+                chapterIndex: index,
+                chapterTitle: '',
+                objectiveSummary: content,
+                aiInsight: '',
+                keyPoints: [],
+                createdAt: lastModified,
+              ));
+            }
           }
         }
       }
 
-      // 添加最后一页作为边界
-      if (chapterBoundaries.last != pages.length - 1) {
-        chapterBoundaries.add(pages.length - 1);
-      }
-
-      _log.d(
-          'SummaryService', 'PDF章节检测完成，共 ${chapterBoundaries.length - 1} 个章节');
-
-      // 为每个章节生成摘要
-      for (int i = 0; i < chapterBoundaries.length - 1; i++) {
-        final startPage = chapterBoundaries[i];
-        final endPage = chapterBoundaries[i + 1];
-
-        if (await hasSummary(book.id, i)) {
-          _log.d('SummaryService', 'PDF章节 $i 已有摘要，跳过');
-          continue;
-        }
-
-        final key = _key(book.id, i);
-        if (_generatingKeys.contains(key)) {
-          _log.d('SummaryService', 'PDF章节 $i 正在生成中，跳过');
-          continue;
-        }
-
-        // 收集该章节的所有页面内容
-        final chapterContent = <String>[];
-        for (int p = startPage; p <= endPage && p < pages.length; p++) {
-          chapterContent.add(pages[p].content);
-        }
-        final content = chapterContent.join('\n\n');
-
-        if (content.isEmpty) {
-          _log.w('SummaryService', 'PDF章节 $i 内容为空，跳过');
-          continue;
-        }
-
-        _generatingKeys.add(key);
-        try {
-          final markdownSummary = await _aiService.generateFullChapterSummary(
-            content,
-            chapterTitle: '第${i + 1}章',
-          );
-
-          if (markdownSummary != null) {
-            final chapterSummary = ChapterSummary(
-              bookId: book.id,
-              chapterIndex: i,
-              chapterTitle: '第${i + 1}章',
-              objectiveSummary: markdownSummary,
-              aiInsight: '',
-              keyPoints: [],
-              createdAt: DateTime.now(),
-            );
-            await saveSummary(chapterSummary);
-            _log.d('SummaryService', 'PDF章节 $i 摘要已保存');
-          }
-        } finally {
-          _generatingKeys.remove(key);
-        }
-
-        await Future.delayed(const Duration(seconds: 1));
-      }
-
-      // 生成全书摘要（使用前几章的内容）
-      if (book.aiIntroduction == null || book.aiIntroduction!.isEmpty) {
-        await _generatePdfBookSummary(book, pages);
-      }
-
-      _log.d('SummaryService', 'PDF书籍所有摘要生成完成: ${book.title}');
-    } catch (e) {
-      _log.e('SummaryService', '生成PDF摘要失败', e);
+      // 按章节索引排序
+      summaries.sort((a, b) => a.chapterIndex.compareTo(b.chapterIndex));
+      return summaries;
+    } catch (e, stackTrace) {
+      _log.e(
+          'SummaryService', 'getSummariesForBook 失败: $bookId', e, stackTrace);
+      return [];
     }
   }
 
-  /// 为PDF书籍生成全书摘要（使用前几页的内容）
-  Future<void> _generatePdfBookSummary(
-      Book book, List<PdfPageContent> pages) async {
+  Future<String?> getBookSummary(String bookId) async {
     try {
-      // 收集前30页的内容作为全书摘要的基础
-      final contentLimit = 15000; // 限制字符数
-      final contents = <String>[];
-      var charCount = 0;
+      final filePath = await StorageConfig.getBookSummaryPath(bookId);
+      return await _fileStorage.readText(filePath);
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'getBookSummary 失败: $bookId', e, stackTrace);
+      return null;
+    }
+  }
 
-      for (int i = 0; i < pages.length && charCount < contentLimit; i++) {
-        final pageContent = pages[i].content;
-        if (pageContent.isNotEmpty) {
-          contents.add(pageContent);
-          charCount += pageContent.length;
-        }
-      }
+  Future<void> saveBookSummary(String bookId, String summary) async {
+    try {
+      final filePath = await StorageConfig.getBookSummaryPath(bookId);
+      await _fileStorage.writeText(filePath, summary);
+      _log.d('SummaryService', '书籍摘要已保存: $bookId');
 
-      final combinedContent = contents.join('\n\n');
-      if (combinedContent.isEmpty) {
-        _log.w('SummaryService', 'PDF书籍内容为空，无法生成全书摘要');
-        return;
-      }
-
-      // 使用generateFullChapterSummary方法生成全书摘要
-      final bookSummary = await _aiService.generateFullChapterSummary(
-        combinedContent,
-        chapterTitle: book.title,
-      );
-
-      if (bookSummary != null) {
-        final updatedBook = book.copyWith(
-          aiIntroduction: bookSummary,
-        );
+      // 同时更新书籍元数据中的aiIntroduction
+      final book = _bookService.getBookById(bookId);
+      if (book != null) {
+        final updatedBook = book.copyWith(aiIntroduction: summary);
         await _bookService.updateBook(updatedBook);
-        _log.d('SummaryService', 'PDF书籍全文摘要已保存: ${book.title}');
       }
-    } catch (e) {
-      _log.e('SummaryService', '生成PDF全书摘要失败', e);
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'saveBookSummary 失败: $bookId', e, stackTrace);
     }
   }
 
-  Future<void> generateSummariesForBook(Book book) async {
-    if (!_aiService.isConfigured) {
-      _log.w('SummaryService', 'AI服务未配置，跳过章节摘要生成');
-      return;
-    }
-
-    final existingCount = await getSummaryCount(book.id);
-    _log.d(
-        'SummaryService', '开始为书籍生成章节摘要: ${book.title}, 已有摘要: $existingCount');
-
-    try {
-      // 根据书籍格式选择不同的处理方式
-      if (book.format == BookFormat.pdf) {
-        await _generateSummariesForPdf(book);
-        return;
-      }
-
-      // EPUB处理逻辑
-      final hierarchicalChapters =
-          await _epubService.getHierarchicalChapterList(book.filePath);
-
-      // 只取第一级章节
-      final topLevelChapters =
-          hierarchicalChapters.where((c) => c.level == 0).toList();
-      _log.d('SummaryService',
-          '全部章节 ${hierarchicalChapters.length} 个，第一级章节 ${topLevelChapters.length} 个');
-      for (int i = 0; i < hierarchicalChapters.length; i++) {
-        _log.d('SummaryService',
-            '  章节[$i] level=${hierarchicalChapters[i].level} title="${hierarchicalChapters[i].title}"');
-      }
-
-      // 检测是否有前言章节（在全部章节中搜索，不仅限第一级）
-      final prefaceIndex = _findPrefaceChapter(topLevelChapters);
-      _log.d('SummaryService', '第一级章节中前言检测结果: prefaceIndex=$prefaceIndex');
-
-      // 如果第一级没找到，在全部章节中搜索
-      final prefaceIndexAll =
-          prefaceIndex ?? _findPrefaceChapter(hierarchicalChapters);
-      _log.d('SummaryService', '全部章节中前言检测结果: prefaceIndexAll=$prefaceIndexAll');
-
-      // 如果有前言且书籍没有介绍，直接从前言生成全书摘要
-      if (prefaceIndexAll != null &&
-          (book.aiIntroduction == null || book.aiIntroduction!.isEmpty)) {
-        _log.d('SummaryService', '发现前言章节 $prefaceIndexAll，直接生成全书摘要');
-        await _generateBookSummaryFromPreface(
-            book, hierarchicalChapters[prefaceIndexAll]);
-      }
-
-      for (int i = 0; i < topLevelChapters.length; i++) {
-        final chapter = topLevelChapters[i];
-
-        if (await hasSummary(book.id, i)) {
-          _log.d('SummaryService', '章节 $i 已有摘要，跳过');
-          continue;
-        }
-
-        final key = _key(book.id, i);
-        if (_generatingKeys.contains(key)) {
-          _log.d('SummaryService', '章节 $i 正在生成中，跳过');
-          continue;
-        }
-
-        _generatingKeys.add(key);
-        final future = _doGenerateChapterSummary(book, chapter, i);
-        _generatingFutures[key] = future;
-        try {
-          await future;
-        } finally {
-          _generatingKeys.remove(key);
-          _generatingFutures.remove(key);
-        }
-
-        await Future.delayed(const Duration(seconds: 1));
-      }
-
-      // 如果没有前言，所有章节摘要生成完成后，生成全书摘要
-      if (prefaceIndexAll == null &&
-          (book.aiIntroduction == null || book.aiIntroduction!.isEmpty)) {
-        final topLevelWithIndex = topLevelChapters
-            .asMap()
-            .entries
-            .map((e) => _ChapterWithIndex(e.value, e.key))
-            .toList();
-        await _generateBookSummary(book, topLevelWithIndex);
-      }
-
-      _log.d('SummaryService', '书籍所有摘要生成完成: ${book.title}');
-    } catch (e) {
-      _log.e('SummaryService', '生成章节摘要失败', e);
-    }
-  }
-
-  Future<bool> generateSingleSummary(String bookId, int chapterIndex,
-      String chapterTitle, String content) async {
-    if (!_aiService.isConfigured) {
-      _log.w('SummaryService', 'AI服务未配置，无法生成摘要');
-      return false;
-    }
-
+  Future<bool> generateSingleSummary(
+    String bookId,
+    int chapterIndex,
+    String chapterTitle,
+    String content,
+  ) async {
     final key = _key(bookId, chapterIndex);
-    if (_generatingKeys.contains(key)) {
-      _log.d('SummaryService', '章节 $chapterIndex 正在生成中，跳过');
-      return false;
-    }
 
-    if (await hasSummary(bookId, chapterIndex)) {
-      _log.d('SummaryService', '章节 $chapterIndex 已有摘要，跳过');
-      return true;
+    if (_generatingKeys.contains(key)) {
+      _log.d('SummaryService', '摘要生成中，跳过重复请求: $key');
+      return false;
     }
 
     _generatingKeys.add(key);
+
     final completer = Completer<void>();
     _generatingFutures[key] = completer.future;
 
     try {
-      final markdownSummary = await _aiService.generateFullChapterSummary(
+      _log.d('SummaryService', '开始生成摘要: $key');
+
+      final summary = await _aiService.generateFullChapterSummary(
         content,
         chapterTitle: chapterTitle,
       );
 
-      if (markdownSummary != null) {
+      if (summary != null && summary.isNotEmpty) {
+        final extractedTitle = extractTitleFromSummary(summary);
+        final cleanSummary = removeTitleLineFromSummary(summary);
+
+        if (extractedTitle != null && extractedTitle.isNotEmpty) {
+          await _bookService.updateChapterTitle(
+              bookId, chapterIndex, extractedTitle);
+          _log.d('SummaryService', '提取并更新章节标题: $extractedTitle');
+        }
+
         final chapterSummary = ChapterSummary(
           bookId: bookId,
           chapterIndex: chapterIndex,
-          chapterTitle: chapterTitle,
-          objectiveSummary: markdownSummary,
+          chapterTitle: extractedTitle ?? chapterTitle,
+          objectiveSummary: cleanSummary,
           aiInsight: '',
           keyPoints: [],
           createdAt: DateTime.now(),
         );
+
         await saveSummary(chapterSummary);
-        _log.d('SummaryService', '章节 $chapterIndex 摘要已保存');
+        _log.info('SummaryService', '摘要生成成功: $key');
         completer.complete();
         return true;
+      } else {
+        _log.w('SummaryService', 'AI返回空摘要: $key');
+        completer.completeError('Empty summary');
+        return false;
       }
-      completer.complete();
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', '生成摘要失败: $key', e, stackTrace);
+      completer.completeError(e);
       return false;
-    } catch (e) {
-      completer.complete();
-      rethrow;
     } finally {
       _generatingKeys.remove(key);
       _generatingFutures.remove(key);
     }
   }
 
-  Future<void> _doGenerateChapterSummary(
-      Book book, ChapterInfo chapter, int chapterIndex) async {
-    if (chapter.href == null) {
-      _log.w('SummaryService', '章节 $chapterIndex 无href，跳过');
-      return;
-    }
+  Future<void> generateSummariesForBook(Book book) async {
+    _log.d('SummaryService', '开始为书籍生成摘要: ${book.title}');
 
-    final content = await _epubService.getChapterContentFromHref(
-        book.filePath, chapter.href!);
-    if (content == null || content.isEmpty) {
-      _log.w('SummaryService', '章节 $chapterIndex 内容为空或无法读取，跳过');
-      return;
-    }
+    try {
+      // 使用FormatRegistry获取解析器
+      final extension = book.format == BookFormat.epub ? '.epub' : '.pdf';
+      final parser = FormatRegistry.getParser(extension);
 
-    final markdownSummary = await _aiService.generateFullChapterSummary(
-      content,
-      chapterTitle: chapter.title,
-    );
+      if (parser == null) {
+        _log.w('SummaryService', '不支持的格式: ${book.format}');
+        return;
+      }
 
-    if (markdownSummary != null) {
-      final chapterSummary = ChapterSummary(
-        bookId: book.id,
-        chapterIndex: chapterIndex,
-        chapterTitle: chapter.title,
-        objectiveSummary: markdownSummary,
-        aiInsight: '',
-        keyPoints: [],
-        createdAt: DateTime.now(),
-      );
-      await saveSummary(chapterSummary);
-      _log.d('SummaryService', '章节 $chapterIndex 摘要已保存');
+      // 获取章节列表
+      final chapters = await parser.getChapters(book.filePath);
+      _log.d('SummaryService', '获取到 ${chapters.length} 个章节');
+
+      if (book.format == BookFormat.epub) {
+        // EPUB文件：先生成全书摘要，再生成章节摘要
+        _log.d('SummaryService', 'EPUB格式：先生成全书摘要');
+        await _generateBookSummaryFromPreface(book, chapters, parser);
+
+        // 再生成章节摘要
+        await _generateChapterSummaries(book, chapters, parser);
+      } else {
+        // PDF文件：先生成章节摘要，再用章节摘要生成全书摘要
+        _log.d('SummaryService', 'PDF格式：先生成章节摘要');
+        await _generateChapterSummaries(book, chapters, parser);
+
+        // 最后用章节摘要生成全书摘要
+        await _generateBookSummaryFromChapters(book, chapters);
+      }
+
+      _log.info('SummaryService', '书籍摘要生成完成: ${book.title}');
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', '生成书籍摘要失败: ${book.title}', e, stackTrace);
     }
   }
 
+  /// 生成章节摘要（只为顶层章节生成）
+  Future<void> _generateChapterSummaries(
+    Book book,
+    List<Chapter> chapters,
+    dynamic parser,
+  ) async {
+    // 只为顶层章节（level==0）生成摘要
+    final topLevelChapters = chapters.where((c) => c.level == 0).toList();
+    _log.d('SummaryService', '开始生成章节摘要: 顶层章节 ${topLevelChapters.length} 章');
+
+    for (final chapter in topLevelChapters) {
+      // chapter.index 是专门为顶层章节计算的索引
+      final chapterIndex = chapter.index;
+      if (chapterIndex < 0) continue; // 跳过无效index
+
+      final existingSummary = await getSummary(book.id, chapterIndex);
+      if (existingSummary != null) {
+        _log.d('SummaryService', '章节 $chapterIndex 已有摘要，跳过');
+        continue;
+      }
+
+      // 获取章节内容并生成摘要
+      final content = await parser.getChapterContent(book.filePath, chapter);
+      final chapterContent = content.htmlContent;
+
+      if (chapterContent != null && chapterContent.isNotEmpty) {
+        await generateSingleSummary(
+          book.id,
+          chapterIndex,
+          chapter.title,
+          chapterContent,
+        );
+      }
+    }
+  }
+
+  /// 从前言/目录生成全书摘要（用于EPUB等有目录结构的文件）
   Future<void> _generateBookSummaryFromPreface(
     Book book,
-    ChapterInfo prefaceChapter,
+    List<Chapter> chapters,
+    dynamic parser,
   ) async {
-    if (prefaceChapter.href == null) {
-      _log.w('SummaryService', '前言章节无href，跳过');
-      return;
-    }
+    _log.d('SummaryService', '从前言/目录生成全书摘要: ${book.title}');
 
-    final prefaceContent = await _epubService.getChapterContentFromHref(
-        book.filePath, prefaceChapter.href!);
-    if (prefaceContent == null || prefaceContent.isEmpty) {
-      _log.w('SummaryService', '前言内容为空，跳过');
-      return;
-    }
+    try {
+      // 检查是否已有全书摘要
+      final existingSummary = await getBookSummary(book.id);
+      if (existingSummary != null && existingSummary.isNotEmpty) {
+        _log.d('SummaryService', '已有全书摘要，跳过: ${book.title}');
+        return;
+      }
 
-    final bookSummary = await _aiService.generateBookSummaryFromPreface(
-      title: book.title,
-      author: book.author,
-      prefaceContent: prefaceContent,
-      totalChapters: book.totalChapters,
-    );
+      // 收集目录信息作为前言内容
+      final prefaceContent = StringBuffer();
+      prefaceContent.writeln('本书目录结构：\n');
 
-    if (bookSummary != null && bookSummary.isNotEmpty) {
-      final updatedBook = book.copyWith(aiIntroduction: bookSummary);
-      await _bookService.updateBook(updatedBook);
-      _log.d('SummaryService', '基于前言的全书摘要已生成并保存');
+      for (int i = 0; i < chapters.length && i < 20; i++) {
+        prefaceContent.writeln('第${i + 1}章：${chapters[i].title}');
+      }
+
+      if (chapters.length > 20) {
+        prefaceContent.writeln('... 等共 ${chapters.length} 章');
+      }
+
+      // 生成全书摘要
+      final bookSummary = await _aiService.generateBookSummaryFromPreface(
+        title: book.title,
+        author: book.author,
+        prefaceContent: prefaceContent.toString(),
+        totalChapters: chapters.length,
+      );
+
+      if (bookSummary != null && bookSummary.isNotEmpty) {
+        await saveBookSummary(book.id, bookSummary);
+        _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
+      } else {
+        _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
+      }
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', '从前言生成全书摘要失败: ${book.title}', e, stackTrace);
     }
   }
 
-  Future<void> _generateBookSummary(
+  /// 从章节摘要生成全书摘要（用于PDF等无目录结构的文件）
+  Future<void> _generateBookSummaryFromChapters(
     Book book,
-    List<_ChapterWithIndex> flatChapters,
+    List<Chapter> chapters,
   ) async {
-    final summaries = await _getAllSummariesForBook(book.id);
-    if (summaries.isEmpty) {
-      _log.w('SummaryService', '无章节摘要，跳过早书摘要生成');
-      return;
-    }
+    _log.d('SummaryService', '从章节摘要生成全书摘要: ${book.title}');
 
-    final buffer = StringBuffer();
-    for (final summary in summaries) {
-      buffer.writeln('### ${summary.chapterTitle}');
-      buffer.writeln(summary.objectiveSummary);
-      buffer.writeln();
-    }
+    try {
+      // 检查是否已有全书摘要
+      final existingSummary = await getBookSummary(book.id);
+      if (existingSummary != null && existingSummary.isNotEmpty) {
+        _log.d('SummaryService', '已有全书摘要，跳过: ${book.title}');
+        return;
+      }
 
-    final bookSummary = await _aiService.generateBookSummary(
-      title: book.title,
-      author: book.author,
-      chapterSummaries: buffer.toString(),
-      totalChapters: book.totalChapters,
-    );
+      // 收集所有章节摘要
+      final chapterSummaries = <String>[];
+      for (int i = 0; i < chapters.length && i < 10; i++) {
+        final summary = await getSummary(book.id, i);
+        if (summary != null && summary.objectiveSummary.isNotEmpty) {
+          final shortSummary = summary.objectiveSummary.length > 200
+              ? summary.objectiveSummary.substring(0, 200)
+              : summary.objectiveSummary;
+          chapterSummaries.add('第${i + 1}章：$shortSummary...');
+        }
+      }
 
-    if (bookSummary != null && bookSummary.isNotEmpty) {
-      final updatedBook = book.copyWith(aiIntroduction: bookSummary);
-      await _bookService.updateBook(updatedBook);
-      _log.d('SummaryService', '全书摘要已生成并保存到书籍');
+      if (chapterSummaries.isEmpty) {
+        _log.w('SummaryService', '没有章节摘要，无法生成全书摘要: ${book.title}');
+        return;
+      }
+
+      // 生成全书摘要
+      final bookSummary = await _aiService.generateBookSummary(
+        title: book.title,
+        author: book.author,
+        chapterSummaries: chapterSummaries.join('\n\n'),
+        totalChapters: chapters.length,
+      );
+
+      if (bookSummary != null && bookSummary.isNotEmpty) {
+        await saveBookSummary(book.id, bookSummary);
+        _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
+      } else {
+        _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
+      }
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', '从章节摘要生成全书摘要失败: ${book.title}', e, stackTrace);
     }
   }
 
-  Future<List<ChapterSummary>> _getAllSummariesForBook(String bookId) async {
-    final tables = await (_db.select(_db.chapterSummaries)
-          ..where((s) => s.bookId.equals(bookId))
-          ..orderBy([(s) => OrderingTerm.asc(s.chapterIndex)]))
-        .get();
-    return tables.map(_tableToChapterSummary).toList();
-  }
-}
+  /// 获取所有摘要（用于导出）
+  Future<List<ChapterSummary>> getAllSummaries() async {
+    final allSummaries = <ChapterSummary>[];
 
-class _ChapterWithIndex {
-  final ChapterInfo chapter;
-  final int index;
-  _ChapterWithIndex(this.chapter, this.index);
+    // 遍历所有书籍目录获取摘要
+    final appDir = await StorageConfig.getAppDirectory();
+    final booksDir = Directory('${appDir.path}/books');
+
+    if (!await booksDir.exists()) {
+      return [];
+    }
+
+    final bookDirs = await booksDir
+        .list()
+        .where((e) => e is Directory)
+        .cast<Directory>()
+        .toList();
+
+    for (final bookDir in bookDirs) {
+      final bookId = p.basename(bookDir.path);
+      final summaries = await getSummariesForBook(bookId);
+      allSummaries.addAll(summaries);
+    }
+
+    return allSummaries;
+  }
+
+  /// 删除书籍的所有摘要
+  /// 注意：BookService.deleteBook已经删除了整个书籍目录，
+  /// 所以这个方法在文件存储模式下实际上什么都不需要做
+  Future<void> deleteAllSummariesForBook(String bookId) async {
+    _log.d('SummaryService', '删除书籍所有摘要: $bookId');
+    // 文件存储模式下，书籍目录的删除由BookService处理
+    // 这里可以保留为兼容旧代码的接口
+  }
+
+  String? extractTitleFromSummary(String summary) {
+    final lines = summary.split('\n');
+    if (lines.isEmpty) return null;
+
+    final firstLine = lines[0].trim();
+    final titlePattern = RegExp(r'^##\s*章节标题[：:]\s*(.+)$');
+    final match = titlePattern.firstMatch(firstLine);
+
+    if (match != null) {
+      final title = match.group(1)?.trim() ?? '';
+
+      if (title.isEmpty || title.length > 50) {
+        return null;
+      }
+
+      if (title.contains('#') || title.contains('**') || title.contains('*')) {
+        return null;
+      }
+
+      return title;
+    }
+
+    return null;
+  }
+
+  String removeTitleLineFromSummary(String summary) {
+    final lines = summary.split('\n');
+    if (lines.isEmpty) return summary;
+
+    final firstLine = lines[0].trim();
+    final titlePattern = RegExp(r'^##\s*章节标题[：:]\s*.+$');
+
+    if (titlePattern.hasMatch(firstLine)) {
+      if (lines.length > 1 && lines[1].trim().isEmpty) {
+        return lines.skip(2).join('\n').trim();
+      }
+      return lines.skip(1).join('\n').trim();
+    }
+
+    return summary;
+  }
 }
