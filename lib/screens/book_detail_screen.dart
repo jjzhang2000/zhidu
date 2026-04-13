@@ -57,7 +57,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     _log.v('BookDetailScreen', '_loadChapters 开始执行');
     setState(() => _isLoadingChapters = true);
     try {
-      final parser = FormatRegistry.getParser(_book.format.name);
+      final parser = FormatRegistry.getParser('.${_book.format.name}');
       if (parser == null) {
         _log.e('BookDetailScreen', '不支持的格式: ${_book.format}');
         setState(() => _isLoadingChapters = false);
@@ -127,6 +127,14 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         _book = refreshedBook;
       }
     }
+  }
+
+  String _getChapterTitle(int index, Chapter chapter) {
+    final titles = _book.chapterTitles;
+    if (titles != null && titles.containsKey(index)) {
+      return titles[index]!;
+    }
+    return chapter.title;
   }
 
   void _toggleView() {
@@ -370,46 +378,67 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       );
     }
 
-    // 显示全书摘要（Markdown渲染）
+// 显示全书摘要（Markdown渲染）
     final htmlContent = md.markdownToHtml(_book.aiIntroduction!);
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Html(
-          data: htmlContent,
-          style: {
-            'body': Style(
-              fontSize: FontSize(14),
-              lineHeight: const LineHeight(1.6),
-              margin: Margins.zero,
-              padding: HtmlPaddings.zero,
-            ),
-            'h2': Style(
-              fontSize: FontSize(16),
-              fontWeight: FontWeight.bold,
-              margin: Margins.only(bottom: 8, top: 16),
-            ),
-            'h3': Style(
-              fontSize: FontSize(15),
-              fontWeight: FontWeight.bold,
-              margin: Margins.only(bottom: 6, top: 12),
-            ),
-            'p': Style(
-              fontSize: FontSize(14),
-              lineHeight: const LineHeight(1.6),
-              margin: Margins.only(bottom: 8),
-            ),
-            'ul': Style(
-              margin: Margins.only(bottom: 8),
-            ),
-            'li': Style(
-              fontSize: FontSize(14),
-              lineHeight: const LineHeight(1.5),
-            ),
-            'strong': Style(
-              fontWeight: FontWeight.bold,
-            ),
-          },
+    return GestureDetector(
+      onTap: _flatChapters.isNotEmpty
+          ? () {
+              final firstChapter = _flatChapters.first;
+              _log.d('BookDetailScreen', '点击全书摘要，进入第一章: ${firstChapter.title}');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SummaryScreen(
+                    bookId: _book.id,
+                    chapterIndex: firstChapter.index,
+                    chapterTitle: firstChapter.title,
+                    filePath: _book.filePath,
+                    chapters: _flatChapters,
+                    book: _book,
+                  ),
+                ),
+              );
+            }
+          : null,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Html(
+            data: htmlContent,
+            style: {
+              'body': Style(
+                fontSize: FontSize(14),
+                lineHeight: const LineHeight(1.6),
+                margin: Margins.zero,
+                padding: HtmlPaddings.zero,
+              ),
+              'h2': Style(
+                fontSize: FontSize(16),
+                fontWeight: FontWeight.bold,
+                margin: Margins.only(bottom: 8, top: 16),
+              ),
+              'h3': Style(
+                fontSize: FontSize(15),
+                fontWeight: FontWeight.bold,
+                margin: Margins.only(bottom: 6, top: 12),
+              ),
+              'p': Style(
+                fontSize: FontSize(14),
+                lineHeight: const LineHeight(1.6),
+                margin: Margins.only(bottom: 8),
+              ),
+              'ul': Style(
+                margin: Margins.only(bottom: 8),
+              ),
+              'li': Style(
+                fontSize: FontSize(14),
+                lineHeight: const LineHeight(1.5),
+              ),
+              'strong': Style(
+                fontWeight: FontWeight.bold,
+              ),
+            },
+          ),
         ),
       ),
     );
@@ -440,33 +469,42 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   List<Widget> _buildChapterList() {
     final widgets = <Widget>[];
     for (final chapter in _flatChapters) {
+      // 根据层级添加缩进
+      final indent = chapter.level * 16.0; // 每层缩进16像素
+
       widgets.add(
-        ListTile(
-          dense: true,
-          title: Text(
-            chapter.title,
-            style: const TextStyle(
-              fontSize: 13,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          onTap: () {
-            _log.d('BookDetailScreen', '点击章节: ${chapter.title}');
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SummaryScreen(
-                  bookId: _book.id,
-                  chapterIndex: chapter.index,
-                  chapterTitle: chapter.title,
-                  filePath: _book.filePath,
-                  chapters: _flatChapters,
-                  book: _book,
-                ),
+        Padding(
+          padding: EdgeInsets.only(left: indent),
+          child: ListTile(
+            dense: true,
+            title: Text(
+              _getChapterTitle(chapter.index, chapter),
+              style: TextStyle(
+                fontSize: 13 - chapter.level * 1,
+                color: chapter.level > 0 ? Colors.grey[600] : null,
               ),
-            );
-          },
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: chapter.level == 0 // 只有顶层章节才能点击进入
+                ? () {
+                    _log.d('BookDetailScreen', '点击章节: ${chapter.title}');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SummaryScreen(
+                          bookId: _book.id,
+                          chapterIndex: chapter.index,
+                          chapterTitle: chapter.title,
+                          filePath: _book.filePath,
+                          chapters: _flatChapters,
+                          book: _book,
+                        ),
+                      ),
+                    );
+                  }
+                : null, // 子章节不可点击
+          ),
         ),
       );
     }
