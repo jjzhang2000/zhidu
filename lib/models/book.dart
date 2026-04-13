@@ -11,6 +11,7 @@ class Book {
   final DateTime addedAt;
   final DateTime? lastReadAt;
   final String? aiIntroduction;
+  final Map<int, String>? chapterTitles;
 
   Book({
     required this.id,
@@ -25,6 +26,7 @@ class Book {
     required this.addedAt,
     this.lastReadAt,
     this.aiIntroduction,
+    this.chapterTitles,
   });
 
   Book copyWith({
@@ -40,6 +42,7 @@ class Book {
     DateTime? addedAt,
     DateTime? lastReadAt,
     String? aiIntroduction,
+    Map<int, String>? chapterTitles,
   }) {
     return Book(
       id: id ?? this.id,
@@ -54,6 +57,7 @@ class Book {
       addedAt: addedAt ?? this.addedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
       aiIntroduction: aiIntroduction ?? this.aiIntroduction,
+      chapterTitles: chapterTitles ?? this.chapterTitles,
     );
   }
 
@@ -71,10 +75,16 @@ class Book {
       'addedAt': addedAt.toIso8601String(),
       'lastReadAt': lastReadAt?.toIso8601String(),
       'aiIntroduction': aiIntroduction,
+      'chapterTitles': chapterTitles?.map((k, v) => MapEntry(k.toString(), v)),
     };
   }
 
   factory Book.fromJson(Map<String, dynamic> json) {
+    final chapterTitlesRaw = json['chapterTitles'] as Map<String, dynamic>?;
+    final chapterTitles = chapterTitlesRaw?.map(
+      (k, v) => MapEntry(int.parse(k), v as String),
+    );
+
     return Book(
       id: json['id'],
       title: json['title'],
@@ -93,6 +103,7 @@ class Book {
           ? DateTime.parse(json['lastReadAt'])
           : null,
       aiIntroduction: json['aiIntroduction'],
+      chapterTitles: chapterTitles,
     );
   }
 }
