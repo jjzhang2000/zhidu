@@ -1,3 +1,22 @@
+// ============================================================================
+// 文件名：epub_service.dart
+// 功能：EPUB电子书解析服务，提供EPUB文件的解析和提取功能
+// ============================================================================
+//
+// 主要职责：
+// - 解析EPUB文件结构，提取书籍元数据
+// - 提取封面图片并保存到本地
+// - 解析章节列表和内容
+// - 支持多种解析策略和回退方案
+//
+// 调用方：BookService.importBook()
+//
+// 技术要点：
+// - 使用epub_plus库进行标准解析
+// - 使用archive库处理ZIP解压（EPUB本质是ZIP）
+// - 使用xml库解析XML文件（container.xml、opf、ncx）
+// - 单例模式，全局唯一实例
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
@@ -8,15 +27,58 @@ import 'package:uuid/uuid.dart';
 import 'package:xml/xml.dart';
 import '../models/book.dart';
 import 'log_service.dart';
+import 'storage_config.dart';
 
+/// 类名：EpubService
+/// 功能：EPUB电子书解析服务（单例模式）
+/// 父类：无
+///
+/// 主要职责：
+/// - 解析EPUB文件获取书籍元数据
+/// - 提取封面图片
+/// - 获取章节列表和内容
+/// - 支持回退解析方案
+///
+/// 使用方式：
+/// ```dart
+/// final epubService = EpubService();
+/// final book = await epubService.parseEpubFile(filePath);
+/// ```
 class EpubService {
+  /// 单例实例
   static final EpubService _instance = EpubService._internal();
+
+  /// 工厂构造函数，返回单例实例
   factory EpubService() => _instance;
+
+  /// 私有构造函数，防止外部创建实例
   EpubService._internal();
 
+  /// 日志服务实例
   final _log = LogService();
+
+  /// UUID生成器，用于生成书籍ID
   final _uuid = const Uuid();
 
+  /// 方法名：parseEpubFile
+  /// 功能：解析EPUB文件并创建Book对象
+  ///
+  /// 参数：
+  /// - filePath: EPUB文件的绝对路径
+  ///
+  /// 返回值：Book对象（包含元数据和封面），失败时返回null
+  ///
+  /// 调用方：BookService.importBook()
+  ///
+  /// 算法逻辑：
+  /// 1. 读取文件字节
+  /// 2. 首选方案：使用EpubReader解析（标准库）
+  /// 3. 回退方案：使用archive直接解析ZIP结构
+  ///    - 解析container.xml获取OPF路径
+  ///    - 解析OPF文件获取元数据
+  ///    - 解析NCX/NAV文件获取章节列表
+  /// 4. 提取封面图片并保存
+  /// 5. 生成书籍ID，创建Book对象
   Future<Book?> parseEpubFile(String filePath) async {
     _log.v('EpubService', 'parseEpubFile 开始执行, filePath: $filePath');
     try {
@@ -38,6 +100,7 @@ class EpubService {
       List<String> chapterTitles = [];
 
       try {
+        // 首选方案：使用EpubReader解析
         final epubBook = await EpubReader.readBook(bytes);
         _log.d('EpubService', 'EPUB解析成功');
         _log.d('EpubService', 'epubBook.title = ${epubBook.title}');
@@ -98,6 +161,7 @@ class EpubService {
         _log.d('EpubService', '从导航文件获取章节数: ${chapterTitles.length}');
       }
 
+      // 最终回退：从文件路径提取书名
       if (title == null || title.isEmpty) {
         title = _extractTitleFromPath(filePath);
       }
@@ -108,16 +172,20 @@ class EpubService {
       _log.d('EpubService', '最终书名: $title');
       _log.d('EpubService', '最终作者: $author');
 
+      // 生成书籍ID
+      final bookId = _uuid.v4();
+
+      // 提取封面图片
       String? coverPath;
       try {
-        coverPath = await _extractCover(bytes, filePath);
+        coverPath = await _extractCover(bytes, bookId);
       } catch (e) {
         _log.e('EpubService', '封面提取失败', e);
       }
       _log.d('EpubService', '封面路径: $coverPath');
 
       return Book(
-        id: _uuid.v4(),
+        id: bookId,
         title: title,
         author: author,
         coverPath: coverPath,
@@ -485,9 +553,9 @@ class EpubService {
     }
   }
 
-  Future<String?> _extractCover(Uint8List bytes, String filePath) async {
+  Future<String?> _extractCover(Uint8List bytes, String bookId) async {
     _log.v('EpubService',
-        '_extractCover 开始执行, bytes length: ${bytes.length}, filePath: $filePath');
+        '_extractCover 开始执行, bytes length: ${bytes.length}, bookId: $bookId');
     try {
       _log.d('EpubService', '开始提取封面...');
       final epubBook = await EpubReader.readBook(bytes);
@@ -523,19 +591,11 @@ class EpubService {
           _log.d('EpubService', '封面图片大小: ${coverImage.content!.length} bytes');
           _log.d('EpubService', '封面图片类型: ${coverImage.contentMimeType}');
 
-          final appDir = Directory.current.path;
-          final coversDir = '$appDir/Covers';
-
-          final coversDirectory = Directory(coversDir);
-          if (!await coversDirectory.exists()) {
-            await coversDirectory.create(recursive: true);
-          }
-
-          final bookId = _uuid.v4();
-          final extension = coverImage.contentMimeType?.contains('png') == true
-              ? 'png'
-              : 'jpg';
-          final coverPath = '$coversDir/$bookId.$extension';
+          // 保存到书籍目录
+          final coverPath = await StorageConfig.getCoverSavePath(
+            bookId,
+            coverImage.contentMimeType ?? 'image/jpeg',
+          );
 
           final coverOutputFile = File(coverPath);
           await coverOutputFile.writeAsBytes(coverImage.content!);
@@ -553,13 +613,13 @@ class EpubService {
     }
 
     _log.d('EpubService', '尝试从archive查找封面...');
-    return await _extractCoverFromArchive(bytes, filePath);
+    return await _extractCoverFromArchive(bytes, bookId);
   }
 
   Future<String?> _extractCoverFromArchive(
-      Uint8List bytes, String filePath) async {
+      Uint8List bytes, String bookId) async {
     _log.v('EpubService',
-        '_extractCoverFromArchive 开始执行, bytes length: ${bytes.length}, filePath: $filePath');
+        '_extractCoverFromArchive 开始执行, bytes length: ${bytes.length}, bookId: $bookId');
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
 
@@ -598,21 +658,17 @@ class EpubService {
       }
 
       if (coverFile != null) {
-        final appDir = Directory.current.path;
-        final coversDir = '$appDir/Covers';
+        // 确定文件扩展名
+        final mimeType = coverFile.name.toLowerCase().endsWith('.png')
+            ? 'image/png'
+            : 'image/jpeg';
 
-        final coversDirectory = Directory(coversDir);
-        if (!await coversDirectory.exists()) {
-          await coversDirectory.create(recursive: true);
-        }
-
-        final bookId = _uuid.v4();
-        final extension =
-            coverFile.name.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
-        final coverPath = '$coversDir/$bookId.$extension';
-
+        // 保存到书籍目录
+        final coverPath =
+            await StorageConfig.getCoverSavePath(bookId, mimeType);
         final coverOutputFile = File(coverPath);
         await coverOutputFile.writeAsBytes(coverFile.content as List<int>);
+        _log.d('EpubService', '封面保存成功: $coverPath');
 
         return coverPath;
       }

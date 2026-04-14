@@ -1,3 +1,22 @@
+// ============================================================================
+// 文件名：epub_parser.dart
+// 功能：EPUB格式解析器，用于解析EPUB电子书文件
+// ============================================================================
+//
+// 主要职责：
+// - 解析EPUB文件元数据（书名、作者、封面）
+// - 提取章节列表（支持多层级目录结构）
+// - 获取章节内容（HTML和纯文本）
+// - 支持回退解析方案（当EpubReader失败时使用archive直接解析）
+//
+// 调用方：BookService、SummaryService
+//
+// 技术要点：
+// - 使用epub_plus库进行标准解析
+// - 使用archive库处理ZIP解压（EPUB本质是ZIP）
+// - 使用xml库解析NCX/NAV导航文件
+// - 支持XML命名空间处理
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
@@ -16,12 +35,38 @@ import '../../models/chapter_location.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
 
-/// EPUB格式解析器实现
-/// 用于解析EPUB文件并提取元数据、章节列表和内容
+/// 类名：EpubParser
+/// 功能：EPUB格式解析器实现类
+/// 父类：无
+/// 实现接口：BookFormatParser
+///
+/// 主要职责：
+/// - 解析EPUB文件结构和内容
+/// - 提取书籍元数据、章节列表、章节内容、封面图片
+/// - 支持多种解析策略和回退方案
 class EpubParser implements BookFormatParser {
+  /// 日志服务实例，用于记录解析过程和错误
   final LogService _log = LogService();
+
+  /// UUID生成器，用于生成章节唯一标识
   final Uuid _uuid = const Uuid();
 
+  /// 方法名：parse
+  /// 功能：解析EPUB文件并提取书籍元数据
+  ///
+  /// 参数：
+  /// - filePath: EPUB文件的绝对路径
+  ///
+  /// 返回值：BookMetadata对象，包含书名、作者、封面路径、章节数等信息
+  ///
+  /// 调用方：BookService.importBook()
+  ///
+  /// 算法逻辑：
+  /// 1. 读取文件字节
+  /// 2. 使用EpubReader解析（首选方案）
+  /// 3. 若失败，使用archive直接解析container.xml和opf文件（回退方案）
+  /// 4. 提取封面图片并保存到本地
+  /// 5. 返回BookMetadata
   @override
   Future<BookMetadata> parse(String filePath) async {
     _log.v('EpubParser', 'parse 开始执行, filePath: $filePath');
@@ -40,7 +85,7 @@ class EpubParser implements BookFormatParser {
     List<String> chapterTitles = [];
 
     try {
-      // 尝试使用EpubReader解析
+      // 首选方案：使用EpubReader解析EPUB标准结构
       final epubBook = await EpubReader.readBook(bytes);
       _log.d('EpubParser', 'EPUB解析成功');
 
@@ -57,7 +102,7 @@ class EpubParser implements BookFormatParser {
       _log.e('EpubParser', '使用EpubReader解析失败', e);
       _log.d('EpubParser', '尝试使用archive直接解析EPUB...');
 
-      // 回退方案：使用archive直接解析
+      // 回退方案：使用archive直接解析ZIP结构
       final archive = ZipDecoder().decodeBytes(bytes);
 
       final containerInfo = _parseContainerXml(archive);
@@ -75,6 +120,7 @@ class EpubParser implements BookFormatParser {
       chapterTitles = _parseNavigationFile(archive);
     }
 
+    // 最终回退：从文件路径提取书名
     if (title == null || title.isEmpty) {
       title = _extractTitleFromPath(filePath);
     }
@@ -82,7 +128,7 @@ class EpubParser implements BookFormatParser {
       author = '未知作者';
     }
 
-    // 提取封面
+    // 提取封面图片
     String? coverPath;
     try {
       coverPath = await extractCover(filePath);
@@ -103,6 +149,24 @@ class EpubParser implements BookFormatParser {
     );
   }
 
+  /// 方法名：getChapters
+  /// 功能：获取EPUB文件的章节列表
+  ///
+  /// 参数：
+  /// - filePath: EPUB文件的绝对路径
+  ///
+  /// 返回值：Chapter对象列表，包含章节标题、位置、层级信息
+  ///
+  /// 调用方：BookDetailScreen、SummaryScreen
+  ///
+  /// 算法逻辑：
+  /// 1. 读取文件字节
+  /// 2. 按优先级尝试三种解析来源：
+  ///    - toc.ncx导航文件（最准确，含层级）
+  ///    - epubBook.chapters列表（中等）
+  ///    - content.html文件列表（回退）
+  /// 3. 若全部失败，使用archive解析NCX或HTML文件列表
+  /// 4. 转换为Chapter模型，保留层级结构
   @override
   Future<List<Chapter>> getChapters(String filePath) async {
     _log.v('EpubParser', 'getChapters 开始执行, filePath: $filePath');
@@ -119,7 +183,7 @@ class EpubParser implements BookFormatParser {
     try {
       final epubBook = await EpubReader.readBook(bytes);
 
-      // 优先从toc.ncx (navigation)提取
+      // 优先从toc.ncx (navigation)提取 - 最准确，包含层级结构
       if (epubBook.schema?.navigation?.navMap != null &&
           epubBook.schema!.navigation!.navMap!.points.isNotEmpty) {
         _log.d('EpubParser', '从navigation提取章节列表');
@@ -130,7 +194,7 @@ class EpubParser implements BookFormatParser {
         }
       }
 
-      // 从chapters提取
+      // 从chapters提取 - epub_plus库解析的章节列表
       if (epubBook.chapters.isNotEmpty) {
         _log.d('EpubParser', '从epubBook.chapters提取章节列表');
         chapterInfos.addAll(_extractChapterInfos(epubBook.chapters));
@@ -139,7 +203,7 @@ class EpubParser implements BookFormatParser {
         }
       }
 
-      // 从content.html提取
+      // 从content.html提取 - 按spine顺序排列的HTML文件
       if (epubBook.content?.html?.isNotEmpty == true) {
         _log.d('EpubParser', '从content.html提取章节列表');
         chapterInfos.addAll(_extractChapterInfosFromContent(
@@ -152,7 +216,7 @@ class EpubParser implements BookFormatParser {
       _log.e('EpubParser', 'EpubReader解析失败，使用archive回退方案', e);
     }
 
-    // 回退方案：使用archive解析
+    // 回退方案：使用archive解析ZIP结构
     final archive = ZipDecoder().decodeBytes(bytes);
     final chaptersFromNcx = _extractChapterInfosFromNcxArchive(archive);
     if (chaptersFromNcx.isNotEmpty) {
@@ -163,28 +227,62 @@ class EpubParser implements BookFormatParser {
     return _convertToChapters(flatChapters);
   }
 
-  /// 将内部章节信息转换为Chapter模型（只返回顶级章节）
+  /// 方法名：_convertToChapters
+  /// 功能：将内部章节信息转换为Chapter模型
+  ///
+  /// 参数：
+  /// - chapterInfos: 内部章节信息列表（_ChapterInfoInternal）
+  ///
+  /// 返回值：Chapter对象列表
+  ///
+  /// 调用方：getChapters()
+  ///
+  /// 算法逻辑：
+  /// - 只为顶层章节（level==0）分配递增index，用于摘要生成
+  /// - 子章节（level>0）index设为-1，不参与摘要生成
+  /// - 保留层级深度信息，用于UI显示缩进
   List<Chapter> _convertToChapters(List<_ChapterInfoInternal> chapterInfos) {
     final chapters = <Chapter>[];
-    int index = 0;
+    int topLevelIndex = 0;
 
     for (final info in chapterInfos) {
-      // 只返回顶级章节（level == 0）
-      if (info.level == 0) {
-        chapters.add(Chapter(
-          id: _uuid.v4(),
-          index: index++,
-          title: info.title,
-          location: ChapterLocation(
-            href: info.href,
-          ),
-        ));
+      if (info.title.isNotEmpty) {
+        final href = info.href;
+        if (href != null && href.isNotEmpty) {
+          final chapterIndex = info.level == 0 ? topLevelIndex++ : -1;
+
+          chapters.add(Chapter(
+            id: _uuid.v4(),
+            index: chapterIndex,
+            title: info.title,
+            location: ChapterLocation(
+              href: href,
+            ),
+            level: info.level,
+          ));
+        }
       }
     }
 
     return chapters;
   }
 
+  /// 方法名：getChapterContent
+  /// 功能：获取指定章节的内容
+  ///
+  /// 参数：
+  /// - filePath: EPUB文件的绝对路径
+  /// - chapter: Chapter对象，包含章节位置信息（href）
+  ///
+  /// 返回值：ChapterContent对象，包含HTML内容和纯文本
+  ///
+  /// 调用方：SummaryService.generateSingleSummary()
+  ///
+  /// 算法逻辑：
+  /// 1. 从chapter.location.href获取章节文件路径
+  /// 2. 首选方案：使用EpubReader查找对应章节
+  /// 3. 回退方案：从archive直接读取HTML文件
+  /// 4. 提取纯文本（移除HTML标签）
   @override
   Future<ChapterContent> getChapterContent(
       String filePath, Chapter chapter) async {
@@ -205,7 +303,7 @@ class EpubParser implements BookFormatParser {
       return ChapterContent(plainText: '');
     }
 
-    // 尝试使用EpubReader
+    // 首选方案：使用EpubReader查找章节内容
     try {
       final epubBook = await EpubReader.readBook(bytes);
       final chapterIndex = chapter.index;
@@ -224,7 +322,7 @@ class EpubParser implements BookFormatParser {
       _log.e('EpubParser', '使用EpubReader获取章节内容失败', e);
     }
 
-    // 回退方案：从archive获取
+    // 回退方案：从archive直接读取HTML文件
     final htmlContent = await _getChapterHtmlFromArchive(bytes, href);
     if (htmlContent != null) {
       final plainText = _extractTextFromHtml(htmlContent);
@@ -238,6 +336,21 @@ class EpubParser implements BookFormatParser {
     return ChapterContent(plainText: '');
   }
 
+  /// 方法名：extractCover
+  /// 功能：提取EPUB封面图片并保存到本地
+  ///
+  /// 参数：
+  /// - filePath: EPUB文件的绝对路径
+  ///
+  /// 返回值：封面图片的本地保存路径，失败时返回null
+  ///
+  /// 调用方：parse()
+  ///
+  /// 算法逻辑：
+  /// 1. 首选方案：使用EpubReader查找包含cover或title的图片
+  /// 2. 若未找到，使用第一张图片作为封面
+  /// 3. 回退方案：从archive查找cover.jpg/cover.png等文件
+  /// 4. 保存到本地covers目录
   @override
   Future<String?> extractCover(String filePath) async {
     _log.v('EpubParser', 'extractCover 开始执行, filePath: $filePath');
@@ -251,7 +364,7 @@ class EpubParser implements BookFormatParser {
     final bytes = await file.readAsBytes();
 
     try {
-      // 尝试使用EpubReader提取封面
+      // 首选方案：使用EpubReader提取封面
       final epubBook = await EpubReader.readBook(bytes);
 
       if (epubBook.content?.images?.isNotEmpty == true) {
@@ -267,7 +380,7 @@ class EpubParser implements BookFormatParser {
           }
         }
 
-        // 如果没有找到，使用第一张图片
+        // 若未找到，使用第一张图片
         if (coverImage == null) {
           coverImage = epubBook.content!.images!.values.first;
           _log.d('EpubParser', '使用第一张图片作为封面');
@@ -286,7 +399,16 @@ class EpubParser implements BookFormatParser {
     return await _extractCoverFromArchive(bytes);
   }
 
-  /// 保存封面图片到covers目录
+  /// 方法名：_saveCoverImage
+  /// 功能：保存封面图片到本地covers目录
+  ///
+  /// 参数：
+  /// - imageBytes: 图片字节数据
+  /// - mimeType: 图片类型（image/png或image/jpeg）
+  ///
+  /// 返回值：保存后的本地路径，失败时返回null
+  ///
+  /// 调用方：extractCover()、_extractCoverFromArchive()
   Future<String?> _saveCoverImage(
       List<int> imageBytes, String? mimeType) async {
     try {
@@ -306,7 +428,14 @@ class EpubParser implements BookFormatParser {
     }
   }
 
-  /// 获取covers目录路径
+  /// 方法名：_getCoversDirectory
+  /// 功能：获取covers目录路径，若不存在则创建
+  ///
+  /// 参数：无
+  ///
+  /// 返回值：covers目录的绝对路径
+  ///
+  /// 调用方：_saveCoverImage()
   Future<String> _getCoversDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
     final coversDir = Directory(p.join(appDir.path, 'covers'));
@@ -318,7 +447,15 @@ class EpubParser implements BookFormatParser {
 
   // ==================== 辅助方法 ====================
 
-  /// 提取章节标题列表（递归）
+  /// 方法名：_extractChapterTitles
+  /// 功能：从EpubChapter列表递归提取所有章节标题
+  ///
+  /// 参数：
+  /// - chapters: EpubChapter列表（可能包含子章节）
+  ///
+  /// 返回值：章节标题字符串列表
+  ///
+  /// 调用方：parse()
   List<String> _extractChapterTitles(List<EpubChapter> chapters) {
     final titles = <String>[];
 
@@ -337,13 +474,29 @@ class EpubParser implements BookFormatParser {
     return titles;
   }
 
-  /// 从文件路径提取书名
+  /// 方法名：_extractTitleFromPath
+  /// 功能：从文件路径提取书名（作为最终回退方案）
+  ///
+  /// 参数：
+  /// - filePath: 文件路径
+  ///
+  /// 返回值：提取的书名
+  ///
+  /// 调用方：parse()
   String _extractTitleFromPath(String filePath) {
     final fileName = p.basenameWithoutExtension(filePath);
     return fileName.replaceAll('_', ' ').replaceAll('-', ' ');
   }
 
-  /// 从HTML提取纯文本
+  /// 方法名：_extractTextFromHtml
+  /// 功能：从HTML内容提取纯文本
+  ///
+  /// 参数：
+  /// - html: HTML字符串
+  ///
+  /// 返回值：纯文本字符串（移除标签、脚本、样式）
+  ///
+  /// 调用方：getChapterContent()、_parseNavigationFile()
   String _extractTextFromHtml(String html) {
     return html
         .replaceAll(
@@ -359,7 +512,17 @@ class EpubParser implements BookFormatParser {
 
   // ==================== Archive回退方案 ====================
 
-  /// 解析container.xml
+  /// 方法名：_parseContainerXml
+  /// 功能：解析META-INF/container.xml获取OPF文件路径
+  ///
+  /// 参数：
+  /// - archive: EPUB解压后的Archive对象
+  ///
+  /// 返回值：包含opfPath的Map，失败时返回null
+  ///
+  /// 调用方：parse()
+  ///
+  /// 说明：container.xml是EPUB结构的入口文件，指向OPF包文件
   Map<String, String>? _parseContainerXml(Archive archive) {
     try {
       ArchiveFile? containerFile;
@@ -389,7 +552,17 @@ class EpubParser implements BookFormatParser {
     }
   }
 
-  /// 解析OPF文件
+  /// 方法名：_parseOpfFile
+  /// 功能：解析OPF文件获取书名和作者
+  ///
+  /// 参数：
+  /// - archive: EPUB解压后的Archive对象
+  ///
+  /// 返回值：包含title和author的Map，失败时返回null
+  ///
+  /// 调用方：parse()
+  ///
+  /// 说明：OPF文件包含书籍元数据（dc:title、dc:creator等）
   Map<String, String?>? _parseOpfFile(Archive archive) {
     try {
       String? opfPath;
@@ -440,12 +613,23 @@ class EpubParser implements BookFormatParser {
     }
   }
 
-  /// 解析导航文件（NCX或NAV）
+  /// 方法名：_parseNavigationFile
+  /// 功能：解析导航文件（NCX或NAV）获取章节标题列表
+  ///
+  /// 参数：
+  /// - archive: EPUB解压后的Archive对象
+  ///
+  /// 返回值：章节标题字符串列表
+  ///
+  /// 调用方：parse()
+  ///
+  /// 说明：NCX是传统EPUB2导航文件，NAV是EPUB3导航文件
   List<String> _parseNavigationFile(Archive archive) {
     try {
       ArchiveFile? navFile;
       String? navFileType;
 
+      // 查找NCX文件
       for (final file in archive.files) {
         final name = file.name.toLowerCase();
         if (name.endsWith('.ncx')) {
@@ -455,6 +639,7 @@ class EpubParser implements BookFormatParser {
         }
       }
 
+      // 若无NCX，查找NAV文件
       if (navFile == null) {
         for (final file in archive.files) {
           final name = file.name.toLowerCase();
@@ -488,6 +673,7 @@ class EpubParser implements BookFormatParser {
           }
         }
       } else {
+        // NAV文件：解析HTML中的链接
         final aPattern = RegExp(r'<a[^>]*>(.*?)</a>', caseSensitive: false);
         final matches = aPattern.allMatches(content);
         for (final match in matches) {
@@ -505,7 +691,15 @@ class EpubParser implements BookFormatParser {
     }
   }
 
-  /// 从archive提取封面
+  /// 方法名：_extractCoverFromArchive
+  /// 功能：从archive查找并提取封面图片
+  ///
+  /// 参数：
+  /// - bytes: EPUB文件字节
+  ///
+  /// 返回值：封面图片本地路径，失败时返回null
+  ///
+  /// 调用方：extractCover()
   Future<String?> _extractCoverFromArchive(Uint8List bytes) async {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
@@ -521,6 +715,7 @@ class EpubParser implements BookFormatParser {
 
       ArchiveFile? coverFile;
 
+      // 按文件名模式查找
       for (final pattern in coverPatterns) {
         for (final file in archive.files) {
           if (file.name.toLowerCase().endsWith(pattern.toLowerCase())) {
@@ -531,6 +726,7 @@ class EpubParser implements BookFormatParser {
         if (coverFile != null) break;
       }
 
+      // 若未找到，查找包含cover或image的图片文件
       if (coverFile == null) {
         for (final file in archive.files) {
           final name = file.name.toLowerCase();
@@ -557,7 +753,15 @@ class EpubParser implements BookFormatParser {
     return null;
   }
 
-  /// 从EpubChapter列表提取章节信息（递归，包含层级）
+  /// 方法名：_extractChapterInfos
+  /// 功能：从EpubChapter列表递归提取章节信息
+  ///
+  /// 参数：
+  /// - chapters: EpubChapter列表
+  ///
+  /// 返回值：_ChapterInfoInternal列表（含层级信息）
+  ///
+  /// 调用方：getChapters()
   List<_ChapterInfoInternal> _extractChapterInfos(List<EpubChapter> chapters) {
     final result = <_ChapterInfoInternal>[];
 
@@ -578,7 +782,15 @@ class EpubParser implements BookFormatParser {
     return result;
   }
 
-  /// 从navigation提取章节信息
+  /// 方法名：_extractChapterInfosFromNavigation
+  /// 功能：从EpubNavigationPoint列表提取章节信息
+  ///
+  /// 参数：
+  /// - navPoints: EpubNavigationPoint列表（NCX导航点）
+  ///
+  /// 返回值：_ChapterInfoInternal列表（含层级信息）
+  ///
+  /// 调用方：getChapters()
   List<_ChapterInfoInternal> _extractChapterInfosFromNavigation(
       List<EpubNavigationPoint> navPoints) {
     final result = <_ChapterInfoInternal>[];
@@ -604,13 +816,25 @@ class EpubParser implements BookFormatParser {
     return result;
   }
 
-  /// 从content.html提取章节信息
+  /// 方法名：_extractChapterInfosFromContent
+  /// 功能：从content.html文件列表提取章节信息
+  ///
+  /// 参数：
+  /// - htmlFiles: HTML文件映射（文件名 -> 内容）
+  /// - spineItems: Spine顺序列表（可选）
+  ///
+  /// 返回值：_ChapterInfoInternal列表
+  ///
+  /// 调用方：getChapters()
+  ///
+  /// 说明：按spine顺序排列，或按文件名排序
   List<_ChapterInfoInternal> _extractChapterInfosFromContent(
       Map<String, EpubTextContentFile> htmlFiles,
       List<EpubSpineItemRef>? spineItems) {
     final result = <_ChapterInfoInternal>[];
 
     if (spineItems?.isNotEmpty == true) {
+      // 按spine顺序提取
       for (final spineItem in spineItems!) {
         final idRef = spineItem.idRef;
         for (final entry in htmlFiles.entries) {
@@ -626,6 +850,7 @@ class EpubParser implements BookFormatParser {
         }
       }
     } else {
+      // 按文件名排序，排除导航文件
       final sortedFiles = htmlFiles.entries.toList()
         ..sort((a, b) => a.key.compareTo(b.key));
 
@@ -644,7 +869,17 @@ class EpubParser implements BookFormatParser {
     return result;
   }
 
-  /// 从HTML内容提取标题
+  /// 方法名：_extractTitleFromHtmlContent
+  /// 功能：从HTML内容提取章节标题
+  ///
+  /// 参数：
+  /// - html: HTML字符串
+  ///
+  /// 返回值：提取的标题，失败时返回'未知章节'
+  ///
+  /// 调用方：_extractChapterInfosFromContent()
+  ///
+  /// 算法逻辑：依次尝试提取<title>、<h1>、<h2>
   String _extractTitleFromHtmlContent(String html) {
     final titleMatch =
         RegExp(r'<title[^>]*>(.*?)</title>', caseSensitive: false)
@@ -677,7 +912,17 @@ class EpubParser implements BookFormatParser {
     return '未知章节';
   }
 
-  /// 从NCX archive提取章节信息
+  /// 方法名：_extractChapterInfosFromNcxArchive
+  /// 功能：从archive解析NCX文件提取章节信息
+  ///
+  /// 参数：
+  /// - archive: EPUB解压后的Archive对象
+  ///
+  /// 返回值：_ChapterInfoInternal列表（含层级信息）
+  ///
+  /// 调用方：getChapters()
+  ///
+  /// 说明：这是getChapters的回退方案，直接解析XML
   List<_ChapterInfoInternal> _extractChapterInfosFromNcxArchive(
       Archive archive) {
     try {
@@ -697,6 +942,7 @@ class EpubParser implements BookFormatParser {
 
       if (navMap == null) return [];
 
+      // 递归解析navPoint元素
       List<_ChapterInfoInternal> parseNavPoints(
           Iterable<XmlElement> points, int level) {
         final result = <_ChapterInfoInternal>[];
@@ -721,6 +967,7 @@ class EpubParser implements BookFormatParser {
                 level: level,
               ));
 
+              // 递归处理子导航点
               final childNavPoints = navPoint.findElements('navPoint');
               if (childNavPoints.isNotEmpty) {
                 result.addAll(parseNavPoints(childNavPoints, level + 1));
@@ -739,7 +986,17 @@ class EpubParser implements BookFormatParser {
     }
   }
 
-  /// 从archive提取章节信息（回退方案）
+  /// 方法名：_extractChapterInfosFromArchive
+  /// 功能：从archive提取HTML文件列表作为章节（最终回退方案）
+  ///
+  /// 参数：
+  /// - archive: EPUB解压后的Archive对象
+  ///
+  /// 返回值：_ChapterInfoInternal列表（无层级，全部level=0）
+  ///
+  /// 调用方：getChapters()
+  ///
+  /// 说明：当所有其他方法失败时使用，按文件名排序，排除导航文件
   List<_ChapterInfoInternal> _extractChapterInfosFromArchive(Archive archive) {
     final chapters = <_ChapterInfoInternal>[];
     final htmlFiles = <String>[];
@@ -766,7 +1023,16 @@ class EpubParser implements BookFormatParser {
     return chapters;
   }
 
-  /// 根据索引查找EpubChapter
+  /// 方法名：_findEpubChapterByIndex
+  /// 功能：根据索引在EpubChapter列表中查找对应章节
+  ///
+  /// 参数：
+  /// - chapters: EpubChapter列表
+  /// - targetIndex: 目标索引（仅顶层章节计数）
+  ///
+  /// 返回值：找到的EpubChapter，未找到返回null
+  ///
+  /// 调用方：getChapterContent()
   EpubChapter? _findEpubChapterByIndex(
       List<EpubChapter>? chapters, int targetIndex) {
     if (chapters == null) return null;
@@ -792,7 +1058,18 @@ class EpubParser implements BookFormatParser {
     return result;
   }
 
-  /// 从archive获取章节HTML内容
+  /// 方法名：_getChapterHtmlFromArchive
+  /// 功能：从archive获取指定href的HTML内容
+  ///
+  /// 参数：
+  /// - bytes: EPUB文件字节
+  /// - href: 章节文件路径（可能含锚点）
+  ///
+  /// 返回值：HTML字符串，未找到返回null
+  ///
+  /// 调用方：getChapterContent()
+  ///
+  /// 说明：href可能带有#锚点，需要移除；文件名大小写可能不匹配
   Future<String?> _getChapterHtmlFromArchive(
       Uint8List bytes, String href) async {
     try {
@@ -800,6 +1077,7 @@ class EpubParser implements BookFormatParser {
       final hrefWithoutAnchor = href.split('#').first;
       final hrefWithoutAnchorLower = hrefWithoutAnchor.toLowerCase();
 
+      // 多种匹配方式尝试
       for (final archiveFile in archive.files) {
         final archiveName = archiveFile.name;
         final archiveNameLower = archiveName.toLowerCase();
@@ -829,10 +1107,21 @@ class EpubParser implements BookFormatParser {
   }
 }
 
-/// 内部章节信息结构
+/// 类名：_ChapterInfoInternal
+/// 功能：内部章节信息结构，用于解析过程中的临时存储
+///
+/// 字段：
+/// - title: 章节标题
+/// - href: 章节文件路径
+/// - level: 层级深度（0为顶层，越大层级越深）
 class _ChapterInfoInternal {
+  /// 章节标题
   final String title;
+
+  /// 章节文件路径（HTML/XHTML文件的相对路径）
   final String? href;
+
+  /// 层级深度，0表示顶层章节，用于UI显示缩进
   final int level;
 
   _ChapterInfoInternal({

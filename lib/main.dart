@@ -5,6 +5,9 @@ import 'services/book_service.dart';
 import 'services/ai_service.dart';
 import 'services/summary_service.dart';
 import 'services/log_service.dart';
+import 'services/parsers/format_registry.dart';
+import 'services/parsers/epub_parser.dart';
+import 'services/parsers/pdf_parser.dart';
 import 'utils/app_theme.dart';
 
 void main() async {
@@ -18,6 +21,9 @@ void main() async {
 
   LogService().info('Main', '应用启动');
 
+  // 初始化格式注册表
+  _initializeFormatRegistry();
+
   await BookService().init();
   await AIService().init();
   await SummaryService().init();
@@ -27,6 +33,13 @@ void main() async {
   runApp(
     const ZhiduApp(),
   );
+}
+
+/// 初始化格式注册表，注册所有支持的解析器
+void _initializeFormatRegistry() {
+  FormatRegistry.register('.epub', EpubParser());
+  FormatRegistry.register('.pdf', PdfParser());
+  LogService().info('Main', '格式注册表初始化完成，支持: epub, pdf');
 }
 
 class ZhiduApp extends StatelessWidget {

@@ -1,3 +1,16 @@
+/// 章节摘要阅读界面
+///
+/// 这是应用的核心阅读界面，提供以下功能：
+/// 1. 显示AI生成的章节摘要（Markdown渲染）
+/// 2. 查看章节原文（EPUB: HTML渲染，PDF: 单页查看器）
+/// 3. 一键生成章节摘要
+/// 4. 章节导航（上一章/下一章）
+/// 5. PDF页码翻页（在原文模式下）
+///
+/// 界面切换逻辑：
+/// - 左侧图标按钮：切换"摘要视图"与"原文视图"
+/// - 摘要视图：显示AI生成的章节摘要
+/// - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
@@ -12,6 +25,16 @@ import '../services/book_service.dart';
 import '../services/parsers/format_registry.dart';
 import '../services/log_service.dart';
 
+/// 章节摘要界面 Widget
+///
+/// 参数说明：
+/// - [bookId]: 书籍唯一标识
+/// - [chapterIndex]: 章节索引（基于第一级章节列表）
+/// - [chapterTitle]: 章节标题（默认值，可能被AI更新后的标题覆盖）
+/// - [chapterContent]: 章节内容（可选，EPUB时可能预加载）
+/// - [filePath]: 文件路径（用于重新加载内容）
+/// - [chapters]: 章节列表（用于导航）
+/// - [book]: 书籍对象（包含AI更新后的章节标题）
 class SummaryScreen extends StatefulWidget {
   final String bookId;
   final int chapterIndex;
@@ -37,39 +60,79 @@ class SummaryScreen extends StatefulWidget {
 }
 
 class _SummaryScreenState extends State<SummaryScreen> {
+  /// AI服务（用于检查配置状态）
   final _aiService = AIService();
+
+  /// 日志服务
   final _log = LogService();
+
+  /// 摘要服务（用于加载/生成摘要）
   final _summaryService = SummaryService();
+
+  /// 书籍服务（用于获取更新后的书籍信息）
   final _bookService = BookService();
 
+  /// 当前章节的摘要数据
   ChapterSummary? _summary;
+
+  /// 是否正在生成摘要
   bool _isGenerating = false;
+
+  /// 错误信息
   String? _error;
 
+  /// 是否正在加载章节内容
   bool _isLoadingContent = false;
+
+  /// 章节内容（HTML格式）
   String _content = '';
+
+  /// 章节标题（动态更新，可能被AI生成的标题覆盖）
   String _title = '';
+
+  /// 是否显示原文视图（false: 显示摘要，true: 显示原文）
   bool _showOriginalText = false;
+
+  /// 内容是否过短（少于2000字节）
+  /// 内容过短时，默认显示原文视图，且摘要按钮禁用
   bool _contentTooShort = false;
+
+  /// 第一级章节列表（用于导航）
+  /// 注意：只包含level=0的章节，忽略子章节
   List<Chapter> _chapters = [];
 
-  // PDF相关状态
+  /// PDF当前页码（用于PDF原文阅读时的翻页）
   int _pdfCurrentPage = 1;
+
+  /// PDF总页数（从文档加载后设置）
   int _pdfTotalPages = 0;
 
   @override
   void initState() {
     super.initState();
-    // 只保留第一级章节
+
+    // 过滤章节列表，只保留第一级章节（level == 0）
+    // 这样导航时按章节层级移动，而不是按所有子章节
     if (widget.chapters != null) {
       _chapters = widget.chapters!.where((c) => c.level == 0).toList();
     }
+
+    // 初始化流程：先加载内容，再加载摘要
+    // 使用then链式调用确保顺序执行
     _initializeContent().then((_) {
       _loadSummary();
     });
   }
 
+  /// 初始化章节内容
+  ///
+  /// 内容来源优先级：
+  /// 1. 已传入的 chapterContent（预加载的内容）
+  /// 2. 从文件路径重新加载（通过FormatRegistry解析）
+  ///
+  /// 同时检查内容长度，内容过短时自动切换到原文视图
   Future<void> _initializeContent() async {
+    // 优先使用已传入的内容（EPUB预加载场景）
     if (widget.chapterContent != null && widget.chapterContent!.isNotEmpty) {
       _content = widget.chapterContent!;
       _title = widget.chapterTitle;
@@ -79,6 +142,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       return;
     }
 
+    // 从文件路径加载内容（延迟加载场景）
     if (widget.filePath != null) {
       if (!mounted) return;
       setState(() => _isLoadingContent = true);
@@ -86,6 +150,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       return;
     }
 
+    // 既没有内容也没有文件路径，报错
     if (!mounted) return;
     setState(() {
       _error = '未提供章节内容或文件路径';
@@ -93,22 +158,35 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
   }
 
+  /// 检查内容长度
+  ///
+  /// 内容少于2000字节时：
+  /// 1. 标记为过短，禁用摘要生成按钮
+  /// 2. 如果没有摘要，自动显示原文视图
   void _checkContentLength() {
     final textContent = _extractTextContent(_content);
     final byteLength = utf8.encode(textContent).length;
     _contentTooShort = byteLength < 2000;
+
+    // 内容过短且没有摘要时，默认显示原文
     if (_contentTooShort && _summary == null) {
       _showOriginalText = true;
     }
   }
 
+  /// 从文件加载章节内容
+  ///
+  /// 使用FormatRegistry获取对应格式的解析器，
+  /// 解析章节列表并获取指定章节的内容
   Future<void> _loadChapterContent() async {
     try {
       List<Chapter> chapters = widget.chapters ?? [];
 
+      // 如果没有传入章节列表，从文件解析
       if (chapters.isEmpty && widget.filePath != null) {
         _log.d('SummaryScreen', '使用FormatRegistry加载章节列表');
-        // 获取格式类型并加载章节
+
+        // 根据文件扩展名获取解析器
         final extension = _getFileExtension(widget.filePath!);
         final parser = FormatRegistry.getParser(extension);
 
@@ -119,13 +197,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
         }
       }
 
-      // 只取第一级章节
+      // 过滤出第一级章节
       final topLevelChapters = chapters.where((c) => c.level == 0).toList();
       _chapters = topLevelChapters;
 
       _log.d('SummaryScreen',
           '第一级章节总数: ${topLevelChapters.length}, 请求索引: ${widget.chapterIndex}');
 
+      // 检查索引有效性
       if (widget.chapterIndex < 0 ||
           widget.chapterIndex >= topLevelChapters.length) {
         if (!mounted) return;
@@ -183,11 +262,19 @@ class _SummaryScreenState extends State<SummaryScreen> {
     }
   }
 
+  /// 加载章节摘要
+  ///
+  /// 检查是否有正在进行的生成任务：
+  /// - 如果有：等待生成完成后再加载
+  /// - 如果没有：直接从数据库加载
   Future<void> _loadSummary() async {
+    // 检查是否有正在进行的生成任务
+    // 这个机制用于处理用户快速切换章节时，避免重复生成
     final generatingFuture =
         _summaryService.getGeneratingFuture(widget.bookId, widget.chapterIndex);
 
     if (generatingFuture != null) {
+      // 后台正在生成，显示加载状态并等待
       _log.d('SummaryScreen', '章节摘要正在后台生成中，等待完成');
       setState(() {
         _isGenerating = true;
@@ -195,6 +282,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
       try {
         await generatingFuture;
         if (!mounted) return;
+
+        // 生成完成后加载摘要
         final summary = await _summaryService.getSummary(
             widget.bookId, widget.chapterIndex);
         setState(() {
@@ -211,6 +300,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       return;
     }
 
+    // 直接从数据库加载已存在的摘要
     final summary =
         await _summaryService.getSummary(widget.bookId, widget.chapterIndex);
     if (!mounted) return;
@@ -219,6 +309,17 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
   }
 
+  /// 生成章节摘要
+  ///
+  /// 流程：
+  /// 1. 提取纯文本内容（去除HTML标签）
+  /// 2. 调用SummaryService生成摘要
+  /// 3. 生成成功后，刷新标题（AI可能更新了章节标题）
+  ///
+  /// 标题刷新逻辑：
+  /// - AI生成摘要时可能同时更新章节标题（更准确的标题）
+  /// - 从BookService获取更新后的Book对象
+  /// - 读取chapterTitles映射中的新标题
   Future<void> _generateSummary() async {
     if (_content.isEmpty) {
       setState(() {
@@ -233,8 +334,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
 
     try {
+      // 提取纯文本内容用于AI处理
       final plainText = _extractTextContent(_content);
 
+      // 调用摘要服务生成摘要
       final success = await _summaryService.generateSingleSummary(
         widget.bookId,
         widget.chapterIndex,
@@ -245,17 +348,21 @@ class _SummaryScreenState extends State<SummaryScreen> {
       if (!mounted) return;
 
       if (success) {
+        // 加载新生成的摘要
         final summary = await _summaryService.getSummary(
           widget.bookId,
           widget.chapterIndex,
         );
 
+        // 检查AI是否更新了章节标题
+        // AI生成摘要时可能同时生成更准确的章节标题
         final updatedBook = _bookService.getBookById(widget.bookId);
         if (updatedBook != null) {
+          // 从chapterTitles映射获取新标题
           final newTitle = updatedBook.chapterTitles?[widget.chapterIndex];
           setState(() {
             _summary = summary;
-            _title = newTitle ?? _title;
+            _title = newTitle ?? _title; // 使用新标题或保持原标题
             _isGenerating = false;
           });
         } else {
@@ -279,6 +386,11 @@ class _SummaryScreenState extends State<SummaryScreen> {
     }
   }
 
+  /// 从HTML中提取纯文本
+  ///
+  /// 1. 移除所有HTML标签
+  /// 2. 解码HTML实体（&nbsp;, &lt;, &gt;等）
+  /// 用于将HTML内容转换为纯文本供AI处理
   String _extractTextContent(String html) {
     // 使用正则表达式移除HTML标签
     final text = html.replaceAll(RegExp(r'<[^>]+>'), '');
@@ -299,6 +411,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
     return filePath.substring(lastDot).toLowerCase();
   }
 
+  /// 获取章节标题
+  ///
+  /// AppBar标题显示逻辑：
+  /// 1. 优先从Book对象的chapterTitles映射获取（AI更新后的标题）
+  /// 2. 如果没有，使用传入的默认标题
+  ///
+  /// 这样设计的原因：
+  /// - AI生成摘要时可能同时更新章节标题（更准确的标题）
+  /// - chapterTitles存储在Book对象中，持久化到数据库
+  /// - 下次进入时可以显示更新后的标题
   String _getChapterTitle(int index, String defaultTitle) {
     if (widget.book != null) {
       final titles = widget.book!.chapterTitles;
@@ -315,6 +437,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // 标题显示逻辑：
+        // 使用_getChapterTitle获取标题，优先显示AI更新后的标题
         title: Text(
           _getChapterTitle(widget.chapterIndex, widget.chapterTitle),
           style: const TextStyle(
@@ -326,6 +450,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
         centerTitle: true,
         elevation: 0,
         actions: [
+          // 生成摘要按钮：仅在以下条件满足时显示
+          // 1. 没有摘要
+          // 2. 没有正在生成
+          // 3. 有内容可用
           if (_summary == null && !_isGenerating && _content.isNotEmpty)
             TextButton.icon(
               onPressed: _generateSummary,
@@ -341,12 +469,20 @@ class _SummaryScreenState extends State<SummaryScreen> {
       body: Stack(
         children: [
           _buildBody(),
+          // 章节导航按钮：多个章节时才显示
           if (_chapters.length > 1) _buildNavigationButtons(),
         ],
       ),
     );
   }
 
+  /// 构建主体内容
+  ///
+  /// 根据状态显示不同视图：
+  /// 1. 加载中 -> 加载视图
+  /// 2. 有错误且无内容 -> 错误视图
+  /// 3. 生成中 -> 生成视图
+  /// 4. 其他 -> 摘要/原文视图
   Widget _buildBody() {
     if (_isLoadingContent) {
       return _buildLoadingView();
@@ -363,6 +499,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     return _buildSummaryView();
   }
 
+  /// 构建加载视图
   Widget _buildLoadingView() {
     return Center(
       child: Column(
@@ -382,6 +519,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// 构建生成中视图
   Widget _buildGeneratingView() {
     return Center(
       child: Column(
@@ -409,6 +547,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// 构建错误视图
   Widget _buildErrorView() {
     return Center(
       child: Padding(
@@ -451,10 +590,23 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// 构建摘要/原文视图
+  ///
+  /// 布局说明：
+  /// - 左侧：切换按钮（摘要/原文切换）
+  /// - 右侧：内容区域（根据_showOriginalText显示摘要或原文）
+  ///
+  /// PDF原文阅读功能：
+  /// - PDF格式的书籍在原文模式下使用PdfDocumentViewBuilder
+  /// - 支持单页PDF查看，配合翻页按钮
   Widget _buildSummaryView() {
-    // 对于PDF，原文阅读按钮跳转到PDF阅读界面
+    // 判断是否为PDF格式
     final bool isPdf =
         widget.book != null && widget.book!.format == BookFormat.pdf;
+
+    // 切换按钮禁用条件：
+    // 1. 内容过短且正在显示原文
+    // 2. AI未配置且正在显示原文且没有摘要
     final bool aiButtonDisabled = (_contentTooShort && _showOriginalText) ||
         (!_aiService.isConfigured && _showOriginalText && _summary == null);
 
@@ -463,6 +615,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 左侧切换按钮
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 14),
             child: InkWell(
@@ -483,6 +636,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Icon(
+                  // 图标说明：
+                  // - 星星图标：当前显示原文，点击切换到摘要
+                  // - 书本图标：当前显示摘要，点击切换到原文
                   _showOriginalText ? Icons.auto_awesome : Icons.menu_book,
                   size: 20,
                   color: aiButtonDisabled
@@ -493,6 +649,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // 右侧内容区域
           Expanded(
             child: _showOriginalText || _summary == null
                 ? _buildOriginalTextView()
@@ -503,7 +660,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// 构建摘要内容视图
+  ///
+  /// 将Markdown格式的摘要转换为HTML并渲染
+  /// 使用flutter_html组件显示，支持丰富的文本样式
   Widget _buildSummaryContent() {
+    // Markdown转HTML
     final htmlContent = md.markdownToHtml(_summary!.objectiveSummary);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -534,6 +696,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       ],
                     ),
                     const Divider(height: 24),
+                    // 使用Html组件渲染摘要内容
                     Html(
                       data: htmlContent,
                       style: {
@@ -580,20 +743,27 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// 构建原文视图
+  ///
+  /// 根据书籍格式显示不同的原文内容：
+  /// - PDF：使用PdfPageView显示单页PDF，支持翻页
+  /// - EPUB/其他：使用Html组件渲染HTML内容
   Widget _buildOriginalTextView() {
     final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
 
     if (isPdf && widget.filePath != null) {
       // PDF格式：显示单页PDF查看器
+      // 获取当前章节信息以确定页码范围
       final currentChapter =
           _chapters.isNotEmpty ? _chapters[widget.chapterIndex] : null;
       final startPage = currentChapter?.location.startPage ?? 1;
 
-      // 初始化当前页码
+      // 初始化当前页码为章节起始页
       if (_pdfCurrentPage < startPage) {
         _pdfCurrentPage = startPage;
       }
 
+      // 使用pdfrx库的PdfDocumentViewBuilder加载PDF
       return PdfDocumentViewBuilder.file(
         widget.filePath!,
         builder: (context, document) {
@@ -607,6 +777,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
               color: Colors.grey.withAlpha(30),
               child: PdfPageView(
                 document: document,
+                // 页码限制在有效范围内
                 pageNumber: _pdfCurrentPage.clamp(1, _pdfTotalPages),
               ),
             ),
@@ -676,6 +847,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// 导航到指定章节
+  ///
+  /// 章节导航逻辑：
+  /// - 使用Navigator.pushReplacement替换当前页面
+  /// - 传入新的章节索引和标题
+  /// - 保持文件路径和章节列表不变
+  ///
+  /// 注意：只导航到第一级章节（level=0）
   void _navigateToChapter(int index) {
     if (index < 0 || index >= _chapters.length) return;
 
@@ -695,17 +874,34 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// 构建导航按钮
+  ///
+  /// 按钮布局（从左到右）：
+  /// 1. << 上一章（章节导航）
+  /// 2. < 上一页（仅PDF原文模式，页码翻页）
+  /// 3. > 下一页（仅PDF原文模式，页码翻页）
+  /// 4. >> 下一章（章节导航）
+  ///
+  /// PDF翻页逻辑：
+  /// - 只能在当前章节的页码范围内翻页
+  /// - 起始页：chapter.location.startPage
+  /// - 结束页：chapter.location.endPage
   Widget _buildNavigationButtons() {
+    // 判断边界条件
     final isFirst = widget.chapterIndex <= 0;
     final isLast = widget.chapterIndex >= _chapters.length - 1;
+
+    // 判断是否为PDF原文模式
     final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
     final isPdfOriginalView = isPdf && _showOriginalText;
 
-    // 判断是否可以翻页（仅PDF原文阅读时）
+    // 计算PDF页码翻页范围（仅PDF原文阅读时有效）
     final currentChapter =
         _chapters.isNotEmpty ? _chapters[widget.chapterIndex] : null;
     final startPage = currentChapter?.location.startPage ?? 1;
     final endPage = currentChapter?.location.endPage ?? startPage;
+
+    // 判断是否可以翻页
     final canPrevPage = isPdfOriginalView && _pdfCurrentPage > startPage;
     final canNextPage = isPdfOriginalView && _pdfCurrentPage < endPage;
 
@@ -759,7 +955,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 ),
               ),
             ),
-          // 空位填充（当不显示翻页按钮时）
+          // 空位填充（当不显示翻页按钮时保持布局平衡）
           if (!isPdfOriginalView) const SizedBox(width: 48),
           // > 下一页按钮（仅PDF原文阅读时显示）
           if (isPdfOriginalView)
@@ -785,7 +981,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 ),
               ),
             ),
-          // 空位填充（当不显示翻页按钮时）
+          // 空位填充（当不显示翻页按钮时保持布局平衡）
           if (!isPdfOriginalView) const SizedBox(width: 48),
           // >> 下一章按钮
           Container(
