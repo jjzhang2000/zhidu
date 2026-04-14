@@ -45,5 +45,20 @@ run_output.txt
 # SQLite DLL
 sqlite3.dll
 
+# IntelliJ
+*.iml
+
+# Flutter generated
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Debug scripts
+build_and_run.bat
+quick_run.bat
+
+# Runtime generated data
+/ReviewCards/
+/temp_docs/
+
 # Test
 /test/
