@@ -69,7 +69,7 @@ StackTrace:
 - 日志文件保存在应用目录的 `logs/` 文件夹下
 - 文件名格式：`app_YYYYMMDD_HHMMSS.log`
 - 每次启动应用会创建新的日志文件
-- 建议定期清理旧日志文件
+- **注意**：`logs/` 目录已加入 `.gitignore`，不会被提交到版本控制
 
 ## 配置
 
@@ -86,9 +86,10 @@ await LogService().init(
 
 1. **使用有意义的 Tag**：使用类名作为 Tag，如 `'BookService'`, `'ReaderScreen'`
 2. **适当的日志级别**：
-   - 开发调试用 DEBUG
+   - 开发调试用 DEBUG 或 VERBOSE
    - 重要事件用 INFO
    - 潜在问题用 WARNING
    - 错误异常用 ERROR
 3. **错误日志要完整**：记录异常对象和堆栈信息
 4. **避免日志泄露敏感信息**：不要记录 API Key、密码等敏感数据
+5. **使用中文描述**：项目代码注释和日志统一使用中文，便于理解

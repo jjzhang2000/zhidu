@@ -12,33 +12,51 @@
 
 ### 2.1 技术栈
 - **前端框架**：Flutter（Dart）
-- **文件处理库**：epub_plus（EPUB章节解析）、archive（文件解压）、xml、image
+- **文件处理库**：
+  - EPUB：epub_plus、archive、xml、image
+  - PDF：pdf、sync_pdf_renderer
+  - 文件：file_picker、path_provider、path
 - **AI服务**：集成智谱/通义千问大语言模型API
-- **存储方案**：SQLite数据库（drift ORM）
+- **存储方案**：文件存储（JSON + Markdown）
 - **状态管理**：StatefulWidget + Service单例模式
 - **UI渲染**：flutter_html（Markdown/HTML渲染）
 
 ### 2.2 模块划分
-1. **核心阅读模块**：负责EPUB文件的导入、解析和渲染
+1. **核心阅读模块**：负责EPUB/PDF文件的导入、解析和渲染
 2. **AI分析模块**：负责调用AI服务生成章节摘要和全书概览
-3. **数据存储模块**：负责使用SQLite数据库存储书籍信息和摘要
+3. **数据存储模块**：负责使用文件存储保存书籍信息和摘要
 4. **导出模块**：负责将摘要导出为Markdown格式
 5. **UI/UX模块**：负责所有界面的设计和交互实现
 
 ### 2.3 数据流设计
 ```
-文件导入 → 解析（EPUB） → AI分析（章节摘要） → 展示（Markdown格式） → 存储（SQLite数据库） → 导出（Markdown文件）
+文件导入 → 解析（EPUB/PDF） → AI分析（章节摘要） → 展示（Markdown格式） → 存储（文件系统） → 导出（Markdown文件）
 ```
 
 ## 三、核心功能实现方案
 
 ### 3.1 智能导入与解析
-- **支持格式**：EPUB（PDF支持待开发）
+
+#### EPUB解析
 - **解析策略**：
   - 利用EPUB自带的章节标签和导航结构
   - 优先从OPF/Toc识别章节结构
   - 通过XML解析提取HTML正文
+  - 支持回退解析机制（当标准解析失败时）
 - **技术实现**：使用epub_plus库进行EPUB解析，按需提取内容
+
+#### PDF解析
+- **解析策略**：
+  - 智能识别章节标题（支持中文/英文编号格式）
+  - 自动跳过封面页（文本少于50字符的首页）
+  - 分页渲染PDF内容
+- **技术实现**：使用pdf库进行PDF渲染，sync_pdf_renderer进行分页处理
+
+#### 格式解析器架构
+- **设计模式**：注册表模式（FormatRegistry）
+- **接口定义**：BookFormatParser 接口
+- **实现类**：EpubParser、PdfParser
+- **扩展性**：新增格式只需实现接口并注册
 
 ### 3.2 AI分层阅读引擎
 - **全书概览生成逻辑**：
@@ -57,22 +75,55 @@
 ## 四、数据存储方案
 
 ### 4.1 存储方案
-- **SQLite数据库**：使用drift ORM进行类型安全的数据库操作
-- **表结构**：
-  - `books` - 书籍信息（id, title, author, file_path, current_chapter等）
-  - `chapter_summaries` - 章节摘要
-  - `book_summaries` - 全书摘要
+
+**文件存储架构**：
+- 采用JSON文件存储书籍元数据和索引
+- 采用Markdown文件存储摘要内容
+- 每本书籍独立目录，便于备份和迁移
+
+**优势**：
+- 数据格式直观，易于阅读和调试
+- 无需数据库代码生成（build_runner）
+- 支持直接导出Markdown文件
+- 降低维护复杂度
 
 ### 4.2 文件结构
-- 数据库文件存储在应用专用目录：
-  - Windows: `C:\Users\{username}\AppData\Local\zhidu\zhidu.db`
-  - Android: `/data/data/{package_name}/databases/zhidu.db`
-  - iOS: `Documents/zhidu.db`
 
-### 4.3 读写逻辑
-- **写入逻辑**：章节摘要和全书摘要保存到SQLite数据库
-- **读取逻辑**：从数据库读取摘要数据，使用flutter_html渲染Markdown
-- **导出逻辑**：支持将摘要导出为Markdown格式文件
+```
+Documents/zhidu/
+├── books.json          # 书籍索引文件
+└── books/
+    └── {bookId}/       # 每本书独立目录
+        ├── metadata.json      # 书籍元数据
+        ├── summary.md         # 书籍摘要
+        ├── chapter-001.md     # 章节摘要（按章节编号）
+        ├── chapter-002.md
+        └── cover.jpg/png      # 封面图片
+```
+
+### 4.3 存储路径
+
+- **Windows**: `C:\Users\{username}\Documents\zhidu\`
+- **macOS**: `/Users/{username}/Documents/zhidu/`
+- **Android**: `/storage/emulated/0/Documents/zhidu/` 或应用私有目录
+- **iOS**: `/var/mobile/Containers/Data/Application/{uuid}/Documents/zhidu/`
+
+### 4.4 核心服务
+
+- **StorageConfig**：统一的存储路径管理
+- **FileStorageService**：文件读写服务（JSON读写）
+- **BookService**：书籍数据管理（导入、保存、加载）
+- **SummaryService**：摘要数据管理（生成、保存、加载）
+
+### 4.5 读写逻辑
+- **写入逻辑**：
+  - 书籍元数据保存为JSON文件 (`metadata.json`)
+  - 章节摘要保存为Markdown文件 (`chapter-{index}.md`)
+  - 全书摘要保存为Markdown文件 (`summary.md`)
+- **读取逻辑**：
+  - 从JSON文件读取书籍列表和元数据
+  - 从Markdown文件读取摘要，使用flutter_html渲染
+- **导出逻辑**：支持将所有摘要打包导出为Markdown文件
 
 ## 五、UI/UX设计方案
 
@@ -111,6 +162,16 @@
   - `<` 和 `>` 导航按钮（仅在第一级章节间遍历）
   - Markdown格式的摘要内容
 
+#### 5.2.4 PDF阅读界面
+- **布局**：
+  - 顶部：章节/页面标题
+  - 中部：PDF页面渲染
+  - 底部：页面导航控制
+- **功能元素**：
+  - 分页显示PDF内容
+  - 自动跳过封面页
+  - 页面导航按钮
+
 ### 5.3 视觉设计规范
 - **色彩方案**：
   - 主色调：深蓝色（#2C3E50）用于标题和重要元素
@@ -130,18 +191,20 @@
 - [x] 基础导航框架
 - [x] 书架页面基础UI
 - [x] 数据模型定义
-- [x] SQLite数据库实现
+- [x] 文件存储实现
 
 ### 阶段二：文件导入功能（已完成）
 - [x] 文件选择器集成
 - [x] 书籍信息提取
 - [x] EPUB文件解析
+- [x] PDF文件解析
 - [x] 封面图片提取
 
 ### 阶段三：阅读器核心功能（已完成）
 - [x] 书籍详情页面
 - [x] 目录导航
 - [x] EPUB阅读器
+- [x] PDF阅读器
 - [x] 阅读设置
 
 ### 阶段四：AI摘要功能（已完成）
@@ -151,9 +214,16 @@
 - [x] 章节摘要生成
 - [x] Markdown渲染
 
-### 阶段五：优化与测试（进行中）
-- [ ] PDF格式支持
+### 阶段五：优化与重构（已完成）
+- [x] 存储架构优化（从SQLite迁移到文件存储）
+- [x] 格式解析器架构（注册表模式）
+- [x] 代码审查和清理
+- [x] 临时文件清理
+
+### 阶段六：功能扩展（待开发）
 - [ ] 复习卡片功能
+- [ ] 云同步备份
+- [ ] 用户自定义提示词
 - [ ] 性能优化
 - [ ] 用户测试与反馈优化
 
@@ -162,22 +232,26 @@
 ### 代码提交规范
 - 提交信息格式：`类型: 简短描述`
 - 类型包括：feat（新功能）、fix（修复）、docs（文档）、style（格式）、refactor（重构）、test（测试）、chore（构建）
-- 示例：`refactor: 代码审查清理、AI提示词集中管理`
+- 示例：`refactor: 清理死代码，删除未使用的服务和模型`
 
 ### 测试要求
 - 所有功能模块必须经过手动测试
 - UI组件需要在真机/模拟器上测试
 - 文件操作需要测试异常情况
 
+### 构建验证
+- 每次重大修改后需要执行 `flutter analyze`
+- 发布前需要执行 `flutter build windows --release` 验证构建成功
+
 ## 八、技术风险和应对措施
 
 ### 8.1 技术风险
-- **EPUB解析复杂性**：不同EPUB格式可能导致解析困难
+- **EPUB/PDF解析复杂性**：不同格式可能导致解析困难
 - **AI服务成本**：AI调用可能产生费用
 - **用户体验一致性**：Markdown渲染在不同平台可能有差异
 
 ### 8.2 应对措施
-- **EPUB解析**：使用成熟的epub_plus库，提供回退解析机制
+- **文件解析**：使用成熟的解析库，提供回退解析机制
 - **AI服务**：提供AI配置选项，支持用户选择不同提供商
 - **用户体验**：使用flutter_html确保Markdown渲染一致性
 

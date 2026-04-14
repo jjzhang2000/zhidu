@@ -33,9 +33,10 @@
 ## ✨ 功能特性
 
 ### 智能导入与解析
-- 📚 支持EPUB格式书籍导入（PDF支持待开发）
+- 📚 支持 EPUB 和 PDF 格式书籍导入
 - 🎯 采用"精准打击"策略，避免全量解析
 - 📑 智能识别章节结构和目录
+- 🖼️ 自动提取封面图片
 
 ### AI分层阅读引擎
 - 🧠 **全书概览**：
@@ -49,6 +50,7 @@
 - ⚡ **智能预加载**：后台静默预加载下一章内容
 - 🎨 **主题切换**：支持亮色/暗色主题
 - 🔍 **章节导航**：仅在第一级目录间遍历，避免子章节干扰
+- 📖 **PDF阅读器**：支持PDF分页阅读，智能跳过封面页
 
 ---
 
@@ -58,10 +60,11 @@
 |------|---------|
 | **前端框架** | Flutter (Dart) |
 | **状态管理** | StatefulWidget + Service单例模式 |
-| **EPUB处理** | epub_plus |
-| **文件处理** | file_picker, path_provider, archive, xml, image |
+| **EPUB处理** | epub_plus, archive, xml |
+| **PDF处理** | pdf (pdfium), sync_pdf_renderer |
+| **文件处理** | file_picker, path_provider, path |
 | **AI服务** | 大语言模型API（智谱/通义千问） |
-| **本地存储** | SQLite数据库（drift ORM） |
+| **本地存储** | 文件存储（JSON + Markdown） |
 | **UI组件** | flutter_html（HTML渲染） |
 | **数据解析** | markdown |
 
@@ -74,7 +77,7 @@
 - Flutter SDK >= 3.0.0
 - Dart SDK >= 3.0.0
 - Windows（主要开发）、Android、iOS、macOS、Linux
-- Web限制：Web平台仅支持演示，无法导入本地EPUB文件（浏览器沙箱限制）
+- Web限制：Web平台仅支持演示，无法导入本地文件（浏览器沙箱限制）
 
 ### 安装步骤
 
@@ -105,6 +108,9 @@
 ### 构建发布版本
 
 ```bash
+# Windows
+flutter build windows --release
+
 # Android APK
 flutter build apk --release
 
@@ -124,7 +130,7 @@ flutter build web --release
 
 ### 1. 添加书籍
 - 点击首页右下角的"+"按钮
-- 选择EPUB格式的书籍文件
+- 选择 EPUB 或 PDF 格式的书籍文件
 - 等待文件解析完成
 
 ### 2. 阅读书籍
@@ -138,9 +144,9 @@ flutter build web --release
 - 使用底部 `<` 和 `>` 按钮在第一级章节间导航
 
 ### 4. 导出摘要
-- 全书摘要和章节摘要自动保存到SQLite数据库
+- 全书摘要和章节摘要自动保存为Markdown文件
 - 支持导出为Markdown格式文件
-- 文件保存在应用专用目录
+- 文件保存在 Documents/zhidu/ 目录
 
 ---
 
@@ -150,36 +156,76 @@ flutter build web --release
 zhidu/
 ├── lib/
 │   ├── main.dart                 # 应用入口，初始化所有Service
-│   ├── data/                     # 数据层
-│   │   └── database/             # 数据库定义
-│   │       ├── database.dart     # drift数据库配置和表定义
-│   │       └── database.g.dart   # 生成的数据库代码
 │   ├── models/                   # 数据模型
 │   │   ├── book.dart            # 书籍模型
-│   │   ├── book_summary.dart    # 书籍摘要（全书概览）
-│   │   ├── chapter_summary.dart # 章节摘要
-│   │   └── section_summary.dart # 小节摘要
+│   │   ├── book_metadata.dart   # 书籍元数据
+│   │   ├── chapter.dart         # 章节模型
+│   │   ├── chapter_content.dart # 章节内容
+│   │   ├── chapter_location.dart # 章节位置
+│   │   └── chapter_summary.dart # 章节摘要
 │   ├── screens/                  # UI页面
 │   │   ├── home_screen.dart     # 首页（书架/发现/我的）
-│   │   ├── book_detail_screen.dart      # 书籍详情（全书概览）
-│   │   ├── summary_screen.dart          # 章节摘要页
-│   │   └── settings_screen.dart         # 设置
+│   │   ├── book_detail_screen.dart # 书籍详情（全书概览）
+│   │   ├── summary_screen.dart  # 章节摘要页
+│   │   ├── pdf_reader_screen.dart # PDF阅读器
+│   │   └── settings_screen.dart # 设置
 │   ├── services/                 # 业务服务层（单例模式）
 │   │   ├── book_service.dart    # 书籍管理（导入、解析）
-│   │   ├── epub_service.dart    # EPUB文件解析（核心）
+│   │   ├── epub_service.dart    # EPUB文件解析
+│   │   ├── pdf_service.dart     # PDF文件解析
 │   │   ├── ai_service.dart      # AI服务（智谱/通义千问API）
+│   │   ├── ai_prompts.dart      # AI提示词模板
 │   │   ├── summary_service.dart # 摘要生成与管理
 │   │   ├── export_service.dart  # Markdown导出
+│   │   ├── storage_config.dart  # 存储路径配置
+│   │   ├── file_storage_service.dart # 文件存储服务
 │   │   └── log_service.dart     # 日志服务
+│   │   └── parsers/             # 格式解析器
+│   │       ├── book_format_parser.dart # 解析器接口
+│   │       ├── epub_parser.dart # EPUB解析器
+│   │       ├── pdf_parser.dart  # PDF解析器
+│   │       └── format_registry.dart # 格式注册表
 │   └── utils/
 │       └── app_theme.dart       # 主题配置
+├── docs/                        # 项目文档
+│   ├── code-review/             # 代码审查报告
+│   └── superpowers/             # 开发辅助文档
 ├── assets/                      # 资源文件
 │   ├── icons/                  # 应用图标
 │   └── images/                 # 图片资源
 ├── pubspec.yaml                # 项目配置
 ├── analysis_options.yaml       # 代码分析配置
-└── README.md                  # 项目说明
+├── AGENTS.md                   # 开发指南（供AI助手参考）
+├── README.md                   # 项目说明
+├── Requirement.md              # 需求文档
+├── Technical_Plan.md           # 技术方案
+└── LOGGING.md                  # 日志系统说明
 ```
+
+---
+
+## 💾 存储架构
+
+### 目录结构
+
+```
+Documents/zhidu/
+├── books.json          # 书籍索引文件
+└── books/
+    └── {bookId}/       # 每本书独立目录
+        ├── metadata.json      # 书籍元数据
+        ├── summary.md         # 书籍摘要
+        ├── chapter-001.md     # 章节摘要（按章节编号）
+        ├── chapter-002.md
+        └── cover.jpg/png      # 封面图片
+```
+
+### 存储路径
+
+- **Windows**: `C:\Users\{username}\Documents\zhidu\`
+- **macOS**: `/Users/{username}/Documents/zhidu/`
+- **Android**: `/storage/emulated/0/Documents/zhidu/` 或应用私有目录
+- **iOS**: `/var/mobile/Containers/Data/Application/{uuid}/Documents/zhidu/`
 
 ---
 
@@ -190,18 +236,20 @@ zhidu/
 - [x] EPUB导入与解析
 - [x] AI分层摘要生成（全书+章节）
 - [x] 原文阅读器实现
-- [x] SQLite数据库存储
+- [x] 文件存储实现（从SQLite迁移）
 
-### 第二阶段：功能优化
-- [ ] PDF格式支持
+### 第二阶段：功能优化（已完成）
+- [x] PDF格式支持
+- [x] 存储架构优化（文件存储替代SQLite）
+- [x] 代码审查和清理
+- [x] 格式解析器架构（注册表模式）
+
+### 第三阶段：体验增强（待开发）
 - [ ] 复习卡片功能
 - [ ] 云同步备份
 - [ ] 用户自定义提示词
-
-### 第三阶段：体验增强
 - [ ] 性能优化
 - [ ] 多语言支持
-- [ ] 用户测试与反馈优化
 
 ---
 
@@ -227,7 +275,6 @@ zhidu/
 
 - [Flutter](https://flutter.dev/) - 跨平台UI框架
 - [epub_plus](https://pub.dev/packages/epub_plus) - EPUB解析库
-- [drift](https://pub.dev/packages/drift) - SQLite ORM
 - [flutter_html](https://pub.dev/packages/flutter_html) - HTML渲染
 - [智谱AI](https://zhipuai.cn/) - 大语言模型API
 - [通义千问](https://qwen.ai/) - 大语言模型API

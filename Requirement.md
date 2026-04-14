@@ -14,15 +14,16 @@
 
 ### 2.1 智能导入与解析
 
-**支持格式**：EPUB（PDF支持待开发）
+**支持格式**：EPUB、PDF
 
 **解析策略**：
 - 采用"精准打击"原则，避免全量解析
-- 利用EPUB自带的章节标签和导航结构
-- 优先从OPF/Toc识别章节结构
-- 通过XML解析提取HTML正文
+- EPUB：利用EPUB自带的章节标签和导航结构，优先从OPF/Toc识别章节结构
+- PDF：智能识别章节标题（支持中文/英文章节编号格式），自动跳过封面页
 
-**技术实现**：基于epub_plus库进行EPUB解析
+**技术实现**：
+- EPUB：基于epub_plus库进行EPUB解析
+- PDF：基于pdf库进行PDF渲染，使用sync_pdf_renderer进行分页处理
 
 ### 2.2 AI分层阅读引擎
 
@@ -42,31 +43,54 @@
 
 **章节导航**：仅在第一级目录间遍历，避免子章节干扰用户体验
 
+**PDF阅读**：分页显示PDF内容，自动跳过封面页（文本少于50字符的首页）
+
 ## 三、数据存储与架构
 
 ### 3.1 存储方案
 
-**SQLite数据库**：使用drift ORM进行类型安全的数据库操作
+**文件存储**：采用JSON + Markdown文件存储方案，替代原有SQLite数据库
 
-**表结构**：
-- `books` - 书籍信息（id, title, author, file_path, current_chapter等）
-- `chapter_summaries` - 章节摘要
-- `book_summaries` - 全书摘要
+**优势**：
+- 更易于数据迁移和备份
+- 直接输出Markdown格式，无需额外转换
+- 简化数据模型，降低维护复杂度
 
 ### 3.2 文件结构
 
-数据库文件存储在应用专用目录：
-- Windows: `C:\Users\{username}\AppData\Local\zhidu\zhidu.db`
-- Android: `/data/data/{package_name}/databases/zhidu.db`
-- iOS: `Documents/zhidu.db`
+数据存储在应用专用目录 `Documents/zhidu/`：
 
-### 3.3 读写逻辑
+```
+Documents/zhidu/
+├── books.json          # 书籍索引文件
+└── books/
+    └── {bookId}/       # 每本书独立目录
+        ├── metadata.json      # 书籍元数据
+        ├── summary.md         # 书籍摘要
+        ├── chapter-001.md     # 章节摘要（按章节编号）
+        ├── chapter-002.md
+        └── cover.jpg/png      # 封面图片
+```
 
-**写入逻辑**：章节摘要和全书摘要保存到SQLite数据库
+### 3.3 存储路径
 
-**读取逻辑**：从数据库读取摘要数据，使用flutter_html渲染Markdown
+- **Windows**: `C:\Users\{username}\Documents\zhidu\`
+- **macOS**: `/Users/{username}/Documents/zhidu/`
+- **Android**: `/storage/emulated/0/Documents/zhidu/` 或应用私有目录
+- **iOS**: `/var/mobile/Containers/Data/Application/{uuid}/Documents/zhidu/`
 
-**导出逻辑**：支持将摘要导出为Markdown格式文件
+### 3.4 读写逻辑
+
+**写入逻辑**：
+- 书籍元数据保存为JSON文件 (`metadata.json`)
+- 章节摘要保存为Markdown文件 (`chapter-{index}.md`)
+- 全书摘要保存为Markdown文件 (`summary.md`)
+
+**读取逻辑**：
+- 从JSON文件读取书籍列表和元数据
+- 从Markdown文件读取摘要，使用flutter_html渲染
+
+**导出逻辑**：支持将所有摘要打包导出为Markdown文件
 
 ## 四、技术实现路径
 
@@ -74,31 +98,37 @@
 
 **前端框架**：Flutter（Dart）
 
-**文件处理库**：epub_plus（EPUB解析）、archive、xml、image
+**文件处理库**：
+- EPUB：epub_plus、archive、xml、image
+- PDF：pdf、sync_pdf_renderer
+- 文件：file_picker、path_provider、path
 
 **AI服务**：集成智谱/通义千问大语言模型API
 
-**存储方案**：SQLite数据库（drift ORM）
+**存储方案**：文件存储（JSON + Markdown）
 
 **UI渲染**：flutter_html（Markdown/HTML渲染）
 
 ### 4.2 开发阶段规划
 
-**Phase 1：核心阅读（MVP）**
+**Phase 1：核心阅读（MVP）✅ 已完成**
 - 实现EPUB导入与解析
 - 实现AI分层摘要生成（全书+章节）
 - 实现原文阅读器与"直接阅读"逃逸入口
-- 实现SQLite数据库存储
+- 实现文件存储
 
-**Phase 2：智能优化**
+**Phase 2：智能优化 ✅ 已完成**
 - 完善全书摘要生成逻辑（前言检测+兜底）
 - 优化章节导航（仅第一级目录）
 - 实现Markdown导出功能
+- 实现PDF格式支持
+- 存储架构优化（从SQLite迁移到文件存储）
 
-**Phase 3：功能扩展**
-- PDF格式支持
+**Phase 3：功能扩展（待开发）**
 - 复习卡片功能
 - 云同步备份
+- 用户自定义提示词
+- 性能优化
 
 ## 五、UI设计说明
 
@@ -144,6 +174,18 @@
 - `<` 和 `>` 导航按钮（仅在第一级章节间遍历）
 - Markdown格式的摘要内容
 
+#### 5.2.4 PDF阅读界面
+
+**布局**：
+- 顶部：章节/页面标题
+- 中部：PDF页面渲染
+- 底部：页面导航控制
+
+**功能元素**：
+- 分页显示PDF内容
+- 自动跳过封面页
+- 页面导航按钮
+
 ### 5.3 视觉设计规范
 
 #### 5.3.1 色彩方案
@@ -174,7 +216,7 @@
 
 ### 6.2 安全与隐私
 
-**本地存储**：所有书籍文件与数据库均存储在用户设备本地
+**本地存储**：所有书籍文件与数据均存储在用户设备本地
 
 **API密钥保护**：AI配置文件（ai_config.json）已加入.gitignore，不会泄露到版本控制
 
@@ -182,21 +224,21 @@
 
 **平台兼容**：支持Windows（主要开发）、Android、iOS、macOS、Linux
 
-**Web限制**：Web平台仅支持演示，无法导入本地EPUB文件（浏览器沙箱限制）
+**Web限制**：Web平台仅支持演示，无法导入本地文件（浏览器沙箱限制）
 
-**文件格式**：兼容主流EPUB格式
+**文件格式**：兼容主流EPUB和PDF格式
 
 ## 七、开发计划
 
 ### 7.1 阶段划分
 
 - **第一阶段（已完成）**：MVP版本开发
-- **第二阶段（进行中）**：功能优化与完善
+- **第二阶段（已完成）**：功能优化与完善（PDF支持、存储优化）
 - **第三阶段（待开发）**：用户体验优化与测试
 
 ### 7.2 关键里程碑
 
-- **MVP完成**：实现核心阅读功能
+- **MVP完成**：实现核心阅读功能 ✅
 - **Beta测试**：邀请用户进行内测
 - **正式发布**：应用商店上架
 
@@ -204,8 +246,8 @@
 
 ### 8.1 技术风险
 
-**EPUB解析复杂性**：不同EPUB格式可能导致解析困难
-**应对措施**：使用成熟的epub_plus库，提供回退解析机制
+**EPUB/PDF解析复杂性**：不同格式可能导致解析困难
+**应对措施**：使用成熟的解析库，提供回退解析机制
 
 ### 8.2 AI服务风险
 
