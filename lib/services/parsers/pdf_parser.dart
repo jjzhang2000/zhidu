@@ -79,42 +79,83 @@ class PdfParser implements BookFormatParser {
 
       await document.dispose();
 
-      // 章节标题正则表达式模式
+      // 检测首页是否是封面（纯图片页）
+      // 如果首页文字少于50字符，认为是封面，跳过
+      int startOffset = 0;
+      final coverThreshold = 50;
+      if (pageContents.isNotEmpty &&
+          pageContents[0].trim().length < coverThreshold) {
+        startOffset = 1;
+        _log.d('PdfParser', '首页文字少于${coverThreshold}字符，识别为封面，跳过');
+      }
+
+      // 如果跳过封面后只剩一页或没有页面，处理单章情况
+      final effectivePages = totalPages - startOffset;
+      if (effectivePages <= 0) {
+        _log.d('PdfParser', '跳过封面后无有效页面');
+        return [];
+      }
+
+      // 章节标题正则表达式模式（更严格的匹配）
       final patterns = [
-        r'第[一二三四五六七八九十百]+章[^\n]*',
-        r'第\d+章[^\n]*',
-        r'Chapter\s+\d+[^\n]*',
-        r'CHAPTER\s+\d+[^\n]*',
+        r'^第[一二三四五六七八九十百零]+章[：:\s]',
+        r'^第\d+章[：:\s]',
+        r'^Chapter\s+\d+[：:\s]',
+        r'^CHAPTER\s+\d+[：:\s]',
       ];
 
-      final chapterBoundaries = <int>[0]; // 章节起始页面索引（0-based）
+      final chapterBoundaries = <int>[startOffset];
+      final chapterTitles = <String>['全文'];
+      int lastChapterNum = -1;
 
-      // 检测章节边界
-      for (int i = 0; i < pageContents.length; i++) {
+      // 检测章节边界（从startOffset开始）
+      for (int i = startOffset; i < pageContents.length; i++) {
         final content = pageContents[i];
-        for (final pattern in patterns) {
-          final regex = RegExp(pattern, multiLine: true, caseSensitive: false);
-          if (regex.hasMatch(content)) {
-            if (i != 0 && i != chapterBoundaries.last) {
-              chapterBoundaries.add(i);
+
+        final firstLines = content.split('\n').take(5);
+
+        for (final line in firstLines) {
+          for (final pattern in patterns) {
+            final regex =
+                RegExp(pattern, multiLine: true, caseSensitive: false);
+            final match = regex.firstMatch(line);
+
+            if (match != null) {
+              final title = match.group(0)?.trim() ?? '';
+
+              final numMatch = RegExp(r'\d+|[一二三四五六七八九十百零]+').firstMatch(title);
+              if (numMatch != null) {
+                final chapterNum = numMatch.group(0);
+
+                if (i != startOffset &&
+                    chapterNum != null &&
+                    !chapterBoundaries.contains(i) &&
+                    lastChapterNum != int.tryParse(chapterNum)) {
+                  chapterBoundaries.add(i);
+                  chapterTitles.add(title);
+                  lastChapterNum = int.tryParse(chapterNum) ?? -1;
+                  _log.d('PdfParser', '检测到章节边界: 页$i, 标题: $title');
+                }
+              }
+              break;
             }
-            break;
           }
         }
       }
 
-      // 如果没有检测到多个章节，将整个文档视为一个章节
+      // 如果没有检测到多个章节，将有效文档视为一个章节
       if (chapterBoundaries.length == 1) {
-        _log.d('PdfParser', '未检测到多个章节，将整个文档视为一个章节');
+        _log.d('PdfParser', '未检测到章节结构，将有效文档视为一个章节');
         return [
           Chapter(
             id: 'pdf_chapter_0',
             index: 0,
-            title: '第1章',
+            title: '全文',
             location: ChapterLocation(
-              startPage: 1,
+              startPage: startOffset + 1,
               endPage: totalPages,
             ),
+            level: 0,
           ),
         ];
       }
@@ -122,6 +163,7 @@ class PdfParser implements BookFormatParser {
       // 添加最后一页作为边界
       if (chapterBoundaries.last != totalPages - 1) {
         chapterBoundaries.add(totalPages - 1);
+        chapterTitles.add('结束');
       }
 
       // 创建章节对象
@@ -129,30 +171,18 @@ class PdfParser implements BookFormatParser {
       for (int i = 0; i < chapterBoundaries.length - 1; i++) {
         final startIndex = chapterBoundaries[i];
         final endIndex = chapterBoundaries[i + 1];
-
-        // 尝试从页面内容中提取章节标题
-        String chapterTitle = '第${i + 1}章';
-        if (startIndex < pageContents.length) {
-          final firstPageContent = pageContents[startIndex];
-          for (final pattern in patterns) {
-            final regex =
-                RegExp(pattern, multiLine: true, caseSensitive: false);
-            final match = regex.firstMatch(firstPageContent);
-            if (match != null) {
-              chapterTitle = match.group(0)?.trim() ?? chapterTitle;
-              break;
-            }
-          }
-        }
+        final title =
+            i < chapterTitles.length ? chapterTitles[i] : '第${i + 1}章';
 
         chapters.add(Chapter(
           id: 'pdf_chapter_$i',
           index: i,
-          title: chapterTitle,
+          title: title,
           location: ChapterLocation(
-            startPage: startIndex + 1, // 1-based page numbers
+            startPage: startIndex + 1,
             endPage: endIndex + 1,
           ),
+          level: 0,
         ));
       }
 
@@ -185,15 +215,17 @@ class PdfParser implements BookFormatParser {
       if (startPage == null || endPage == null) {
         await document.dispose();
         _log.w('PdfParser', '章节缺少页面范围信息: ${chapter.title}');
-        return ChapterContent(plainText: '');
+        return ChapterContent(plainText: '', htmlContent: '');
       }
 
-      // 提取页面范围内的所有文本
+      _log.d('PdfParser', '提取页面范围: $startPage - $endPage');
+
+      // 提取页面范围内的所有文本（startPage 和 endPage 都是 1-based）
       final buffer = StringBuffer();
       for (int pageNum = startPage;
           pageNum <= endPage && pageNum <= document.pages.length;
           pageNum++) {
-        final page = document.pages[pageNum - 1]; // pages是0-based
+        final page = document.pages[pageNum - 1]; // 转换为 0-based
         final pageText = await page.loadText();
         if (buffer.isNotEmpty) {
           buffer.write('\n\n');
@@ -206,14 +238,24 @@ class PdfParser implements BookFormatParser {
       final plainText = buffer.toString().trim();
       _log.d('PdfParser', '章节内容提取成功，长度: ${plainText.length}');
 
-      // PDF没有HTML内容，所以htmlContent为null
+      if (plainText.isEmpty) {
+        _log.w('PdfParser', '章节内容为空: ${chapter.title}');
+        return ChapterContent(plainText: '', htmlContent: '');
+      }
+
+      // 将纯文本转换为简单的HTML格式（用<p>包裹每个段落）
+      final paragraphs =
+          plainText.split('\n').where((p) => p.trim().isNotEmpty);
+      final htmlContent =
+          paragraphs.map((p) => '<p>${p.trim()}</p>').join('\n');
+
       return ChapterContent(
         plainText: plainText,
-        htmlContent: null,
+        htmlContent: htmlContent,
       );
     } catch (e, stackTrace) {
       _log.e('PdfParser', '获取章节内容失败', e, stackTrace);
-      return ChapterContent(plainText: '');
+      return ChapterContent(plainText: '', htmlContent: '');
     }
   }
 
