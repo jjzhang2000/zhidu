@@ -146,40 +146,4 @@ class ChapterSummary {
       createdAt: DateTime.parse(json['createdAt']),
     );
   }
-
-  /// 创建带有修改的章节摘要副本
-  ///
-  /// 保留未指定的字段不变，只更新传入的字段。
-  /// 这是Dart中实现不可变对象更新的标准模式。
-  ///
-  /// 参数：所有字段都是可选的，传入null则保留原值
-  ///
-  /// 返回：新的[ChapterSummary]实例，包含更新后的数据
-  ///
-  /// 示例：
-  /// ```dart
-  /// // 只更新AI见解
-  /// final updatedSummary = summary.copyWith(
-  ///   aiInsight: '更新后的AI见解',
-  /// );
-  /// ```
-  ChapterSummary copyWith({
-    String? bookId,
-    int? chapterIndex,
-    String? chapterTitle,
-    String? objectiveSummary,
-    String? aiInsight,
-    List<String>? keyPoints,
-    DateTime? createdAt,
-  }) {
-    return ChapterSummary(
-      bookId: bookId ?? this.bookId,
-      chapterIndex: chapterIndex ?? this.chapterIndex,
-      chapterTitle: chapterTitle ?? this.chapterTitle,
-      objectiveSummary: objectiveSummary ?? this.objectiveSummary,
-      aiInsight: aiInsight ?? this.aiInsight,
-      keyPoints: keyPoints ?? this.keyPoints,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
 }

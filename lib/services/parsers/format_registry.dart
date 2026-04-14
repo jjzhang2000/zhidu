@@ -192,31 +192,6 @@ class FormatRegistry {
   /// ## 注册策略
   /// 在此方法内部调用 [register] 注册所有支持的格式：
   /// - EPUB格式：使用EpubParser解析
-  /// - PDF格式：使用PdfParser解析（如支持）
-  /// - TXT格式：使用TxtParser解析（如支持）
-  ///
-  /// ## 扩展性
-  /// 新增格式支持时，只需在此方法中添加新的注册代码：
-  /// ```dart
-  /// static void initialize() {
-  ///   register('.epub', EpubParser());
-  ///   register('.pdf', PdfParser());
-  ///   register('.mobi', MobiParser()); // 新增格式
-  /// }
-  /// ```
-  static void initialize() {
-    // 将在后续task中注册解析器
-    // 当前支持的格式：
-    // - EPUB：通过EpubParser解析（待实现）
-    // - PDF：通过PdfParser解析（待实现）
-    // - TXT：通过TxtParser解析（待实现）
-    //
-    // 示例注册代码：
-    // register('.epub', EpubParser());
-    // register('.pdf', PdfParser());
-    // register('.txt', TxtParser());
-  }
-
   /// 清空所有已注册的解析器
   ///
   /// 移除注册表中的所有解析器映射关系。
