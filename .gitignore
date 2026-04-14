@@ -30,9 +30,6 @@ ai_config.json
 
 # Generated folders
 #
-/Summaries/
-/SectionSummaries/
-/Covers/
 /logs/
 /books.json
 
@@ -41,9 +38,6 @@ ai_config.json
 build_output.txt
 msbuild_output.txt
 run_output.txt
-
-# SQLite DLL
-sqlite3.dll
 
 # IntelliJ
 *.iml
@@ -57,7 +51,6 @@ build_and_run.bat
 quick_run.bat
 
 # Runtime generated data
-/ReviewCards/
 /temp_docs/
 
 # Test
