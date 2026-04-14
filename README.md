@@ -267,7 +267,22 @@ Documents/zhidu/
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+本项目采用 **GNU Affero General Public License v3 (AGPLv3)** 开源协议。
+
+### 开源使用
+- ✅ 个人学习、研究、非商业项目：免费使用
+- ✅ 修改和分发：必须保持开源并使用相同协议
+- ✅ 网络服务：必须向用户提供源代码
+
+### 商业许可
+如果您需要在商业产品中使用本软件且不公开源代码，请联系获取商业授权：
+- 商业使用权（无需公开源代码）
+- 技术支持服务
+- 定制开发服务
+
+联系方式：[GitHub 项目页面](https://github.com/jjzhang2000/zhidu)
+
+详见 [LICENSE](LICENSE) 文件
 
 ---
 

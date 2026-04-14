@@ -1,78 +1,38 @@
-智读 (Zhidu) 开源许可协议
+GNU AFFERO GENERAL PUBLIC LICENSE
+Version 3, 19 November 2007
 
-版本 1.0
+Copyright (C) 2026 智读团队
 
-版权所有 (c) 2026 智读团队
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-一、授权范围
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
 
-1. 非商业使用
-   本软件对个人非商业使用完全免费。您可以在以下情况下自由使用、复制、修改、分发本软件：
-   - 个人学习、研究、娱乐
-   - 教育机构用于教学目的
-   - 非营利组织用于公益项目
-   - 个人博客、社交媒体分享
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-2. 商业使用限制
-   任何商业用途需要另行获得书面授权。商业用途包括但不限于：
-   - 将本软件或其衍生产品用于商业产品或服务
-   - 在企业环境中使用本软件进行商业活动
-   - 将本软件作为商业解决方案的一部分销售或分发
-   - 使用本软件为客户提供付费服务
+================================================================================
 
-二、使用者权利
+完整协议文本请参阅：
+https://www.gnu.org/licenses/agpl-3.0.txt
 
-在非商业使用范围内，您享有以下权利：
-- 使用：运行、使用本软件的全部功能
-- 复制：复制本软件用于备份或分发
-- 修改：修改源代码以适应您的需求
-- 分发：在遵守本协议的前提下分发本软件或其修改版本
+================================================================================
 
-三、使用者义务
+商业许可说明
 
-使用本软件时，您必须：
-- 在分发本软件或其衍生产品时，保留本许可协议和原作者版权声明
-- 在修改本软件后分发时，明确标注修改内容并保持开源
-- 不得移除或隐藏原作者信息
-- 不得将本软件用于任何违反法律法规的活动
+本软件采用 GNU Affero General Public License v3 (AGPLv3) 开源协议。
 
-四、商业授权
+如果您希望在商业产品中使用本软件且不公开源代码，
+请联系我们获取商业许可授权。
 
-如需商业使用，请联系作者获取商业授权。商业授权可能包括：
-- 商业使用许可
+商业许可包括：
+- 无需公开源代码的商业使用权
 - 技术支持服务
 - 定制开发服务
-- 企业级部署方案
 
-联系方式：请通过 GitHub 项目页面联系作者
-
-五、免责声明
-
-本软件按"现状"提供，不附带任何明示或暗示的保证。作者不对以下情况承担责任：
-- 软件使用造成的任何直接或间接损失
-- 数据丢失或损坏
-- 商业机会损失
-- 任何其他因使用本软件而产生的损害
-
-六、协议修改
-
-作者保留修改本许可协议的权利。修改后的协议将发布在项目 GitHub 页面，继续使用本软件即表示接受新协议。
-
-七、协议终止
-
-如果您违反本协议任何条款，您的使用授权将自动终止。终止后，您必须：
-- 立即停止使用本软件
-- 删除所有本软件的副本
-- 销毁所有基于本软件的衍生作品
-
-八、其他条款
-
-1. 本协议受中华人民共和国法律管辖
-2. 如本协议任何条款被判定无效，其他条款继续有效
-3. 未尽事宜由作者与使用者协商解决
-
----
-
-此许可协议旨在促进开源精神，同时保护作者的合法权益。
-
-感谢您对智读项目的支持！
+联系方式：请通过 GitHub 项目页面 https://github.com/jjzhang2000/zhidu 联系
