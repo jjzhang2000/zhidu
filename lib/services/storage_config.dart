@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
@@ -25,6 +26,21 @@ class StorageConfig {
   /// 首次调用 [getAppDirectory] 后缓存，避免重复获取系统目录。
   static Directory? _appDir;
 
+  /// 测试用：重置缓存状态
+  @visibleForTesting
+  static void resetForTest() {
+    _appDir = null;
+    _testBaseDir = null;
+  }
+
+  /// 测试用：设置测试基础目录（跳过path_provider）
+  static Directory? _testBaseDir;
+
+  @visibleForTesting
+  static void setTestBaseDirectory(Directory dir) {
+    _testBaseDir = dir;
+  }
+
   /// 获取应用数据根目录
   ///
   /// 返回应用专用存储目录 `Documents/zhidu/`。
@@ -41,7 +57,12 @@ class StorageConfig {
   static Future<Directory> getAppDirectory() async {
     if (_appDir != null) return _appDir!;
 
-    final docsDir = await getApplicationDocumentsDirectory();
+    Directory docsDir;
+    if (_testBaseDir != null) {
+      docsDir = _testBaseDir!;
+    } else {
+      docsDir = await getApplicationDocumentsDirectory();
+    }
     _appDir = Directory(p.join(docsDir.path, 'zhidu'));
 
     if (!await _appDir!.exists()) {

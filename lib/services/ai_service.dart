@@ -20,7 +20,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
 import 'ai_prompts.dart';
 import 'log_service.dart';
 
@@ -147,8 +149,24 @@ class AIService {
   /// AI配置对象，初始化时从配置文件加载
   AIConfig? _config;
 
+  /// HTTP客户端（可被测试替换）
+  http.Client? _httpClient;
+
   /// 日志服务实例
   final _log = LogService();
+
+  /// 测试用：重置服务状态
+  @visibleForTesting
+  static void resetForTest() {
+    AIService._instance._config = null;
+    AIService._instance._httpClient = null;
+  }
+
+  /// 测试用：设置Mock HTTP客户端
+  @visibleForTesting
+  void setMockClient(http_testing.MockClient client) {
+    _httpClient = client;
+  }
 
   /// 方法名：init
   /// 功能：初始化AI服务，从配置文件加载API配置
@@ -399,7 +417,8 @@ class AIService {
   Future<String?> _callAI(String prompt) async {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
-    final response = await http.post(
+    final client = _httpClient ?? http.Client();
+    final response = await client.post(
       url,
       headers: {
         'Content-Type': 'application/json',

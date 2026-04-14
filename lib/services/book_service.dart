@@ -155,46 +155,26 @@ class BookService {
     await _fileStorage.writeJson(metadataPath, data);
   }
 
-  /// 导入新书籍 - 核心导入流程
+  /// 从指定路径导入书籍 - 支持测试和直接导入
   ///
   /// 导入流程：
-  /// 1. 打开文件选择器，支持EPUB和PDF格式
-  /// 2. 根据文件扩展名选择对应的解析服务
-  /// 3. 解析文件，提取书籍信息（标题、作者、章节等）
-  /// 4. 检查是否已存在相同书籍（标题+作者去重）
-  /// 5. 保存到内存列表和文件系统
+  /// 1. 根据文件扩展名选择对应的解析服务
+  /// 2. 解析文件，提取书籍信息（标题、作者、章节等）
+  /// 3. 检查是否已存在相同书籍（标题+作者去重）
+  /// 4. 保存到内存列表和文件系统
   ///
   /// 返回值：
   /// - 成功：返回新导入或已存在的Book对象
-  /// - 失败：返回null（用户取消、格式不支持、解析错误等）
+  /// - 失败：返回null（格式不支持、解析错误等）
   ///
   /// 去重策略：
   /// - 使用标题+作者组合判断是否重复
   /// - 重复时返回已存在的书籍，不创建新记录
-  Future<Book?> importBook() async {
-    _log.v('BookService', 'importBook 开始执行');
+  Future<Book?> importBookFromPath(String filePath) async {
+    _log.v('BookService', 'importBookFromPath 开始执行: $filePath');
     try {
-      _log.d('BookService', '开始导入书籍...');
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['epub', 'pdf'],
-        dialogTitle: '选择电子书',
-      );
+      _log.d('BookService', '开始导入书籍: $filePath');
 
-      if (result == null || result.files.isEmpty) {
-        _log.d('BookService', '用户取消选择');
-        return null;
-      }
-
-      final platformFile = result.files.first;
-      final filePath = platformFile.path;
-
-      if (filePath == null) {
-        _log.w('BookService', '文件路径为空');
-        return null;
-      }
-
-      _log.d('BookService', '选择的文件: $filePath');
       final extension = p.extension(filePath).toLowerCase();
 
       Book? book;
@@ -231,6 +211,42 @@ class BookService {
       }
 
       return null;
+    } catch (e, stackTrace) {
+      _log.e('BookService', '导入书籍失败: $filePath', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// 导入新书籍 - 核心导入流程（通过文件选择器）
+  ///
+  /// 导入流程：
+  /// 1. 打开文件选择器，支持EPUB和PDF格式
+  /// 2. 获取文件路径后调用 importBookFromPath
+  ///
+  /// 返回值：
+  /// - 成功：返回新导入或已存在的Book对象
+  /// - 失败：返回null（用户取消、格式不支持、解析错误等）
+  Future<Book?> importBook() async {
+    _log.v('BookService', 'importBook 开始执行');
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['epub', 'pdf'],
+        dialogTitle: '选择电子书',
+      );
+
+      if (result == null || result.files.isEmpty) {
+        _log.d('BookService', '用户取消选择');
+        return null;
+      }
+
+      final filePath = result.files.first.path;
+      if (filePath == null) {
+        _log.w('BookService', '文件路径为空');
+        return null;
+      }
+
+      return await importBookFromPath(filePath);
     } catch (e, stackTrace) {
       _log.e('BookService', '导入书籍失败', e, stackTrace);
       return null;
