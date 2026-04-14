@@ -89,7 +89,7 @@
 
 2. **配置AI服务**
    - 在项目根目录创建 `ai_config.json` 文件
-   - 参考 `AGENTS.md` 中的配置格式
+   - 参考 `docs/AGENTS.md` 中的配置格式
 
 3. **安装依赖**
    ```bash
