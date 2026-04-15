@@ -18,13 +18,14 @@
 // ============================================================================
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
 import 'ai_prompts.dart';
 import 'log_service.dart';
+import 'settings_service.dart';
+import '../models/app_settings.dart';
 
 /// 类名：AIConfig
 /// 功能：AI服务配置数据模型
@@ -119,6 +120,23 @@ class AIConfig {
       apiKey.isNotEmpty &&
       apiKey != 'YOUR_ZHIPU_API_KEY_HERE' &&
       apiKey != 'YOUR_QWEN_API_KEY_HERE';
+
+  /// 方法名：fromAiSettings
+  /// 功能：从AiSettings创建AIConfig实例
+  ///
+  /// 参数：
+  /// - settings: AiSettings对象
+  ///
+  /// 使用场景：
+  /// - 从SettingsService的AiSettings转换为AIConfig
+  factory AIConfig.fromAiSettings(AiSettings settings) {
+    return AIConfig(
+      provider: settings.provider,
+      apiKey: settings.apiKey,
+      model: settings.model,
+      baseUrl: settings.baseUrl,
+    );
+  }
 }
 
 /// 类名：AIService
@@ -169,37 +187,68 @@ class AIService {
   }
 
   /// 方法名：init
-  /// 功能：初始化AI服务，从配置文件加载API配置
+  /// 功能：初始化AI服务，从SettingsService加载API配置
   ///
   /// 调用时机：
   /// - 应用启动时在main.dart中调用
   ///
   /// 算法逻辑：
-  /// 1. 尝试读取项目根目录的ai_config.json文件
-  /// 2. 如果文件存在，解析JSON内容并创建AIConfig实例
-  /// 3. 记录加载成功的日志（包含提供商和模型信息）
-  /// 4. 如果文件不存在，记录警告日志提示用户创建配置文件
-  /// 5. 如果解析失败，记录错误日志
+  /// 1. 调用reloadConfig()从SettingsService加载配置
+  /// 2. 监听SettingsService.aiSettings的变化
+  /// 3. 配置变化时自动重新加载
   ///
   /// 异常处理：
-  /// - 文件不存在：记录警告，不抛出异常
-  /// - JSON解析失败：记录错误，不抛出异常
+  /// - SettingsService未初始化：记录警告，不抛出异常
   Future<void> init() async {
+    await reloadConfig();
+
+    // 监听AI设置变化
+    SettingsService().aiSettings.addListener(_onAiSettingsChanged);
+  }
+
+  /// 方法名：dispose
+  /// 功能：清理资源，移除监听器
+  ///
+  /// 调用时机：
+  /// - 应用退出时调用
+  void dispose() {
+    SettingsService().aiSettings.removeListener(_onAiSettingsChanged);
+  }
+
+  /// 方法名：_onAiSettingsChanged
+  /// 功能：AI设置变化时的回调，重新加载配置
+  void _onAiSettingsChanged() {
+    _log.d('AIService', 'AI设置发生变化，重新加载配置');
+    reloadConfig();
+  }
+
+  /// 方法名：reloadConfig
+  /// 功能：从SettingsService重新加载AI配置
+  ///
+  /// 算法逻辑：
+  /// 1. 从SettingsService获取当前AI设置
+  /// 2. 如果配置有效，创建AIConfig实例
+  /// 3. 如果配置无效，记录警告日志
+  ///
+  /// 使用场景：
+  /// - 初始化时调用
+  /// - 用户在设置页面修改AI配置后调用
+  Future<void> reloadConfig() async {
     try {
-      final configFile = File('ai_config.json');
-      if (await configFile.exists()) {
-        final content = await configFile.readAsString();
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        _config = AIConfig.fromJson(json);
+      final aiSettings = SettingsService().settings.aiSettings;
+
+      if (aiSettings.isValid) {
+        _config = AIConfig.fromAiSettings(aiSettings);
         _log.d(
           'AIService',
           'AI配置加载成功: ${_config?.provider}, model: ${_config?.model}',
         );
       } else {
-        _log.w('AIService', 'AI配置文件不存在，请创建 ai_config.json');
+        _log.w('AIService', 'AI配置无效，请检查设置');
+        _config = null;
       }
     } catch (e) {
-      _log.e('AIService', '加载AI配置失败', e);
+      _log.e('AIService', '从SettingsService加载AI配置失败', e);
     }
   }
 
@@ -443,6 +492,71 @@ class AIService {
         '智谱API调用失败: ${response.statusCode} - ${response.body}',
       );
       return null;
+    }
+  }
+
+  /// 方法名：updateConfig
+  /// 功能：从AiSettings更新AI配置
+  ///
+  /// 参数：
+  /// - settings: AiSettings对象，包含新的配置信息
+  ///
+  /// 使用场景：
+  /// - AI配置页面保存新配置后，立即更新AIService
+  void updateConfig(AiSettings settings) {
+    _config = AIConfig(
+      provider: settings.provider,
+      apiKey: settings.apiKey,
+      model: settings.model,
+      baseUrl: settings.baseUrl,
+    );
+    _log.d('AIService',
+        '配置已更新: provider=${settings.provider}, model=${settings.model}');
+  }
+
+  /// 方法名：testConnection
+  /// 功能：测试AI连接是否可用
+  ///
+  /// 发送一个简单的测试请求到AI服务，验证配置是否正确
+  ///
+  /// 返回值：
+  /// - true: 连接成功，配置有效
+  /// - false: 连接失败，配置可能不正确
+  Future<bool> testConnection() async {
+    if (_config == null || !_config!.isValid) {
+      _log.w('AIService', '测试连接失败：配置无效');
+      return false;
+    }
+
+    try {
+      final url = Uri.parse('${_config!.baseUrl}/chat/completions');
+      final client = _httpClient ?? http.Client();
+      final response = await client.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${_config!.apiKey}',
+        },
+        body: jsonEncode({
+          'model': _config!.model,
+          'messages': [
+            {'role': 'user', 'content': 'Hello'},
+          ],
+          'temperature': 0.7,
+          'max_tokens': 10,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        _log.d('AIService', '测试连接成功');
+        return true;
+      } else {
+        _log.w('AIService', '测试连接失败: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      _log.e('AIService', '测试连接异常', e);
+      return false;
     }
   }
 }

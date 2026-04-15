@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import '../services/export_service.dart';
 import '../services/book_service.dart';
 import '../services/summary_service.dart';
+import 'ai_config_screen.dart';
 
 /// 设置页面组件
 ///
@@ -86,6 +87,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         children: [
           _buildDataSection(bookCount, summaryCount),
+          const Divider(),
+          _buildAiConfigSection(),
           const Divider(),
           _buildExportSection(),
           const Divider(),
@@ -208,6 +211,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 )
               : const Icon(Icons.chevron_right),
           onTap: _isImporting ? null : _restoreData,
+        ),
+      ],
+    );
+  }
+
+  /// 构建AI配置区块
+  ///
+  /// 提供AI服务配置入口：
+  /// - 点击跳转到AI配置页面
+  /// - 显示当前配置状态（已配置/未配置）
+  Widget _buildAiConfigSection() {
+    return _buildSection(
+      title: 'AI配置',
+      icon: Icons.smart_toy,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.api),
+          title: const Text('AI服务设置'),
+          subtitle: const Text('配置智谱/通义千问API'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AiConfigScreen(),
+              ),
+            );
+          },
         ),
       ],
     );
