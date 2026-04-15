@@ -52,23 +52,41 @@ class SettingsService {
   /// 当前设置对象
   AppSettings _settings = AppSettings();
 
+  // Private ValueNotifier fields
+  ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.system);
+  ValueNotifier<AiSettings> _aiSettings = ValueNotifier(AiSettings());
+  ValueNotifier<LanguageSettings> _languageSettings =
+      ValueNotifier(LanguageSettings());
+  ValueNotifier<StorageSettings> _storageSettings =
+      ValueNotifier(StorageSettings());
+
   /// 主题模式ValueNotifier（用于响应式UI更新）
-  final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.system);
+  ValueNotifier<ThemeMode> get themeMode => _themeMode;
 
   /// AI设置ValueNotifier
-  final ValueNotifier<AiSettings> aiSettings = ValueNotifier(AiSettings());
+  ValueNotifier<AiSettings> get aiSettings => _aiSettings;
 
   /// 语言设置ValueNotifier
-  final ValueNotifier<LanguageSettings> languageSettings =
-      ValueNotifier(LanguageSettings());
+  ValueNotifier<LanguageSettings> get languageSettings => _languageSettings;
 
   /// 存储设置ValueNotifier
-  final ValueNotifier<StorageSettings> storageSettings =
-      ValueNotifier(StorageSettings());
+  ValueNotifier<StorageSettings> get storageSettings => _storageSettings;
 
   /// 测试用：重置服务状态
   @visibleForTesting
   static void resetForTest() {
+    // Dispose old notifiers if they exist (safely)
+    _instance._safeDispose(_instance._themeMode);
+    _instance._safeDispose(_instance._aiSettings);
+    _instance._safeDispose(_instance._languageSettings);
+    _instance._safeDispose(_instance._storageSettings);
+
+    // Create new notifiers
+    _instance._themeMode = ValueNotifier(ThemeMode.system);
+    _instance._aiSettings = ValueNotifier(AiSettings());
+    _instance._languageSettings = ValueNotifier(LanguageSettings());
+    _instance._storageSettings = ValueNotifier(StorageSettings());
+
     _instance._settings = AppSettings();
     _instance._settingsFilePath = null;
   }
@@ -285,9 +303,18 @@ class SettingsService {
   ///
   /// 在应用退出前调用，清理ValueNotifiers
   void dispose() {
-    themeMode.dispose();
-    aiSettings.dispose();
-    languageSettings.dispose();
-    storageSettings.dispose();
+    _safeDispose(_themeMode);
+    _safeDispose(_aiSettings);
+    _safeDispose(_languageSettings);
+    _safeDispose(_storageSettings);
+  }
+
+  /// 安全地dispose ValueNotifier，忽略已dispose的错误
+  void _safeDispose(ChangeNotifier notifier) {
+    try {
+      notifier.dispose();
+    } catch (_) {
+      // Already disposed, ignore
+    }
   }
 }
