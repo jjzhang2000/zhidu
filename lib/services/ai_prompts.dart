@@ -8,9 +8,48 @@
 /// final prompt = AiPrompts.chapterSummary(
 ///   chapterTitle: '第1章',
 ///   content: chapterContent,
+///   languageInstruction: AiPrompts.getLanguageInstruction('manual', 'zh'),
 /// );
 /// ```
 class AiPrompts {
+  /// 获取语言指令
+  ///
+  /// 根据语言输出模式生成相应的语言指令，用于控制AI输出语言。
+  ///
+  /// 参数：
+  /// - [mode]: 语言模式，可选值：
+  ///   - 'auto_book': 根据书籍内容的语言输出
+  ///   - 'system': 根据系统语言设置输出
+  ///   - 'manual': 手动指定语言（需配合manualLanguage参数）
+  /// - [manualLanguage]: 手动指定的语言代码（仅在mode='manual'时使用）
+  ///   - 'zh': 中文
+  ///   - 'en': 英文
+  ///   - 'ja': 日文
+  ///
+  /// 返回：
+  /// - 对应模式的语言指令字符串
+  static String getLanguageInstruction(String mode, {String? manualLanguage}) {
+    switch (mode) {
+      case 'auto_book':
+        return '根据书籍内容的语言，使用相同语言输出摘要。';
+      case 'system':
+        return '根据系统语言设置，使用对应语言输出摘要。';
+      case 'manual':
+        switch (manualLanguage) {
+          case 'zh':
+            return '请用中文输出摘要。';
+          case 'en':
+            return 'Please respond in English for the summary.';
+          case 'ja':
+            return '摘要は日本語で出力してください。';
+          default:
+            return '根据系统语言设置，使用对应语言输出摘要。';
+        }
+      default:
+        return '根据系统语言设置，使用对应语言输出摘要。';
+    }
+  }
+
   /// 根据前言/序言生成书籍摘要提示词
   ///
   /// 当用户首次导入书籍时，系统会提取前言或序言内容，
@@ -22,6 +61,7 @@ class AiPrompts {
   /// - [author]: 作者姓名
   /// - [prefaceContent]: 前言或序言的完整文本内容
   /// - [totalChapters]: 书籍总章节数（可选）
+  /// - [languageInstruction]: 语言指令（可选），建议使用[getLanguageInstruction]生成
   ///
   /// 返回：
   /// - 格式化的AI提示词字符串，要求AI生成800-900字的Markdown格式摘要
@@ -30,14 +70,18 @@ class AiPrompts {
     required String author,
     required String prefaceContent,
     int? totalChapters,
+    String? languageInstruction,
   }) {
+    final langInstruction =
+        languageInstruction != null ? '\n\n语言要求：$languageInstruction' : '';
+
     return '''
 请根据以下前言/序言内容，为书籍生成一份内容介绍，使用Markdown格式输出。
 
 书籍信息：
 - 书名：$title
 - 作者：$author
-${totalChapters != null ? '- 章节数：$totalChapters' : ''}
+${totalChapters != null ? '- 章节数：$totalChapters' : ''}$langInstruction
 
 前言/序言内容：
 $prefaceContent
@@ -71,6 +115,7 @@ $prefaceContent
   /// - [author]: 作者姓名
   /// - [chapterSummaries]: 已生成的所有章节摘要的合并文本
   /// - [totalChapters]: 书籍总章节数（可选）
+  /// - [languageInstruction]: 语言指令（可选），建议使用[getLanguageInstruction]生成
   ///
   /// 返回：
   /// - 格式化的AI提示词字符串，要求AI生成800-900字的Markdown格式全书摘要
@@ -79,14 +124,18 @@ $prefaceContent
     required String author,
     required String chapterSummaries,
     int? totalChapters,
+    String? languageInstruction,
   }) {
+    final langInstruction =
+        languageInstruction != null ? '\n\n语言要求：$languageInstruction' : '';
+
     return '''
 请根据以下各章节摘要，为全书生成一份完整的书籍摘要，使用Markdown格式输出。
 
 书籍信息：
 - 书名：$title
 - 作者：$author
-${totalChapters != null ? '- 章节数：$totalChapters' : ''}
+${totalChapters != null ? '- 章节数：$totalChapters' : ''}$langInstruction
 
 各章节摘要：
 $chapterSummaries
@@ -123,6 +172,7 @@ $chapterSummaries
   /// 参数：
   /// - [chapterTitle]: 原始章节标识/标题（可选，可能不准确）
   /// - [content]: 章节的完整文本内容
+  /// - [languageInstruction]: 语言指令（可选），建议使用[getLanguageInstruction]生成
   ///
   /// 返回：
   /// - 格式化的AI提示词字符串，要求AI生成500-600字的Markdown格式章节摘要
@@ -133,13 +183,16 @@ $chapterSummaries
   static String chapterSummary({
     String? chapterTitle,
     required String content,
+    String? languageInstruction,
   }) {
+    final langInstruction =
+        languageInstruction != null ? '\n语言要求：$languageInstruction' : '';
+
     return '''
 请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
 
-${chapterTitle != null ? '原始章节标识：$chapterTitle（可能不准确，请根据内容判断真实标题）\n' : ''}
-章节内容：
-$content
+${chapterTitle != null ? '原始章节标识：$chapterTitle（可能不准确，请根据内容判断真实标题）\n' : ''}章节内容：
+$content$langInstruction
 
 要求：
 1. **第一行必须输出章节的真实标题**，格式为：`## 章节标题：[真实标题]`
