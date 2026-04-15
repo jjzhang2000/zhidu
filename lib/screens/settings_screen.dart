@@ -21,6 +21,7 @@ import '../services/export_service.dart';
 import '../services/book_service.dart';
 import '../services/summary_service.dart';
 import 'ai_config_screen.dart';
+import 'backup_settings_screen.dart';
 
 /// 设置页面组件
 ///
@@ -174,9 +175,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 构建备份与恢复区块
   ///
-  /// 提供两种功能：
-  /// 1. 备份数据：将所有数据导出为 JSON 文件
-  /// 2. 恢复数据：从 JSON 备份文件恢复数据
+  /// 提供备份设置入口和快速备份/恢复功能：
+  /// 1. 备份设置：跳转到备份设置页面进行详细配置
+  /// 2. 备份数据：将所有数据导出为 JSON 文件
+  /// 3. 恢复数据：从 JSON 备份文件恢复数据
   ///
   /// 注意事项：
   /// - 备份/恢复过程中显示加载指示器
@@ -186,6 +188,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: '备份与恢复',
       icon: Icons.backup,
       children: [
+        ListTile(
+          leading: const Icon(Icons.settings_backup_restore),
+          title: const Text('备份设置'),
+          subtitle: const Text('配置自动备份、备份目录等'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BackupSettingsScreen(),
+              ),
+            );
+          },
+        ),
         ListTile(
           leading: const Icon(Icons.cloud_upload),
           title: const Text('备份数据'),
