@@ -557,7 +557,143 @@
 
 **测试用例数**: ~5个
 
-#### 4.4.5 PdfReaderScreen测试（如有）
+#### 4.4.5 新增Settings页面测试
+
+**说明**: 为Settings Page Features新增的功能测试
+
+**文件**: `test/screens/ai_config_screen_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 渲染测试 | 表单字段显示、下拉选项 | P0 |
+| 交互测试 | 提供商切换、模型更新、API Key显示切换 | P0 |
+| 验证测试 | 空API Key错误、无效配置提示 | P0 |
+| 保存测试 | 配置保存、AIService重载 | P0 |
+
+**测试用例数**: ~15个
+
+**文件**: `test/screens/theme_settings_screen_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 渲染测试 | 三个选项显示、当前选中状态 | P0 |
+| 交互测试 | 选项切换、立即生效 | P0 |
+| 持久化测试 | 重启后主题保持 | P0 |
+
+**测试用例数**: ~10个
+
+**文件**: `test/screens/language_settings_screen_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 渲染测试 | 选项显示、下拉菜单显隐 | P0 |
+| 交互测试 | 模式切换、语言选择 | P0 |
+| 持久化测试 | 设置保存 | P0 |
+
+**测试用例数**: ~10个
+
+**文件**: `test/screens/backup_settings_screen_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 渲染测试 | 目录显示、时间显示、开关状态 | P0 |
+| 交互测试 | 目录选择、开关切换、频率选择 | P0 |
+| 备份测试 | 手动备份触发、进度显示 | P0 |
+| 恢复测试 | 文件选择、确认对话框、恢复执行 | P0 |
+
+**测试用例数**: ~15个
+
+**文件**: `test/screens/storage_settings_screen_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 渲染测试 | 当前目录显示、警告信息 | P0 |
+| 交互测试 | 目录选择、更新显示 | P0 |
+
+**测试用例数**: ~8个
+
+---
+
+### 4.5 Settings模块测试（新增）
+
+#### 4.5.1 AppSettings模型测试
+
+**文件**: `test/models/app_settings_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| AiSettings测试 | 默认值、有效性验证、序列化 | P0 |
+| ThemeSettings测试 | 默认值、模式解析、序列化 | P0 |
+| StorageSettings测试 | 默认路径、自动备份配置、序列化 | P0 |
+| LanguageSettings测试 | 默认模式、语言选择、序列化 | P0 |
+| AppSettings测试 | 完整序列化/反序列化、版本兼容 | P0 |
+
+**测试用例数**: ~25个
+
+#### 4.5.2 SettingsService测试
+
+**文件**: `test/services/settings_service_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 初始化测试 | 默认配置创建、现有配置加载、损坏处理 | P0 |
+| 更新测试 | AI/主题/存储/语言配置更新 | P0 |
+| 通知测试 | ValueNotifier正确触发、多监听器 | P0 |
+| 持久化测试 | 文件保存/加载、并发处理 | P0 |
+| 导入导出测试 | 完整配置导入导出、重置默认 | P0 |
+
+**测试用例数**: ~30个
+
+#### 4.5.3 StoragePathService测试
+
+**文件**: `test/services/storage_path_service_test.dart`
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 目录访问测试 | 自定义路径、默认路径返回 | P0 |
+| 目录选择测试 | 选择流程、可写性验证 | P0 |
+| 路径管理测试 | 设置更新、重置默认 | P0 |
+| 边界测试 | 不存在目录、只读目录、权限错误 | P0 |
+
+**测试用例数**: ~20个
+
+#### 4.5.4 AIService更新测试
+
+**文件**: `test/services/ai_service_test.dart`（更新现有文件）
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 配置加载测试 | 从SettingsService加载、重载配置 | P0 |
+| 语言注入测试 | 提示词语言指令注入、各模式验证 | P0 |
+
+**测试用例数**: ~15个（新增）
+
+#### 4.5.5 AiPrompts更新测试
+
+**文件**: `test/services/ai_prompts_test.dart`（更新现有文件）
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 语言指令测试 | 各模式指令生成、无效语言处理 | P0 |
+| 提示词注入测试 | 指令正确附加到提示词 | P0 |
+
+**测试用例数**: ~10个（新增）
+
+#### 4.5.6 ExportService更新测试
+
+**文件**: `test/services/export_service_test.dart`（更新现有文件）
+
+| 测试项 | 测试内容 | 优先级 |
+|--------|----------|--------|
+| 设置备份测试 | 备份包含设置、结构正确 | P0 |
+| 设置恢复测试 | 设置正确恢复、Service重载 | P0 |
+| 自动备份测试 | 文件创建、覆盖更新 | P0 |
+
+**测试用例数**: ~10个（新增）
+
+---
+
+### 4.6 Screens模块测试（目标85%）
 
 **文件**: `test/screens/pdf_reader_screen_test.dart`
 
@@ -570,9 +706,9 @@
 
 ---
 
-### 4.5 Utils模块测试（目标100%）
+### 4.7 Utils模块测试（目标100%）
 
-#### 4.5.1 AppTheme测试
+#### 4.7.1 AppTheme测试
 
 **文件**: `test/utils/app_theme_test.dart`
 
@@ -594,14 +730,23 @@
 
 | 模块 | 测试文件数 | 测试用例数 | 预估工作量 |
 |------|------------|------------|------------|
-| models/ | 6 | ~58 | 2天 |
+| models/ | 7 | ~83 | 3天 |
 | services/parsers/ | 4 | ~62 | 3天 |
-| services/ (非parsers) | 8 | ~150 | 5天 |
-| screens/ | 5 | ~60 | 3天 |
+| services/ (非parsers) | 11 | ~235 | 7天 |
+| screens/ | 10 | ~108 | 4天 |
 | utils/ | 1 | ~10 | 0.5天 |
-| **总计** | **24** | **~280** | **13.5天** |
+| **总计** | **33** | **~498** | **17.5天** |
 
-### 5.2 优先级分布
+### 5.2 Settings功能专项统计
+
+| 模块 | 测试文件数 | 新增用例数 | 优先级 |
+|------|------------|------------|--------|
+| Models | 1 | ~25 | P0 |
+| Services | 3 | ~75 | P0 |
+| Screens | 5 | ~58 | P0 |
+| **小计** | **9** | **~158** | - |
+
+### 5.3 优先级分布
 
 - **P0用例**: ~200个（核心功能，必须覆盖）
 - **P1用例**: ~80个（重要功能，尽力覆盖）
@@ -822,7 +967,8 @@ test/
 │   ├── chapter_summary_test.dart
 │   ├── chapter_location_test.dart
 │   ├── chapter_content_test.dart
-│   └── book_metadata_test.dart
+│   ├── book_metadata_test.dart
+│   └── app_settings_test.dart                    [新增]
 ├── services/
 │   ├── book_service_test.dart
 │   ├── ai_service_test.dart
@@ -834,6 +980,8 @@ test/
 │   ├── ai_prompts_test.dart
 │   ├── epub_service_test.dart
 │   ├── pdf_service_test.dart
+│   ├── settings_service_test.dart                [新增]
+│   └── storage_path_service_test.dart            [新增]
 │   └── parsers/
 │       ├── format_registry_test.dart
 │       ├── epub_parser_test.dart
@@ -844,7 +992,12 @@ test/
 │   ├── book_detail_screen_test.dart
 │   ├── summary_screen_test.dart
 │   ├── settings_screen_test.dart
-│   └── pdf_reader_screen_test.dart
+│   ├── pdf_reader_screen_test.dart
+│   ├── ai_config_screen_test.dart                [新增]
+│   ├── theme_settings_screen_test.dart           [新增]
+│   ├── language_settings_screen_test.dart        [新增]
+│   ├── backup_settings_screen_test.dart          [新增]
+│   └── storage_settings_screen_test.dart         [新增]
 ├── utils/
 │   └── app_theme_test.dart
 ├── mocks/
@@ -860,6 +1013,7 @@ test/
 
 ---
 
-**文档版本**: v1.0
+**文档版本**: v1.1
+**更新日期**: 2026-04-15
 **创建日期**: 2026-04-14
-**预计完成**: 约2周工作量
+**预计完成**: 约2.5周工作量
