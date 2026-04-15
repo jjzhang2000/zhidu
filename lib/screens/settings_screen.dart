@@ -1,27 +1,27 @@
 /// 设置页面
 ///
 /// 提供应用的设置和管理功能，包括：
+/// - AI配置：显示和配置AI服务状态
+/// - 外观设置：主题和语言设置
+/// - 数据管理：存储和备份设置
 /// - 数据统计：显示书籍和摘要数量
-/// - 数据导出：将书籍摘要导出为 Markdown 文件
-/// - 备份恢复：完整数据的 JSON 备份与恢复
 /// - 关于信息：应用版本和描述
 ///
 /// 设置项管理：
 /// - 使用 ListView 分组展示不同设置类别
 /// - 每个设置组使用 _buildSection 统一风格
 /// - 状态变量控制操作进行中的 UI 反馈
-///
-/// AI 配置状态显示：
-/// - 当前版本未展示 AI 配置状态
-/// - 数据统计依赖 SummaryService 和 BookService
-/// - 后续可扩展 AI 配置状态显示功能
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide ThemeMode;
 import '../services/export_service.dart';
 import '../services/book_service.dart';
 import '../services/summary_service.dart';
+import '../services/settings_service.dart';
+import '../models/app_settings.dart';
 import 'ai_config_screen.dart';
 import 'backup_settings_screen.dart';
+import 'theme_settings_screen.dart';
+import 'language_settings_screen.dart';
 
 /// 设置页面组件
 ///
@@ -87,9 +87,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
-          _buildDataSection(bookCount, summaryCount),
+          _buildAiSection(),
           const Divider(),
-          _buildAiConfigSection(),
+          _buildAppearanceSection(),
+          const Divider(),
+          _buildDataManagementSection(),
+          const Divider(),
+          _buildDataSection(bookCount, summaryCount),
           const Divider(),
           _buildExportSection(),
           const Divider(),
@@ -101,53 +105,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 构建数据统计区块
+  /// 构建AI配置区块
   ///
-  /// 显示：
-  /// - 书籍数量：当前导入的书籍总数
-  /// - 摘要数量：已生成的所有摘要总数
-  ///
-  /// 参数：
-  /// - bookCount: 书籍数量
-  /// - summaryCount: 摘要数量
-  Widget _buildDataSection(int bookCount, int summaryCount) {
+  /// 提供AI服务配置入口：
+  /// - 点击跳转到AI配置页面
+  /// - 显示当前配置状态（provider/model 或 未配置）
+  Widget _buildAiSection() {
     return _buildSection(
-      title: '数据统计',
-      icon: Icons.analytics,
+      title: 'AI配置',
+      icon: Icons.smart_toy,
       children: [
-        _buildStatTile('书籍数量', bookCount, Icons.book),
-        _buildStatTile('摘要数量', summaryCount, Icons.summarize),
+        ListTile(
+          leading: const Icon(Icons.api),
+          title: const Text('AI服务设置'),
+          subtitle: Text(_getAiConfigStatus()),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AiConfigScreen(),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
 
-  /// 构建统计条目
+  /// 获取AI配置状态显示文本
+  String _getAiConfigStatus() {
+    final ai = SettingsService().settings.aiSettings;
+    if (ai.isValid) {
+      return '${ai.provider} / ${ai.model}';
+    }
+    return '未配置';
+  }
+
+  /// 构建外观设置区块
   ///
-  /// 创建一个 ListTile 显示标签和计数值
-  /// 计数值显示在带背景的圆角容器中
+  /// 提供主题和语言设置入口
+  Widget _buildAppearanceSection() {
+    return _buildSection(
+      title: '外观设置',
+      icon: Icons.palette,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.brightness_6),
+          title: const Text('主题设置'),
+          subtitle: Text(_getThemeStatus()),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ThemeSettingsScreen(),
+              ),
+            );
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.language),
+          title: const Text('语言设置'),
+          subtitle: Text(_getLanguageStatus()),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LanguageSettingsScreen(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  /// 获取主题状态显示文本
+  String _getThemeStatus() {
+    final mode = SettingsService().settings.themeSettings.mode;
+    switch (mode) {
+      case ThemeMode.system:
+        return '跟随系统';
+      case ThemeMode.light:
+        return '亮色';
+      case ThemeMode.dark:
+        return '暗色';
+    }
+  }
+
+  /// 获取语言状态显示文本
+  String _getLanguageStatus() {
+    final lang = SettingsService().settings.languageSettings.aiOutputLanguage;
+    switch (lang) {
+      case 'zh':
+        return '中文';
+      case 'en':
+        return '英文';
+      case 'auto':
+        return '自动';
+      default:
+        return '中文';
+    }
+  }
+
+  /// 构建数据管理区块
   ///
-  /// 参数：
-  /// - label: 统计项名称
-  /// - count: 统计数值
-  /// - icon: 前置图标
-  Widget _buildStatTile(String label, int count, IconData icon) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
+  /// 提供存储和备份设置入口
+  Widget _buildDataManagementSection() {
+    return _buildSection(
+      title: '数据管理',
+      icon: Icons.storage,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.folder),
+          title: const Text('存储路径'),
+          subtitle: const Text('设置书籍和备份存储位置'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            _showSnackBar('存储设置功能即将推出');
+          },
         ),
-        child: Text(
-          '$count',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+        ListTile(
+          leading: const Icon(Icons.settings_backup_restore),
+          title: const Text('备份设置'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BackupSettingsScreen(),
+              ),
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 
@@ -232,31 +325,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 构建AI配置区块
+  /// 构建数据统计区块
   ///
-  /// 提供AI服务配置入口：
-  /// - 点击跳转到AI配置页面
-  /// - 显示当前配置状态（已配置/未配置）
-  Widget _buildAiConfigSection() {
+  /// 显示：
+  /// - 书籍数量：当前导入的书籍总数
+  /// - 摘要数量：已生成的所有摘要总数
+  ///
+  /// 参数：
+  /// - bookCount: 书籍数量
+  /// - summaryCount: 摘要数量
+  Widget _buildDataSection(int bookCount, int summaryCount) {
     return _buildSection(
-      title: 'AI配置',
-      icon: Icons.smart_toy,
+      title: '数据统计',
+      icon: Icons.analytics,
       children: [
-        ListTile(
-          leading: const Icon(Icons.api),
-          title: const Text('AI服务设置'),
-          subtitle: const Text('配置智谱/通义千问API'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AiConfigScreen(),
-              ),
-            );
-          },
-        ),
+        _buildStatTile('书籍数量', bookCount, Icons.book),
+        _buildStatTile('摘要数量', summaryCount, Icons.summarize),
       ],
+    );
+  }
+
+  /// 构建统计条目
+  ///
+  /// 创建一个 ListTile 显示标签和计数值
+  /// 计数值显示在带背景的圆角容器中
+  ///
+  /// 参数：
+  /// - label: 统计项名称
+  /// - count: 统计数值
+  /// - icon: 前置图标
+  Widget _buildStatTile(String label, int count, IconData icon) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          '$count',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      ),
     );
   }
 

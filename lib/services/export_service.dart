@@ -15,8 +15,11 @@ import 'package:file_picker/file_picker.dart';
 
 import '../models/book.dart';
 import '../models/chapter_summary.dart';
+import '../models/app_settings.dart';
 import '../services/book_service.dart';
 import '../services/summary_service.dart';
+import '../services/settings_service.dart';
+import '../services/ai_service.dart';
 import 'log_service.dart';
 
 /// 导出服务类（单例）
@@ -161,7 +164,7 @@ class ExportService {
 
   /// 导出所有数据为JSON格式
   ///
-  /// 将应用中的所有数据（书籍信息和章节摘要）导出为JSON文件，
+  /// 将应用中的所有数据（书籍信息、章节摘要和设置）导出为JSON文件，
   /// 用于数据备份和迁移。
   ///
   /// JSON结构：
@@ -170,7 +173,8 @@ class ExportService {
   ///   "exportTime": "2026-04-14T12:00:00.000",
   ///   "version": "1.0",
   ///   "books": [...],
-  ///   "summaries": [...]
+  ///   "summaries": [...],
+  ///   "settings": {...}
   /// }
   /// ```
   ///
@@ -181,12 +185,16 @@ class ExportService {
     // 获取所有章节摘要
     final summaries = await _summaryService.getAllSummaries();
 
+    // 获取当前设置
+    final settings = SettingsService().settings;
+
     // 构建导出数据结构
     final data = {
       'exportTime': DateTime.now().toIso8601String(),
       'version': '1.0',
       'books': _bookService.books.map((b) => b.toJson()).toList(),
       'summaries': summaries.map((s) => s.toJson()).toList(),
+      'settings': settings.toJson(),
     };
 
     // 使用JsonEncoder格式化输出（缩进2个空格）
@@ -252,7 +260,7 @@ class ExportService {
 
   /// 从JSON文件导入数据
   ///
-  /// 读取指定JSON文件，解析并恢复书籍和摘要数据到数据库。
+  /// 读取指定JSON文件，解析并恢复书籍、摘要数据和设置到数据库。
   ///
   /// 参数：
   /// - [filePath] JSON文件路径
@@ -264,6 +272,8 @@ class ExportService {
   /// 注意事项：
   /// - 导入会覆盖同ID的现有数据
   /// - 文件格式必须符合exportAllDataToJson的输出格式
+  /// - 设置数据会通过SettingsService.updateAllSettings()恢复
+  /// - AI配置会通过AIService.reloadConfig()重新加载
   Future<bool> importFromJson(String filePath) async {
     try {
       final file = File(filePath);
@@ -299,12 +309,44 @@ class ExportService {
         await _summaryService.saveSummary(summary);
       }
 
+      // 恢复设置（如果存在）
+      if (data['settings'] != null) {
+        try {
+          final settingsJson = data['settings'] as Map<String, dynamic>;
+          final settings = AppSettings.fromJson(settingsJson);
+          await _restoreSettings(settings);
+        } catch (e) {
+          _log.w('ExportService', '设置恢复失败，跳过: $e');
+          // 继续处理，不要因为设置恢复失败而中断整个导入
+        }
+      }
+
       return true;
     } catch (e) {
       // 记录错误日志
       _log.e('ExportService', '导入失败', e);
       return false;
     }
+  }
+
+  /// 恢复设置到SettingsService
+  ///
+  /// 参数：
+  /// - [settings] 要恢复的设置对象
+  ///
+  /// 恢复过程：
+  /// 1. 调用SettingsService.updateAllSettings()更新所有设置
+  /// 2. 调用AIService.reloadConfig()重新加载AI配置
+  Future<void> _restoreSettings(AppSettings settings) async {
+    _log.d('ExportService', '开始恢复设置...');
+
+    // 调用updateAllSettings一次性更新所有设置
+    await SettingsService().updateAllSettings(settings);
+
+    // 重新加载AIService配置
+    await AIService().reloadConfig();
+
+    _log.d('ExportService', '设置恢复完成');
   }
 
   /// 选择并导入备份文件

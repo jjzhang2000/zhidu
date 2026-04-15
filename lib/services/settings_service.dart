@@ -299,6 +299,23 @@ class SettingsService {
   /// 检查AI配置是否有效
   bool get isAiConfigured => _settings.aiSettings.isValid;
 
+  /// 更新所有设置
+  ///
+  /// 一次性更新所有设置类别，用于从备份恢复设置。
+  ///
+  /// 参数：
+  /// - [settings] 新的完整设置对象
+  ///
+  /// 使用场景：
+  /// - 从JSON备份导入设置时调用
+  /// - 设置迁移或重置时调用
+  Future<void> updateAllSettings(AppSettings settings) async {
+    _settings = settings;
+    _syncNotifiersWithSettings();
+    await _saveSettings();
+    _log.info('SettingsService', '所有设置已更新');
+  }
+
   /// 释放资源
   ///
   /// 在应用退出前调用，清理ValueNotifiers
