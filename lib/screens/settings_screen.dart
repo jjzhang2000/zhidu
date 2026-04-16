@@ -202,16 +202,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 获取语言状态显示文本
   String _getLanguageStatus() {
-    final lang = SettingsService().settings.languageSettings.aiOutputLanguage;
-    switch (lang) {
-      case 'zh':
-        return '中文';
-      case 'en':
-        return '英文';
-      case 'auto':
-        return '自动';
+    final settings = SettingsService().settings.languageSettings;
+    // 显示 AI 语言模式
+    switch (settings.aiLanguageMode) {
+      case 'book':
+        return 'AI: 跟随书籍';
+      case 'system':
+        return 'AI: 跟随系统';
+      case 'manual':
+        final lang = settings.aiOutputLanguage;
+        switch (lang) {
+          case 'zh':
+            return 'AI: 简体中文';
+          case 'en':
+            return 'AI: English';
+          case 'ja':
+            return 'AI: 日本語';
+          default:
+            return 'AI: 简体中文';
+        }
       default:
-        return '中文';
+        return 'AI: 跟随系统';
     }
   }
 

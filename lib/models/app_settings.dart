@@ -220,47 +220,65 @@ class StorageSettings {
 /// 功能：语言设置数据模型
 ///
 /// 主要用途：
-/// - 配置AI输出语言偏好
-/// - 配置界面语言（未来扩展）
+/// - 配置 AI 输出语言偏好（跟随书籍/跟随系统/用户自选）
+/// - 配置界面语言偏好（跟随系统/用户自选）
 class LanguageSettings {
-  /// AI输出语言
-  /// 可选值：'zh'（中文）、'en'（英文）、'auto'（自动检测）
+  /// AI 输出语言模式
+  /// 可选值：'book'（跟随书籍）、'system'（跟随系统）、'manual'（用户自选）
+  final String aiLanguageMode;
+
+  /// AI 输出语言（当 aiLanguageMode 为'manual'时使用）
+  /// 可选值：'zh'（中文）、'en'（英文）、'ja'（日文）等
   final String aiOutputLanguage;
 
-  /// 手动设置的语言（覆盖系统语言）
-  /// null表示使用系统语言
-  final String? manualLanguage;
+  /// 界面语言模式
+  /// 可选值：'system'（跟随系统）、'manual'（用户自选）
+  final String uiLanguageMode;
+
+  /// 界面语言（当 uiLanguageMode 为'manual'时使用）
+  /// 可选值：'zh'（中文）、'en'（英文）、'ja'（日文）等
+  final String uiLanguage;
 
   /// 构造函数
   LanguageSettings({
+    this.aiLanguageMode = 'system',
     this.aiOutputLanguage = 'zh',
-    this.manualLanguage,
+    this.uiLanguageMode = 'system',
+    this.uiLanguage = 'zh',
   });
 
   /// 创建副本
   LanguageSettings copyWith({
+    String? aiLanguageMode,
     String? aiOutputLanguage,
-    String? manualLanguage,
+    String? uiLanguageMode,
+    String? uiLanguage,
   }) {
     return LanguageSettings(
+      aiLanguageMode: aiLanguageMode ?? this.aiLanguageMode,
       aiOutputLanguage: aiOutputLanguage ?? this.aiOutputLanguage,
-      manualLanguage: manualLanguage ?? this.manualLanguage,
+      uiLanguageMode: uiLanguageMode ?? this.uiLanguageMode,
+      uiLanguage: uiLanguage ?? this.uiLanguage,
     );
   }
 
-  /// 序列化为JSON
+  /// 序列化为 JSON
   Map<String, dynamic> toJson() {
     return {
+      'aiLanguageMode': aiLanguageMode,
       'aiOutputLanguage': aiOutputLanguage,
-      'manualLanguage': manualLanguage,
+      'uiLanguageMode': uiLanguageMode,
+      'uiLanguage': uiLanguage,
     };
   }
 
-  /// 从JSON反序列化
+  /// 从 JSON 反序列化
   factory LanguageSettings.fromJson(Map<String, dynamic> json) {
     return LanguageSettings(
+      aiLanguageMode: json['aiLanguageMode'] ?? 'system',
       aiOutputLanguage: json['aiOutputLanguage'] ?? 'zh',
-      manualLanguage: json['manualLanguage'],
+      uiLanguageMode: json['uiLanguageMode'] ?? 'system',
+      uiLanguage: json['uiLanguage'] ?? 'zh',
     );
   }
 }

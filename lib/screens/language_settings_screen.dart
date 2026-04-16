@@ -1,11 +1,9 @@
 /// 语言设置页面
 ///
-/// 提供AI输出语言偏好设置功能：
-/// - 书籍语言（自动判断）：根据书籍内容自动判断语言
-/// - 跟随系统：使用系统语言设置
-/// - 手动选择：手动指定语言
+/// 提供 AI 输出语言和界面语言的独立设置功能：
+/// - AI 语言：跟随书籍、跟随系统、用户自选
+/// - 界面语言：跟随系统、用户自选
 ///
-/// 当选择"手动选择"时，显示语言下拉菜单
 /// 设置即时保存到本地文件
 
 import 'package:flutter/material.dart';
@@ -27,15 +25,21 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   /// 设置服务实例
   final _settingsService = SettingsService();
 
-  /// 语言选项定义
-  static const _languageOptions = [
-    ('auto_book', '书籍语言（自动判断）', '根据书籍内容自动判断语言'),
+  /// AI 语言模式选项
+  static const _aiLanguageModes = [
+    ('book', '跟随书籍', '根据书籍内容语言自动判断'),
     ('system', '跟随系统', '使用系统语言设置'),
-    ('manual', '手动选择', '手动指定AI输出语言'),
+    ('manual', '用户自选', '手动指定 AI 输出语言'),
   ];
 
-  /// 手动语言选项定义
-  static const _manualLanguages = [
+  /// 界面语言模式选项
+  static const _uiLanguageModes = [
+    ('system', '跟随系统', '使用系统语言设置'),
+    ('manual', '用户自选', '手动指定界面显示语言'),
+  ];
+
+  /// 手动语言选项
+  static const _languages = [
     ('zh', '简体中文'),
     ('en', 'English'),
     ('ja', '日本語'),
@@ -52,31 +56,77 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
         listenable: _settingsService.languageSettings,
         builder: (context, _) {
           final currentSettings = _settingsService.languageSettings.value;
-          final currentMode = _getCurrentMode(currentSettings);
 
           return ListView(
             children: [
-              // 语言模式选项
-              ..._languageOptions.map((option) {
-                return RadioListTile<String>(
-                  value: option.$1,
-                  groupValue: currentMode,
+              // AI 语言设置部分
+              _buildSection(
+                title: 'AI 语言',
+                subtitle: '控制 AI 生成内容的语言',
+                children: [
+                  ..._aiLanguageModes.map((mode) {
+                    return RadioListTile<String>(
+                      value: mode.$1,
+                      groupValue: currentSettings.aiLanguageMode,
+                      onChanged: (value) {
+                        if (value != null) {
+                          _updateAiLanguageMode(value);
+                        }
+                      },
+                      title: Text(mode.$2),
+                      subtitle: Text(mode.$3),
+                      activeColor: Theme.of(context).colorScheme.primary,
+                    );
+                  }),
+                ],
+              ),
+
+              // AI 语言手动选择时的语言下拉菜单
+              if (currentSettings.aiLanguageMode == 'manual')
+                _buildLanguageSelector(
+                  title: '选择 AI 输出语言',
+                  value: currentSettings.aiOutputLanguage,
                   onChanged: (value) {
                     if (value != null) {
-                      _updateLanguageMode(value);
+                      _updateAiOutputLanguage(value);
                     }
                   },
-                  title: Text(option.$2),
-                  subtitle: Text(option.$3),
-                  activeColor: Theme.of(context).colorScheme.primary,
-                );
-              }),
+                ),
 
-              // 手动选择时的语言下拉菜单
-              if (currentMode == 'manual')
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: _buildManualLanguageDropdown(currentSettings),
+              const Divider(height: 32),
+
+              // 界面语言设置部分
+              _buildSection(
+                title: '界面语言',
+                subtitle: '控制应用界面的显示语言',
+                children: [
+                  ..._uiLanguageModes.map((mode) {
+                    return RadioListTile<String>(
+                      value: mode.$1,
+                      groupValue: currentSettings.uiLanguageMode,
+                      onChanged: (value) {
+                        if (value != null) {
+                          _updateUiLanguageMode(value);
+                        }
+                      },
+                      title: Text(mode.$2),
+                      subtitle: Text(mode.$3),
+                      activeColor: Theme.of(context).colorScheme.primary,
+                    );
+                  }),
+                ],
+              ),
+
+              // 界面语言手动选择时的语言下拉菜单
+              if (currentSettings.uiLanguageMode == 'manual')
+                _buildLanguageSelector(
+                  title: '选择界面语言',
+                  value: currentSettings.uiLanguage,
+                  onChanged: (value) {
+                    if (value != null) {
+                      _updateUiLanguage(value);
+                    }
+                  },
                 ),
             ],
           );
@@ -85,49 +135,101 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
     );
   }
 
-  /// 获取当前语言模式
-  ///
-  /// 根据设置中的 aiOutputLanguage 和 manualLanguage 推断当前模式
-  String _getCurrentMode(LanguageSettings settings) {
-    final aiLang = settings.aiOutputLanguage;
-    final manualLang = settings.manualLanguage;
-
-    if (aiLang == 'auto_book') {
-      return 'auto_book';
-    } else if (manualLang == null) {
-      return 'system';
-    } else {
-      return 'manual';
-    }
+  /// 构建设置分组
+  Widget _buildSection({
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+              ),
+            ],
+          ),
+        ),
+        ...children,
+      ],
+    );
   }
 
-  /// 更新语言模式
-  ///
-  /// 参数：
-  /// - mode: 目标模式 ('auto_book' | 'system' | 'manual')
-  Future<void> _updateLanguageMode(String mode) async {
+  /// 构建语言选择器
+  Widget _buildLanguageSelector({
+    required String title,
+    required String value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8.0),
+              DropdownButtonFormField<String>(
+                value: _languages.any((l) => l.$1 == value) ? value : 'zh',
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                ),
+                items: _languages.map((lang) {
+                  return DropdownMenuItem<String>(
+                    value: lang.$1,
+                    child: Text(lang.$2),
+                  );
+                }).toList(),
+                onChanged: onChanged,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 更新 AI 语言模式
+  Future<void> _updateAiLanguageMode(String mode) async {
     LanguageSettings newSettings;
 
     switch (mode) {
-      case 'auto_book':
+      case 'book':
         newSettings = _settingsService.languageSettings.value.copyWith(
-          aiOutputLanguage: 'auto_book',
-          manualLanguage: null,
+          aiLanguageMode: 'book',
         );
         break;
       case 'system':
         newSettings = _settingsService.languageSettings.value.copyWith(
-          aiOutputLanguage: 'zh',
-          manualLanguage: null,
+          aiLanguageMode: 'system',
         );
         break;
       case 'manual':
-        // 默认选择简体中文
-        final currentManual =
-            _settingsService.languageSettings.value.manualLanguage;
         newSettings = _settingsService.languageSettings.value.copyWith(
-          aiOutputLanguage: currentManual ?? 'zh',
-          manualLanguage: currentManual ?? 'zh',
+          aiLanguageMode: 'manual',
+          aiOutputLanguage:
+              _settingsService.languageSettings.value.aiOutputLanguage,
         );
         break;
       default:
@@ -137,55 +239,41 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
     await _settingsService.updateLanguageSettings(newSettings);
   }
 
-  /// 构建手动语言选择下拉菜单
-  Widget _buildManualLanguageDropdown(LanguageSettings settings) {
-    final currentManualLang = settings.manualLanguage ?? 'zh';
-
-    return Card(
-      margin: const EdgeInsets.only(top: 8.0, bottom: 16.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '选择语言',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: 8.0),
-            DropdownButtonFormField<String>(
-              value: currentManualLang,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-              ),
-              items: _manualLanguages.map((lang) {
-                return DropdownMenuItem<String>(
-                  value: lang.$1,
-                  child: Text(lang.$2),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  _updateManualLanguage(value);
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 更新手动选择的语言
-  ///
-  /// 参数：
-  /// - language: 目标语言 ('zh' | 'en' | 'ja')
-  Future<void> _updateManualLanguage(String language) async {
+  /// 更新 AI 输出语言
+  Future<void> _updateAiOutputLanguage(String language) async {
     final newSettings = _settingsService.languageSettings.value.copyWith(
       aiOutputLanguage: language,
-      manualLanguage: language,
+    );
+    await _settingsService.updateLanguageSettings(newSettings);
+  }
+
+  /// 更新界面语言模式
+  Future<void> _updateUiLanguageMode(String mode) async {
+    LanguageSettings newSettings;
+
+    switch (mode) {
+      case 'system':
+        newSettings = _settingsService.languageSettings.value.copyWith(
+          uiLanguageMode: 'system',
+        );
+        break;
+      case 'manual':
+        newSettings = _settingsService.languageSettings.value.copyWith(
+          uiLanguageMode: 'manual',
+          uiLanguage: _settingsService.languageSettings.value.uiLanguage,
+        );
+        break;
+      default:
+        return;
+    }
+
+    await _settingsService.updateLanguageSettings(newSettings);
+  }
+
+  /// 更新界面语言
+  Future<void> _updateUiLanguage(String language) async {
+    final newSettings = _settingsService.languageSettings.value.copyWith(
+      uiLanguage: language,
     );
     await _settingsService.updateLanguageSettings(newSettings);
   }
