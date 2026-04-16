@@ -364,6 +364,7 @@ class AIService {
     final langSettings = SettingsService().settings.languageSettings;
     _log.d('AIService',
         '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
+
     final languageInstruction = AiPrompts.getLanguageInstruction(
       langSettings.aiLanguageMode,
       manualLanguage: langSettings.aiLanguageMode == 'manual'

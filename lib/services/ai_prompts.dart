@@ -32,7 +32,7 @@ class AiPrompts {
     switch (mode) {
       case 'book':
       case 'auto_book':
-        return 'IMPORTANT: Detect the language of the book content first, then respond in THAT SAME language. If the book is in English, respond in English. If the book is in Chinese, respond in Chinese. DO NOT use the language of this prompt.';
+        return 'RESPOND IN THE SAME LANGUAGE AS THE BOOK CONTENT. If the book is in English, respond in English. If the book is in Chinese, respond in Chinese.';
       case 'system':
         return '根据系统语言设置，使用对应语言输出摘要。';
       case 'manual':
@@ -49,6 +49,39 @@ class AiPrompts {
       default:
         return '根据系统语言设置，使用对应语言输出摘要。';
     }
+  }
+
+  /// 检测文本语言
+  ///
+  /// 通过分析文本开头的字符来判断语言
+  static String detectLanguage(String text) {
+    if (text.isEmpty) return 'zh';
+
+    // 取前 200 个字符进行分析
+    final sample = text.length > 200 ? text.substring(0, 200) : text;
+
+    // 统计中文字符比例
+    int chineseCount = 0;
+    int latinCount = 0;
+
+    for (final rune in sample.runes) {
+      // 中文字符范围
+      if (rune >= 0x4E00 && rune <= 0x9FFF) {
+        chineseCount++;
+      }
+      // 拉丁字母
+      else if ((rune >= 0x0041 && rune <= 0x005A) ||
+          (rune >= 0x0061 && rune <= 0x007A)) {
+        latinCount++;
+      }
+    }
+
+    // 如果中文字符占多数，返回中文
+    if (chineseCount > latinCount) {
+      return 'zh';
+    }
+    // 否则返回英文
+    return 'en';
   }
 
   /// 根据前言/序言生成书籍摘要提示词
