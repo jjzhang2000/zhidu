@@ -296,12 +296,16 @@ class AIService {
 
     // 从 SettingsService 读取语言设置
     final langSettings = SettingsService().settings.languageSettings;
+    _log.d('AIService',
+        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
+
     final languageInstruction = AiPrompts.getLanguageInstruction(
       langSettings.aiLanguageMode,
       manualLanguage: langSettings.aiLanguageMode == 'manual'
           ? langSettings.aiOutputLanguage
           : null,
     );
+    _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.chapterSummary(
       chapterTitle: chapterTitle,
@@ -358,12 +362,15 @@ class AIService {
 
     // 从 SettingsService 读取语言设置
     final langSettings = SettingsService().settings.languageSettings;
+    _log.d('AIService',
+        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
     final languageInstruction = AiPrompts.getLanguageInstruction(
       langSettings.aiLanguageMode,
       manualLanguage: langSettings.aiLanguageMode == 'manual'
           ? langSettings.aiOutputLanguage
           : null,
     );
+    _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.bookSummaryFromPreface(
       title: title,
@@ -422,12 +429,15 @@ class AIService {
 
     // 从 SettingsService 读取语言设置
     final langSettings = SettingsService().settings.languageSettings;
+    _log.d('AIService',
+        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
     final languageInstruction = AiPrompts.getLanguageInstruction(
       langSettings.aiLanguageMode,
       manualLanguage: langSettings.aiLanguageMode == 'manual'
           ? langSettings.aiOutputLanguage
           : null,
     );
+    _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.bookSummary(
       title: title,
