@@ -30,8 +30,9 @@ class AiPrompts {
   /// - 对应模式的语言指令字符串
   static String getLanguageInstruction(String mode, {String? manualLanguage}) {
     switch (mode) {
+      case 'book':
       case 'auto_book':
-        return '根据书籍内容的语言，使用相同语言输出摘要。';
+        return '请首先检测书籍内容的语言（英文/中文/日文等），然后使用检测到的相同语言输出摘要。例如：英文书籍用英文回复，中文书籍用中文回复。';
       case 'system':
         return '根据系统语言设置，使用对应语言输出摘要。';
       case 'manual':
