@@ -263,45 +263,56 @@ class AIService {
   bool get isConfigured => _config?.isValid ?? false;
 
   /// 方法名：generateFullChapterSummary
-  /// 功能：生成章节完整摘要
+  /// 功能：生成章节内容摘要
   ///
   /// 参数：
-  /// - content: 章节正文内容
+  /// - content: 章节内容的文本
   /// - chapterTitle: 章节标题（可选，用于提示词模板）
   ///
   /// 返回值：
-  /// - 成功：返回AI生成的章节摘要字符串（Markdown格式）
-  /// - 失败：返回null（配置无效或API调用失败）
+  /// - 成功时返回 AI 生成的章节摘要字符串（Markdown 格式）
+  /// - 失败时返回 null（配置无效或 API 调用失败）
   ///
   /// 调用方：
-  /// - summary_service.dart的generateSummary方法
+  /// - summary_service.dart 的 generateSummary 方法
   ///
   /// 算法逻辑：
   /// 1. 记录详细日志（内容长度、章节标题）
-  /// 2. 检查AI配置是否有效，无效则返回null
-  /// 3. 使用AiPrompts生成提示词
-  /// 4. 调用_callAI发送请求
-  /// 5. 返回生成结果或null
+  /// 2. 检查 AI 配置是否有效（无效则返回 null）
+  /// 3. 从 SettingsService 读取语言设置
+  /// 4. 使用 AiPrompts 构建提示词
+  /// 5. 调用_callAI 方法发送请求
+  /// 6. 返回结果或 null
   Future<String?> generateFullChapterSummary(
     String content, {
     String? chapterTitle,
   }) async {
     _log.v('AIService',
-        'generateFullChapterSummary 开始执行, content length: ${content.length}, chapterTitle: $chapterTitle');
+        'generateFullChapterSummary 开始执行，content length: ${content.length}, chapterTitle: $chapterTitle');
     if (_config == null || !_config!.isValid) {
-      _log.w('AIService', 'AI服务未配置或API Key无效');
+      _log.w('AIService', 'AI 配置未设置或 API Key 无效');
       return null;
     }
+
+    // 从 SettingsService 读取语言设置
+    final langSettings = SettingsService().settings.languageSettings;
+    final languageInstruction = AiPrompts.getLanguageInstruction(
+      langSettings.aiLanguageMode,
+      manualLanguage: langSettings.aiLanguageMode == 'manual'
+          ? langSettings.aiOutputLanguage
+          : null,
+    );
 
     final prompt = AiPrompts.chapterSummary(
       chapterTitle: chapterTitle,
       content: content,
+      languageInstruction: languageInstruction,
     );
 
     try {
       return await _callAI(prompt);
     } catch (e) {
-      _log.e('AIService', '生成完整章节摘要失败', e);
+      _log.e('AIService', '生成章节摘要失败', e);
       return null;
     }
   }
@@ -339,17 +350,27 @@ class AIService {
     int? totalChapters,
   }) async {
     _log.v('AIService',
-        'generateBookSummaryFromPreface 开始执行, title: $title, author: $author, prefaceContent length: ${prefaceContent.length}');
+        'generateBookSummaryFromPreface 开始执行，title: $title, author: $author, prefaceContent length: ${prefaceContent.length}');
     if (_config == null || !_config!.isValid) {
-      _log.w('AIService', 'AI服务未配置或API Key无效');
+      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return null;
     }
+
+    // 从 SettingsService 读取语言设置
+    final langSettings = SettingsService().settings.languageSettings;
+    final languageInstruction = AiPrompts.getLanguageInstruction(
+      langSettings.aiLanguageMode,
+      manualLanguage: langSettings.aiLanguageMode == 'manual'
+          ? langSettings.aiOutputLanguage
+          : null,
+    );
 
     final prompt = AiPrompts.bookSummaryFromPreface(
       title: title,
       author: author,
       prefaceContent: prefaceContent,
       totalChapters: totalChapters,
+      languageInstruction: languageInstruction,
     );
 
     try {
@@ -393,17 +414,27 @@ class AIService {
     int? totalChapters,
   }) async {
     _log.v('AIService',
-        'generateBookSummary 开始执行, title: $title, author: $author, chapterSummaries length: ${chapterSummaries.length}');
+        'generateBookSummary 开始执行，title: $title, author: $author, chapterSummaries length: ${chapterSummaries.length}');
     if (_config == null || !_config!.isValid) {
-      _log.w('AIService', 'AI服务未配置或API Key无效');
+      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return null;
     }
+
+    // 从 SettingsService 读取语言设置
+    final langSettings = SettingsService().settings.languageSettings;
+    final languageInstruction = AiPrompts.getLanguageInstruction(
+      langSettings.aiLanguageMode,
+      manualLanguage: langSettings.aiLanguageMode == 'manual'
+          ? langSettings.aiOutputLanguage
+          : null,
+    );
 
     final prompt = AiPrompts.bookSummary(
       title: title,
       author: author,
       chapterSummaries: chapterSummaries,
       totalChapters: totalChapters,
+      languageInstruction: languageInstruction,
     );
 
     try {
