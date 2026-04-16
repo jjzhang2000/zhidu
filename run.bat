@@ -1,26 +1,26 @@
 @echo off
-chcp 65001 >nul
+setlocal
+
+echo.
 echo ==========================================
-echo 智读 (Zhidu) - 快速运行
+echo Zhidu (Smart Reader) - Quick Run
 echo ==========================================
 echo.
 
-echo [1/2] 构建 Windows 应用...
+echo [1/1] Running application in development mode...
 echo ------------------------------------------
-flutter build windows --debug
+
+REM Use flutter run without specifying release mode to avoid build artifacts that may be blocked by Windows security policies
+flutter run -d windows
+
 if errorlevel 1 (
     echo.
-    echo [错误] 构建失败
+    echo [ERROR] Failed to run application
     pause
     exit /b 1
 )
 
 echo.
-echo [2/2] 运行应用...
-echo ------------------------------------------
-start build\windows\x64\runner\Debug\zhidu.exe
-
-echo.
-echo 应用已启动！
-timeout /t 3 >nul
+echo Application started successfully!
+pause
 exit /b 0

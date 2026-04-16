@@ -50,7 +50,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   ];
 
   /// 模型映射表
-  /// 每个提供商对应不同的模型选项
+  /// 每个提供商对应不同的推荐模型选项
   static const _modelsByProvider = {
     'zhipu': ['glm-4-flash', 'glm-4', 'glm-4-plus'],
     'qwen': ['qwen-turbo', 'qwen-plus', 'qwen-max'],
@@ -63,16 +63,19 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   };
 
   /// 当前选中的提供商
-  late String _selectedProvider;
+  String _selectedProvider = '';
 
   /// 当前选中的模型
-  late String _selectedModel;
+  String _selectedModel = '';
 
   /// API Key控制器
   late TextEditingController _apiKeyController;
 
   /// Base URL控制器
   late TextEditingController _baseUrlController;
+
+  /// 模型控制器
+  late TextEditingController _modelController;
 
   /// API Key是否隐藏（obscure）
   bool _isApiKeyObscured = true;
@@ -89,10 +92,13 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// 测试连接是否成功
   bool? _testResultSuccess;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadCurrentSettings();
+  /// 获取当前可用模型列表
+  ///
+  /// 根据选中的提供商返回对应的推荐模型选项
+  List<String> get _recommendedModels {
+    return _selectedProvider.isNotEmpty
+        ? (_modelsByProvider[_selectedProvider] ?? [])
+        : [];
   }
 
   /// 加载当前AI设置
@@ -101,8 +107,14 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   void _loadCurrentSettings() {
     final aiSettings = _settingsService.settings.aiSettings;
     _selectedProvider = aiSettings.provider;
+    // 确保 provider 在有效范围内
+    if (!_providers.any((entry) => entry.key == _selectedProvider)) {
+      _selectedProvider = _providers.first.key; // 默认选择第一个
+    }
     _selectedModel = aiSettings.model;
     _apiKeyController = TextEditingController(text: aiSettings.apiKey);
+    _modelController =
+        TextEditingController(text: aiSettings.model); // 添加模型控制器初始化
     _baseUrlController = TextEditingController(
       text: aiSettings.baseUrl.isNotEmpty
           ? aiSettings.baseUrl
@@ -111,43 +123,41 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadCurrentSettings();
+  }
+
+  @override
   void dispose() {
     _apiKeyController.dispose();
     _baseUrlController.dispose();
+    _modelController.dispose(); // 添加模型控制器销毁
     super.dispose();
-  }
-
-  /// 获取当前可用模型列表
-  ///
-  /// 根据选中的提供商返回对应的模型选项
-  List<String> get _availableModels {
-    return _modelsByProvider[_selectedProvider] ?? [];
   }
 
   /// 切换提供商
   ///
   /// 当用户选择新的提供商时：
   /// 1. 更新选中的提供商
-  /// 2. 自动切换到该提供商的第一个模型
+  /// 2. 自动切换到该提供商的第一个推荐模型（用于模型输入框的建议）
   /// 3. 更新Base URL为默认值
   void _onProviderChanged(String? newProvider) {
     if (newProvider == null || newProvider == _selectedProvider) return;
 
     setState(() {
       _selectedProvider = newProvider;
-      _selectedModel = _modelsByProvider[newProvider]!.first;
       _baseUrlController.text = _defaultBaseUrls[newProvider]!;
       _testResultMessage = null;
     });
   }
 
-  /// 切换模型
+  /// 更新模型值
   ///
-  /// 更新选中的模型值
-  void _onModelChanged(String? newModel) {
-    if (newModel == null) return;
+  /// 当模型文本输入框内容变化时更新
+  void _onModelChanged() {
     setState(() {
-      _selectedModel = newModel;
+      _selectedModel = _modelController.text.trim();
     });
   }
 
@@ -168,7 +178,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       final newSettings = AiSettings(
         provider: _selectedProvider,
         apiKey: _apiKeyController.text.trim(),
-        model: _selectedModel,
+        model: _modelController.text.trim(), // 使用文本输入框的值
         baseUrl: _baseUrlController.text.trim(),
       );
 
@@ -209,7 +219,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       final tempSettings = AiSettings(
         provider: _selectedProvider,
         apiKey: _apiKeyController.text.trim(),
-        model: _selectedModel,
+        model: _modelController.text.trim(), // 使用文本输入框的值
         baseUrl: _baseUrlController.text.trim(),
       );
 
@@ -363,7 +373,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   ///
   /// 包含：
   /// - 标签文字
-  /// - 下拉选择框（根据提供商动态变化）
+  /// - 文本输入框（允许用户直接输入模型名称）
   Widget _buildModelSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,25 +385,37 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
               ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: _selectedModel,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        TextFormField(
+          controller: _modelController,
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            hintText: '请输入模型名称，例如：qwen-plus、glm-4等',
+            suffixIcon: PopupMenuButton<String>(
+              icon: const Icon(Icons.info_outline),
+              tooltip: '推荐模型',
+              itemBuilder: (context) {
+                return _recommendedModels.map((model) {
+                  return PopupMenuItem(
+                    value: model,
+                    child: Text(model),
+                  );
+                }).toList();
+              },
+              onSelected: (model) {
+                _modelController.text = model;
+                _onModelChanged();
+              },
+            ),
           ),
-          items: _availableModels.map((model) {
-            return DropdownMenuItem(
-              value: model,
-              child: Text(model),
-            );
-          }).toList(),
-          onChanged: _onModelChanged,
           validator: (value) {
-            if (value == null || value.isEmpty) {
-              return '请选择模型';
+            if (value == null || value.trim().isEmpty) {
+              return '请输入模型名称';
             }
             return null;
           },
+          onChanged: (value) => _onModelChanged(),
         ),
       ],
     );
