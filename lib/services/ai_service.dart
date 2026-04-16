@@ -382,12 +382,29 @@ class AIService {
     _log.d('AIService',
         '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
 
-    final languageInstruction = AiPrompts.getLanguageInstruction(
-      langSettings.aiLanguageMode,
-      manualLanguage: langSettings.aiLanguageMode == 'manual'
-          ? langSettings.aiOutputLanguage
-          : null,
-    );
+    String languageInstruction;
+
+    // 对于"跟随书籍"模式，先检测书籍语言，再使用对应语言指令
+    if (langSettings.aiLanguageMode == 'book') {
+      final detectedLang = AiPrompts.detectLanguage(prefaceContent);
+      _log.d('AIService', '检测到的书籍语言：$detectedLang');
+
+      // 根据检测结果使用对应语言的指令
+      if (detectedLang == 'en') {
+        languageInstruction =
+            'RESPOND IN ENGLISH. The book is in English, so your summary must be in English.';
+      } else {
+        languageInstruction = '请用中文输出摘要。书籍内容是中文，所以你的摘要必须使用中文。';
+      }
+    } else {
+      languageInstruction = AiPrompts.getLanguageInstruction(
+        langSettings.aiLanguageMode,
+        manualLanguage: langSettings.aiLanguageMode == 'manual'
+            ? langSettings.aiOutputLanguage
+            : null,
+      );
+    }
+
     _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.bookSummaryFromPreface(
@@ -399,7 +416,6 @@ class AIService {
     );
 
     try {
-      // 将语言指令作为 system message 传递，强化语言要求
       return await _callAI(prompt, systemMessage: languageInstruction);
     } catch (e) {
       _log.e('AIService', '基于前言生成全书摘要失败', e);
