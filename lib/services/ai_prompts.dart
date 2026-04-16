@@ -74,7 +74,7 @@ class AiPrompts {
     String? languageInstruction,
   }) {
     return '''
-请根据以下前言/序言内容，为书籍生成一份内容介绍，使用 Markdown 格式输出。
+${languageInstruction != null ? '【语言要求】$languageInstruction\n\n' : ''}请根据以下前言/序言内容，为书籍生成一份内容介绍，使用 Markdown 格式输出。
 
 书籍信息：
 - 书名：$title
@@ -85,7 +85,7 @@ ${totalChapters != null ? '- 章节数：$totalChapters' : ''}
 $prefaceContent
 
 要求：
-${languageInstruction != null ? '0. 【重要】语言要求：$languageInstruction\n' : ''}1. 介绍长度应在 800-900 字左右
+1. 介绍长度应在 800-900 字左右
 2. 按内容分段输出，使用 Markdown 标题（##）和段落组织，便于阅读
 3. 基于前言/序言内容提炼书籍主题和核心内容
 4. 必须包含本书的适用读者人群或技术要求（如需要的基础知识、前置技能等）
@@ -125,7 +125,7 @@ ${languageInstruction != null ? '0. 【重要】语言要求：$languageInstruct
     String? languageInstruction,
   }) {
     return '''
-请根据以下各章节摘要，为全书生成一份完整的书籍摘要，使用 Markdown 格式输出。
+${languageInstruction != null ? '【语言要求】$languageInstruction\n\n' : ''}请根据以下各章节摘要，为全书生成一份完整的书籍摘要，使用 Markdown 格式输出。
 
 书籍信息：
 - 书名：$title
@@ -136,7 +136,7 @@ ${totalChapters != null ? '- 章节数：$totalChapters' : ''}
 $chapterSummaries
 
 要求：
-${languageInstruction != null ? '0. 【重要】语言要求：$languageInstruction\n' : ''}1. 摘要长度应在 800-900 字左右
+1. 摘要长度应在 800-900 字左右
 2. 按内容分段输出，使用 Markdown 标题（##）和段落组织，便于阅读
 3. 综合各章节内容，提炼全书核心观点和知识体系
 4. 必须包含本书的适用读者人群或技术要求（如需要的基础知识、前置技能等）
@@ -181,13 +181,13 @@ ${languageInstruction != null ? '0. 【重要】语言要求：$languageInstruct
     String? languageInstruction,
   }) {
     return '''
-请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
+${languageInstruction != null ? '【语言要求】$languageInstruction\n\n' : ''}请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
 
 ${chapterTitle != null ? '原始章节标识：$chapterTitle（可能不准确，请根据内容判断真实标题）\n' : ''}章节内容：
 $content
 
 要求：
-${languageInstruction != null ? '0. 【重要】语言要求：$languageInstruction\n' : ''}1. **第一行必须输出章节的真实标题**，格式为：`## 章节标题：[真实标题]`
+1. **第一行必须输出章节的真实标题**，格式为：`## 章节标题：[真实标题]`
    - **必须保留章节编号**（如"第 X 章"、"Chapter X"、"X."等）
    - 标题格式示例："第 1 章 数据结构与算法基础"、"Chapter 1: Introduction"、"1. 基础概念"
    - 如果原始标识包含编号，保留编号并提取完整标题
