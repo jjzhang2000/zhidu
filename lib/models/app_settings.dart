@@ -241,7 +241,7 @@ class LanguageSettings {
 
   /// 构造函数
   LanguageSettings({
-    this.aiLanguageMode = 'system',
+    this.aiLanguageMode = 'book',
     this.aiOutputLanguage = 'zh',
     this.uiLanguageMode = 'system',
     this.uiLanguage = 'zh',
@@ -275,7 +275,7 @@ class LanguageSettings {
   /// 从 JSON 反序列化
   factory LanguageSettings.fromJson(Map<String, dynamic> json) {
     return LanguageSettings(
-      aiLanguageMode: json['aiLanguageMode'] ?? 'system',
+      aiLanguageMode: json['aiLanguageMode'] ?? 'book',
       aiOutputLanguage: json['aiOutputLanguage'] ?? 'zh',
       uiLanguageMode: json['uiLanguageMode'] ?? 'system',
       uiLanguage: json['uiLanguage'] ?? 'zh',
