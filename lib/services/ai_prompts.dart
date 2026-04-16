@@ -31,57 +31,23 @@ class AiPrompts {
   static String getLanguageInstruction(String mode, {String? manualLanguage}) {
     switch (mode) {
       case 'book':
-      case 'auto_book':
-        return 'RESPOND IN THE SAME LANGUAGE AS THE BOOK CONTENT. If the book is in English, respond in English. If the book is in Chinese, respond in Chinese.';
+        return 'IMPORTANT: Respond in the SAME LANGUAGE as the book content. Detect the language from the provided text and use that same language for your summary. Examples: English book → English, Chinese book → Chinese, Japanese book → Japanese, French book → French, German book → German. DO NOT use English if the book is not in English.';
       case 'system':
-        return '根据系统语言设置，使用对应语言输出摘要。';
+        return 'Respond according to the system language setting.';
       case 'manual':
         switch (manualLanguage) {
           case 'zh':
-            return '请用中文输出摘要。';
+            return 'IMPORTANT: Respond in Chinese (简体中文).';
           case 'en':
-            return 'Please respond in English for the summary.';
+            return 'IMPORTANT: Respond in English.';
           case 'ja':
-            return '摘要は日本語で出力してください。';
+            return 'IMPORTANT: Respond in Japanese (日本語).';
           default:
-            return '根据系统语言设置，使用对应语言输出摘要。';
+            return 'Respond in the language specified by the system.';
         }
       default:
-        return '根据系统语言设置，使用对应语言输出摘要。';
+        return 'Respond according to the system language setting.';
     }
-  }
-
-  /// 检测文本语言
-  ///
-  /// 通过分析文本开头的字符来判断语言
-  static String detectLanguage(String text) {
-    if (text.isEmpty) return 'zh';
-
-    // 取前 200 个字符进行分析
-    final sample = text.length > 200 ? text.substring(0, 200) : text;
-
-    // 统计中文字符比例
-    int chineseCount = 0;
-    int latinCount = 0;
-
-    for (final rune in sample.runes) {
-      // 中文字符范围
-      if (rune >= 0x4E00 && rune <= 0x9FFF) {
-        chineseCount++;
-      }
-      // 拉丁字母
-      else if ((rune >= 0x0041 && rune <= 0x005A) ||
-          (rune >= 0x0061 && rune <= 0x007A)) {
-        latinCount++;
-      }
-    }
-
-    // 如果中文字符占多数，返回中文
-    if (chineseCount > latinCount) {
-      return 'zh';
-    }
-    // 否则返回英文
-    return 'en';
   }
 
   /// 根据前言/序言生成书籍摘要提示词
