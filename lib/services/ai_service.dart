@@ -430,8 +430,9 @@ class AIService {
 
     // 从 SettingsService 读取语言设置
     final langSettings = SettingsService().settings.languageSettings;
-    _log.d('AIService', '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
-    
+    _log.d('AIService',
+        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
+
     final languageInstruction = AiPrompts.getLanguageInstruction(
       langSettings.aiLanguageMode,
       manualLanguage: langSettings.aiLanguageMode == 'manual'
@@ -508,15 +509,15 @@ class AIService {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
     final client = _httpClient ?? http.Client();
-    
+
     // 构建消息列表
     final messages = <Map<String, String>>[];
-    
+
     // 如果有系统消息，添加为 system role
     if (systemMessage != null && systemMessage.isNotEmpty) {
       messages.add({'role': 'system', 'content': systemMessage});
     }
-    
+
     // 添加用户提示词
     messages.add({'role': 'user', 'content': prompt});
 
@@ -544,7 +545,6 @@ class AIService {
       );
       return null;
     }
-  }
   }
 
   /// 方法名：updateConfig
