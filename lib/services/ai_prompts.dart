@@ -106,6 +106,20 @@ class AiPrompts {
     int? totalChapters,
     String? languageInstruction,
   }) {
+    // 如果语言指令是英文的，使用英文提示词模板
+    final isEnglish = languageInstruction != null &&
+        languageInstruction.toUpperCase().contains('ENGLISH');
+
+    if (isEnglish) {
+      return _englishBookSummaryFromPreface(
+        title: title,
+        author: author,
+        prefaceContent: prefaceContent,
+        totalChapters: totalChapters,
+      );
+    }
+
+    // 中文提示词模板
     return '''
 ${languageInstruction != null ? '【语言要求】$languageInstruction\n\n' : ''}请根据以下前言/序言内容，为书籍生成一份内容介绍，使用 Markdown 格式输出。
 
@@ -135,6 +149,42 @@ $prefaceContent
 ''';
   }
 
+  /// 英文基于前言的书籍摘要提示词模板
+  static String _englishBookSummaryFromPreface({
+    required String title,
+    required String author,
+    required String prefaceContent,
+    int? totalChapters,
+  }) {
+    return '''
+Please generate a content introduction for the book based on the following preface/foreword content, output in Markdown format.
+
+Book information:
+- Title: $title
+- Author: $author
+${totalChapters != null ? '- Chapters: $totalChapters' : ''}
+
+Preface/Foreword content:
+$prefaceContent
+
+Requirements:
+1. Introduction length should be around 800-900 words
+2. Output in sections using Markdown headers (##) and paragraphs for easy reading
+3. Distill the book's theme and core content based on the preface/foreword
+4. Must include the target audience or technical requirements (e.g., required background knowledge, prerequisites)
+5. Output in Markdown format, can include headers, lists, bold text, etc.
+6. Output format example:
+## Content Summary
+(Content overview)
+
+## Core Themes
+(Core content description in paragraphs)
+
+## Target Audience
+(Target audience or technical requirements)
+''';
+  }
+
   /// 根据章节摘要生成全书摘要提示词
   ///
   /// 当用户完成多个章节的阅读和摘要生成后，
@@ -157,6 +207,20 @@ $prefaceContent
     int? totalChapters,
     String? languageInstruction,
   }) {
+    // 如果语言指令是英文的，使用英文提示词模板
+    final isEnglish = languageInstruction != null &&
+        languageInstruction.toUpperCase().contains('ENGLISH');
+
+    if (isEnglish) {
+      return _englishBookSummary(
+        title: title,
+        author: author,
+        chapterSummaries: chapterSummaries,
+        totalChapters: totalChapters,
+      );
+    }
+
+    // 中文提示词模板
     return '''
 ${languageInstruction != null ? '【语言要求】$languageInstruction\n\n' : ''}请根据以下各章节摘要，为全书生成一份完整的书籍摘要，使用 Markdown 格式输出。
 
@@ -191,6 +255,47 @@ $chapterSummaries
 ''';
   }
 
+  /// 英文基于章节的书籍摘要提示词模板
+  static String _englishBookSummary({
+    required String title,
+    required String author,
+    required String chapterSummaries,
+    int? totalChapters,
+  }) {
+    return '''
+Please generate a complete book summary based on the following chapter summaries, output in Markdown format.
+
+Book information:
+- Title: $title
+- Author: $author
+${totalChapters != null ? '- Chapters: $totalChapters' : ''}
+
+Chapter summaries:
+$chapterSummaries
+
+Requirements:
+1. Summary length should be around 800-900 words
+2. Output in sections using Markdown headers (##) and paragraphs for easy reading
+3. Synthesize chapter content to distill the book's core ideas and knowledge system
+4. Must include the target audience or technical requirements (e.g., required background knowledge, prerequisites)
+5. Output in Markdown format, can include headers, lists, bold text, etc.
+6. Output format example:
+## Content Summary
+(Book content overview)
+
+## Core Themes
+(Book core themes, described in paragraphs)
+
+## Key Points
+- Point 1
+- Point 2
+- Point 3
+
+## Target Audience
+(Target audience or technical requirements)
+''';
+  }
+
   /// 生成章节摘要提示词
   ///
   /// 用于为单个章节生成详细的摘要。
@@ -213,6 +318,16 @@ $chapterSummaries
     required String content,
     String? languageInstruction,
   }) {
+    // 如果语言指令是英文的，使用英文提示词模板
+    final isEnglish = languageInstruction != null &&
+        languageInstruction.toUpperCase().contains('ENGLISH');
+
+    if (isEnglish) {
+      return _englishChapterSummary(
+          chapterTitle: chapterTitle, content: content);
+    }
+
+    // 中文提示词模板
     return '''
 ${languageInstruction != null ? '【语言要求】$languageInstruction\n\n' : ''}请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
 
@@ -242,6 +357,43 @@ $content
 
 ## 总结
 （章节总结与意义）
+''';
+  }
+
+  /// 英文章节摘要提示词模板
+  static String _englishChapterSummary({
+    String? chapterTitle,
+    required String content,
+  }) {
+    return '''
+Please analyze the following book chapter content comprehensively, **first extract the real chapter title**, then generate a summary.
+
+${chapterTitle != null ? 'Original chapter identifier: $chapterTitle (may not be accurate, please judge the real title based on the content)\n' : ''}Chapter content:
+$content
+
+Requirements:
+1. **The first line must output the real chapter title**, format: `## Chapter Title: [Real Title]`
+   - **Must preserve chapter numbering** (e.g., "Chapter X", "Part X", "X." etc.)
+   - Title format examples: "Chapter 1: Data Structures and Algorithms", "Chapter 1: Introduction", "1. Basic Concepts"
+   - If the original identifier contains numbering, preserve the numbering and extract the full title
+   - If there is no obvious title in the content, distill a summary title based on the content (still needs to include numbering)
+2. After the title line, leave a blank line, then output the summary text
+3. Summary length should be around 500-600 words
+4. Summary text should use Markdown headers (##) and paragraphs for easy reading
+5. Use accessible language, maintain objectivity and neutrality
+6. Output format example:
+## Chapter Title: Chapter 1: Introduction to Data Structures
+
+## Core Content
+(Main content overview, described in paragraphs)
+
+## Key Points
+- Point 1
+- Point 2
+- Point 3
+
+## Summary
+(Chapter summary and significance)
 ''';
   }
 }
