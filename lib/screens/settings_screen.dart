@@ -115,17 +115,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: 'AI配置',
       icon: Icons.smart_toy,
       children: [
-        ListTile(
-          leading: const Icon(Icons.api),
-          title: const Text('AI服务设置'),
-          subtitle: Text(_getAiConfigStatus()),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AiConfigScreen(),
-              ),
+        ListenableBuilder(
+          listenable: SettingsService().aiSettings,
+          builder: (context, _) {
+            return ListTile(
+              leading: const Icon(Icons.api),
+              title: const Text('AI 服务设置'),
+              subtitle: Text(_getAiConfigStatus()),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AiConfigScreen(),
+                  ),
+                );
+              },
             );
           },
         ),
