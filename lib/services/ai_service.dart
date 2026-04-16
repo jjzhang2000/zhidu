@@ -381,7 +381,8 @@ class AIService {
     );
 
     try {
-      return await _callAI(prompt);
+      // 将语言指令作为 system message 传递，强化语言要求
+      return await _callAI(prompt, systemMessage: languageInstruction);
     } catch (e) {
       _log.e('AIService', '基于前言生成全书摘要失败', e);
       return null;
@@ -429,8 +430,8 @@ class AIService {
 
     // 从 SettingsService 读取语言设置
     final langSettings = SettingsService().settings.languageSettings;
-    _log.d('AIService',
-        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
+    _log.d('AIService', '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
+    
     final languageInstruction = AiPrompts.getLanguageInstruction(
       langSettings.aiLanguageMode,
       manualLanguage: langSettings.aiLanguageMode == 'manual'
@@ -448,7 +449,8 @@ class AIService {
     );
 
     try {
-      return await _callAI(prompt);
+      // 将语言指令作为 system message 传递，强化语言要求
+      return await _callAI(prompt, systemMessage: languageInstruction);
     } catch (e) {
       _log.e('AIService', '生成全书摘要失败', e);
       return null;
@@ -456,37 +458,35 @@ class AIService {
   }
 
   /// 方法名：_callAI
-  /// 功能：调用AI API发送请求并获取响应
+  /// 功能：调用 AI API 发送请求并获取响应
   ///
   /// 参数：
-  /// - prompt: 发送给AI的提示词
+  /// - prompt: 发送给 AI 的提示词
+  /// - systemMessage: 系统级指令（可选），用于设置行为准则
   ///
   /// 返回值：
-  /// - 成功：返回AI生成的内容字符串
-  /// - 失败：返回null（API调用失败或响应格式错误）
+  /// - 成功时返回 AI 生成的内容字符串
+  /// - 失败时返回 null
   ///
-  /// 调用方：
-  /// - generateFullChapterSummary（内部方法）
-  /// - generateBookSummaryFromPreface（内部方法）
-  /// - generateBookSummary（内部方法）
-  ///
-  /// API兼容性：
-  /// - 支持OpenAI兼容接口格式
-  /// - 已验证：智谱GLM、通义千问
+  /// 使用场景：
+  /// - 所有 AI 调用的统一入口
   ///
   /// 算法逻辑：
-  /// 1. 构建请求URL：{baseUrl}/chat/completions
-  /// 2. 设置请求头：Content-Type和Authorization
-  /// 3. 构建请求体：模型名称、消息列表、温度参数、最大令牌数
-  /// 4. 发送POST请求
-  /// 5. 如果状态码为200，解析响应JSON并提取内容
-  /// 6. 如果状态码非200，记录错误日志并返回null
+  /// 1. 构建请求 URL：{baseUrl}/chat/completions
+  /// 2. 设置请求头：Content-Type、Authorization
+  /// 3. 构建请求体：模型名称、消息列表、温度参数、最大 token 数
+  /// 4. 发送 POST 请求
+  /// 5. 如果状态码为 200，解析响应 JSON 并提取内容
+  /// 6. 如果状态码非 200，记录错误日志并返回 null
   ///
   /// 请求体格式：
   /// ```json
   /// {
   ///   "model": "glm-4-flash",
-  ///   "messages": [{"role": "user", "content": "提示词"}],
+  ///   "messages": [
+  ///     {"role": "system", "content": "系统指令"},
+  ///     {"role": "user", "content": "用户提示词"}
+  ///   ],
   ///   "temperature": 0.7,
   ///   "max_tokens": 1000
   /// }
@@ -498,16 +498,28 @@ class AIService {
   ///   "choices": [
   ///     {
   ///       "message": {
-  ///         "content": "AI生成的内容"
+  ///         "content": "AI 生成的内容"
   ///       }
   ///     }
   ///   ]
   /// }
   /// ```
-  Future<String?> _callAI(String prompt) async {
+  Future<String?> _callAI(String prompt, {String? systemMessage}) async {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
     final client = _httpClient ?? http.Client();
+    
+    // 构建消息列表
+    final messages = <Map<String, String>>[];
+    
+    // 如果有系统消息，添加为 system role
+    if (systemMessage != null && systemMessage.isNotEmpty) {
+      messages.add({'role': 'system', 'content': systemMessage});
+    }
+    
+    // 添加用户提示词
+    messages.add({'role': 'user', 'content': prompt});
+
     final response = await client.post(
       url,
       headers: {
@@ -516,9 +528,7 @@ class AIService {
       },
       body: jsonEncode({
         'model': _config!.model,
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
+        'messages': messages,
         'temperature': 0.7,
         'max_tokens': 1000,
       }),
@@ -530,10 +540,11 @@ class AIService {
     } else {
       _log.e(
         'AIService',
-        '智谱API调用失败: ${response.statusCode} - ${response.body}',
+        'AI API 调用失败：${response.statusCode} - ${response.body}',
       );
       return null;
     }
+  }
   }
 
   /// 方法名：updateConfig
