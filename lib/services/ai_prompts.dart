@@ -32,7 +32,7 @@ class AiPrompts {
     switch (mode) {
       case 'book':
       case 'auto_book':
-        return '请首先检测书籍内容的语言（英文/中文/日文等），然后使用检测到的相同语言输出摘要。例如：英文书籍用英文回复，中文书籍用中文回复。';
+        return 'IMPORTANT: Detect the language of the book content first, then respond in THAT SAME language. If the book is in English, respond in English. If the book is in Chinese, respond in Chinese. DO NOT use the language of this prompt.';
       case 'system':
         return '根据系统语言设置，使用对应语言输出摘要。';
       case 'manual':
