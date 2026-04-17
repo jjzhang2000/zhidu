@@ -13,7 +13,8 @@
   <a href="#技术栈">技术栈</a> •
   <a href="#安装说明">安装说明</a> •
   <a href="#使用指南">使用指南</a> •
-  <a href="#项目结构">项目结构</a>
+  <a href="#项目结构">项目结构</a> •
+  <a href="#配置说明">配置说明</a>
 </p>
 
 ---
@@ -48,9 +49,15 @@
 ### 用户交互
 - 🚀 **逃逸机制**：随时跳过AI分析，直接阅读原文
 - ⚡ **智能预加载**：后台静默预加载下一章内容
-- 🎨 **主题切换**：支持亮色/暗色主题
+- 🎨 **主题切换**：支持亮色/暗色/跟随系统主题
 - 🔍 **章节导航**：仅在第一级目录间遍历，避免子章节干扰
 - 📖 **PDF阅读器**：支持PDF分页阅读，智能跳过封面页
+
+### 高级设置管理
+- ⚙️ **统一设置中心**：AI、主题、存储、语言设置集中管理
+- 🌐 **AI语言控制**：支持多语言AI输出设置
+- 💾 **存储路径自定义**：可指定数据存储位置
+- 🔄 **设置导入导出**：支持设置备份与恢复
 
 ---
 
@@ -59,7 +66,7 @@
 | 类别 | 技术/库 |
 |------|---------|
 | **前端框架** | Flutter (Dart) |
-| **状态管理** | StatefulWidget + Service单例模式 |
+| **状态管理** | StatefulWidget + Service单例模式 + ValueNotifier响应式更新 |
 | **EPUB处理** | epub_plus, archive, xml |
 | **PDF处理** | pdf (pdfium), sync_pdf_renderer |
 | **文件处理** | file_picker, path_provider, path |
@@ -67,6 +74,7 @@
 | **本地存储** | 文件存储（JSON + Markdown） |
 | **UI组件** | flutter_html（HTML渲染） |
 | **数据解析** | markdown |
+| **设置管理** | ValueNotifier（响应式设置更新） |
 
 ---
 
@@ -88,7 +96,8 @@
    ```
 
 2. **配置AI服务**
-   - 在项目根目录创建 `ai_config.json` 文件
+   - 在设置页面配置AI服务（推荐方式）
+   - 或在项目根目录创建 `ai_config.json` 文件（旧版兼容）
    - 参考 `AGENTS.md` 中的配置格式
 
 3. **安装依赖**
@@ -143,10 +152,40 @@ flutter build web --release
 - 点击"阅读原文"按钮跳转到原文
 - 使用底部 `<` 和 `>` 按钮在第一级章节间导航
 
-### 4. 导出摘要
+### 4. 配置应用设置
+- 点击底部导航栏的"设置"按钮
+- 配置AI服务（提供商、API Key、模型等）
+- 设置主题偏好（亮色/暗色/跟随系统）
+- 配置语言设置（AI输出语言等）
+- 管理存储路径
+
+### 5. 导出摘要
 - 全书摘要和章节摘要自动保存为Markdown文件
 - 支持导出为Markdown格式文件
-- 文件保存在 Documents/zhidu/ 目录
+- 文件保存在指定存储目录
+
+---
+
+## ⚙️ 配置说明
+
+### AI服务配置
+- **提供商**：支持智谱AI（zhipu）和通义千问（qwen）
+- **API Key**：从对应服务商获取的有效API密钥
+- **模型**：支持多种大语言模型（如glm-4-flash, qwen-plus等）
+- **Base URL**：API服务地址
+
+### 主题设置
+- **亮色主题**：白天使用，护眼舒适
+- **暗色主题**：夜间使用，减少眼部疲劳
+- **跟随系统**：自动根据系统设置切换主题
+
+### 语言设置
+- **AI输出语言**：控制AI生成内容的语言
+- **语言模式**：自动检测或手动指定AI输出语言
+
+### 存储设置
+- **自定义路径**：可指定应用数据存储位置
+- **数据管理**：书籍、摘要等数据的存储位置
 
 ---
 
@@ -157,6 +196,7 @@ zhidu/
 ├── lib/
 │   ├── main.dart                 # 应用入口，初始化所有Service
 │   ├── models/                   # 数据模型
+│   │   ├── app_settings.dart    # 应用设置模型（AI、主题、语言、存储）
 │   │   ├── book.dart            # 书籍模型
 │   │   ├── book_metadata.dart   # 书籍元数据
 │   │   ├── chapter.dart         # 章节模型
@@ -168,7 +208,11 @@ zhidu/
 │   │   ├── book_detail_screen.dart # 书籍详情（全书概览）
 │   │   ├── summary_screen.dart  # 章节摘要页
 │   │   ├── pdf_reader_screen.dart # PDF阅读器
-│   │   └── settings_screen.dart # 设置
+│   │   ├── ai_config_screen.dart # AI配置页面
+│   │   ├── settings_screen.dart # 设置主页面
+│   │   ├── theme_settings_screen.dart # 主题设置页面
+│   │   ├── language_settings_screen.dart # 语言设置页面
+│   │   └── storage_settings_screen.dart # 存储设置页面
 │   ├── services/                 # 业务服务层（单例模式）
 │   │   ├── book_service.dart    # 书籍管理（导入、解析）
 │   │   ├── epub_service.dart    # EPUB文件解析
@@ -179,6 +223,7 @@ zhidu/
 │   │   ├── export_service.dart  # Markdown导出
 │   │   ├── storage_config.dart  # 存储路径配置
 │   │   ├── file_storage_service.dart # 文件存储服务
+│   │   ├── settings_service.dart # 设置管理服务（AI、主题、语言、存储）
 │   │   └── log_service.dart     # 日志服务
 │   │   └── parsers/             # 格式解析器
 │   │       ├── book_format_parser.dart # 解析器接口
@@ -210,9 +255,10 @@ zhidu/
 
 ```
 Documents/zhidu/
-├── books.json          # 书籍索引文件
+├── settings.json               # 应用设置文件（AI、主题、语言、存储设置）
+├── books_index.json           # 书籍索引文件
 └── books/
-    └── {bookId}/       # 每本书独立目录
+    └── {bookId}/              # 每本书独立目录
         ├── metadata.json      # 书籍元数据
         ├── summary.md         # 书籍摘要
         ├── chapter-001.md     # 章节摘要（按章节编号）
@@ -243,13 +289,14 @@ Documents/zhidu/
 - [x] 存储架构优化（文件存储替代SQLite）
 - [x] 代码审查和清理
 - [x] 格式解析器架构（注册表模式）
+- [x] 设置管理重构（AI、主题、语言、存储设置统一管理）
 
 ### 第三阶段：体验增强（待开发）
 - [ ] 复习卡片功能
 - [ ] 云同步备份
 - [ ] 用户自定义提示词
 - [ ] 性能优化
-- [ ] 多语言支持
+- [ ] 多语言界面支持
 
 ---
 
@@ -293,6 +340,8 @@ Documents/zhidu/
 - [flutter_html](https://pub.dev/packages/flutter_html) - HTML渲染
 - [智谱AI](https://zhipuai.cn/) - 大语言模型API
 - [通义千问](https://qwen.ai/) - 大语言模型API
+- [http](https://pub.dev/packages/http) - HTTP客户端
+- [path_provider](https://pub.dev/packages/path_provider) - 路径管理
 
 ---
 
