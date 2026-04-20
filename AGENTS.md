@@ -143,6 +143,7 @@ lib/
 - **Lint规则**: 使用`flutter_lints`，启用`prefer_single_quotes`
 - **排除文件**: `**/*.g.dart`, `**/*.freezed.dart`
 - **打印语句**: `avoid_print: false`（允许debug print）
+- **国际化**: 避免硬编码文本，使用`AppLocalizations.of(context)`获取本地化文本
 
 ### Git Ignore（重要）
 确保`.gitignore`包含以下内容：
@@ -186,7 +187,33 @@ ai_config.json
 - **设置未生效**: 检查ValueNotifier监听器是否正确绑定
 - **存储路径问题**: 检查 Documents 目录是否存在且有写入权限
 
-### Lessons Learned (重要教训)
+### Internationalization (国际化)
+
+**实现方式**：
+- 使用Flutter官方国际化方案：flutter_localizations 和 intl 包
+- ARB (Application Resource Bundle) 文件格式存储翻译
+- 自动生成本地化代码：`flutter gen-l10n`
+- 支持多语言：简体中文、英语、日语
+
+**文件结构**：
+- `lib/l10n/` - 国际化资源文件目录
+  - `app_zh.arb` - 中文翻译资源
+  - `app_en.arb` - 英文翻译资源  
+  - `app_ja.arb` - 日文翻译资源
+  - `app_localizations.dart` - 自动生成的本地化代码
+
+**实现要点**：
+- 在需要国际化的Widget中使用 `AppLocalizations.of(context)`
+- 为动态内容使用参数化消息（如 `helloName(String name)`）
+- 保持一致的翻译键命名规范
+- 测试各种语言环境下的UI适应性
+
+**已国际化模块**：
+- AI设置页面（提供商名称、按钮文本、标签等）
+- 主题设置页面（选项标题、说明文字等）
+- 语言设置页面（选项标题、说明文字等）
+- 设置主页面（各项设置标题等）
+- 首页（提示信息等）
 
 #### 2026-04-09: 章节摘要无法显示问题
 
@@ -233,3 +260,17 @@ ai_config.json
 - 实时响应：设置变更立即反映在UI上
 - 易于维护：设置逻辑集中，便于扩展和修改
 - 数据安全：设置文件集中管理，便于备份和恢复
+
+#### 2026-04-20: 国际化功能实现
+
+**实现内容**：
+- 为AI设置、主题设置、语言设置等页面添加国际化支持
+- 添加简体中文、英语、日语三种语言翻译
+- 修复所有硬编码文本，替换为本地化文本
+- 重构组件结构以支持AppLocalizations参数传递
+
+**技术要点**：
+- 使用AppLocalizations.of(context)获取本地化文本
+- 重构UI组件以接受localizations参数
+- 为动态内容添加参数化消息支持
+- 重新生成国际化代码并验证所有界面正确显示
