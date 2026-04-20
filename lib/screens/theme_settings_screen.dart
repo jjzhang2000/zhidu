@@ -9,6 +9,7 @@
 /// 设置自动保存到本地文件
 
 import 'package:flutter/material.dart' hide ThemeMode;
+import 'package:zhidu/l10n/app_localizations.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 
@@ -29,31 +30,32 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('主题设置'),
+        title: Text(localizations.themeSettingsScreenTitle),
         centerTitle: true,
       ),
       body: ListView(
         children: [
           _buildThemeOption(
             mode: ThemeMode.system,
-            title: '跟随系统',
-            subtitle: '自动跟随系统主题设置',
+            title: localizations.themeModeSystem,
+            subtitle: localizations.themeModeSystemSubtitle,
             icon: Icons.brightness_auto,
           ),
           const Divider(),
           _buildThemeOption(
             mode: ThemeMode.light,
-            title: '亮色模式',
-            subtitle: '始终使用浅色主题',
+            title: localizations.themeModeLight,
+            subtitle: localizations.themeModeLightSubtitle,
             icon: Icons.light_mode,
           ),
           const Divider(),
           _buildThemeOption(
             mode: ThemeMode.dark,
-            title: '暗色模式',
-            subtitle: '始终使用深色主题',
+            title: localizations.themeModeDark,
+            subtitle: localizations.themeModeDarkSubtitle,
             icon: Icons.dark_mode,
           ),
         ],

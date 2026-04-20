@@ -1,33 +1,26 @@
-/// 设置页面
-///
-/// 提供应用的设置和管理功能，包括：
-/// - AI配置：显示和配置AI服务状态
-/// - 外观设置：主题和语言设置
-/// - 数据管理：存储和备份设置
-/// - 数据统计：显示书籍和摘要数量
-/// - 关于信息：应用版本和描述
-///
-/// 设置项管理：
-/// - 使用 ListView 分组展示不同设置类别
-/// - 每个设置组使用 _buildSection 统一风格
-/// - 状态变量控制操作进行中的 UI 反馈
-
 import 'package:flutter/material.dart' hide ThemeMode;
+import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/export_service.dart';
 import '../services/book_service.dart';
 import '../services/summary_service.dart';
 import '../services/settings_service.dart';
 import '../models/app_settings.dart';
 import 'ai_config_screen.dart';
-import 'backup_settings_screen.dart';
 import 'theme_settings_screen.dart';
 import 'language_settings_screen.dart';
 
-/// 设置页面组件
+/// 设置页面 - 应用各项配置入口
 ///
-/// 使用 StatefulWidget 管理：
-/// - 导出/备份操作的 loading 状态
-/// - 摘要数量的动态统计
+/// 功能模块：
+/// 1. AI配置：AI服务提供商、API密钥、模型等参数设置
+/// 2. 外观设置：主题模式、界面语言等
+/// 3. 数据导出：将书籍摘要导出为Markdown文件
+/// 4. 关于：应用信息、版本等
+///
+/// 设计特点：
+/// - 使用折叠面板组织不同设置类别
+/// - 实时显示设置状态（如AI配置状态、主题模式等）
+/// - 响应式UI更新（设置变更后自动刷新显示）
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -35,29 +28,22 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-/// 设置页面状态管理
 class _SettingsScreenState extends State<SettingsScreen> {
-  /// 导出服务 - 处理 Markdown 导出和 JSON 备份
+  /// 服务实例
   final _exportService = ExportService();
-
-  /// 书籍服务 - 获取书籍列表和数量
   final _bookService = BookService();
-
-  /// 摘要服务 - 获取摘要统计数据
   final _summaryService = SummaryService();
+  final _settingsService = SettingsService();
 
-  /// 导出操作进行中状态
-  /// 用于禁用重复点击和显示加载指示器
-  bool _isExporting = false;
-
-  /// 导入操作进行中状态
-  /// 用于禁用重复点击和显示加载指示器
-  bool _isImporting = false;
-
-  /// 摘要总数
-  /// 从 SummaryService 异步加载
+  /// 统计数据
   int _summaryCount = 0;
 
+  /// 导出状态
+  bool _isExporting = false;
+
+  /// 初始化统计数据
+  ///
+  /// 在组件初始化时计算摘要总数
   @override
   void initState() {
     super.initState();
@@ -79,27 +65,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final bookCount = _bookService.books.length;
     final summaryCount = _summaryCount;
-
+    
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('设置'),
+        title: Text(loc.settingsTitle),
         centerTitle: true,
       ),
       body: ListView(
         children: [
+          _buildSectionHeader(loc.aiConfigTitle),
           _buildAiSection(),
-          const Divider(),
+          const SizedBox(height: 16),
+          _buildSectionHeader(loc.appearanceSettingTitle),
           _buildAppearanceSection(),
-          const Divider(),
-          _buildDataManagementSection(),
-          const Divider(),
-          _buildDataSection(bookCount, summaryCount),
-          const Divider(),
+          const SizedBox(height: 16),
+          _buildSectionHeader(loc.dataExportTitle),
           _buildExportSection(),
-          const Divider(),
-          _buildBackupSection(),
-          const Divider(),
+          const SizedBox(height: 16),
+          _buildSectionHeader(loc.aboutTitle),
           _buildAboutSection(),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  /// 构建区域标题
+  ///
+  /// 统一的区域标题样式：
+  /// - 左粗字体
+  /// - 适当间距
+  /// - 与内容形成视觉分组
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+      ),
+    );
+  }
+
+  /// 构建区域容器
+  ///
+  /// 为设置区域提供统一样式：
+  /// - 圆角边框
+  /// - 阴影效果
+  /// - 内边距
+  /// - 适配主题色彩
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Icon(icon, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          ...children,
         ],
       ),
     );
@@ -111,8 +155,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// - 点击跳转到AI配置页面
   /// - 显示当前配置状态（provider/model 或 未配置）
   Widget _buildAiSection() {
+    final loc = AppLocalizations.of(context)!;
     return _buildSection(
-      title: 'AI配置',
+      title: loc.aiConfigTitle,
       icon: Icons.smart_toy,
       children: [
         ListenableBuilder(
@@ -120,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           builder: (context, _) {
             return ListTile(
               leading: const Icon(Icons.api),
-              title: const Text('AI 服务设置'),
+              title: Text(loc.aiServiceSettings),
               subtitle: Text(_getAiConfigStatus()),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
@@ -138,26 +183,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 获取AI配置状态显示文本
-  String _getAiConfigStatus() {
-    final ai = SettingsService().settings.aiSettings;
-    if (ai.isValid) {
-      return '${ai.provider} / ${ai.model}';
-    }
-    return '未配置';
-  }
-
   /// 构建外观设置区块
   ///
   /// 提供主题和语言设置入口
   Widget _buildAppearanceSection() {
+    final loc = AppLocalizations.of(context)!;
     return _buildSection(
-      title: '外观设置',
+      title: loc.appearanceSettingTitle,
       icon: Icons.palette,
       children: [
         ListTile(
           leading: const Icon(Icons.brightness_6),
-          title: const Text('主题设置'),
+          title: Text(loc.themeSettingTitle),
           subtitle: Text(_getThemeStatus()),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
@@ -171,7 +208,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         ListTile(
           leading: const Icon(Icons.language),
-          title: const Text('语言设置'),
+          title: Text(loc.languageSettingTitle),
           subtitle: Text(_getLanguageStatus()),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
@@ -187,79 +224,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 获取主题状态显示文本
-  String _getThemeStatus() {
-    final mode = SettingsService().settings.themeSettings.mode;
-    switch (mode) {
-      case ThemeMode.system:
-        return '跟随系统';
-      case ThemeMode.light:
-        return '亮色';
-      case ThemeMode.dark:
-        return '暗色';
-    }
-  }
-
-  /// 获取语言状态显示文本
-  String _getLanguageStatus() {
-    final settings = SettingsService().settings.languageSettings;
-    // 显示 AI 语言模式
-    switch (settings.aiLanguageMode) {
-      case 'book':
-        return 'AI: 跟随书籍';
-      case 'system':
-        return 'AI: 跟随系统';
-      case 'manual':
-        final lang = settings.aiOutputLanguage;
-        switch (lang) {
-          case 'zh':
-            return 'AI: 简体中文';
-          case 'en':
-            return 'AI: English';
-          case 'ja':
-            return 'AI: 日本語';
-          default:
-            return 'AI: 简体中文';
-        }
-      default:
-        return 'AI: 跟随系统';
-    }
-  }
-
-  /// 构建数据管理区块
-  ///
-  /// 提供存储和备份设置入口
-  Widget _buildDataManagementSection() {
-    return _buildSection(
-      title: '数据管理',
-      icon: Icons.storage,
-      children: [
-        ListTile(
-          leading: const Icon(Icons.folder),
-          title: const Text('存储路径'),
-          subtitle: const Text('设置书籍和备份存储位置'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            _showSnackBar('存储设置功能即将推出');
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.settings_backup_restore),
-          title: const Text('备份设置'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const BackupSettingsScreen(),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
   /// 构建数据导出区块
   ///
   /// 提供书籍摘要导出功能：
@@ -267,54 +231,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// - 调用 ExportService 导出每本书的摘要为 Markdown
   /// - 导出过程中禁用按钮，防止重复操作
   Widget _buildExportSection() {
+    final loc = AppLocalizations.of(context)!;
     return _buildSection(
-      title: '数据导出',
+      title: loc.dataExportTitle,
       icon: Icons.upload_file,
       children: [
         ListTile(
           leading: const Icon(Icons.description),
-          title: const Text('导出书籍摘要'),
-          subtitle: const Text('将所有书籍摘要导出为 Markdown 文件'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _isExporting ? null : () => _exportBookSummaries(),
-        ),
-      ],
-    );
-  }
-
-  /// 构建备份与恢复区块
-  ///
-  /// 提供备份设置入口和快速备份/恢复功能：
-  /// 1. 备份设置：跳转到备份设置页面进行详细配置
-  /// 2. 备份数据：将所有数据导出为 JSON 文件
-  /// 3. 恢复数据：从 JSON 备份文件恢复数据
-  ///
-  /// 注意事项：
-  /// - 备份/恢复过程中显示加载指示器
-  /// - 恢复数据会覆盖当前数据，需用户确认
-  Widget _buildBackupSection() {
-    return _buildSection(
-      title: '备份与恢复',
-      icon: Icons.backup,
-      children: [
-        ListTile(
-          leading: const Icon(Icons.settings_backup_restore),
-          title: const Text('备份设置'),
-          subtitle: const Text('配置自动备份、备份目录等'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const BackupSettingsScreen(),
-              ),
-            );
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.cloud_upload),
-          title: const Text('备份数据'),
-          subtitle: const Text('将所有数据导出为 JSON 备份文件'),
+          title: Text(loc.exportBookSummaries),
+          subtitle: Text(loc.exportBookSummariesDesc),
           trailing: _isExporting
               ? const SizedBox(
                   width: 20,
@@ -322,72 +247,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.chevron_right),
-          onTap: _isExporting ? null : _backupAllData,
-        ),
-        ListTile(
-          leading: const Icon(Icons.cloud_download),
-          title: const Text('恢复数据'),
-          subtitle: const Text('从 JSON 备份文件恢复数据'),
-          trailing: _isImporting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.chevron_right),
-          onTap: _isImporting ? null : _restoreData,
+          onTap: _isExporting ? null : () => _exportBookSummaries(),
         ),
       ],
-    );
-  }
-
-  /// 构建数据统计区块
-  ///
-  /// 显示：
-  /// - 书籍数量：当前导入的书籍总数
-  /// - 摘要数量：已生成的所有摘要总数
-  ///
-  /// 参数：
-  /// - bookCount: 书籍数量
-  /// - summaryCount: 摘要数量
-  Widget _buildDataSection(int bookCount, int summaryCount) {
-    return _buildSection(
-      title: '数据统计',
-      icon: Icons.analytics,
-      children: [
-        _buildStatTile('书籍数量', bookCount, Icons.book),
-        _buildStatTile('摘要数量', summaryCount, Icons.summarize),
-      ],
-    );
-  }
-
-  /// 构建统计条目
-  ///
-  /// 创建一个 ListTile 显示标签和计数值
-  /// 计数值显示在带背景的圆角容器中
-  ///
-  /// 参数：
-  /// - label: 统计项名称
-  /// - count: 统计数值
-  /// - icon: 前置图标
-  Widget _buildStatTile(String label, int count, IconData icon) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          '$count',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-      ),
     );
   }
 
@@ -398,62 +260,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// - 版本号：0.1.0
   /// - 副标题：AI 分层阅读器 - 先读薄，再读厚
   Widget _buildAboutSection() {
+    final loc = AppLocalizations.of(context)!;
     return _buildSection(
-      title: '关于',
+      title: loc.aboutTitle,
       icon: Icons.info,
       children: [
-        const ListTile(
-          leading: Icon(Icons.apps),
-          title: Text('智读'),
-          subtitle: Text('版本 0.1.0'),
+        ListTile(
+          leading: const Icon(Icons.apps),
+          title: Text(loc.appTitle),
+          subtitle: Text('${loc.version} 0.1.0'),
         ),
-        const ListTile(
-          leading: Icon(Icons.code),
-          title: Text('AI 分层阅读器'),
-          subtitle: Text('先读薄，再读厚'),
+        ListTile(
+          leading: const Icon(Icons.code),
+          title: Text(loc.aiLayeredReader),
+          subtitle: Text(loc.readThinThick),
         ),
       ],
     );
   }
 
-  /// 构建设置分组区块
+  /// 获取AI配置状态显示文本
   ///
-  /// 统一的分组样式，包含：
-  /// - 标题行：图标 + 文字
-  /// - 子组件列表
-  ///
-  /// 参数：
-  /// - title: 分组标题
-  /// - icon: 分组图标
-  /// - children: 分组内的设置项列表
-  Widget _buildSection({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: Colors.grey[600]),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-        ...children,
-      ],
-    );
+  /// 根据当前AI设置返回描述性文本：
+  /// - 有效配置：显示provider和model
+  /// - 无效配置：提示用户检查设置
+  String _getAiConfigStatus() {
+    final loc = AppLocalizations.of(context)!;
+    final settings = SettingsService().settings.aiSettings;
+    if (settings.isValid) {
+      return '${settings.provider} - ${settings.model}';
+    } else {
+      return loc.notConfiguredClickToSet;
+    }
+  }
+
+  /// 获取主题状态显示文本
+  String _getThemeStatus() {
+    final loc = AppLocalizations.of(context)!;
+    final mode = SettingsService().settings.themeSettings.mode;
+    switch (mode) {
+      case ThemeMode.system:
+        return loc.themeModeSystem;
+      case ThemeMode.light:
+        return loc.themeModeLight;
+      case ThemeMode.dark:
+        return loc.themeModeDark;
+    }
+  }
+
+  /// 获取语言状态显示文本
+  String _getLanguageStatus() {
+    final loc = AppLocalizations.of(context)!;
+    final settings = SettingsService().settings.languageSettings;
+
+    // 构建AI语言设置显示文本
+    String aiLanguageText;
+    switch (settings.aiLanguageMode) {
+      case 'book':
+        aiLanguageText = 'AI: ${loc.aiLanguageFollowBook}';
+        break;
+      case 'system':
+        aiLanguageText = 'AI: ${loc.aiLanguageFollowSystem}';
+        break;
+      case 'manual':
+        final lang = settings.aiOutputLanguage;
+        switch (lang) {
+          case 'zh':
+            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.chineseLanguage})';
+            break;
+          case 'en':
+            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.englishLanguage})';
+            break;
+          case 'ja':
+            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.japaneseLanguage})';
+            break;
+          default:
+            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.chineseLanguage})';
+            break;
+        }
+        break;
+      default:
+        aiLanguageText = 'AI: ${loc.aiLanguageFollowSystem}';
+        break;
+    }
+
+    // 构建界面语言设置显示文本
+    String uiLanguageText;
+    switch (settings.uiLanguageMode) {
+      case 'system':
+        uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.uiLanguageFollowSystem}';
+        break;
+      case 'manual':
+        final lang = settings.uiLanguage;
+        switch (lang) {
+          case 'zh':
+            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.chineseLanguage}';
+            break;
+          case 'en':
+            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.englishLanguage}';
+            break;
+          case 'ja':
+            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.japaneseLanguage}';
+            break;
+          default:
+            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.chineseLanguage}';
+            break;
+        }
+        break;
+      default:
+        uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.uiLanguageFollowSystem}';
+        break;
+    }
+
+    // 返回AI和界面语言设置的组合文本
+    return '$aiLanguageText, $uiLanguageText';
   }
 
   /// 导出所有书籍摘要
@@ -467,9 +387,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ///
   /// 导出文件位置：由 ExportService 决定（用户选择的目录）
   Future<void> _exportBookSummaries() async {
+    final loc = AppLocalizations.of(context)!;
     final books = _bookService.books;
     if (books.isEmpty) {
-      _showSnackBar('暂无书籍数据');
+      _showSnackBar(loc.noBooks);
       return;
     }
 
@@ -483,95 +404,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
 
       if (successCount > 0) {
-        _showSnackBar('已导出 $successCount 本书籍摘要');
+        _showSnackBar('$successCount ${loc.booksCount} ${loc.success}');
       } else {
-        _showSnackBar('导出失败，请检查是否有摘要数据');
+        _showSnackBar('${loc.exportBookSummariesDesc} - ${loc.failed}');
       }
     } finally {
       setState(() => _isExporting = false);
     }
   }
 
-  /// 备份所有数据
+  /// 显示SnackBar提示
   ///
-  /// 功能流程：
-  /// 1. 设置导出状态为进行中
-  /// 2. 调用 ExportService 导出所有数据为 JSON
-  /// 3. 显示备份结果
-  /// 4. 重置导出状态
-  ///
-  /// 备份内容包括：
-  /// - 书籍信息
-  /// - 章节摘要
-  /// - 全书摘要
-  Future<void> _backupAllData() async {
-    setState(() => _isExporting = true);
-
-    try {
-      final result = await _exportService.exportAllDataToJson();
-      if (result != null) {
-        _showSnackBar('备份成功: $result');
-      } else {
-        _showSnackBar('备份取消');
-      }
-    } finally {
-      setState(() => _isExporting = false);
-    }
-  }
-
-  /// 从备份恢复数据
-  ///
-  /// 功能流程：
-  /// 1. 弹出确认对话框，警告用户数据将被覆盖
-  /// 2. 用户确认后设置导入状态为进行中
-  /// 3. 调用 ExportService 选择并导入备份文件
-  /// 4. 恢复成功后刷新界面
-  /// 5. 重置导入状态
-  ///
-  /// 警告：恢复操作会覆盖当前所有数据
-  Future<void> _restoreData() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('恢复数据'),
-        content: const Text('恢复数据将覆盖当前所有数据，是否继续？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('继续'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() => _isImporting = true);
-
-    try {
-      final result = await _exportService.pickAndImportBackup();
-      if (result != null) {
-        _showSnackBar('恢复成功');
-        setState(() {});
-      } else {
-        _showSnackBar('恢复取消或失败');
-      }
-    } finally {
-      setState(() => _isImporting = false);
-    }
-  }
-
-  /// 显示 SnackBar 提示
-  ///
-  /// 参数：
-  /// - message: 提示消息内容
+  /// 统一的提示显示方式：
+  /// - 底部显示
+  /// - 适当持续时间
+  /// - 与主题色彩适配
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 }

@@ -365,4 +365,11 @@ class BookService {
 
     _log.d('BookService', '章节标题更新成功: $title');
   }
+
+  /// 保存所有书籍索引到文件
+  ///
+  /// 用于外部服务（如导出服务）在恢复数据后更新书籍索引
+  Future<void> saveBooksIndex() async {
+    await _saveBooksIndex();
+  }
 }

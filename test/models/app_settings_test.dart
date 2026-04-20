@@ -587,18 +587,26 @@ void main() {
       test('should create LanguageSettings with default values', () {
         final settings = LanguageSettings();
 
+        expect(settings.aiLanguageMode, 'book');
         expect(settings.aiOutputLanguage, 'zh');
-        expect(settings.manualLanguage, isNull);
+        expect(settings.uiLanguageMode, 'system');
+        expect(settings.uiLanguage, 'zh');
       });
 
       test('should create LanguageSettings with custom values', () {
         final settings = LanguageSettings(
           aiOutputLanguage: 'en',
-          manualLanguage: 'zh',
         );
 
         expect(settings.aiOutputLanguage, 'en');
-        expect(settings.manualLanguage, 'zh');
+      });
+
+      test('should create LanguageSettings with custom values', () {
+        final settings = LanguageSettings(
+          aiOutputLanguage: 'en',
+        );
+
+        expect(settings.aiOutputLanguage, 'en');
       });
     });
 
@@ -608,7 +616,6 @@ void main() {
       setUp(() {
         original = LanguageSettings(
           aiOutputLanguage: 'zh',
-          manualLanguage: null,
         );
       });
 
@@ -616,27 +623,11 @@ void main() {
         final copy = original.copyWith();
 
         expect(copy.aiOutputLanguage, original.aiOutputLanguage);
-        expect(copy.manualLanguage, original.manualLanguage);
       });
 
       test('should create copy with updated aiOutputLanguage', () {
         final copy = original.copyWith(aiOutputLanguage: 'en');
         expect(copy.aiOutputLanguage, 'en');
-        expect(copy.manualLanguage, original.manualLanguage);
-      });
-
-      test('should create copy with updated manualLanguage', () {
-        final copy = original.copyWith(manualLanguage: 'en');
-        expect(copy.manualLanguage, 'en');
-        expect(copy.aiOutputLanguage, original.aiOutputLanguage);
-      });
-
-      test('should keep original manualLanguage when null passed to copyWith',
-          () {
-        // Note: copyWith uses ?? operator, so null means "keep original"
-        final settingsWithLanguage = LanguageSettings(manualLanguage: 'zh');
-        final copy = settingsWithLanguage.copyWith(manualLanguage: null);
-        expect(copy.manualLanguage, 'zh');
       });
     });
 
@@ -644,22 +635,19 @@ void main() {
       test('should serialize all fields correctly', () {
         final settings = LanguageSettings(
           aiOutputLanguage: 'en',
-          manualLanguage: 'zh',
         );
 
         final json = settings.toJson();
 
         expect(json['aiOutputLanguage'], 'en');
-        expect(json['manualLanguage'], 'zh');
       });
 
-      test('should serialize null manualLanguage correctly', () {
+      test('should serialize with default values', () {
         final settings = LanguageSettings();
 
         final json = settings.toJson();
 
         expect(json['aiOutputLanguage'], 'zh');
-        expect(json['manualLanguage'], isNull);
       });
     });
 
@@ -667,13 +655,11 @@ void main() {
       test('should deserialize all fields correctly', () {
         final json = {
           'aiOutputLanguage': 'en',
-          'manualLanguage': 'zh',
         };
 
         final settings = LanguageSettings.fromJson(json);
 
         expect(settings.aiOutputLanguage, 'en');
-        expect(settings.manualLanguage, 'zh');
       });
 
       test('should use defaults for missing fields', () {
@@ -682,19 +668,16 @@ void main() {
         final settings = LanguageSettings.fromJson(json);
 
         expect(settings.aiOutputLanguage, 'zh');
-        expect(settings.manualLanguage, isNull);
       });
 
       test('should use defaults for null values', () {
         final json = {
           'aiOutputLanguage': null,
-          'manualLanguage': null,
         };
 
         final settings = LanguageSettings.fromJson(json);
 
         expect(settings.aiOutputLanguage, 'zh');
-        expect(settings.manualLanguage, isNull);
       });
 
       test('should handle partial json', () {
@@ -705,7 +688,6 @@ void main() {
         final settings = LanguageSettings.fromJson(json);
 
         expect(settings.aiOutputLanguage, 'en');
-        expect(settings.manualLanguage, isNull);
       });
     });
 
@@ -713,23 +695,21 @@ void main() {
       test('should maintain data integrity through serialization cycle', () {
         final original = LanguageSettings(
           aiOutputLanguage: 'en',
-          manualLanguage: 'zh',
         );
 
         final json = original.toJson();
         final restored = LanguageSettings.fromJson(json);
 
         expect(restored.aiOutputLanguage, original.aiOutputLanguage);
-        expect(restored.manualLanguage, original.manualLanguage);
       });
 
-      test('should handle null manualLanguage in round trip', () {
+      test('should handle default values in round trip', () {
         final original = LanguageSettings();
 
         final json = original.toJson();
         final restored = LanguageSettings.fromJson(json);
 
-        expect(restored.manualLanguage, isNull);
+        expect(restored.aiOutputLanguage, 'zh');
       });
     });
   });
@@ -858,8 +838,7 @@ void main() {
             autoBackupEnabled: true,
             lastBackupTime: testDateTime,
           ),
-          languageSettings:
-              LanguageSettings(aiOutputLanguage: 'en', manualLanguage: 'zh'),
+          languageSettings: LanguageSettings(aiOutputLanguage: 'en'),
           version: 2,
         );
 
@@ -879,7 +858,6 @@ void main() {
 
         expect(json['languageSettings'], isA<Map<String, dynamic>>());
         expect(json['languageSettings']['aiOutputLanguage'], 'en');
-        expect(json['languageSettings']['manualLanguage'], 'zh');
 
         expect(json['version'], 2);
       });
@@ -930,7 +908,6 @@ void main() {
         expect(settings.storageSettings.autoBackupEnabled, true);
         expect(settings.storageSettings.autoBackupInterval, 3);
         expect(settings.languageSettings.aiOutputLanguage, 'en');
-        expect(settings.languageSettings.manualLanguage, 'zh');
         expect(settings.version, 2);
       });
 
@@ -1020,7 +997,6 @@ void main() {
         final restored = AppSettings.fromJson(json);
 
         expect(restored.storageSettings.lastBackupTime, isNull);
-        expect(restored.languageSettings.manualLanguage, isNull);
       });
     });
 
@@ -1060,11 +1036,9 @@ void main() {
         final settings = AppSettings(
           languageSettings: LanguageSettings(
             aiOutputLanguage: 'en',
-            manualLanguage: 'zh',
           ),
         );
         expect(settings.languageSettings.aiOutputLanguage, 'en');
-        expect(settings.languageSettings.manualLanguage, 'zh');
       });
     });
   });

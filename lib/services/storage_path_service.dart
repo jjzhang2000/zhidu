@@ -123,9 +123,8 @@ class StoragePathService {
 
     _log.v('StoragePathService', 'init 开始执行');
 
-    // 注意：自定义路径从SettingsService加载
-    // 这里只是标记服务已准备好，实际路径值由SettingsService设置
-    // 通过 setBooksDirectory() / setBackupDirectory() 方法
+    // 之前版本用于从SettingsService加载已保存的自定义路径
+    // 现在由于移除了存储设置功能，此服务不再需要初始化
 
     _initialized = true;
     _log.v('StoragePathService', 'init 执行完成');
@@ -177,130 +176,12 @@ class StoragePathService {
     return dir.path;
   }
 
-  /// 通过文件选择器选择书籍存储目录
-  ///
-  /// 打开文件夹选择器让用户选择新的存储位置。
-  /// 如果用户选择了新目录，会自动更新SettingsService中的设置。
-  ///
-  /// 流程：
-  /// 1. 打开文件夹选择对话框
-  /// 2. 用户选择目录
-  /// 3. 更新SettingsService中的设置
-  /// 4. 触发目录变更通知
-  ///
-  /// Returns:
-  ///   - 成功：返回新选择的目录路径
-  ///   - 取消：返回null
-  Future<String?> pickBooksDirectory() async {
-    _log.v('StoragePathService', 'pickBooksDirectory 开始执行');
-
-    try {
-      final result = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: '选择书籍存储目录',
-        lockParentWindow: true,
-      );
-
-      if (result == null) {
-        _log.d('StoragePathService', '用户取消选择');
-        return null;
-      }
-
-      // 验证目录可写
-      final testDir = Directory(result);
-      try {
-        if (!await testDir.exists()) {
-          await testDir.create(recursive: true);
-        }
-        // 尝试创建一个测试文件
-        final testFile = File(p.join(result, '.zhidu_test'));
-        await testFile.writeAsString('test');
-        await testFile.delete();
-      } catch (e) {
-        _log.w('StoragePathService', '目录不可写: $result - $e');
-        return null;
-      }
-
-      // 更新自定义路径
-      _customBooksDirectory = result;
-
-      _log.info('StoragePathService', '用户选择书籍目录: $result');
-      return result;
-    } catch (e, stackTrace) {
-      _log.e('StoragePathService', '选择书籍目录失败: $e\n$stackTrace');
-      return null;
-    }
-  }
-
-  /// 通过文件选择器选择备份存储目录
-  ///
-  /// 打开文件夹选择器让用户选择备份存储位置。
-  /// 如果用户选择了新目录，会自动更新SettingsService中的设置。
-  ///
-  /// 流程：
-  /// 1. 打开文件夹选择对话框
-  /// 2. 用户选择目录
-  /// 3. 更新SettingsService中的设置
-  /// 4. 触发目录变更通知
-  ///
-  /// Returns:
-  ///   - 成功：返回新选择的目录路径
-  ///   - 取消：返回null
-  Future<String?> pickBackupDirectory() async {
-    _log.v('StoragePathService', 'pickBackupDirectory 开始执行');
-
-    try {
-      final result = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: '选择备份存储目录',
-        lockParentWindow: true,
-      );
-
-      if (result == null) {
-        _log.d('StoragePathService', '用户取消选择');
-        return null;
-      }
-
-      // 验证目录可写
-      final testDir = Directory(result);
-      try {
-        if (!await testDir.exists()) {
-          await testDir.create(recursive: true);
-        }
-        // 尝试创建一个测试文件
-        final testFile = File(p.join(result, '.zhidu_test'));
-        await testFile.writeAsString('test');
-        await testFile.delete();
-      } catch (e) {
-        _log.w('StoragePathService', '目录不可写: $result - $e');
-        return null;
-      }
-
-      // 更新自定义路径
-      _customBackupDirectory = result;
-
-      _log.info('StoragePathService', '用户选择备份目录: $result');
-      return result;
-    } catch (e, stackTrace) {
-      _log.e('StoragePathService', '选择备份目录失败: $e\n$stackTrace');
-      return null;
-    }
-  }
-
   /// 重置书籍目录为默认值
   ///
   /// 清除自定义设置，恢复使用默认路径。
-  /// 由SettingsService调用。
   void resetBooksDirectory() {
     _customBooksDirectory = null;
     _log.d('StoragePathService', '书籍目录已重置为默认');
-  }
-
-  /// 重置备份目录为默认值
-  ///
-  /// 清除自定义设置，恢复使用默认路径。
-  /// 由SettingsService调用。
-  void resetBackupDirectory() {
-    _customBackupDirectory = null;
-    _log.d('StoragePathService', '备份目录已重置为默认');
   }
 
   /// 检查是否使用自定义书籍目录
@@ -309,12 +190,6 @@ class StoragePathService {
   ///   true表示使用自定义路径，false表示使用默认路径
   bool get isUsingCustomBooksDirectory => _customBooksDirectory != null;
 
-  /// 检查是否使用自定义备份目录
-  ///
-  /// Returns:
-  ///   true表示使用自定义路径，false表示使用默认路径
-  bool get isUsingCustomBackupDirectory => _customBackupDirectory != null;
-
   /// 获取默认书籍目录路径（用于显示对比）
   ///
   /// Returns:
@@ -322,14 +197,5 @@ class StoragePathService {
   Future<String> getDefaultBooksDirectoryPath() async {
     final appDir = await StorageConfig.getAppDirectory();
     return p.join(appDir.path, 'books');
-  }
-
-  /// 获取默认备份目录路径（用于显示对比）
-  ///
-  /// Returns:
-  ///   默认备份目录的完整路径字符串
-  Future<String> getDefaultBackupDirectoryPath() async {
-    final appDir = await StorageConfig.getAppDirectory();
-    return p.join(appDir.path, 'backups');
   }
 }

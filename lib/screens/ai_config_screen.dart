@@ -13,6 +13,7 @@
 /// - 重载：AIService().reloadConfig()
 
 import 'package:flutter/material.dart';
+import 'package:zhidu/l10n/app_localizations.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 import '../services/ai_service.dart';
@@ -47,7 +48,28 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   static const _providers = [
     MapEntry('zhipu', '智谱'),
     MapEntry('qwen', '通义千问'),
+    MapEntry('ollama', 'Ollama（本地）'),
   ];
+
+  /// 获取国际化提供商选项
+  List<MapEntry<String, String>> _getLocalizedProviders(AppLocalizations localizations) {
+    return [
+      MapEntry('zhipu', localizations.zhipuProvider),
+      MapEntry('qwen', localizations.qwenProvider),
+      MapEntry('ollama', localizations.ollamaProvider),
+    ];
+  }
+
+  /// 获取当前提供商选项（根据上下文国际化）
+  List<MapEntry<String, String>> _getCurrentProviders() {
+    final localizations = AppLocalizations.of(context);
+    if (localizations != null) {
+      return _getLocalizedProviders(localizations);
+    } else {
+      // 如果无法获取国际化，则返回默认提供商列表
+      return _providers;
+    }
+  }
 
   /// 模型映射表
   /// 每个提供商对应不同的推荐模型选项
@@ -252,9 +274,10 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI配置'),
+        title: Text(localizations.aiConfigScreenTitle),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -274,7 +297,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
               const SizedBox(height: 32),
               if (_testResultMessage != null) _buildTestResult(),
               const SizedBox(height: 16),
-              _buildActionButtons(),
+              _buildActionButtons(localizations),
             ],
           ),
         ),
@@ -292,7 +315,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'AI提供商',
+          AppLocalizations.of(context)?.aiProvider ?? 'AI提供商',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -304,7 +327,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
             border: OutlineInputBorder(),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
-          items: _providers.map((entry) {
+          items: _getCurrentProviders().map((entry) {
             return DropdownMenuItem(
               value: entry.key,
               child: Text(entry.value),
@@ -333,7 +356,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'API Key',
+          AppLocalizations.of(context)?.apiKey ?? 'API Key',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -379,7 +402,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '模型',
+          AppLocalizations.of(context)?.model ?? '模型',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -432,7 +455,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Base URL',
+          AppLocalizations.of(context)?.baseUrl ?? 'Base URL',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -502,7 +525,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// 包含：
   /// - 测试连接按钮
   /// - 保存按钮
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(AppLocalizations localizations) {
     return Row(
       children: [
         Expanded(
@@ -516,7 +539,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.network_check),
-            label: Text(_isTesting ? '测试中...' : '测试连接'),
+            label: Text(_isTesting ? localizations.testing : '测试连接'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
@@ -534,7 +557,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save),
-            label: Text(_isSaving ? '保存中...' : '保存'),
+            label: Text(_isSaving ? localizations.saving : '保存'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               backgroundColor: Theme.of(context).colorScheme.primary,

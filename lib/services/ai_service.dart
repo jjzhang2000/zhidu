@@ -299,12 +299,25 @@ class AIService {
     _log.d('AIService',
         '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
 
-    final languageInstruction = AiPrompts.getLanguageInstruction(
-      langSettings.aiLanguageMode,
-      manualLanguage: langSettings.aiLanguageMode == 'manual'
-          ? langSettings.aiOutputLanguage
-          : null,
-    );
+    String languageInstruction;
+
+    // 如果是书籍语言模式，根据content检测语言
+    if (langSettings.aiLanguageMode == 'book') {
+      // 从内容中检测语言
+      String detectedLanguage = _detectLanguageFromContent(content);
+      languageInstruction =
+          _getLanguageInstructionForLanguage(detectedLanguage);
+      _log.d('AIService',
+          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
+    } else {
+      languageInstruction = AiPrompts.getLanguageInstruction(
+        langSettings.aiLanguageMode,
+        manualLanguage: langSettings.aiLanguageMode == 'manual'
+            ? langSettings.aiOutputLanguage
+            : null,
+      );
+    }
+
     _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.chapterSummary(
@@ -365,12 +378,25 @@ class AIService {
     _log.d('AIService',
         '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
 
-    final languageInstruction = AiPrompts.getLanguageInstruction(
-      langSettings.aiLanguageMode,
-      manualLanguage: langSettings.aiLanguageMode == 'manual'
-          ? langSettings.aiOutputLanguage
-          : null,
-    );
+    String languageInstruction;
+
+    // 如果是书籍语言模式，根据prefaceContent检测语言
+    if (langSettings.aiLanguageMode == 'book') {
+      // 从prefaceContent检测语言
+      String detectedLanguage = _detectLanguageFromContent(prefaceContent);
+      languageInstruction =
+          _getLanguageInstructionForLanguage(detectedLanguage);
+      _log.d('AIService',
+          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
+    } else {
+      languageInstruction = AiPrompts.getLanguageInstruction(
+        langSettings.aiLanguageMode,
+        manualLanguage: langSettings.aiLanguageMode == 'manual'
+            ? langSettings.aiOutputLanguage
+            : null,
+      );
+    }
+
     _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.bookSummaryFromPreface(
@@ -433,12 +459,25 @@ class AIService {
     _log.d('AIService',
         '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
 
-    final languageInstruction = AiPrompts.getLanguageInstruction(
-      langSettings.aiLanguageMode,
-      manualLanguage: langSettings.aiLanguageMode == 'manual'
-          ? langSettings.aiOutputLanguage
-          : null,
-    );
+    String languageInstruction;
+
+    // 如果是书籍语言模式，根据chapterSummaries检测语言
+    if (langSettings.aiLanguageMode == 'book') {
+      // 从章节摘要中检测语言
+      String detectedLanguage = _detectLanguageFromContent(chapterSummaries);
+      languageInstruction =
+          _getLanguageInstructionForLanguage(detectedLanguage);
+      _log.d('AIService',
+          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
+    } else {
+      languageInstruction = AiPrompts.getLanguageInstruction(
+        langSettings.aiLanguageMode,
+        manualLanguage: langSettings.aiLanguageMode == 'manual'
+            ? langSettings.aiOutputLanguage
+            : null,
+      );
+    }
+
     _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.bookSummary(
@@ -455,6 +494,149 @@ class AIService {
     } catch (e) {
       _log.e('AIService', '生成全书摘要失败', e);
       return null;
+    }
+  }
+
+  /// 从内容中检测语言
+  ///
+  /// 通过分析文本内容中的字符特征来判断语言
+  /// 使用更精确的算法，考虑不同语言的字符比例和分布特点
+  ///
+  /// 参数:
+  /// - [content]: 要分析的文本内容
+  ///
+  /// 返回:
+  /// - 检测到的语言代码 ('zh', 'en', 'ja', 'ko'等)
+  /// - 默认返回 'zh' 如果无法确定
+  String _detectLanguageFromContent(String content) {
+    if (content.isEmpty) return 'zh';
+
+    // 计算不同语言的字符数量
+    int chineseChars = 0;
+    int englishChars = 0;
+    int japaneseChars = 0;
+    int koreanChars = 0;
+    int punctuationChars = 0; // 标点符号和特殊字符
+
+    for (int i = 0; i < content.length; i++) {
+      int charCode = content.codeUnitAt(i);
+
+      // 检测中文字符
+      if ((charCode >= 0x4e00 && charCode <= 0x9fff) || // CJK统一汉字
+          (charCode >= 0x3400 && charCode <= 0x4dbf) || // CJK扩展A
+          (charCode >= 0xf900 && charCode <= 0xfaff)) {
+        // CJK兼容汉字
+        chineseChars++;
+      }
+      // 检测日文字符
+      else if ((charCode >= 0x3040 && charCode <= 0x309f) || // 平假名
+          (charCode >= 0x30a0 && charCode <= 0x30ff) || // 片假名
+          (charCode >= 0x31f0 && charCode <= 0x31ff)) {
+        // 日文片假名扩展
+        japaneseChars++;
+      }
+      // 检测韩文字符
+      else if (charCode >= 0xac00 && charCode <= 0xd7af) {
+        // 韩文音节
+        koreanChars++;
+      }
+      // 检测英文字符
+      else if ((charCode >= 65 && charCode <= 90) || // A-Z
+          (charCode >= 97 && charCode <= 122)) {
+        // a-z
+        englishChars++;
+      }
+      // 检测常见标点符号和特殊字符（这些在各种语言中都存在，但需要分开统计）
+      else if ((charCode >= 32 && charCode <= 47) || // 空格和标点
+          (charCode >= 58 && charCode <= 64) || // 标点和特殊符号
+          (charCode >= 91 && charCode <= 96) || // 标点和特殊符号
+          (charCode >= 123 && charCode <= 126) || // 标点和特殊符号
+          (charCode >= 12288 && charCode <= 12543)) {
+        // 中文标点符号
+        punctuationChars++;
+      }
+    }
+
+    // 计算总的有效字符数（不包括空格等空白字符）
+    int totalChars = chineseChars + englishChars + japaneseChars + koreanChars;
+
+    // 如果没有有效字符，返回默认语言
+    if (totalChars == 0) {
+      return 'zh';
+    }
+
+    // 计算各种语言字符的比例
+    double chineseRatio = chineseChars / totalChars;
+    double englishRatio = englishChars / totalChars;
+    double japaneseRatio = japaneseChars / totalChars;
+    double koreanRatio = koreanChars / totalChars;
+
+    // 更加严格的中文判断：如果中文字符比例超过阈值，优先判断为中文
+    // 中文文本中常常混有英文单词和技术术语，所以不能仅凭英文字符数量判断
+    if (chineseRatio >= 0.3) {
+      // 如果中文字符占比超过30%，判断为中文
+      return 'zh';
+    } else if (japaneseRatio > englishRatio && japaneseRatio > koreanRatio) {
+      return 'ja';
+    } else if (koreanRatio > englishRatio) {
+      return 'ko';
+    } else if (englishRatio > chineseRatio &&
+        englishRatio > japaneseRatio &&
+        englishRatio > koreanRatio) {
+      return 'en';
+    }
+
+    // 如果都不满足条件，根据数量判断
+    int maxCount = 0;
+    String detectedLanguage = 'zh'; // 默认中文
+
+    if (chineseChars > maxCount) {
+      maxCount = chineseChars;
+      detectedLanguage = 'zh';
+    }
+    if (englishChars > maxCount) {
+      maxCount = englishChars;
+      detectedLanguage = 'en';
+    }
+    if (japaneseChars > maxCount) {
+      maxCount = japaneseChars;
+      detectedLanguage = 'ja';
+    }
+    if (koreanChars > maxCount) {
+      maxCount = koreanChars;
+      detectedLanguage = 'ko';
+    }
+
+    return detectedLanguage;
+  }
+
+  /// 为特定语言生成语言指令
+  ///
+  /// 参数:
+  /// - [languageCode]: 语言代码 ('zh', 'en', 'ja', 'ko'等)
+  ///
+  /// 返回:
+  /// - 对应语言的指令字符串
+  String _getLanguageInstructionForLanguage(String languageCode) {
+    switch (languageCode) {
+      case 'zh':
+        return 'IMPORTANT: Respond in Chinese (简体中文).';
+      case 'en':
+        return 'IMPORTANT: Respond in English.';
+      case 'ja':
+        return 'IMPORTANT: Respond in Japanese (日本語).';
+      case 'ko':
+        return 'IMPORTANT: Respond in Korean (한국어).';
+      case 'fr':
+        return 'IMPORTANT: Respond in French (Français).';
+      case 'de':
+        return 'IMPORTANT: Respond in German (Deutsch).';
+      case 'ru':
+        return 'IMPORTANT: Respond in Russian (Русский).';
+      case 'es':
+        return 'IMPORTANT: Respond in Spanish (Español).';
+      default:
+        return 'IMPORTANT: Respond in Chinese (简体中文).'; // 默认中文
     }
   }
 

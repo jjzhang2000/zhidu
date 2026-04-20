@@ -57,8 +57,6 @@ class SettingsService {
   ValueNotifier<AiSettings> _aiSettings = ValueNotifier(AiSettings());
   ValueNotifier<LanguageSettings> _languageSettings =
       ValueNotifier(LanguageSettings());
-  ValueNotifier<StorageSettings> _storageSettings =
-      ValueNotifier(StorageSettings());
 
   /// 主题模式ValueNotifier（用于响应式UI更新）
   ValueNotifier<ThemeMode> get themeMode => _themeMode;
@@ -69,8 +67,7 @@ class SettingsService {
   /// 语言设置ValueNotifier
   ValueNotifier<LanguageSettings> get languageSettings => _languageSettings;
 
-  /// 存储设置ValueNotifier
-  ValueNotifier<StorageSettings> get storageSettings => _storageSettings;
+
 
   /// 测试用：重置服务状态
   @visibleForTesting
@@ -79,13 +76,13 @@ class SettingsService {
     _instance._safeDispose(_instance._themeMode);
     _instance._safeDispose(_instance._aiSettings);
     _instance._safeDispose(_instance._languageSettings);
-    _instance._safeDispose(_instance._storageSettings);
+
 
     // Create new notifiers
     _instance._themeMode = ValueNotifier(ThemeMode.system);
     _instance._aiSettings = ValueNotifier(AiSettings());
     _instance._languageSettings = ValueNotifier(LanguageSettings());
-    _instance._storageSettings = ValueNotifier(StorageSettings());
+
 
     _instance._settings = AppSettings();
     _instance._settingsFilePath = null;
@@ -124,6 +121,8 @@ class SettingsService {
       // 初始化ValueNotifiers
       _syncNotifiersWithSettings();
 
+
+
       _log.info('SettingsService', '设置服务初始化完成');
     } catch (e, stackTrace) {
       _log.e('SettingsService', '初始化设置服务失败', e, stackTrace);
@@ -132,6 +131,8 @@ class SettingsService {
       _syncNotifiersWithSettings();
     }
   }
+
+
 
   /// 从文件加载设置
   Future<void> _loadSettings() async {
@@ -174,7 +175,6 @@ class SettingsService {
     themeMode.value = _settings.themeSettings.mode;
     aiSettings.value = _settings.aiSettings;
     languageSettings.value = _settings.languageSettings;
-    storageSettings.value = _settings.storageSettings;
   }
 
   /// 获取当前完整设置
@@ -211,15 +211,7 @@ class SettingsService {
     await updateThemeSettings(_settings.themeSettings.copyWith(mode: mode));
   }
 
-  /// 更新存储设置
-  ///
-  /// [newSettings] 新的存储设置
-  Future<void> updateStorageSettings(StorageSettings newSettings) async {
-    _settings = _settings.copyWith(storageSettings: newSettings);
-    storageSettings.value = newSettings;
-    await _saveSettings();
-    _log.info('SettingsService', '存储设置已更新');
-  }
+
 
   /// 更新语言设置
   ///
@@ -323,7 +315,7 @@ class SettingsService {
     _safeDispose(_themeMode);
     _safeDispose(_aiSettings);
     _safeDispose(_languageSettings);
-    _safeDispose(_storageSettings);
+
   }
 
   /// 安全地dispose ValueNotifier，忽略已dispose的错误

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 
 import 'screens/home_screen.dart';
 import 'services/book_service.dart';
@@ -26,10 +28,12 @@ void main() async {
   // 初始化格式注册表
   _initializeFormatRegistry();
 
+  // 重要：首先初始化设置服务以确保自定义路径被加载
+  await SettingsService().init(); // 初始化设置服务
+  // 然后初始化其他依赖设置的服务
   await BookService().init();
   await AIService().init();
   await SummaryService().init();
-  await SettingsService().init(); // 初始化设置服务
 
   LogService().info('Main', '所有服务初始化完成');
 
@@ -54,24 +58,66 @@ class ZhiduApp extends StatefulWidget {
 
 class _ZhiduAppState extends State<ZhiduApp> {
   late final SettingsService _settingsService;
+  Locale? _currentLocale;
 
   @override
   void initState() {
     super.initState();
     _settingsService = SettingsService();
-    // 添加监听器，当主题模式改变时重建UI
-    _settingsService.themeMode.addListener(_onThemeModeChanged);
+    // 添加监听器，当主题模式和语言设置改变时重建UI
+    _settingsService.themeMode.addListener(_onAppSettingsChanged);
+    _settingsService.languageSettings.addListener(_onAppSettingsChanged);
+
+    // 初始化语言设置
+    _updateLocaleFromSettings();
   }
 
   @override
   void dispose() {
-    _settingsService.themeMode.removeListener(_onThemeModeChanged);
+    _settingsService.themeMode.removeListener(_onAppSettingsChanged);
+    _settingsService.languageSettings.removeListener(_onAppSettingsChanged);
     super.dispose();
   }
 
-  void _onThemeModeChanged() {
-    // 当主题模式发生变化时，重建UI以应用新主题
-    setState(() {});
+  void _onAppSettingsChanged() {
+    // 当主题模式或语言设置发生变化时，重建UI以应用新设置
+    setState(() {
+      _updateLocaleFromSettings();
+    });
+  }
+
+  /// 根据应用设置更新语言环境
+  void _updateLocaleFromSettings() {
+    final languageSettings = _settingsService.settings.languageSettings;
+    String languageCode = 'zh'; // 默认中文
+
+    if (languageSettings.uiLanguageMode == 'manual') {
+      // 如果手动选择了界面语言，使用选择的语言
+      languageCode = languageSettings.uiLanguage;
+    } else {
+      // 如果跟随系统，获取系统语言（这里简化处理）
+      // 实际情况下，可以获取设备的首选语言
+      languageCode = WidgetsBinding.instance.window.locale.languageCode;
+    }
+
+    // 根据语言代码设置地区
+    Locale newLocale;
+    switch (languageCode) {
+      case 'en':
+        newLocale = const Locale('en', 'US');
+        break;
+      case 'ja':
+        newLocale = const Locale('ja', 'JP');
+        break;
+      case 'zh':
+      default:
+        newLocale = const Locale('zh', 'CN');
+        break;
+    }
+
+    if (_currentLocale?.languageCode != newLocale.languageCode) {
+      _currentLocale = newLocale;
+    }
   }
 
   @override
@@ -81,12 +127,27 @@ class _ZhiduAppState extends State<ZhiduApp> {
         _mapToFlutterThemeMode(_settingsService.themeMode.value);
 
     return MaterialApp(
-      title: '智读',
+      title: _currentLocale != null
+          ? AppLocalizations.of(context)?.appTitle ?? '智读'
+          : '智读',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: flutterThemeMode, // 使用转换后的Flutter主题模式
       home: const HomeScreen(),
+      // 添加国际化支持
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('zh', 'CN'), // 中文
+        Locale('en', 'US'), // 英文
+        Locale('ja', 'JP'), // 日文
+      ],
+      locale: _currentLocale,
     );
   }
 

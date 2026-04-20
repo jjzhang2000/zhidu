@@ -1,398 +1,361 @@
-/// 导出服务
-///
-/// 提供书籍摘要和数据的导出/导入功能：
-/// - 导出书籍摘要为Markdown格式
-/// - 导出所有数据为JSON格式（备份）
-/// - 从JSON文件导入数据（恢复）
-///
-/// 采用单例模式，确保全局只有一个实例。
-library;
-
 import 'dart:io';
 import 'dart:convert';
-
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
-
 import '../models/book.dart';
 import '../models/chapter_summary.dart';
-import '../models/app_settings.dart';
-import '../services/book_service.dart';
-import '../services/summary_service.dart';
-import '../services/settings_service.dart';
-import '../services/ai_service.dart';
+import 'book_service.dart';
+import 'summary_service.dart';
 import 'log_service.dart';
+import 'file_storage_service.dart';
+import 'package:uuid/uuid.dart';
 
-/// 导出服务类（单例）
+/// 数据导出服务 - 负责导出书籍摘要等功能
 ///
-/// 负责数据的导出和导入操作，支持以下格式：
-/// - Markdown：用于书籍摘要的导出，便于阅读和分享
-/// - JSON：用于完整数据备份，包含书籍信息和章节摘要
+/// 提供将书籍数据导出为各种格式的功能：
+/// - Markdown格式书籍摘要导出
+/// - 用于分享和离线阅读
 ///
-/// 使用示例：
-/// ```dart
-/// final exportService = ExportService();
-///
-/// // 导出书籍摘要
-/// final path = await exportService.exportBookSummaryToMarkdown(book);
-///
-/// // 导出所有数据
-/// final backupPath = await exportService.exportAllDataToJson();
-///
-/// // 导入备份
-/// final success = await exportService.pickAndImportBackup();
-/// ```
+/// 设计原则：
+/// - 导出操作独立于核心服务，避免耦合
+/// - 支持批量导出，提高效率
+/// - 保持导出格式的一致性和可读性
 class ExportService {
-  /// 单例实例
+  /// 服务实例
   static final ExportService _instance = ExportService._internal();
-
-  /// 获取单例实例
   factory ExportService() => _instance;
-
-  /// 私有构造函数
   ExportService._internal();
 
-  /// 书籍服务实例
-  final _bookService = BookService();
-
-  /// 摘要服务实例
-  final _summaryService = SummaryService();
-
-  /// 日志服务实例
+  /// 日志服务
   final _log = LogService();
 
-  /// 导出书籍摘要为Markdown格式
-  ///
-  /// 将指定书籍的所有章节摘要导出为Markdown文件，内容包括：
-  /// - 书籍基本信息（标题、作者、导出时间、章节数）
-  /// - 每章的客观摘要、AI见解、关键要点
+  /// 文件存储服务
+  final _fileStorage = FileStorageService();
+
+  /// 书籍服务引用
+  final _bookService = BookService();
+
+  /// 摘要服务引用
+  final _summaryService = SummaryService();
+
+  /// 导出单本书籍摘要为Markdown格式
   ///
   /// 参数：
-  /// - [book] 要导出的书籍对象
+  /// - [book]: 要导出的书籍对象
+  /// - [exportDirPath]: 可选的导出目录路径，如果为null则使用默认位置
   ///
   /// 返回值：
-  /// - 导出成功：返回保存的文件路径
-  /// - 导出失败或无摘要：返回null
+  /// - 成功时返回导出的文件路径，失败时返回null
   ///
-  /// Markdown格式示例：
+  /// 输出格式：
   /// ```markdown
   /// # 书籍标题
-  ///
-  /// **作者**: 作者名
-  /// **导出时间**: 2026-04-14 12:00:00
-  /// **章节数**: 10
-  ///
-  /// ---
-  ///
-  /// ## 第一章 标题
-  ///
-  /// ### 客观摘要
-  /// ...
-  ///
-  /// ### AI 见解
-  /// ...
-  ///
-  /// ### 关键要点
-  /// - 要点1
-  /// - 要点2
-  ///
-  /// ---
+  /// 
+  /// ## 书籍摘要
+  /// 书籍的整体AI分析摘要
+  /// 
+  /// ## 章节摘要
+  /// 
+  /// ### 第1章：章节标题
+  /// 章节AI摘要内容
+  /// 
+  /// ### 第2章：章节标题
+  /// 章节AI摘要内容
   /// ```
-  Future<String?> exportBookSummaryToMarkdown(Book book) async {
-    // 获取该书的所有章节摘要
-    final summaries = await _summaryService.getSummariesForBook(book.id);
+  Future<String?> exportBookSummaryToMarkdown(Book book, {String? exportDirPath}) async {
+    _log.v('ExportService', '开始导出书籍: ${book.id} - ${book.title}');
 
-    // 如果没有任何摘要，返回null
-    if (summaries.isEmpty) {
-      return null;
-    }
+    try {
+      // 获取书籍摘要
+      final summary = await _summaryService.getBookSummary(book.id);
 
-    // 使用StringBuffer构建Markdown内容
-    final buffer = StringBuffer();
+      // 获取章节摘要
+      final chapterSummaries = await _summaryService.getAllSummaries();
 
-    // 写入书籍标题（一级标题）
-    buffer.writeln('# ${book.title}');
-    buffer.writeln();
+      // 构建Markdown内容
+      final buffer = StringBuffer();
 
-    // 写入书籍基本信息
-    buffer.writeln('**作者**: ${book.author}');
-    buffer.writeln('**导出时间**: ${DateTime.now().toString().split('.')[0]}');
-    buffer.writeln('**章节数**: ${book.totalChapters}');
-    buffer.writeln();
-    buffer.writeln('---');
-    buffer.writeln();
-
-    // 遍历每个章节摘要
-    for (final summary in summaries) {
-      // 写入章节标题（二级标题）
-      buffer.writeln('## ${summary.chapterTitle}');
-      buffer.writeln();
-
-      // 写入客观摘要
-      buffer.writeln('### 客观摘要');
-      buffer.writeln();
-      buffer.writeln(summary.objectiveSummary);
-      buffer.writeln();
-
-      // 写入AI见解
-      buffer.writeln('### AI 见解');
-      buffer.writeln();
-      buffer.writeln(summary.aiInsight);
-      buffer.writeln();
-
-      // 如果有关键要点，写入列表
-      if (summary.keyPoints.isNotEmpty) {
-        buffer.writeln('### 关键要点');
-        buffer.writeln();
-        for (final point in summary.keyPoints) {
-          buffer.writeln('- $point');
-        }
-        buffer.writeln();
+      // 书籍标题
+      buffer.writeln('# ${book.title}');
+      buffer.writeln('');
+      
+      // 作者信息
+      if (book.author != null && book.author!.isNotEmpty) {
+        buffer.writeln('**作者**：${book.author}');
+        buffer.writeln('');
       }
 
-      // 写入分隔线
-      buffer.writeln('---');
-      buffer.writeln();
-    }
-
-    // 保存到文件
-    return await _saveToFile(
-      content: buffer.toString(),
-      defaultFileName: '${book.title}_摘要.md',
-      dialogTitle: '导出书籍摘要',
-    );
-  }
-
-  /// 导出所有数据为JSON格式
-  ///
-  /// 将应用中的所有数据（书籍信息、章节摘要和设置）导出为JSON文件，
-  /// 用于数据备份和迁移。
-  ///
-  /// JSON结构：
-  /// ```json
-  /// {
-  ///   "exportTime": "2026-04-14T12:00:00.000",
-  ///   "version": "1.0",
-  ///   "books": [...],
-  ///   "summaries": [...],
-  ///   "settings": {...}
-  /// }
-  /// ```
-  ///
-  /// 返回值：
-  /// - 导出成功：返回保存的文件路径
-  /// - 用户取消或失败：返回null
-  Future<String?> exportAllDataToJson() async {
-    // 获取所有章节摘要
-    final summaries = await _summaryService.getAllSummaries();
-
-    // 获取当前设置
-    final settings = SettingsService().settings;
-
-    // 构建导出数据结构
-    final data = {
-      'exportTime': DateTime.now().toIso8601String(),
-      'version': '1.0',
-      'books': _bookService.books.map((b) => b.toJson()).toList(),
-      'summaries': summaries.map((s) => s.toJson()).toList(),
-      'settings': settings.toJson(),
-    };
-
-    // 使用JsonEncoder格式化输出（缩进2个空格）
-    final jsonString = const JsonEncoder.withIndent('  ').convert(data);
-
-    // 保存到文件
-    return await _saveToFile(
-      content: jsonString,
-      defaultFileName:
-          'zhidu_backup_${DateTime.now().millisecondsSinceEpoch}.json',
-      dialogTitle: '导出备份数据',
-    );
-  }
-
-  /// 保存内容到文件
-  ///
-  /// 弹出文件保存对话框，让用户选择保存位置，然后将内容写入文件。
-  ///
-  /// 参数：
-  /// - [content] 要保存的内容
-  /// - [defaultFileName] 默认文件名
-  /// - [dialogTitle] 对话框标题
-  ///
-  /// 返回值：
-  /// - 保存成功：返回文件路径
-  /// - 用户取消或失败：返回null
-  Future<String?> _saveToFile({
-    required String content,
-    required String defaultFileName,
-    required String dialogTitle,
-  }) async {
-    try {
-      String? outputPath;
-
-      // 打开目录选择对话框
-      await FilePicker.platform
-          .getDirectoryPath(
-        dialogTitle: dialogTitle,
-      )
-          .then((directoryPath) {
-        if (directoryPath != null) {
-          // 构建完整文件路径
-          outputPath = '$directoryPath/$defaultFileName';
-        }
-      });
-
-      // 用户取消了选择
-      if (outputPath == null) {
-        return null;
+      // 书籍摘要
+      if (summary != null) {
+        buffer.writeln('## 书籍摘要');
+        buffer.writeln(summary);
+        buffer.writeln('');
+      } else {
+        buffer.writeln('## 书籍摘要');
+        buffer.writeln('（暂无摘要）');
+        buffer.writeln('');
       }
 
-      // 创建文件并写入内容
-      final file = File(outputPath!);
-      await file.writeAsString(content);
+      // 章节摘要
+      if (chapterSummaries.any((cs) => cs.bookId == book.id)) {
+        buffer.writeln('## 章节摘要');
+        buffer.writeln('');
 
-      return outputPath;
-    } catch (e) {
-      // 记录错误日志
-      _log.e('ExportService', '导出失败', e);
-      return null;
-    }
-  }
+        for (final chapterSummary in chapterSummaries.where((cs) => cs.bookId == book.id)) {
+          buffer.writeln('### ${chapterSummary.chapterTitle}');
+          buffer.writeln(chapterSummary.objectiveSummary);
+          buffer.writeln('');
+        }
+      }
 
-  /// 从JSON文件导入数据
-  ///
-  /// 读取指定JSON文件，解析并恢复书籍、摘要数据和设置到数据库。
-  ///
-  /// 参数：
-  /// - [filePath] JSON文件路径
-  ///
-  /// 返回值：
-  /// - 导入成功：返回true
-  /// - 文件不存在或解析失败：返回false
-  ///
-  /// 注意事项：
-  /// - 导入会覆盖同ID的现有数据
-  /// - 文件格式必须符合exportAllDataToJson的输出格式
-  /// - 设置数据会通过SettingsService.updateAllSettings()恢复
-  /// - AI配置会通过AIService.reloadConfig()重新加载
-  Future<bool> importFromJson(String filePath) async {
-    try {
+      // 确定导出目录
+      String exportDir;
+      if (exportDirPath != null) {
+        exportDir = exportDirPath;
+      } else {
+        // 使用默认导出目录
+        final docsDir = await _getDocumentsDirectory();
+        exportDir = p.join(docsDir.path, 'zhidu_exports');
+      }
+
+      // 确保导出目录存在
+      final exportDirectory = Directory(exportDir);
+      if (!await exportDirectory.exists()) {
+        await exportDirectory.create(recursive: true);
+      }
+
+      // 生成文件名（使用书籍标题，移除非法字符）
+      String fileName = _sanitizeFileName('${book.title}_${book.id.substring(0, 8)}.md');
+      final filePath = p.join(exportDir, fileName);
+
+      // 写入文件
       final file = File(filePath);
+      await file.writeAsString(buffer.toString());
 
-      // 检查文件是否存在
-      if (!await file.exists()) {
-        return false;
-      }
-
-      // 读取并解析JSON内容
-      final content = await file.readAsString();
-      final data = jsonDecode(content) as Map<String, dynamic>;
-
-      // 解析书籍列表
-      final books = (data['books'] as List?)
-              ?.map((b) => Book.fromJson(b as Map<String, dynamic>))
-              .toList() ??
-          [];
-
-      // 保存每个书籍到数据库
-      for (final book in books) {
-        await _bookService.updateBook(book);
-      }
-
-      // 解析章节摘要列表
-      final summaries = (data['summaries'] as List?)
-              ?.map((s) => ChapterSummary.fromJson(s as Map<String, dynamic>))
-              .toList() ??
-          [];
-
-      // 保存每个摘要到数据库
-      for (final summary in summaries) {
-        await _summaryService.saveSummary(summary);
-      }
-
-      // 恢复设置（如果存在）
-      if (data['settings'] != null) {
-        try {
-          final settingsJson = data['settings'] as Map<String, dynamic>;
-          final settings = AppSettings.fromJson(settingsJson);
-          await _restoreSettings(settings);
-        } catch (e) {
-          _log.w('ExportService', '设置恢复失败，跳过: $e');
-          // 继续处理，不要因为设置恢复失败而中断整个导入
-        }
-      }
-
-      return true;
-    } catch (e) {
-      // 记录错误日志
-      _log.e('ExportService', '导入失败', e);
-      return false;
+      _log.d('ExportService', '书籍导出成功: $filePath');
+      return filePath;
+    } catch (e, stackTrace) {
+      _log.e('ExportService', '导出书籍失败: ${book.id}', e, stackTrace);
+      return null;
     }
   }
 
-  /// 恢复设置到SettingsService
+  /// 导出所有书籍（有摘要的导出摘要，没有摘要的导出基本信息）
   ///
-  /// 参数：
-  /// - [settings] 要恢复的设置对象
-  ///
-  /// 恢复过程：
-  /// 1. 调用SettingsService.updateAllSettings()更新所有设置
-  /// 2. 调用AIService.reloadConfig()重新加载AI配置
-  Future<void> _restoreSettings(AppSettings settings) async {
-    _log.d('ExportService', '开始恢复设置...');
-
-    // 调用updateAllSettings一次性更新所有设置
-    await SettingsService().updateAllSettings(settings);
-
-    // 重新加载AIService配置
-    await AIService().reloadConfig();
-
-    _log.d('ExportService', '设置恢复完成');
-  }
-
-  /// 选择并导入备份文件
-  ///
-  /// 弹出文件选择对话框，让用户选择JSON备份文件，然后导入数据。
-  /// 这是importFromJson的便捷封装，提供用户友好的文件选择界面。
+  /// 弹出文件夹选择对话框，让用户选择导出目录
+  /// 然后导出所有书籍到该目录
   ///
   /// 返回值：
-  /// - 导入成功：返回导入的文件路径
-  /// - 用户取消或导入失败：返回null
-  ///
-  /// 使用示例：
-  /// ```dart
-  /// final filePath = await exportService.pickAndImportBackup();
-  /// if (filePath != null) {
-  ///   print('数据已从 $filePath 恢复');
-  /// } else {
-  ///   print('导入取消或失败');
-  /// }
-  /// ```
-  Future<String?> pickAndImportBackup() async {
+  /// - 成功导出的文件数量
+  Future<int> exportAllBookSummariesWithDialog() async {
+    _log.v('ExportService', '开始导出所有书籍（带目录选择）');
+
     try {
-      // 打开文件选择对话框，只允许选择JSON文件
+      // 弹出文件夹选择对话框
+      final exportPath = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: '选择导出目录',
+      );
+
+      if (exportPath == null) {
+        _log.d('ExportService', '用户取消了导出目录选择');
+        return 0; // 用户取消了操作
+      }
+
+      // 获取所有书籍
+      final books = _bookService.books;
+      _log.d('ExportService', '发现书籍总数: ${books.length}');
+      int successCount = 0;
+
+      for (final book in books) {
+        _log.v('ExportService', '导出书籍: ${book.title} (${book.id})');
+        // 导出每本书，有摘要的导出完整内容，没有摘要的导出基本信息
+        final result = await exportBookSummaryToMarkdown(book, exportDirPath: exportPath);
+        if (result != null) {
+          successCount++;
+          _log.d('ExportService', '成功导出书籍: ${book.title}');
+        } else {
+          _log.w('ExportService', '导出书籍失败: ${book.title}');
+        }
+      }
+
+      _log.d('ExportService', '全部书籍导出完成，成功: $successCount，总计: ${books.length}');
+      return successCount;
+    } catch (e, stackTrace) {
+      _log.e('ExportService', '导出所有书籍失败', e, stackTrace);
+      return 0;
+    }
+  }
+
+  /// 导出所有书籍摘要（旧方法，保持向后兼容）
+  ///
+  /// 遍历所有书籍，逐个导出其摘要到默认目录
+  ///
+  /// 返回值：
+  /// - 成功导出的文件数量
+  @Deprecated('Use exportAllBookSummariesWithDialog() instead')
+  Future<int> exportAllBookSummaries() async {
+    _log.v('ExportService', '开始导出所有书籍摘要（旧方法）');
+    
+    final books = _bookService.books;
+    int successCount = 0;
+
+    for (final book in books) {
+      final result = await exportBookSummaryToMarkdown(book);
+      if (result != null) successCount++;
+    }
+
+    _log.d('ExportService', '全部书籍摘要导出完成，成功: $successCount / 总计: ${books.length}');
+    return successCount;
+  }
+
+  /// 获取文档目录
+  /// 
+  /// 使用path_provider获取系统文档目录
+  Future<Directory> _getDocumentsDirectory() async {
+    return await getApplicationDocumentsDirectory();
+  }
+
+  /// 清理文件名中的非法字符
+  /// 
+  /// 参数：
+  /// - [fileName]: 原始文件名
+  /// 
+  /// 返回值：
+  /// - 清理后的合法文件名
+  String _sanitizeFileName(String fileName) {
+    // 替换Windows文件名中的非法字符
+    return fileName
+        .replaceAll(r'/','_')
+        .replaceAll(r'\','_')
+        .replaceAll('<','_')
+        .replaceAll('>','_')
+        .replaceAll(':','_')
+        .replaceAll('"','_')
+        .replaceAll('|','_')
+        .replaceAll('?','_')
+        .replaceAll('*','_')
+        // 移除控制字符
+        .replaceAll(RegExp(r'[\x00-\x1f\x7f]'), '_');
+  }
+
+  /// 备份所有数据
+  ///
+  /// 将所有应用数据导出为JSON文件
+  /// 
+  /// 返回值：
+  /// - 成功时返回导出的文件路径，失败时返回null
+  Future<String?> backupAllData() async {
+    _log.v('ExportService', '开始备份所有数据');
+
+    try {
+      // 获取文档目录
+      final docsDir = await _getDocumentsDirectory();
+      final backupDir = Directory(p.join(docsDir.path, 'backups'));
+      if (!await backupDir.exists()) {
+        await backupDir.create(recursive: true);
+      }
+
+      // 生成备份文件名
+      final timestamp = DateTime.now().toString().split('.').first.replaceAll(RegExp(r'[-: ]'), '');
+      final fileName = 'backup_$timestamp.json';
+      final filePath = p.join(backupDir.path, fileName);
+
+      // 获取所有书籍数据
+      final books = _bookService.books.map((book) => book.toJson()).toList();
+      
+      // 构建备份数据
+      final backupData = {
+        'version': '1.0',
+        'timestamp': DateTime.now().toIso8601String(),
+        'books': books,
+        // 可以扩展备份其他数据（设置、摘要等）
+      };
+
+      // 写入文件
+      final file = File(filePath);
+      await file.writeAsString(jsonEncode(backupData));
+
+      _log.d('ExportService', '数据备份成功: $filePath');
+      return filePath;
+    } catch (e, stackTrace) {
+      _log.e('ExportService', '备份所有数据失败', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// 从备份恢复数据
+  ///
+  /// 从JSON备份文件恢复所有数据
+  /// 
+  /// 返回值：
+  /// - 成功时返回恢复的项目数量，失败时返回null
+  Future<int?> restoreFromBackup() async {
+    _log.v('ExportService', '开始从备份恢复数据');
+
+    try {
+      // 让用户选择备份文件
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
         dialogTitle: '选择备份文件',
       );
 
-      // 用户取消选择
-      if (result == null || result.files.isEmpty) {
+      if (result == null || result.files.single.path == null) {
+        _log.d('ExportService', '用户取消了备份文件选择');
         return null;
       }
 
-      // 获取选中文件的路径
-      final filePath = result.files.first.path;
-      if (filePath == null) {
+      final filePath = result.files.single.path!;
+      final file = File(filePath);
+
+      // 读取备份数据
+      final jsonString = await file.readAsString();
+      final backupData = jsonDecode(jsonString);
+
+      // 验证备份数据格式
+      if (backupData['version'] == null || backupData['books'] == null) {
+        _log.w('ExportService', '备份文件格式不正确');
         return null;
       }
 
-      // 执行导入
-      final success = await importFromJson(filePath);
-      return success ? filePath : null;
-    } catch (e) {
-      // 记录错误日志
-      _log.e('ExportService', '选择备份文件失败', e);
+      // 恢复书籍数据
+      final booksData = backupData['books'] as List<dynamic>;
+      int restoredCount = 0;
+
+      for (final bookData in booksData) {
+        try {
+          // 尝试从备份数据创建书籍对象
+          final book = Book.fromJson(bookData);
+          
+          // 恢复书籍文件（如果存在）
+          final originalPath = bookData['originalPath'] as String?;
+          if (originalPath != null && File(originalPath).existsSync()) {
+            // 复制原书籍文件到当前目录
+            final docsDir = await _getDocumentsDirectory();
+            final destPath = p.join(docsDir.path, 'books', p.basename(originalPath));
+            await File(originalPath).copy(destPath);
+          }
+
+          // 添加书籍到书架（如果不存在）
+          final existingBook = _bookService.getBookById(book.id);
+          if (existingBook == null) {
+            _bookService.books.add(book);
+            await _bookService.saveBooksIndex(); // 保存书籍索引
+            restoredCount++;
+          } else {
+            _log.d('ExportService', '书籍已存在，跳过: ${book.title}');
+          }
+        } catch (e, stackTrace) {
+          _log.e('ExportService', '恢复书籍失败: ${bookData['title'] as String? ?? 'Unknown'}', e, stackTrace);
+          continue;
+        }
+      }
+
+      _log.d('ExportService', '数据恢复完成，成功恢复: $restoredCount 个项目');
+      return restoredCount;
+    } catch (e, stackTrace) {
+      _log.e('ExportService', '从备份恢复数据失败', e, stackTrace);
       return null;
     }
   }

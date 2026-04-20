@@ -18,20 +18,56 @@
 /// 使用 [_generatingKeys] 和 [_generatingFutures] 防止同一章节被重复生成：
 /// - [_generatingKeys]：记录正在生成的章节（用于快速检查）
 /// - [_generatingFutures]：存储生成中的Future（用于等待完成）
-import 'dart:async';
+
+import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+
 import '../models/chapter_summary.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
-import 'ai_service.dart';
-import 'book_service.dart';
-import 'epub_service.dart';
-import 'pdf_service.dart';
+import '../models/chapter_location.dart';
+import 'file_storage_service.dart';
 import 'log_service.dart';
+import 'book_service.dart';
+import 'ai_service.dart';
 import 'parsers/format_registry.dart';
 import 'storage_config.dart';
-import 'file_storage_service.dart';
+
+/// 信号量类，用于控制并发数
+class Semaphore {
+  final int _maxPermits;
+  int _availablePermits;
+  final List<Completer<void>> _waitingQueue = [];
+
+  Semaphore(this._maxPermits) : _availablePermits = _maxPermits;
+
+  /// 获取一个许可，如果没有可用许可则等待
+  Future<void> acquire() async {
+    if (_availablePermits > 0) {
+      _availablePermits--;
+      return;
+    }
+
+    final completer = Completer<void>();
+    _waitingQueue.add(completer);
+    return completer.future;
+  }
+
+  /// 释放一个许可
+  void release() {
+    if (_waitingQueue.isNotEmpty) {
+      final completer = _waitingQueue.removeAt(0);
+      completer.complete();
+    } else {
+      _availablePermits++;
+    }
+  }
+}
 
 /// 摘要管理服务（单例模式）
 ///
@@ -50,12 +86,6 @@ class SummaryService {
   /// AI服务，用于调用大模型生成摘要
   final _aiService = AIService();
 
-  /// EPUB解析服务（未直接使用，保留用于扩展）
-  final _epubService = EpubService();
-
-  /// PDF解析服务（未直接使用，保留用于扩展）
-  final _pdfService = PdfService();
-
   /// 书籍服务，用于更新章节标题等元数据
   final _bookService = BookService();
 
@@ -64,6 +94,11 @@ class SummaryService {
 
   /// 文件存储服务，用于读写摘要文件
   final _fileStorage = FileStorageService();
+
+  /// 并发AI请求信号量，限制同时进行的AI请求总数
+  /// 防止用户快速切换章节时同时发起过多AI请求导致性能问题
+  /// 最大并发数设置为3，可根据需要调整
+  final _concurrentRequestSemaphore = Semaphore(3);
 
   // ==================== 并发控制相关 ====================
 
@@ -378,6 +413,9 @@ class SummaryService {
       return false;
     }
 
+    // 获取并发AI请求许可
+    await _concurrentRequestSemaphore.acquire();
+
     // 标记为"生成中"
     _generatingKeys.add(key);
 
@@ -434,6 +472,8 @@ class SummaryService {
       // 清理并发控制标记
       _generatingKeys.remove(key);
       _generatingFutures.remove(key);
+      // 释放并发AI请求许可
+      _concurrentRequestSemaphore.release();
     }
   }
 
@@ -497,7 +537,7 @@ class SummaryService {
 
   /// 生成章节摘要（只为顶层章节生成）
   ///
-  /// 遍历所有顶层章节（level==0），为每个章节：
+  /// 并发处理所有顶层章节（level==0），为每个章节：
   /// 1. 检查是否已有摘要，有则跳过
   /// 2. 获取章节内容
   /// 3. 调用[generateSingleSummary]生成摘要
@@ -508,6 +548,7 @@ class SummaryService {
   /// - [parser]：文件解析器（EPUB或PDF）
   ///
   /// 注意：只为顶层章节生成摘要，子章节（level>0）不单独生成
+  /// 并发控制：最多3个并发任务同时进行AI摘要生成
   Future<void> _generateChapterSummaries(
     Book book,
     List<Chapter> chapters,
@@ -516,6 +557,10 @@ class SummaryService {
     // 只为顶层章节（level==0）生成摘要
     final topLevelChapters = chapters.where((c) => c.level == 0).toList();
     _log.d('SummaryService', '开始生成章节摘要: 顶层章节 ${topLevelChapters.length} 章');
+
+    // 创建一个队列来管理并发任务
+    final futures = <Future<void>>[];
+    final semaphore = Semaphore(3); // 最多3个并发任务
 
     for (final chapter in topLevelChapters) {
       // chapter.index 是专门为顶层章节计算的索引
@@ -529,6 +574,37 @@ class SummaryService {
         continue;
       }
 
+      // 创建并发任务
+      final future = _processChapterConcurrently(
+        book,
+        chapter,
+        chapterIndex,
+        parser,
+        semaphore,
+      );
+
+      futures.add(future);
+    }
+
+    // 等待所有任务完成
+    await Future.wait(futures);
+    _log.d('SummaryService', '所有章节摘要生成完成');
+  }
+
+  /// 并发处理单个章节摘要生成
+  ///
+  /// 使用信号量控制并发数，确保最多只有3个AI请求同时进行
+  Future<void> _processChapterConcurrently(
+    Book book,
+    Chapter chapter,
+    int chapterIndex,
+    dynamic parser,
+    Semaphore semaphore,
+  ) async {
+    // 等待信号量许可
+    await semaphore.acquire();
+
+    try {
       // 获取章节内容并生成摘要
       final content = await parser.getChapterContent(book.filePath, chapter);
       final chapterContent = content.htmlContent;
@@ -541,6 +617,11 @@ class SummaryService {
           chapterContent,
         );
       }
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', '处理章节 $chapterIndex 时出错', e, stackTrace);
+    } finally {
+      // 释放信号量许可
+      semaphore.release();
     }
   }
 
@@ -579,7 +660,7 @@ class SummaryService {
         return;
       }
 
-      // 收集目录信息作为前言内容
+      // 收集目录信息和少量实际内容用于语言检测
       final prefaceContent = StringBuffer();
       prefaceContent.writeln('本书目录结构：\n');
 
@@ -589,6 +670,28 @@ class SummaryService {
 
       if (chapters.length > 20) {
         prefaceContent.writeln('... 等共 ${chapters.length} 章');
+      }
+
+      // 添加少量实际内容用于语言检测
+      if (chapters.isNotEmpty) {
+        try {
+          // 获取第一章的部分内容用于语言检测
+          final firstChapter = chapters[0];
+          final chapterContent =
+              await parser.getChapterContent(book.filePath, firstChapter);
+          final contentSample = chapterContent.htmlContent;
+
+          if (contentSample != null && contentSample.isNotEmpty) {
+            // 取取前500个字符作为语言检测样本
+            final sampleLength =
+                contentSample.length > 500 ? 500 : contentSample.length;
+            prefaceContent.writeln(
+                '\n\n第一章内容样本（用于语言识别）：\n${contentSample.substring(0, sampleLength)}');
+          }
+        } catch (e) {
+          _log.w('SummaryService', '获取第一章内容用于语言检测失败: $e');
+          // 如果获取内容失败，使用原方法继续
+        }
       }
 
       // 生成全书摘要
@@ -641,8 +744,10 @@ class SummaryService {
         return;
       }
 
-      // 收集所有章节摘要
+      // 收集所有章节摘要和少量实际内容用于语言检测
       final chapterSummaries = <String>[];
+      final contentSamples = <String>[];
+
       for (int i = 0; i < chapters.length && i < 10; i++) {
         final summary = await getSummary(book.id, i);
         if (summary != null && summary.objectiveSummary.isNotEmpty) {
@@ -652,6 +757,29 @@ class SummaryService {
               : summary.objectiveSummary;
           chapterSummaries.add('第${i + 1}章：$shortSummary...');
         }
+
+        // 同时获取原始内容样本用于语言检测
+        if (contentSamples.length < 3) {
+          // 仅取前3个样本避免内容过长
+          try {
+            final parser = FormatRegistry.getParser(p.extension(book.filePath));
+            if (parser != null) {
+              final chapterContent =
+                  await parser.getChapterContent(book.filePath, chapters[i]);
+              if (chapterContent.htmlContent != null &&
+                  chapterContent.htmlContent!.isNotEmpty) {
+                // 取取前300个字符作为语言检测样本
+                final content = chapterContent.htmlContent!;
+                final sampleLength =
+                    content.length > 300 ? 300 : content.length;
+                contentSamples.add(
+                    '第${i + 1}章内容样本：${content.substring(0, sampleLength)}');
+              }
+            }
+          } catch (e) {
+            _log.w('SummaryService', '获取第${i + 1}章内容样本用于语言检测失败: $e');
+          }
+        }
       }
 
       if (chapterSummaries.isEmpty) {
@@ -660,10 +788,18 @@ class SummaryService {
       }
 
       // 生成全书摘要
+      String combinedContent = chapterSummaries.join('\n\n');
+
+      // 如果有内容样本，添加到摘要内容中用于语言检测
+      if (contentSamples.isNotEmpty) {
+        combinedContent +=
+            '\n\n参考内容样本（用于语言识别）：\n${contentSamples.join('\n\n')}';
+      }
+
       final bookSummary = await _aiService.generateBookSummary(
         title: book.title,
         author: book.author,
-        chapterSummaries: chapterSummaries.join('\n\n'),
+        chapterSummaries: combinedContent,
         totalChapters: chapters.length,
       );
 

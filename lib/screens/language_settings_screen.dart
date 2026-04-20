@@ -7,6 +7,7 @@
 /// 设置即时保存到本地文件
 
 import 'package:flutter/material.dart';
+import 'package:zhidu/l10n/app_localizations.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 
@@ -26,30 +27,37 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   final _settingsService = SettingsService();
 
   /// AI 语言模式选项
-  static const _aiLanguageModes = [
-    ('book', '跟随书籍', '根据书籍内容语言自动判断'),
-    ('system', '跟随系统', '使用系统语言设置'),
-    ('manual', '用户自选', '手动指定 AI 输出语言'),
-  ];
+  List<(String, String, String)> _getAiLanguageModes(AppLocalizations localizations) {
+    return [
+      ('book', localizations.aiLanguageFollowBook, localizations.aiLanguageModeBookSubtitle),
+      ('system', localizations.aiLanguageFollowSystem, localizations.aiLanguageModeSystemSubtitle),
+      ('manual', localizations.aiLanguageManualSelect, localizations.aiLanguageModeManualSubtitle),
+    ];
+  }
 
   /// 界面语言模式选项
-  static const _uiLanguageModes = [
-    ('system', '跟随系统', '使用系统语言设置'),
-    ('manual', '用户自选', '手动指定界面显示语言'),
-  ];
+  List<(String, String, String)> _getUiLanguageModes(AppLocalizations localizations) {
+    return [
+      ('system', localizations.uiLanguageFollowSystem, localizations.uiLanguageModeSystemSubtitle),
+      ('manual', localizations.uiLanguageManualSelect, localizations.uiLanguageModeManualSubtitle),
+    ];
+  }
 
   /// 手动语言选项
-  static const _languages = [
-    ('zh', '简体中文'),
-    ('en', 'English'),
-    ('ja', '日本語'),
-  ];
+  List<(String, String)> _getLanguages(AppLocalizations localizations) {
+    return [
+      ('zh', localizations.chineseLanguage ?? '简体中文'),
+      ('en', localizations.englishLanguage ?? 'English'),
+      ('ja', localizations.japaneseLanguage ?? '日本語'),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('语言设置'),
+        title: Text(localizations.languageSettingsScreenTitle),
         centerTitle: true,
       ),
       body: ListenableBuilder(
@@ -61,10 +69,10 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
             children: [
               // AI 语言设置部分
               _buildSection(
-                title: 'AI 语言',
-                subtitle: '控制 AI 生成内容的语言',
+                title: localizations.aiLanguageSetting,
+                subtitle: localizations.aiLanguageControl,
                 children: [
-                  ..._aiLanguageModes.map((mode) {
+                  ..._getAiLanguageModes(localizations).map((mode) {
                     return RadioListTile<String>(
                       value: mode.$1,
                       groupValue: currentSettings.aiLanguageMode,
@@ -84,7 +92,8 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
               // AI 语言手动选择时的语言下拉菜单
               if (currentSettings.aiLanguageMode == 'manual')
                 _buildLanguageSelector(
-                  title: '选择 AI 输出语言',
+                  localizations,
+                  title: localizations.selectAiOutputLanguage,
                   value: currentSettings.aiOutputLanguage,
                   onChanged: (value) {
                     if (value != null) {
@@ -97,10 +106,10 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
 
               // 界面语言设置部分
               _buildSection(
-                title: '界面语言',
-                subtitle: '控制应用界面的显示语言',
+                title: localizations.uiLanguageSetting,
+                subtitle: localizations.uiLanguageControl,
                 children: [
-                  ..._uiLanguageModes.map((mode) {
+                  ..._getUiLanguageModes(localizations).map((mode) {
                     return RadioListTile<String>(
                       value: mode.$1,
                       groupValue: currentSettings.uiLanguageMode,
@@ -120,7 +129,8 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
               // 界面语言手动选择时的语言下拉菜单
               if (currentSettings.uiLanguageMode == 'manual')
                 _buildLanguageSelector(
-                  title: '选择界面语言',
+                  localizations,
+                  title: localizations.selectUiLanguage,
                   value: currentSettings.uiLanguage,
                   onChanged: (value) {
                     if (value != null) {
@@ -170,7 +180,8 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   }
 
   /// 构建语言选择器
-  Widget _buildLanguageSelector({
+  Widget _buildLanguageSelector(
+    AppLocalizations localizations, {
     required String title,
     required String value,
     required ValueChanged<String?> onChanged,
@@ -189,13 +200,13 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
               ),
               const SizedBox(height: 8.0),
               DropdownButtonFormField<String>(
-                value: _languages.any((l) => l.$1 == value) ? value : 'zh',
+                value: _getLanguages(localizations).any((l) => l.$1 == value) ? value : 'zh',
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                 ),
-                items: _languages.map((lang) {
+                items: _getLanguages(localizations).map((lang) {
                   return DropdownMenuItem<String>(
                     value: lang.$1,
                     child: Text(lang.$2),

@@ -124,7 +124,6 @@ void main() {
         expect(settingsService.settings.storageSettings.autoBackupInterval, 3);
         expect(
             settingsService.settings.languageSettings.aiOutputLanguage, 'en');
-        expect(settingsService.settings.languageSettings.manualLanguage, 'zh');
         expect(settingsService.settings.version, 2);
       });
 
@@ -310,7 +309,6 @@ void main() {
 
         final newLanguageSettings = LanguageSettings(
           aiOutputLanguage: 'en',
-          manualLanguage: 'zh',
         );
 
         await settingsService.updateLanguageSettings(newLanguageSettings);
@@ -318,7 +316,6 @@ void main() {
         // Verify in-memory settings
         expect(
             settingsService.settings.languageSettings.aiOutputLanguage, 'en');
-        expect(settingsService.settings.languageSettings.manualLanguage, 'zh');
 
         // Verify notifier updated
         expect(settingsService.languageSettings.value.aiOutputLanguage, 'en');
@@ -328,7 +325,6 @@ void main() {
         final content = await file.readAsString();
         final json = jsonDecode(content) as Map<String, dynamic>;
         expect(json['languageSettings']['aiOutputLanguage'], 'en');
-        expect(json['languageSettings']['manualLanguage'], 'zh');
       });
 
       test('updateLanguageSettings() with null manualLanguage', () async {
@@ -336,15 +332,12 @@ void main() {
 
         final newLanguageSettings = LanguageSettings(
           aiOutputLanguage: 'auto',
-          manualLanguage: null,
         );
 
         await settingsService.updateLanguageSettings(newLanguageSettings);
 
         expect(
             settingsService.settings.languageSettings.aiOutputLanguage, 'auto');
-        expect(
-            settingsService.settings.languageSettings.manualLanguage, isNull);
       });
     });
 

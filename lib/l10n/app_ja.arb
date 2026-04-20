@@ -1,0 +1,155 @@
+{
+  "appTitle": "智読",
+  "homeTabBookshelf": "本棚",
+  "homeTabDiscovery": "発見",
+  "homeTabProfile": "マイページ",
+  "settingsTitle": "設定",
+  "aiConfigTitle": "AI構成",
+  "aiConfigSubtitle": "AIサービスプロバイダーとパラメータの構成",
+  "readThinThick": "最初に薄く読んでから厚くする",
+  "appearanceSettingTitle": "外観設定",
+  "themeSettingTitle": "テーマ設定",
+  "languageSettingTitle": "言語設定",
+  "dataExportTitle": "データエクスポート",
+  "aiProvider": "AIプロバイダー",
+  "apiKey": "APIキー",
+  "model": "モデル",
+  "baseUrl": "ベースURL",
+  "testConnection": "接続テスト",
+  "save": "保存",
+  "cancel": "キャンセル",
+  "confirm": "確認",
+  "ok": "OK",
+  "back": "戻る",
+  "chapterTitle": "第{chapterIndex}章 {chapterTitle}",
+  "bookDetailTitle": "{bookTitle} - 書籍詳細",
+  "summaryScreenTitle": "{bookTitle} - 要約",
+  "pdfReaderTitle": "{bookTitle} - PDFリーダー",
+  "aiConfigScreenTitle": "AI構成",
+  "themeSettingsScreenTitle": "テーマ設定",
+  "languageSettingsScreenTitle": "言語設定",
+  "settingsScreenTitle": "設定",
+  "storageSettingsScreenTitle": "ストレージ設定",
+  "backupSettingsScreenTitle": "バックアップ設定",
+  "noBooks": "書籍がありません",
+  "importBook": "書籍をインポート",
+  "importBookDesc": "EPUBおよびPDF形式をサポート",
+  "noSummaries": "要約がありません",
+  "checkSummariesData": "サマリーデータがあるか確認してください",
+  "generatingSummary": "要約を生成中...",
+  "retry": "再試行",
+  "error": "エラー",
+  "success": "成功",
+  "failed": "失敗",
+  "loading": "読み込み中...",
+  "bookShelf": "本棚",
+  "discovery": "発見",
+  "myProfile": "マイページ",
+  "version": "バージョン",
+  "aiLayeredReader": "AI層別リーダー",
+  "readThinThick": "最初に薄く読んでから厚くする",
+  "search": "検索",
+  "bookshelfEmpty": "本棚は空です",
+  "noRelatedBooks": "関連する書籍が見つかりません",
+  "tryOtherKeywords": "他のキーワードを試してください",
+  "clickToAddBooks": "右下のボタンをクリックして書籍を追加",
+  "confirmRemoval": "削除の確認",
+  "removeConfirmation": "本当に「{bookTitle}」を本棚から削除しますか？",
+  "cancel": "キャンセル",
+  "remove": "削除",
+  "zhipuProvider": "智譜",
+  "qwenProvider": "通義千問",
+  "ollamaProvider": "Ollama（ローカル）",
+  "chineseLanguage": "簡体中国語",
+  "englishLanguage": "英語",
+  "japaneseLanguage": "日本語",
+  "notConfiguredClickToSet": "未設定（クリックして設定）",
+  "addedSuccessfully": "追加済み: {bookTitle}",
+  "removedSuccessfully": "削除済み《{bookTitle}》",
+  "themeModeSystemSubtitle": "システムのテーマ設定に自動的に従う",
+  "themeModeLightSubtitle": "常にライトテーマを使用",
+  "themeModeDarkSubtitle": "常にダークテーマを使用",
+  "aiLanguageModeBookSubtitle": "書籍の内容から言語を自動検出",
+  "aiLanguageModeSystemSubtitle": "システム言語設定を使用",
+  "aiLanguageModeManualSubtitle": "AI出力言語を手動で指定",
+  "uiLanguageModeSystemSubtitle": "システム言語設定を使用",
+  "uiLanguageModeManualSubtitle": "インターフェース表示言語を手動で指定",
+  "testing": "テスト中...",
+  "saving": "保存中...",
+  "testConnection": "接続テスト",
+  "save": "保存",
+  "booksCount": "書籍数",
+  "summariesCount": "要約数",
+  "exportBookSummaries": "書籍要約をエクスポート",
+  "exportBookSummariesDesc": "すべての書籍要約をMarkdownファイルにエクスポート",
+  "aiServiceSettings": "AIサービス設定",
+  "dataExportTitle": "データエクスポート",
+  "aboutTitle": "アプリについて",
+  "themeModeSystem": "システム",
+  "themeModeLight": "ライト",
+  "themeModeDark": "ダーク",
+  "aiLanguageFollowBook": "書籍に従う",
+  "aiLanguageFollowSystem": "システムに従う",
+  "aiLanguageManualSelect": "ユーザー選択",
+  "uiLanguageFollowSystem": "システムに従う",
+  "uiLanguageManualSelect": "ユーザー選択",
+  "selectAiOutputLanguage": "AI出力言語の選択",
+  "selectUiLanguage": "UI言語の選択",
+  "exportBookSummariesDesc": "すべての書籍要約をMarkdownファイルにエクスポート",
+  "aiConfigTitle": "AI構成",
+  "aiServiceSettings": "AIサービス設定",
+  "appearanceSettingTitle": "外観設定",
+  "themeSettingTitle": "テーマ設定",
+  "languageSettingTitle": "言語設定",
+  "aiOutputLanguage": "AI出力言語",
+  "uiDisplayLanguage": "インターフース言語",
+  "aiLanguageSetting": "AI言語設定",
+  "uiLanguageSetting": "インターフェース言語設定",
+  "aiLanguageControl": "AI生成コンテンツの言語を制御",
+  "uiLanguageControl": "アプリインターフェースの表示言語を制御",
+  "aiConfigStatus": "AI構成ステータス",
+  "themeConfigStatus": "テーマ構成ステータス",
+  "languageConfigStatus": "言語構成ステータス",
+  "@appTitle": {
+    "description": "アプリのタイトル"
+  },
+  "@homeTabBookshelf": {
+    "description": "ホームタブ - 本棚"
+  },
+  "@homeTabDiscovery": {
+    "description": "ホームタブ - 発見"
+  },
+  "@homeTabProfile": {
+    "description": "ホームタブ - マイページ"
+  },
+  "@settingsTitle": {
+    "description": "設定ページのタイトル"
+  },
+  "@aiConfigTitle": {
+    "description": "AI構成ページのタイトル"
+  },
+  "@appearanceSettingTitle": {
+    "description": "外観設定のタイトル"
+  },
+  "@themeSettingTitle": {
+    "description": "テーマ設定のタイトル"
+  },
+  "@languageSettingTitle": {
+    "description": "言語設定のタイトル"
+  },
+  "@dataManagementTitle": {
+    "description": "データ管理のタイトル"
+  },
+  "@dataExportTitle": {
+    "description": "データエクスポートのタイトル"
+  },
+  "@backupRestoreTitle": {
+    "description": "バックアップと復元のタイトル"
+  },
+  "@dataStatisticsTitle": {
+    "description": "データ統計のタイトル"
+  },
+  "@aboutTitle": {
+    "description": "アプリについてのタイトル"
+  }
+}

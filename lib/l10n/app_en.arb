@@ -1,0 +1,162 @@
+{
+  "appTitle": "ZhiDu",
+  "homeTabBookshelf": "Bookshelf",
+  "homeTabDiscovery": "Discovery",
+  "homeTabProfile": "Profile",
+  "settingsTitle": "Settings",
+  "aiConfigTitle": "AI Configuration",
+  "aiConfigSubtitle": "Configure AI service provider and parameters",
+  "readThinThick": "Read Thin First, Then Thick",
+  "appearanceSettingTitle": "Appearance Settings",
+  "themeSettingTitle": "Theme Settings",
+  "languageSettingTitle": "Language Settings",
+  "dataExportTitle": "Data Export",
+  "aiProvider": "AI Provider",
+  "apiKey": "API Key",
+  "model": "Model",
+  "baseUrl": "Base URL",
+  "testConnection": "Test Connection",
+  "save": "Save",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "ok": "OK",
+  "back": "Back",
+  "chapterTitle": "Chapter {chapterIndex}: {chapterTitle}",
+  "bookDetailTitle": "{bookTitle} - Book Details",
+  "summaryScreenTitle": "{bookTitle} - Summary",
+  "pdfReaderTitle": "{bookTitle} - PDF Reader",
+  "aiConfigScreenTitle": "AI Configuration",
+  "themeSettingsScreenTitle": "Theme Settings",
+  "languageSettingsScreenTitle": "Language Settings",
+  "settingsScreenTitle": "Settings",
+  "storageSettingsScreenTitle": "Storage Settings",
+  "backupSettingsScreenTitle": "Backup Settings",
+  "noBooks": "No Books",
+  "importBook": "Import Book",
+  "importBookDesc": "Supports EPUB and PDF formats",
+  "noSummaries": "No Summaries",
+  "checkSummariesData": "Please check if there are summary data",
+  "generatingSummary": "Generating Summary...",
+  "retry": "Retry",
+  "error": "Error",
+  "success": "Success",
+  "failed": "Failed",
+  "loading": "Loading...",
+  "bookShelf": "Bookshelf",
+  "discovery": "Discovery",
+  "myProfile": "Profile",
+  "version": "Version",
+  "aiLayeredReader": "AI Layered Reader",
+  "readThinThick": "Read Thin First, Then Thick",
+  "search": "Search",
+  "bookshelfEmpty": "Bookshelf is empty",
+  "noRelatedBooks": "No related books found",
+  "tryOtherKeywords": "Please try other keywords",
+  "clickToAddBooks": "Click button at bottom right to add books",
+  "confirmRemoval": "Confirm removal",
+  "removeConfirmation": "Are you sure you want to remove《{bookTitle}》?",
+  "cancel": "Cancel",
+  "remove": "Remove",
+  "zhipuProvider": "Zhipu",
+  "qwenProvider": "Qwen",
+  "ollamaProvider": "Ollama (Local)",
+  "chineseLanguage": "Simplified Chinese",
+  "englishLanguage": "English",
+  "japaneseLanguage": "Japanese",
+  "notConfiguredClickToSet": "Not configured (click to set)",
+  "addedSuccessfully": "Added: {bookTitle}",
+  "removedSuccessfully": "Removed《{bookTitle}》",
+  "themeModeSystemSubtitle": "Automatically follow system theme settings",
+  "themeModeLightSubtitle": "Always use light theme",
+  "themeModeDarkSubtitle": "Always use dark theme",
+  "aiLanguageModeBookSubtitle": "Automatically detect language from book content",
+  "aiLanguageModeSystemSubtitle": "Use system language settings",
+  "aiLanguageModeManualSubtitle": "Manually specify AI output language",
+  "uiLanguageModeSystemSubtitle": "Use system language settings",
+  "uiLanguageModeManualSubtitle": "Manually specify interface display language",
+  "testing": "Testing...",
+  "saving": "Saving...",
+  "testConnection": "Test Connection",
+  "save": "Save",
+  "booksCount": "Books Count",
+  "summariesCount": "Summaries Count",
+  "exportBookSummaries": "Export Book Summaries",
+  "exportBookSummariesDesc": "Export all book summaries to Markdown files",
+  "aiServiceSettings": "AI Service Settings",
+  "dataExportTitle": "Data Export",
+  "aboutTitle": "About",
+  "themeModeSystem": "System",
+  "themeModeLight": "Light",
+  "themeModeDark": "Dark",
+  "aiLanguageFollowBook": "Follow Book",
+  "aiLanguageFollowSystem": "Follow System",
+  "aiLanguageManualSelect": "Manual Select",
+  "uiLanguageFollowSystem": "Follow System",
+  "uiLanguageManualSelect": "Manual Select",
+  "selectAiOutputLanguage": "Select AI Output Language",
+  "selectUiLanguage": "Select UI Language",
+  "exportBookSummariesDesc": "Export all book summaries to Markdown files",
+  "aiConfigTitle": "AI Configuration",
+  "aiServiceSettings": "AI Service Settings",
+  "appearanceSettingTitle": "Appearance Settings",
+  "themeSettingTitle": "Theme Settings",
+  "languageSettingTitle": "Language Settings",
+  "aiOutputLanguage": "AI Output Language",
+  "uiDisplayLanguage": "Interface Language",
+  "aiLanguageSetting": "AI Language Setting",
+  "uiLanguageSetting": "Interface Language Setting",
+  "aiLanguageControl": "Controls the language of AI-generated content",
+  "uiLanguageControl": "Controls the display language of the app interface",
+  "aiConfigStatus": "AI Configuration Status",
+  "themeConfigStatus": "Theme Configuration Status",
+  "languageConfigStatus": "Language Configuration Status",
+  "dataManagementTitle": "Data Management",
+  "dataExportTitle": "Data Export",
+  "backupRestoreTitle": "Backup & Restore",
+  "dataStatisticsTitle": "Data Statistics",
+  "backupSettings": "Backup Settings",
+  "backupData": "Backup Data",
+  "restoreData": "Restore Data",
+  "@appTitle": {
+    "description": "App title"
+  },
+  "@homeTabBookshelf": {
+    "description": "Home tab - Bookshelf"
+  },
+  "@homeTabDiscovery": {
+    "description": "Home tab - Discovery"
+  },
+  "@homeTabProfile": {
+    "description": "Home tab - Profile"
+  },
+  "@settingsTitle": {
+    "description": "Settings page title"
+  },
+  "@aiConfigTitle": {
+    "description": "AI Configuration page title"
+  },
+  "@appearanceSettingTitle": {
+    "description": "Appearance Settings title"
+  },
+  "@themeSettingTitle": {
+    "description": "Theme Settings title"
+  },
+  "@languageSettingTitle": {
+    "description": "Language Settings title"
+  },
+  "@dataManagementTitle": {
+    "description": "Data Management title"
+  },
+  "@dataExportTitle": {
+    "description": "Data Export title"
+  },
+  "@backupRestoreTitle": {
+    "description": "Backup & Restore title"
+  },
+  "@dataStatisticsTitle": {
+    "description": "Data Statistics title"
+  },
+  "@aboutTitle": {
+    "description": "About title"
+  }
+}

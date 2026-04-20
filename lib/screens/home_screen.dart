@@ -10,6 +10,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/book_service.dart';
 import '../services/summary_service.dart';
 import '../services/log_service.dart';
@@ -94,9 +95,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (book != null && mounted) {
       _log.v('HomeScreen', '_importBook 书籍导入成功: ${book.title}');
       _bookshelfKey.currentState?.refresh();
+      final loc = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('已添加: ${book.title}'),
+          content: Text(loc.addedSuccessfully(book.title)),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -185,7 +187,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('智读'),
+        title: Text(AppLocalizations.of(context)?.appTitle ?? '智读'),
         centerTitle: true,
         actions: [
           /// 搜索框容器
@@ -201,14 +203,14 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
             ),
             child: TextField(
               controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: '搜索',
-                hintStyle: TextStyle(color: Colors.white70, fontSize: 13),
-                border: InputBorder.none,
-                prefixIcon: Icon(Icons.search, color: Colors.white70, size: 18),
-                contentPadding: EdgeInsets.symmetric(vertical: 8),
-                isDense: true,
-              ),
+                  decoration: InputDecoration(
+                    hintText: AppLocalizations.of(context)?.search ?? '搜索',
+                    hintStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+                    border: InputBorder.none,
+                    prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 18),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    isDense: true,
+                  ),
               style: const TextStyle(color: Colors.white, fontSize: 13),
 
               /// 输入变化时更新搜索关键词，触发重建过滤书籍
@@ -264,7 +266,9 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            isSearching ? '未找到相关书籍' : '书架空空如也',
+            isSearching 
+              ? (AppLocalizations.of(context)?.noRelatedBooks ?? '未找到相关书籍') 
+              : (AppLocalizations.of(context)?.bookshelfEmpty ?? '书架空空如也'),
             style: const TextStyle(
               fontSize: 18,
               color: Colors.grey,
@@ -272,7 +276,9 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            isSearching ? '请尝试其他关键词' : '点击右下角按钮添加书籍',
+            isSearching 
+              ? (AppLocalizations.of(context)?.tryOtherKeywords ?? '请尝试其他关键词') 
+              : (AppLocalizations.of(context)?.clickToAddBooks ?? '点击右下角按钮添加书籍'),
             style: const TextStyle(
               fontSize: 14,
               color: Colors.grey,
@@ -539,20 +545,20 @@ class _BookCardState extends State<BookCard> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认移除'),
-        content: Text('确定要从书架移除《${widget.book.title}》吗？'),
+        title: Text(AppLocalizations.of(context)?.confirmRemoval ?? '确认移除'),
+        content: Text(AppLocalizations.of(context)?.removeConfirmation(widget.book.title) ?? '确定要从书架移除《${widget.book.title}》吗？'),
         actions: [
           /// 取消按钮
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)?.cancel ?? '取消'),
           ),
 
           /// 移除按钮（红色警告样式）
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('移除'),
+            child: Text(AppLocalizations.of(context)?.remove ?? '移除'),
           ),
         ],
       ),
@@ -571,8 +577,9 @@ class _BookCardState extends State<BookCard> {
 
       /// 显示删除成功提示
       if (mounted) {
+        final loc = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已移除《${widget.book.title}》')),
+          SnackBar(content: Text(loc.removedSuccessfully(widget.book.title))),
         );
       }
     }

@@ -36,7 +36,7 @@ enum ThemeMode {
 /// - 提供配置有效性验证
 class AiSettings {
   /// AI服务提供商标识
-  /// 有效值：'zhipu'（智谱）或 'qwen'（通义千问）
+  /// 有效值：'zhipu'（智谱）、'qwen'（通义千问）或 'ollama'（本地Ollama）
   final String provider;
 
   /// API密钥
@@ -95,13 +95,20 @@ class AiSettings {
   /// 检查配置是否有效
   ///
   /// 验证规则：
-  /// - API Key不能为空
-  /// - API Key不能为占位符字符串
-  bool get isValid =>
-      apiKey.isNotEmpty &&
-      apiKey != 'YOUR_API_KEY' &&
-      apiKey != 'YOUR_ZHIPU_API_KEY_HERE' &&
-      apiKey != 'YOUR_QWEN_API_KEY_HERE';
+  /// - 对于Ollama：baseUrl不能为空
+  /// - 对于其他提供商：API Key不能为空且不能为占位符字符串
+  bool get isValid {
+    if (provider == 'ollama') {
+      // Ollama本地模型不需要API密钥，只需要有效的base URL
+      return baseUrl.isNotEmpty;
+    } else {
+      // 其他提供商仍需要有效的API密钥
+      return apiKey.isNotEmpty &&
+          apiKey != 'YOUR_API_KEY' &&
+          apiKey != 'YOUR_ZHIPU_API_KEY_HERE' &&
+          apiKey != 'YOUR_QWEN_API_KEY_HERE';
+    }
+  }
 }
 
 /// 类名：ThemeSettings
@@ -138,80 +145,6 @@ class ThemeSettings {
   factory ThemeSettings.fromJson(Map<String, dynamic> json) {
     return ThemeSettings(
       mode: ThemeMode.fromString(json['mode']),
-    );
-  }
-}
-
-/// 类名：StorageSettings
-/// 功能：存储设置数据模型
-///
-/// 主要用途：
-/// - 配置书籍存储目录
-/// - 配置备份目录
-/// - 管理自动备份设置
-class StorageSettings {
-  /// 书籍存储目录路径（可选，null表示使用默认路径）
-  final String? booksDirectory;
-
-  /// 备份目录路径（可选，null表示使用默认路径）
-  final String? backupDirectory;
-
-  /// 是否启用自动备份
-  final bool autoBackupEnabled;
-
-  /// 自动备份间隔（天）
-  final int autoBackupInterval;
-
-  /// 上次备份时间
-  final DateTime? lastBackupTime;
-
-  /// 构造函数
-  StorageSettings({
-    this.booksDirectory,
-    this.backupDirectory,
-    this.autoBackupEnabled = false,
-    this.autoBackupInterval = 7,
-    this.lastBackupTime,
-  });
-
-  /// 创建副本
-  StorageSettings copyWith({
-    String? booksDirectory,
-    String? backupDirectory,
-    bool? autoBackupEnabled,
-    int? autoBackupInterval,
-    DateTime? lastBackupTime,
-  }) {
-    return StorageSettings(
-      booksDirectory: booksDirectory ?? this.booksDirectory,
-      backupDirectory: backupDirectory ?? this.backupDirectory,
-      autoBackupEnabled: autoBackupEnabled ?? this.autoBackupEnabled,
-      autoBackupInterval: autoBackupInterval ?? this.autoBackupInterval,
-      lastBackupTime: lastBackupTime ?? this.lastBackupTime,
-    );
-  }
-
-  /// 序列化为JSON
-  Map<String, dynamic> toJson() {
-    return {
-      'booksDirectory': booksDirectory,
-      'backupDirectory': backupDirectory,
-      'autoBackupEnabled': autoBackupEnabled,
-      'autoBackupInterval': autoBackupInterval,
-      'lastBackupTime': lastBackupTime?.toIso8601String(),
-    };
-  }
-
-  /// 从JSON反序列化
-  factory StorageSettings.fromJson(Map<String, dynamic> json) {
-    return StorageSettings(
-      booksDirectory: json['booksDirectory'],
-      backupDirectory: json['backupDirectory'],
-      autoBackupEnabled: json['autoBackupEnabled'] ?? false,
-      autoBackupInterval: json['autoBackupInterval'] ?? 7,
-      lastBackupTime: json['lastBackupTime'] != null
-          ? DateTime.parse(json['lastBackupTime'])
-          : null,
     );
   }
 }
@@ -287,7 +220,7 @@ class LanguageSettings {
 /// 功能：应用完整设置数据模型
 ///
 /// 主要用途：
-/// - 聚合所有设置类别（AI、主题、存储、语言）
+/// - 聚合所有设置类别（AI、主题、语言）
 /// - 提供统一的序列化/反序列化接口
 /// - 作为SettingsService的数据载体
 class AppSettings {
@@ -296,9 +229,6 @@ class AppSettings {
 
   /// 主题设置
   final ThemeSettings themeSettings;
-
-  /// 存储设置
-  final StorageSettings storageSettings;
 
   /// 语言设置
   final LanguageSettings languageSettings;
@@ -310,26 +240,22 @@ class AppSettings {
   AppSettings({
     AiSettings? aiSettings,
     ThemeSettings? themeSettings,
-    StorageSettings? storageSettings,
     LanguageSettings? languageSettings,
     this.version = 1,
   })  : aiSettings = aiSettings ?? AiSettings(),
         themeSettings = themeSettings ?? ThemeSettings(),
-        storageSettings = storageSettings ?? StorageSettings(),
         languageSettings = languageSettings ?? LanguageSettings();
 
   /// 创建副本
   AppSettings copyWith({
     AiSettings? aiSettings,
     ThemeSettings? themeSettings,
-    StorageSettings? storageSettings,
     LanguageSettings? languageSettings,
     int? version,
   }) {
     return AppSettings(
       aiSettings: aiSettings ?? this.aiSettings,
       themeSettings: themeSettings ?? this.themeSettings,
-      storageSettings: storageSettings ?? this.storageSettings,
       languageSettings: languageSettings ?? this.languageSettings,
       version: version ?? this.version,
     );
@@ -340,7 +266,6 @@ class AppSettings {
     return {
       'aiSettings': aiSettings.toJson(),
       'themeSettings': themeSettings.toJson(),
-      'storageSettings': storageSettings.toJson(),
       'languageSettings': languageSettings.toJson(),
       'version': version,
     };
@@ -354,9 +279,6 @@ class AppSettings {
           : null,
       themeSettings: json['themeSettings'] != null
           ? ThemeSettings.fromJson(json['themeSettings'])
-          : null,
-      storageSettings: json['storageSettings'] != null
-          ? StorageSettings.fromJson(json['storageSettings'])
           : null,
       languageSettings: json['languageSettings'] != null
           ? LanguageSettings.fromJson(json['languageSettings'])
