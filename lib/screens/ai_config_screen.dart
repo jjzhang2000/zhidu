@@ -82,6 +82,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   static const _defaultBaseUrls = {
     'zhipu': 'https://open.bigmodel.cn/api/paas/v4',
     'qwen': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    'ollama': 'http://localhost:11434/v1',
   };
 
   /// 当前选中的提供商
