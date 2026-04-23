@@ -18,7 +18,6 @@
 // ============================================================================
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
@@ -602,122 +601,6 @@ class AIService {
     }
   }
 
-  /// 方法名：generateBookSummaryStream
-  /// 功能：基于章节摘要生成全书摘要（流式）
-  ///
-  /// 参数：
-  /// - title: 书籍标题
-  /// - author: 书籍作者
-  /// - chapterSummaries: 所有章节摘要的汇总文本（Markdown格式）
-  /// - totalChapters: 总章节数（可选，用于提示词模板）
-  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的内容流
-  /// - 失败时返回空流
-  Stream<String> generateBookSummaryStream({
-    required String title,
-    required String author,
-    required String chapterSummaries,
-    int? totalChapters,
-    String? bookId,
-  }) async* {
-    _log.v('AIService',
-        'generateBookSummaryStream 开始执行，title: $title, author: $author, chapterSummaries length: ${chapterSummaries.length}, bookId: $bookId');
-    if (_config == null || !_config!.isValid) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
-      return;
-    }
-
-    // 从 SettingsService 读取语言设置
-    final langSettings = SettingsService().settings.languageSettings;
-
-    String languageInstruction;
-
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
-    } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
-      );
-    }
-
-    final prompt = AiPrompts.bookSummary(
-      title: title,
-      author: author,
-      chapterSummaries: chapterSummaries,
-      totalChapters: totalChapters,
-      languageInstruction: languageInstruction,
-    );
-
-    try {
-      await for (final chunk in _callAIStream(prompt, systemMessage: languageInstruction)) {
-        yield chunk;
-      }
-    } catch (e) {
-      _log.e('AIService', '生成全书摘要流失败', e);
-    }
-  }
-
-  /// 方法名：generateBookSummaryFromPrefaceStream
-  /// 功能：基于前言/序言内容生成全书摘要（流式）
-  Stream<String> generateBookSummaryFromPrefaceStream({
-    required String title,
-    required String author,
-    required String prefaceContent,
-    int? totalChapters,
-    String? bookId,
-  }) async* {
-    _log.v('AIService',
-        'generateBookSummaryFromPrefaceStream 开始执行，title: $title, author: $author, prefaceContent length: ${prefaceContent.length}, bookId: $bookId');
-    if (_config == null || !_config!.isValid) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
-      return;
-    }
-
-    final langSettings = SettingsService().settings.languageSettings;
-
-    String languageInstruction;
-
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
-    } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
-      );
-    }
-
-    final prompt = AiPrompts.bookSummaryFromPreface(
-      title: title,
-      author: author,
-      prefaceContent: prefaceContent,
-      totalChapters: totalChapters,
-      languageInstruction: languageInstruction,
-    );
-
-    try {
-      await for (final chunk in _callAIStream(prompt, systemMessage: languageInstruction)) {
-        yield chunk;
-      }
-    } catch (e) {
-      _log.e('AIService', '基于前言生成全书摘要流失败', e);
-    }
-  }
-
   /// 从书籍元数据和内容中检测语言
   ///
   /// 优先从书籍元数据中的语言信息，如果元数据中没有语言信息，则从内容中检测语言
@@ -1157,6 +1040,7 @@ class AIService {
   /// ```
   Stream<String> _callAIStream(String prompt, {String? systemMessage}) async* {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
+    final client = _httpClient ?? http.Client();
 
     // 构建消息列表
     final messages = <Map<String, String>>[];
@@ -1169,8 +1053,16 @@ class AIService {
     // 添加用户提示词
     messages.add({'role': 'user', 'content': prompt});
 
-    // 构建请求体
-    final requestBody = jsonEncode({
+    final request = http.Request('POST', url);
+    request.headers.addAll({
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ${_config!.apiKey}',
+      'Accept': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+
+    request.body = jsonEncode({
       'model': _config!.model,
       'messages': messages,
       'temperature': 0.7,
@@ -1178,104 +1070,24 @@ class AIService {
       'stream': true,  // 启用流式响应
     });
 
-    // 使用 dart:io 的原生 HttpClient 实现真正的流式请求
-    final httpClient = HttpClient();
-    httpClient.connectionTimeout = const Duration(seconds: 30);
+    final response = await client.send(request);
+    final stream = response.stream.transform(utf8.decoder);
 
-    try {
-      final request = await httpClient.postUrl(url);
-      request.headers.set('Content-Type', 'application/json');
-      request.headers.set('Authorization', 'Bearer ${_config!.apiKey}');
-      request.headers.set('Accept', 'text/event-stream');
-      request.headers.set('Cache-Control', 'no-cache');
+    await for (final chunk in stream) {
+      if (chunk.startsWith('data: ')) {
+        final data = chunk.substring(6).trim();
+        if (data == '[DONE]') break;
 
-      // 写入请求体
-      request.add(utf8.encode(requestBody));
-
-      // 获取响应流
-      final response = await request.close();
-
-      if (response.statusCode == 200) {
-        // SSE 数据缓冲区和状态
-        String buffer = '';
-        bool insideDataEvent = false;
-        String currentDataContent = '';
-
-        // 监听数据到达事件
-        await for (final chunk in response.transform(utf8.decoder)) {
-          _log.d('AIService', '收到数据块，长度: ${chunk.length}');
-
-          buffer += chunk;
-
-          // 持续处理缓冲区，直到没有完整的事件
-          while (buffer.isNotEmpty) {
-            // 如果不在数据事件中，查找 "data: " 起始位置
-            if (!insideDataEvent) {
-              final dataIndex = buffer.indexOf('data: ');
-              if (dataIndex == -1) {
-                // 没有找到 data: ，清除缓冲区（通常是空白或无效内容）
-                buffer = '';
-                break;
-              } else if (dataIndex > 0) {
-                // 去掉 data: 之前的内容
-                buffer = buffer.substring(dataIndex);
-                continue;
-              }
-
-              // 找到 data: ，开始收集数据
-              insideDataEvent = true;
-              buffer = buffer.substring(6); // 去掉 "data: " 前缀
-              currentDataContent = '';
-            }
-
-            // 查找行结束符
-            final lineEnd = buffer.indexOf('\n');
-            if (lineEnd == -1) {
-              // 没有完整的行，需要等待更多数据
-              currentDataContent += buffer;
-              buffer = '';
-              break;
-            }
-
-            // 提取完整行
-            final line = currentDataContent + buffer.substring(0, lineEnd).trim();
-            buffer = buffer.substring(lineEnd + 1);
-
-            if (line == '[DONE]') {
-              _log.d('AIService', '收到 [DONE]，流式响应结束');
-              return;
-            }
-
-            if (line.isEmpty) {
-              // 空行表示事件结束
-              insideDataEvent = false;
-              continue;
-            }
-
-                        // 解析 JSON
-            try {
-              final jsonData = jsonDecode(line);
-              final content = jsonData['choices']?[0]?['delta']?['content'];
-              if (content != null && content.isNotEmpty) {
-                _log.d('AIService', '解析到内容片段: "$content"');
-                yield content;  // 流式返回内容片段
-              }
-            } catch (e) {
-              _log.w('AIService', '解析SSE数据失败: $e, line: $line');
-            }
-
-            // 重置状态
-            insideDataEvent = false;
-            currentDataContent = '';
+        try {
+          final jsonData = jsonDecode(data);
+          final content = jsonData['choices']?[0]?['delta']?['content'];
+          if (content != null) {
+            yield content;  // 流式返回内容片段
           }
+        } catch (e) {
+          // 忽略解析错误
         }
-      } else {
-        _log.e('AIService', 'AI API 流式调用失败：${response.statusCode}');
       }
-    } catch (e) {
-      _log.e('AIService', '流式请求异常', e);
-    } finally {
-      httpClient.close();
     }
   }
 

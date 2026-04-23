@@ -11,6 +11,7 @@
 /// - 左侧图标按钮：切换"摘要视图"与"原文视图"
 /// - 摘要视图：显示AI生成的章节摘要
 /// - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
@@ -107,6 +108,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
   /// PDF总页数（从文档加载后设置）
   int _pdfTotalPages = 0;
 
+  /// 流式摘要内容（实时显示AI生成的内容）
+  String _streamingSummary = '';
+
+  /// UI刷新定时器（控制UI更新频率，避免过于频繁的更新）
+  Timer? _uiRefreshTimer;
+
   @override
   void initState() {
     super.initState();
@@ -122,6 +129,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
     _initializeContent().then((_) {
       _loadSummary();
     });
+  }
+
+  @override
+  void dispose() {
+    _uiRefreshTimer?.cancel();  // 清理UI刷新定时器
+    super.dispose();
   }
 
   /// 初始化章节内容
@@ -262,47 +275,100 @@ class _SummaryScreenState extends State<SummaryScreen> {
     }
   }
 
+  /// 是否已加载过摘要（防止重复加载）
+  bool _hasLoadedSummary = false;
+
+  /// 当前监听的章节key（用于防止重复监听）
+  String? _listeningChapterKey;
+
   /// 加载章节摘要
   ///
-  /// 检查是否有正在进行的生成任务：
-  /// - 如果有：等待生成完成后再加载
-  /// - 如果没有：直接从数据库加载
+  /// 核心逻辑：
+  /// - 如果有正在生成的Future，注册流式回调监听内容更新
+  /// - 如果没有正在生成，直接加载已有摘要
+  /// - 流式内容会实时更新 _streamingSummary，UI会自动显示
+  /// - 防止重复加载：同一个章节只处理一次
   Future<void> _loadSummary() async {
-    // 检查是否有正在进行的生成任务
-    // 这个机制用于处理用户快速切换章节时，避免重复生成
+    final chapterKey = '${widget.bookId}_${widget.chapterIndex}';
+
+    // 防止重复加载同一个章节
+    if (_hasLoadedSummary && _listeningChapterKey == chapterKey) {
+      _log.d('SummaryScreen', '章节 $chapterKey 已加载过，跳过');
+      return;
+    }
+
     final generatingFuture =
         _summaryService.getGeneratingFuture(widget.bookId, widget.chapterIndex);
 
     if (generatingFuture != null) {
-      // 后台正在生成，显示加载状态并等待
-      _log.d('SummaryScreen', '章节摘要正在后台生成中，等待完成');
+      // 有正在后台生成的摘要
+      _log.d('SummaryScreen', '章节正在生成中，监听流式内容: $chapterKey');
+
+      _hasLoadedSummary = true;
+      _listeningChapterKey = chapterKey;
+
       setState(() {
         _isGenerating = true;
+        _streamingSummary = '';  // 清空，等待流式内容
+        _summary = null;  // 清空旧摘要，避免显示旧内容
       });
-      try {
-        await generatingFuture;
-        if (!mounted) return;
 
-        // 生成完成后加载摘要
-        final summary = await _summaryService.getSummary(
-            widget.bookId, widget.chapterIndex);
-        setState(() {
-          _summary = summary;
-          _isGenerating = false;
-        });
-      } catch (e) {
+      // 注册流式回调
+      _summaryService.registerStreamingCallback(
+        widget.bookId,
+        widget.chapterIndex,
+        (content) {
+          if (!mounted) return;
+          // 只有当前章节还在生成时才更新
+          if (_summaryService.isGenerating(widget.bookId, widget.chapterIndex)) {
+            setState(() {
+              _streamingSummary = content;
+            });
+          }
+        },
+      );
+
+      // 监听完成事件
+      final capturedBookId = widget.bookId;
+      final capturedChapterIndex = widget.chapterIndex;
+      generatingFuture.then((_) {
         if (!mounted) return;
+        // 验证还是同一个章节
+        if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
+
+        // 取消回调注册
+        _summaryService.unregisterStreamingCallback(capturedBookId, capturedChapterIndex);
+
+        // 加载最终摘要
+        _summaryService.getSummary(capturedBookId, capturedChapterIndex).then((summary) {
+          if (!mounted) return;
+          if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
+
+          setState(() {
+            _summary = summary;
+            _isGenerating = false;
+            _streamingSummary = '';  // 清空流式内容
+          });
+        });
+      }).catchError((e) {
+        if (!mounted) return;
+        if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
+
+        _summaryService.unregisterStreamingCallback(capturedBookId, capturedChapterIndex);
         setState(() {
-          _error = '生成摘要失败: $e';
+          _error = '生成失败: $e';
           _isGenerating = false;
         });
-      }
+      });
+
       return;
     }
 
-    // 直接从数据库加载已存在的摘要
-    final summary =
-        await _summaryService.getSummary(widget.bookId, widget.chapterIndex);
+    // 没有正在生成，直接加载已有摘要
+    _hasLoadedSummary = true;
+    _listeningChapterKey = chapterKey;
+
+    final summary = await _summaryService.getSummary(widget.bookId, widget.chapterIndex);
     if (!mounted) return;
     setState(() {
       _summary = summary;
@@ -331,6 +397,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     setState(() {
       _isGenerating = true;
       _error = null;
+      _streamingSummary = '';  // 初始化流式摘要
     });
 
     try {
@@ -364,23 +431,124 @@ class _SummaryScreenState extends State<SummaryScreen> {
             _summary = summary;
             _title = newTitle ?? _title; // 使用新标题或保持原标题
             _isGenerating = false;
+            _streamingSummary = '';  // 清空流式内容
           });
         } else {
           setState(() {
             _summary = summary;
             _isGenerating = false;
+            _streamingSummary = '';  // 清空流式内容
           });
         }
       } else {
         setState(() {
           _error = '生成摘要失败';
           _isGenerating = false;
+          _streamingSummary = '';  // 清空流式内容
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = '生成摘要失败: $e';
+        _isGenerating = false;
+        _streamingSummary = '';  // 清空流式内容
+      });
+    }
+  }
+
+  /// 生成章节摘要（流式）
+  ///
+  /// 流程：
+  /// 1. 提取纯文本内容（去除HTML标签）
+  /// 2. 调用SummaryService流式生成摘要
+  /// 3. 实时更新内容（1-2秒更新一次）
+  /// 4. 生成成功后，刷新标题（AI可能更新了章节标题）
+  ///
+  /// 实时更新逻辑：
+  /// - 通过onContentUpdate回调接收AI生成的内容片段
+  /// - 使用Timer控制更新频率，避免UI过度频繁更新
+  /// - 在生成完成后加载最终摘要并更新状态
+  Future<void> _generateSummaryWithStreaming() async {
+    if (_content.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _error = '无法生成摘要：章节内容为空';
+        });
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isGenerating = true;
+        _error = null;
+        _streamingSummary = '';  // 初始化流式摘要
+      });
+    }
+
+    try {
+      final plainText = _extractTextContent(_content);
+
+      // 使用流式生成方法，带有实时更新回调
+      final success = await _summaryService.generateSingleSummaryStream(
+        widget.bookId,
+        widget.chapterIndex,
+        _title,
+        plainText,
+        onContentUpdate: (content) {
+          // 立即更新UI状态，不使用延迟
+          if (mounted) {
+            setState(() {
+              _streamingSummary = content;  // 更新流式内容
+            });
+          }
+        },
+      );
+
+      if (!mounted) return;
+
+      if (success) {
+        // 生成完成，加载最终摘要
+        final summary = await _summaryService.getSummary(
+          widget.bookId,
+          widget.chapterIndex,
+        );
+
+        final updatedBook = _bookService.getBookById(widget.bookId);
+        if (updatedBook != null) {
+          final newTitle = updatedBook.chapterTitles?[widget.chapterIndex];
+          if (mounted) {
+            setState(() {
+              _summary = summary;
+              _title = newTitle ?? _title;
+              _streamingSummary = '';  // 清空流式内容，显示最终摘要
+              _isGenerating = false;
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _summary = summary;
+              _streamingSummary = '';
+              _isGenerating = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _error = '生成摘要失败';
+            _streamingSummary = '';
+            _isGenerating = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '生成摘要失败: $e';
+        _streamingSummary = '';
         _isGenerating = false;
       });
     }
@@ -456,7 +624,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           // 3. 有内容可用
           if (_summary == null && !_isGenerating && _content.isNotEmpty)
             TextButton.icon(
-              onPressed: _generateSummary,
+              onPressed: _generateSummaryWithStreaming,
               icon: const Icon(Icons.auto_awesome, size: 20),
               label: const Text('生成摘要'),
               style: TextButton.styleFrom(
@@ -481,7 +649,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
   /// 根据状态显示不同视图：
   /// 1. 加载中 -> 加载视图
   /// 2. 有错误且无内容 -> 错误视图
-  /// 3. 生成中 -> 生成视图
+  /// 3. 生成中 -> 生成视图（流式内容或加载动画）
   /// 4. 其他 -> 摘要/原文视图
   Widget _buildBody() {
     if (_isLoadingContent) {
@@ -492,7 +660,13 @@ class _SummaryScreenState extends State<SummaryScreen> {
       return _buildErrorView();
     }
 
+    // 生成中时，显示流式内容（如果已有内容）或加载视图
     if (_isGenerating) {
+      // 如果已经有流式内容，显示流式视图
+      if (_streamingSummary.isNotEmpty) {
+        return _buildSummaryContent();
+      }
+      // 否则显示加载动画
       return _buildGeneratingView();
     }
 
@@ -580,7 +754,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _generateSummary,
+              onPressed: _generateSummaryWithStreaming,
               icon: const Icon(Icons.refresh),
               label: const Text('重试'),
             ),
@@ -665,8 +839,26 @@ class _SummaryScreenState extends State<SummaryScreen> {
   /// 将Markdown格式的摘要转换为HTML并渲染
   /// 使用flutter_html组件显示，支持丰富的文本样式
   Widget _buildSummaryContent() {
-    // Markdown转HTML
-    final htmlContent = md.markdownToHtml(_summary!.objectiveSummary);
+    // 如果在生成过程中，显示流式内容
+    if (_isGenerating && _streamingSummary.isNotEmpty) {
+      return _buildStreamingSummaryView();
+    }
+    
+    // 否则显示正常摘要
+    if (_summary != null) {
+      final htmlContent = md.markdownToHtml(_summary!.objectiveSummary);
+      return _buildNormalSummaryView(htmlContent);
+    }
+    
+    // 如果都没有，显示空状态
+    return _buildEmptySummaryView();
+  }
+
+  /// 流式摘要视图
+  ///
+  /// 显示AI正在生成摘要的过程，实时展示AI生成的内容
+  Widget _buildStreamingSummaryView() {
+    final htmlContent = md.markdownToHtml(_streamingSummary);
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -686,7 +878,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                             color: Colors.blue, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          '本章摘要',
+                          'AI正在生成摘要...',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -696,7 +888,120 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       ],
                     ),
                     const Divider(height: 24),
-                    // 使用Html组件渲染摘要内容
+                    Html(
+                      data: htmlContent,
+                      style: {
+                        'body': Style(
+                          fontSize: FontSize(14),
+                          lineHeight: const LineHeight(1.6),
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'h2': Style(
+                          fontSize: FontSize(15),
+                          fontWeight: FontWeight.bold,
+                          margin: Margins.only(bottom: 8, top: 16),
+                        ),
+                        'h3': Style(
+                          fontSize: FontSize(14),
+                          fontWeight: FontWeight.bold,
+                          margin: Margins.only(bottom: 6, top: 12),
+                        ),
+                        'p': Style(
+                          fontSize: FontSize(14),
+                          lineHeight: const LineHeight(1.6),
+                          margin: Margins.only(bottom: 8),
+                        ),
+                        'ul': Style(
+                          margin: Margins.only(bottom: 8),
+                        ),
+                        'li': Style(
+                          fontSize: FontSize(14),
+                          lineHeight: const LineHeight(1.5),
+                        ),
+                        'strong': Style(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // 显示"正在打字"动画效果
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 正常摘要视图
+  ///
+  /// 显示已生成的完整摘要内容
+  Widget _buildNormalSummaryView(String htmlContent) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.auto_awesome,
+                            color: Colors.blue, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _title,  // 使用当前标题，与AppBar一致
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
                     Html(
                       data: htmlContent,
                       style: {
@@ -740,6 +1045,24 @@ class _SummaryScreenState extends State<SummaryScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// 空摘要视图
+  ///
+  /// 当没有摘要时显示的空状态
+  Widget _buildEmptySummaryView() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Text(
+          '暂无摘要',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey,
+          ),
+        ),
+      ),
     );
   }
 

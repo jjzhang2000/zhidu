@@ -80,6 +80,9 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   /// 防止重复启动预生成任务。
   bool _isPreGenerating = false;
 
+  /// 流式全书摘要内容（实时显示）
+  String _streamingBookSummary = '';
+
   /// 定时刷新计时器
   ///
   /// 每3秒检查一次书籍状态，用于：
@@ -97,6 +100,15 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     // 加载章节列表
     _loadChapters();
 
+    // 注册全书摘要流式回调
+    _summaryService.registerBookStreamingCallback(_book.id, (content) {
+      if (mounted) {
+        setState(() {
+          _streamingBookSummary = content;
+        });
+      }
+    });
+
     // 启动后台预生成摘要任务
     _startPreGeneration();
 
@@ -111,6 +123,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   void dispose() {
     // 清理定时器，防止内存泄漏
     _refreshTimer?.cancel();
+    // 取消全书摘要流式回调
+    _summaryService.unregisterBookStreamingCallback(_book.id);
     super.dispose();
   }
 
@@ -216,6 +230,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   /// 1. 从数据库获取最新书籍数据
   /// 2. 比较[aiIntroduction]是否变化
   /// 3. 变化则setState更新UI，否则静默更新_book引用
+  /// 4. 如果aiIntroduction有值，说明全书摘要生成完成，清空流式状态
   ///
   /// 这种设计避免了频繁setState，只在真正需要时更新UI。
   void _refreshBookIfNeeded() {
@@ -225,6 +240,11 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       if (refreshedBook.aiIntroduction != _book.aiIntroduction) {
         setState(() {
           _book = refreshedBook;
+          // 如果新值有内容，说明生成完成，清空流式状态
+          if (refreshedBook.aiIntroduction != null &&
+              refreshedBook.aiIntroduction!.isNotEmpty) {
+            _streamingBookSummary = '';
+          }
         });
       } else {
         // 无变化，静默更新引用
@@ -474,7 +494,11 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _showChapterStructure ? '目录' : '内容介绍',
+                          _showChapterStructure
+                              ? '目录'
+                              : (_streamingBookSummary.isNotEmpty
+                                  ? 'AI正在生成摘要...'
+                                  : '内容介绍'),
                           style:
                               Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
@@ -505,11 +529,12 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   /// 构建全书摘要内容
   ///
   /// 显示逻辑：
-  /// 1. **无摘要**：显示提示信息
+  /// 1. **流式中**：显示流式内容 + "AI正在生成..." 提示
+  /// 2. **无摘要**：显示提示信息
   ///    - AI已配置："全书摘要生成中，请稍候..."
   ///    - AI未配置："AI服务未配置，无法生成全书摘要"
   ///
-  /// 2. **有摘要**：
+  /// 3. **有摘要**：
   ///    - 将Markdown转换为HTML显示
   ///    - 点击摘要区域可进入第一章阅读
   ///
@@ -518,6 +543,11 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   /// - 使用[flutter_html]组件渲染
   /// - 自定义标题、段落、列表样式
   Widget _buildAIIntroductionContent() {
+    // 有流式内容正在显示
+    if (_streamingBookSummary.isNotEmpty) {
+      return _buildStreamingBookSummary();
+    }
+
     // 没有全书摘要
     if (_book.aiIntroduction == null || _book.aiIntroduction!.isEmpty) {
       return Center(
@@ -604,6 +634,74 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                 fontWeight: FontWeight.bold,
               ),
             },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建流式全书摘要视图
+  Widget _buildStreamingBookSummary() {
+    final htmlContent = md.markdownToHtml(_streamingBookSummary);
+    return Expanded(
+      child: GestureDetector(
+        onTap: _flatChapters.isNotEmpty
+            ? () {
+                final firstChapter = _flatChapters.first;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SummaryScreen(
+                      bookId: _book.id,
+                      chapterIndex: firstChapter.index,
+                      chapterTitle: firstChapter.title,
+                      filePath: _book.filePath,
+                      chapters: _flatChapters,
+                      book: _book,
+                    ),
+                  ),
+                );
+              }
+            : null,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Html(
+              data: htmlContent,
+              style: {
+                'body': Style(
+                  fontSize: FontSize(14),
+                  lineHeight: const LineHeight(1.6),
+                  margin: Margins.zero,
+                  padding: HtmlPaddings.zero,
+                ),
+                'h2': Style(
+                  fontSize: FontSize(16),
+                  fontWeight: FontWeight.bold,
+                  margin: Margins.only(bottom: 8, top: 16),
+                ),
+                'h3': Style(
+                  fontSize: FontSize(15),
+                  fontWeight: FontWeight.bold,
+                  margin: Margins.only(bottom: 6, top: 12),
+                ),
+                'p': Style(
+                  fontSize: FontSize(14),
+                  lineHeight: const LineHeight(1.6),
+                  margin: Margins.only(bottom: 8),
+                ),
+                'ul': Style(
+                  margin: Margins.only(bottom: 8),
+                ),
+                'li': Style(
+                  fontSize: FontSize(14),
+                  lineHeight: const LineHeight(1.5),
+                ),
+                'strong': Style(
+                  fontWeight: FontWeight.bold,
+                ),
+              },
+            ),
           ),
         ),
       ),
