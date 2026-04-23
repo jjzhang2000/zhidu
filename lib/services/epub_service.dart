@@ -28,6 +28,7 @@ import 'package:xml/xml.dart';
 import '../models/book.dart';
 import 'log_service.dart';
 import 'storage_config.dart';
+import 'opf_reader_service.dart';
 
 /// 类名：EpubService
 /// 功能：EPUB电子书解析服务（单例模式）
@@ -184,15 +185,40 @@ class EpubService {
       }
       _log.d('EpubService', '封面路径: $coverPath');
 
+      // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
+      String? opfLanguage;
+      String? opfPublisher;
+      String? opfDescription;
+      List<String>? opfSubjects;
+      
+      try {
+        final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
+        if (opfMetadata != null) {
+          _log.d('EpubService', '使用外部OPF元数据覆盖解析结果');
+          title = opfMetadata.title ?? title;
+          author = opfMetadata.author ?? author;
+          opfLanguage = opfMetadata.language;
+          opfPublisher = opfMetadata.publisher;
+          opfDescription = opfMetadata.description;
+          opfSubjects = opfMetadata.subjects;
+        }
+      } catch (e) {
+        _log.w('EpubService', '读取外部OPF元数据失败: $e');
+      }
+
       return Book(
         id: bookId,
-        title: title,
-        author: author,
+        title: title ?? _extractTitleFromPath(filePath),
+        author: author ?? 'Unknown',
         coverPath: coverPath,
         filePath: filePath,
         format: BookFormat.epub,
         totalChapters: chapterTitles.length,
         addedAt: DateTime.now(),
+        language: opfLanguage,
+        publisher: opfPublisher,
+        description: opfDescription,
+        subjects: opfSubjects,
       );
     } catch (e, stackTrace) {
       _log.e('EpubService', '解析EPUB文件失败', e);

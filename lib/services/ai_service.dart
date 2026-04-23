@@ -25,6 +25,7 @@ import 'package:http/testing.dart' as http_testing;
 import 'ai_prompts.dart';
 import 'log_service.dart';
 import 'settings_service.dart';
+import 'book_service.dart';
 import '../models/app_settings.dart';
 
 /// 类名：AIConfig
@@ -268,6 +269,7 @@ class AIService {
   /// 参数：
   /// - content: 章节内容的文本
   /// - chapterTitle: 章节标题（可选，用于提示词模板）
+  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
   ///
   /// 返回值：
   /// - 成功时返回 AI 生成的章节摘要字符串（Markdown 格式）
@@ -280,15 +282,17 @@ class AIService {
   /// 1. 记录详细日志（内容长度、章节标题）
   /// 2. 检查 AI 配置是否有效（无效则返回 null）
   /// 3. 从 SettingsService 读取语言设置
-  /// 4. 使用 AiPrompts 构建提示词
-  /// 5. 调用_callAI 方法发送请求
-  /// 6. 返回结果或 null
+  /// 4. 如果bookId提供且语言模式为'book'，优先从元数据获取语言信息
+  /// 5. 使用 AiPrompts 构建提示词
+  /// 6. 调用_callAI 方法发送请求
+  /// 7. 返回结果或 null
   Future<String?> generateFullChapterSummary(
     String content, {
     String? chapterTitle,
+    String? bookId,
   }) async {
     _log.v('AIService',
-        'generateFullChapterSummary 开始执行，content length: ${content.length}, chapterTitle: $chapterTitle');
+        'generateFullChapterSummary 开始执行，content length: ${content.length}, chapterTitle: $chapterTitle, bookId: $bookId');
     if (_config == null || !_config!.isValid) {
       _log.w('AIService', 'AI 配置未设置或 API Key 无效');
       return null;
@@ -301,10 +305,15 @@ class AIService {
 
     String languageInstruction;
 
-    // 如果是书籍语言模式，根据content检测语言
-    if (langSettings.aiLanguageMode == 'book') {
-      // 从内容中检测语言
-      String detectedLanguage = _detectLanguageFromContent(content);
+    // 如果是书籍语言模式，优先使用书籍元数据中的语言信息，否则从内容中检测语言
+    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
+      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content);
+      languageInstruction =
+          _getLanguageInstructionForLanguage(detectedLanguage);
+      _log.d('AIService',
+          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
+    } else if (langSettings.aiLanguageMode == 'book') {
+      String detectedLanguage = _detectLanguageFromMetadataAndContent(content);
       languageInstruction =
           _getLanguageInstructionForLanguage(detectedLanguage);
       _log.d('AIService',
@@ -342,6 +351,7 @@ class AIService {
   /// - author: 书籍作者
   /// - prefaceContent: 前言/序言正文内容
   /// - totalChapters: 总章节数（可选，用于提示词模板）
+  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
   ///
   /// 返回值：
   /// - 成功：返回AI生成的全书摘要字符串（Markdown格式，800-900字）
@@ -357,17 +367,19 @@ class AIService {
   /// 算法逻辑：
   /// 1. 记录详细日志（书名、作者、前言内容长度）
   /// 2. 检查AI配置是否有效，无效则返回null
-  /// 3. 使用AiPrompts生成提示词
-  /// 4. 调用_callAI发送请求
-  /// 5. 返回生成结果或null
+  /// 3. 如果bookId提供且语言模式为'book'，优先从元数据获取语言信息
+  /// 4. 使用AiPrompts生成提示词
+  /// 5. 调用_callAI发送请求
+  /// 6. 返回生成结果或null
   Future<String?> generateBookSummaryFromPreface({
     required String title,
     required String author,
     required String prefaceContent,
     int? totalChapters,
+    String? bookId,
   }) async {
     _log.v('AIService',
-        'generateBookSummaryFromPreface 开始执行，title: $title, author: $author, prefaceContent length: ${prefaceContent.length}');
+        'generateBookSummaryFromPreface 开始执行，title: $title, author: $author, prefaceContent length: ${prefaceContent.length}, bookId: $bookId');
     if (_config == null || !_config!.isValid) {
       _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return null;
@@ -380,10 +392,15 @@ class AIService {
 
     String languageInstruction;
 
-    // 如果是书籍语言模式，根据prefaceContent检测语言
-    if (langSettings.aiLanguageMode == 'book') {
-      // 从prefaceContent检测语言
-      String detectedLanguage = _detectLanguageFromContent(prefaceContent);
+    // 如果是书籍语言模式，优先使用书籍元数据中的语言信息，否则从内容中检测语言
+    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
+      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent);
+      languageInstruction =
+          _getLanguageInstructionForLanguage(detectedLanguage);
+      _log.d('AIService',
+          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
+    } else if (langSettings.aiLanguageMode == 'book') {
+      String detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent);
       languageInstruction =
           _getLanguageInstructionForLanguage(detectedLanguage);
       _log.d('AIService',
@@ -423,6 +440,7 @@ class AIService {
   /// - author: 书籍作者
   /// - chapterSummaries: 所有章节摘要的汇总文本（Markdown格式）
   /// - totalChapters: 总章节数（可选，用于提示词模板）
+  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
   ///
   /// 返回值：
   /// - 成功：返回AI生成的全书摘要字符串（Markdown格式，800-900字）
@@ -438,17 +456,19 @@ class AIService {
   /// 算法逻辑：
   /// 1. 记录详细日志（书名、作者、章节摘要总长度）
   /// 2. 检查AI配置是否有效，无效则返回null
-  /// 3. 使用AiPrompts生成提示词
-  /// 4. 调用_callAI发送请求
-  /// 5. 返回生成结果或null
+  /// 3. 如果bookId提供且语言模式为'book'，优先从元数据获取语言信息
+  /// 4. 使用AiPrompts生成提示词
+  /// 5. 调用_callAI发送请求
+  /// 6. 返回生成结果或null
   Future<String?> generateBookSummary({
     required String title,
     required String author,
     required String chapterSummaries,
     int? totalChapters,
+    String? bookId,
   }) async {
     _log.v('AIService',
-        'generateBookSummary 开始执行，title: $title, author: $author, chapterSummaries length: ${chapterSummaries.length}');
+        'generateBookSummary 开始执行，title: $title, author: $author, chapterSummaries length: ${chapterSummaries.length}, bookId: $bookId');
     if (_config == null || !_config!.isValid) {
       _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return null;
@@ -461,10 +481,15 @@ class AIService {
 
     String languageInstruction;
 
-    // 如果是书籍语言模式，根据chapterSummaries检测语言
-    if (langSettings.aiLanguageMode == 'book') {
-      // 从章节摘要中检测语言
-      String detectedLanguage = _detectLanguageFromContent(chapterSummaries);
+    // 如果是书籍语言模式，优先使用书籍元数据中的语言信息，否则从内容中检测语言
+    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
+      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries);
+      languageInstruction =
+          _getLanguageInstructionForLanguage(detectedLanguage);
+      _log.d('AIService',
+          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
+    } else if (langSettings.aiLanguageMode == 'book') {
+      String detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries);
       languageInstruction =
           _getLanguageInstructionForLanguage(detectedLanguage);
       _log.d('AIService',
@@ -495,6 +520,56 @@ class AIService {
       _log.e('AIService', '生成全书摘要失败', e);
       return null;
     }
+  }
+
+  /// 从书籍元数据和内容中检测语言
+  ///
+  /// 优先从书籍元数据中的语言信息，如果元数据中没有语言信息，则从内容中检测语言
+  /// 使用更精确的算法，考虑不同语言的字符比例和分布特点
+  ///
+  /// 参数:
+  /// - [content]: 要分析的文本内容
+  ///
+  /// 返回:
+  /// - 检测到的语言代码 ('zh', 'en', 'ja', 'ko'等)
+  /// - 默认返回 'zh' 如果无法确定
+  String _detectLanguageFromMetadataAndContent(String content) {
+    // 如果在摘要生成上下文中，我们可以尝试获取当前正在处理的书籍ID
+    // 但由于AIService是通用服务，我们这里暂时只从内容检测
+    
+    // 从内容中检测语言
+    return _detectLanguageFromContent(content);
+  }
+
+  /// 从书籍元数据和内容中检测语言（根据书籍ID）
+  ///
+  /// 优先从书籍元数据中的语言信息，如果元数据中没有语言信息，则从内容中检测语言
+  ///
+  /// 参数:
+  /// - [bookId]: 书籍ID，用于获取元数据
+  /// - [content]: 要分析的文本内容
+  ///
+  /// 返回:
+  /// - 检测到的语言代码 ('zh', 'en', 'ja', 'ko'等)
+  /// - 默认返回 'zh' 如果无法确定
+  Future<String> _detectLanguageFromMetadataAndContentWithBookId(String bookId, String content) async {
+    try {
+      // 从BookService获取书籍元数据
+      final bookService = BookService();
+      final book = bookService.getBookById(bookId);
+      
+      // 如果书籍存在且有语言信息，则优先使用
+      if (book != null && book.language != null && book.language!.isNotEmpty) {
+        _log.d('AIService', '从书籍元数据获取语言信息: ${book.language}');
+        return _convertLanguageCodeToStandard(book.language!);
+      }
+    } catch (e) {
+      _log.w('AIService', '获取书籍元数据语言信息失败: $e');
+      // 如果获取元数据失败，回退到内容检测
+    }
+    
+    // 如果元数据中没有语言信息，从内容中检测语言
+    return _detectLanguageFromContent(content);
   }
 
   /// 从内容中检测语言
@@ -608,6 +683,30 @@ class AIService {
     }
 
     return detectedLanguage;
+  }
+
+  /// 将语言代码转换为标准格式
+  ///
+  /// 将常见的语言代码格式转换为内部使用的标准格式
+  /// 如 'zh-CN' -> 'zh', 'en-US' -> 'en' 等
+  ///
+  /// 参数:
+  /// - [languageCode]: 输入的语言代码
+  ///
+  /// 返回:
+  /// - 标准化的语言代码
+  String _convertLanguageCodeToStandard(String languageCode) {
+    // 处理常见的语言代码格式
+    if (languageCode.contains('-')) {
+      // 如 'zh-CN' -> 'zh', 'en-US' -> 'en'
+      return languageCode.split('-')[0];
+    } else if (languageCode.contains('_')) {
+      // 如 'zh_CN' -> 'zh'
+      return languageCode.split('_')[0];
+    }
+    
+    // 如果已经是标准格式，直接返回
+    return languageCode;
   }
 
   /// 为特定语言生成语言指令

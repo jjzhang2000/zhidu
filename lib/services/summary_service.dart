@@ -430,6 +430,7 @@ class SummaryService {
       final summary = await _aiService.generateFullChapterSummary(
         content,
         chapterTitle: chapterTitle,
+        bookId: bookId,
       );
 
       if (summary != null && summary.isNotEmpty) {
@@ -700,6 +701,7 @@ class SummaryService {
         author: book.author,
         prefaceContent: prefaceContent.toString(),
         totalChapters: chapters.length,
+        bookId: book.id,
       );
 
       if (bookSummary != null && bookSummary.isNotEmpty) {
@@ -801,6 +803,7 @@ class SummaryService {
         author: book.author,
         chapterSummaries: combinedContent,
         totalChapters: chapters.length,
+        bookId: book.id,
       );
 
       if (bookSummary != null && bookSummary.isNotEmpty) {

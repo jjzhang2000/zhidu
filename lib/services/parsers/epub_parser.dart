@@ -34,6 +34,7 @@ import '../../models/chapter_content.dart';
 import '../../models/chapter_location.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
+import '../opf_reader_service.dart';
 
 /// 类名：EpubParser
 /// 功能：EPUB格式解析器实现类
@@ -120,6 +121,27 @@ class EpubParser implements BookFormatParser {
       chapterTitles = _parseNavigationFile(archive);
     }
 
+    // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
+    String? opfLanguage;
+    String? opfPublisher;
+    String? opfDescription;
+    List<String>? opfSubjects;
+    
+    try {
+      final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
+      if (opfMetadata != null) {
+        _log.d('EpubParser', '使用外部OPF元数据覆盖解析结果');
+        title = opfMetadata.title ?? title;
+        author = opfMetadata.author ?? author;
+        opfLanguage = opfMetadata.language;
+        opfPublisher = opfMetadata.publisher;
+        opfDescription = opfMetadata.description;
+        opfSubjects = opfMetadata.subjects;
+      }
+    } catch (e) {
+      _log.w('EpubParser', '读取外部OPF元数据失败: $e');
+    }
+
     // 最终回退：从文件路径提取书名
     if (title == null || title.isEmpty) {
       title = _extractTitleFromPath(filePath);
@@ -146,6 +168,10 @@ class EpubParser implements BookFormatParser {
       coverPath: coverPath,
       totalChapters: chapterTitles.length,
       format: BookFormat.epub,
+      language: opfLanguage,
+      publisher: opfPublisher,
+      description: opfDescription,
+      subjects: opfSubjects,
     );
   }
 

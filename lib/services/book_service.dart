@@ -209,13 +209,10 @@ class BookService {
       }
 
       if (book != null && opfMetadata != null) {
-        // 如果OPF元数据存在，优先使用OPF中的信息
-        book = book.copyWith(
-          title: opfMetadata.title ?? book.title,
-          author: opfMetadata.author ?? book.author,
-        );
-
+        _log.d('BookService', '开始合并OPF元数据');
+        
         // 处理封面文件（如果OPF中指定了封面文件）
+        String? finalCoverPath = book.coverPath; // 保留原始封面路径作为备选
         if (opfMetadata.coverPath != null) {
           final bookDir = p.dirname(filePath);
           final coverAbsolutePath = p.join(bookDir, opfMetadata.coverPath!);
@@ -228,13 +225,33 @@ class BookService {
             
             try {
               await File(coverAbsolutePath).copy(coverDestPath);
-              book = book.copyWith(coverPath: coverDestPath);
-              _log.d('BookService', '成功使用外部封面文件: $coverDestPath');
+              finalCoverPath = coverDestPath;
+              _log.d('BookService', '成功使用外部OPF封面文件: $coverDestPath');
             } catch (e) {
-              _log.w('BookService', '复制外部封面文件失败: $e');
+              _log.w('BookService', '复制外部OPF封面文件失败: $e，使用原封面');
+              // 保持原始封面路径不变
             }
+          } else {
+            _log.d('BookService', 'OPF中指定的封面文件不存在: $coverAbsolutePath，使用原封面');
           }
         }
+        
+        // 优先使用OPF中的信息（标题、作者等）
+        book = book.copyWith(
+          title: opfMetadata.title ?? book.title,
+          author: opfMetadata.author ?? book.author,
+          language: opfMetadata.language ?? book.language, // 使用OPF中的语言信息
+          publisher: opfMetadata.publisher ?? book.publisher,
+          description: opfMetadata.description ?? book.description,
+          subjects: opfMetadata.subjects.isNotEmpty ? opfMetadata.subjects : book.subjects,
+          coverPath: finalCoverPath, // 总是使用最终确定的封面路径
+        );
+
+        _log.d('BookService', 'OPF元数据合并完成: title=${book.title}, author=${book.author}, language=${book.language}');
+      } else if (opfMetadata != null) {
+        _log.d('BookService', '仅获取到OPF元数据，用于补充信息');
+        // 如果只有OPF元数据而没有解析出book信息，至少保留关键信息
+        // 这种情况应该不会发生，因为我们先解析了EPUB/PDF
       }
 
       if (book != null) {

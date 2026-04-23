@@ -29,6 +29,7 @@ import '../../models/chapter_content.dart';
 import '../../models/chapter_location.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
+import '../opf_reader_service.dart';
 
 /// PDF格式解析器实现
 ///
@@ -107,20 +108,50 @@ class PdfParser implements BookFormatParser {
       // - 移除下划线，转换为空格
       // - 移除连字符，转换为空格
       // 例如: "my_book-title.pdf" → "my book title"
-      final title = fileName.replaceAll('_', ' ').replaceAll('-', ' ');
+      var title = fileName.replaceAll('_', ' ').replaceAll('-', ' ');
 
-      _log.d('PdfParser', '书名: $title');
+      _log.d('PdfParser', '初始书名: $title');
       _log.d('PdfParser', '总页数: $totalPages');
+
+      // 尝试读取同目录下的metadata.opf文件，优先使用OPF中的元数据
+      String? opfTitle;
+      String? opfAuthor;
+      String? opfLanguage;
+      String? opfPublisher;
+      String? opfDescription;
+      List<String>? opfSubjects;
+      
+      try {
+        final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
+        if (opfMetadata != null) {
+          _log.d('PdfParser', '使用外部OPF元数据覆盖解析结果');
+          opfTitle = opfMetadata.title;
+          opfAuthor = opfMetadata.author;
+          opfLanguage = opfMetadata.language;
+          opfPublisher = opfMetadata.publisher;
+          opfDescription = opfMetadata.description;
+          opfSubjects = opfMetadata.subjects;
+          
+          // 使用OPF元数据覆盖默认值
+          title = opfTitle ?? title;
+        }
+      } catch (e) {
+        _log.w('PdfParser', '读取外部OPF元数据失败: $e');
+      }
 
       // ----------------------------------------------------------
       // 构建元数据对象
       // ----------------------------------------------------------
       return BookMetadata(
         title: title,
-        author: 'Unknown', // PDF作者信息需要额外提取
+        author: opfAuthor ?? 'Unknown', // 优先使用OPF中的作者信息
         coverPath: null, // PDF封面提取复杂，暂不支持
         totalChapters: totalPages > 0 ? 1 : 0, // 默认作为单章节处理
         format: BookFormat.pdf,
+        language: opfLanguage,
+        publisher: opfPublisher,
+        description: opfDescription,
+        subjects: opfSubjects,
       );
     } catch (e, stackTrace) {
       _log.e('PdfParser', '解析PDF失败', e, stackTrace);

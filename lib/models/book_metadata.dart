@@ -53,10 +53,22 @@ class BookMetadata {
   /// 标识书籍文件的格式类型，使用[BookFormat]枚举。
   /// 目前支持EPUB和PDF两种格式。
   final BookFormat format;
+  
+  /// 书籍语言（从OPF元数据中获取）
+  final String? language;
+  
+  /// 出版商（从OPF元数据中获取）
+  final String? publisher;
+  
+  /// 书籍描述（从OPF元数据中获取）
+  final String? description;
+  
+  /// 书籍主题/标签列表（从OPF元数据中获取）
+  final List<String>? subjects;
 
   /// 创建书籍元数据实例
   ///
-  /// 所有必需参数都需要提供，可选参数[coverPath]默认为null。
+  /// 所有必需参数都需要提供，可选参数[coverPath]、[language]、[publisher]、[description]、[subjects]默认为null。
   ///
   /// 参数：
   /// - [title]: 书籍标题，必需
@@ -64,11 +76,19 @@ class BookMetadata {
   /// - [coverPath]: 封面图片路径，可选
   /// - [totalChapters]: 总章节数，必需
   /// - [format]: 书籍格式，必需
+  /// - [language]: 书籍语言，可选
+  /// - [publisher]: 出版商，可选
+  /// - [description]: 书籍描述，可选
+  /// - [subjects]: 书籍主题列表，可选
   BookMetadata({
     required this.title,
     required this.author,
     this.coverPath,
     required this.totalChapters,
     required this.format,
+    this.language,
+    this.publisher,
+    this.description,
+    this.subjects,
   });
 }

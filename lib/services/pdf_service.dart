@@ -30,6 +30,7 @@ import 'package:image/image.dart' as img;
 import '../models/book.dart';
 import 'storage_config.dart';
 import 'log_service.dart';
+import 'opf_reader_service.dart';
 
 /// 类名：PdfService
 /// 功能：PDF文件解析服务单例类
@@ -98,7 +99,7 @@ class PdfService {
       // 从文件路径提取文件名，去除扩展名作为标题
       // 处理跨平台路径分隔符（Windows用\，其他用/）
       final fileName = filePath.split('/').last.split('\\').last;
-      final title = fileName.substring(0, fileName.lastIndexOf('.'));
+      var title = fileName.substring(0, fileName.lastIndexOf('.'));
       _log.d('PdfService', '书名: $title');
 
       // 生成唯一的书籍ID
@@ -115,16 +116,42 @@ class PdfService {
       // 释放PDF文档资源
       await document.dispose();
 
+      // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
+      String? opfLanguage;
+      String? opfPublisher;
+      String? opfDescription;
+      List<String>? opfSubjects;
+      var author = 'Unknown'; // PDF通常无法自动提取作者信息
+      
+      try {
+        final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
+        if (opfMetadata != null) {
+          _log.d('PdfService', '使用外部OPF元数据覆盖解析结果');
+          title = opfMetadata.title ?? title;
+          author = opfMetadata.author ?? author; // 仅在OPF中提供了作者时才更新
+          opfLanguage = opfMetadata.language;
+          opfPublisher = opfMetadata.publisher;
+          opfDescription = opfMetadata.description;
+          opfSubjects = opfMetadata.subjects;
+        }
+      } catch (e) {
+        _log.w('PdfService', '读取外部OPF元数据失败: $e');
+      }
+
       // 创建并返回Book对象
       return Book(
         id: bookId,
         title: title,
-        author: 'Unknown', // PDF通常无法自动提取作者信息
+        author: author,
         filePath: filePath,
         coverPath: coverPath,
         format: BookFormat.pdf,
         totalChapters: chapters.length,
         addedAt: DateTime.now(),
+        language: opfLanguage,
+        publisher: opfPublisher,
+        description: opfDescription,
+        subjects: opfSubjects,
       );
     } catch (e, stackTrace) {
       _log.e('PdfService', '解析PDF失败', e, stackTrace);

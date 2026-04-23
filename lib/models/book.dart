@@ -66,6 +66,18 @@ class Book {
   /// Key: 章节索引（int）
   /// Value: 章节标题（String）
   final Map<int, String>? chapterTitles;
+  
+  /// 书籍语言（从OPF元数据中获取）
+  final String? language;
+  
+  /// 出版商（从OPF元数据中获取）
+  final String? publisher;
+  
+  /// 书籍描述（从OPF元数据中获取）
+  final String? description;
+  
+  /// 书籍主题/标签列表（从OPF元数据中获取）
+  final List<String>? subjects;
 
   /// 构造函数：创建Book实例
   ///
@@ -85,6 +97,10 @@ class Book {
   /// - lastReadAt: 最后阅读时间，默认为null
   /// - aiIntroduction: AI介绍，默认为null
   /// - chapterTitles: 章节标题映射，默认为null
+  /// - language: 书籍语言，默认为null
+  /// - publisher: 出版商，默认为null
+  /// - description: 书籍描述，默认为null
+  /// - subjects: 书籍主题列表，默认为null
   Book({
     required this.id,
     required this.title,
@@ -99,6 +115,10 @@ class Book {
     this.lastReadAt,
     this.aiIntroduction,
     this.chapterTitles,
+    this.language,
+    this.publisher,
+    this.description,
+    this.subjects,
   });
 
   /// 方法名：copyWith
@@ -118,6 +138,10 @@ class Book {
   /// - lastReadAt: 新的最后阅读时间（可选）
   /// - aiIntroduction: 新的AI介绍（可选）
   /// - chapterTitles: 新的章节标题映射（可选）
+  /// - language: 新的语言信息（可选）
+  /// - publisher: 新的出版商（可选）
+  /// - description: 新的描述（可选）
+  /// - subjects: 新的主题列表（可选）
   ///
   /// 返回值：新的Book实例，未指定的字段保留原值
   ///
@@ -136,6 +160,10 @@ class Book {
     DateTime? lastReadAt,
     String? aiIntroduction,
     Map<int, String>? chapterTitles,
+    String? language,
+    String? publisher,
+    String? description,
+    List<String>? subjects,
   }) {
     return Book(
       id: id ?? this.id,
@@ -151,6 +179,10 @@ class Book {
       lastReadAt: lastReadAt ?? this.lastReadAt,
       aiIntroduction: aiIntroduction ?? this.aiIntroduction,
       chapterTitles: chapterTitles ?? this.chapterTitles,
+      language: language ?? this.language,
+      publisher: publisher ?? this.publisher,
+      description: description ?? this.description,
+      subjects: subjects ?? this.subjects,
     );
   }
 
@@ -177,6 +209,10 @@ class Book {
       'lastReadAt': lastReadAt?.toIso8601String(),
       'aiIntroduction': aiIntroduction,
       'chapterTitles': chapterTitles?.map((k, v) => MapEntry(k.toString(), v)),
+      'language': language,
+      'publisher': publisher,
+      'description': description,
+      'subjects': subjects,
     };
   }
 
@@ -194,6 +230,10 @@ class Book {
     final chapterTitles = chapterTitlesRaw?.map(
       (k, v) => MapEntry(int.parse(k), v as String),
     );
+
+    // 解析subjects数组
+    final subjectsRaw = json['subjects'] as List<dynamic>?;
+    final subjects = subjectsRaw?.cast<String>();
 
     return Book(
       id: json['id'],
@@ -214,6 +254,10 @@ class Book {
           : null,
       aiIntroduction: json['aiIntroduction'],
       chapterTitles: chapterTitles,
+      language: json['language'],
+      publisher: json['publisher'],
+      description: json['description'],
+      subjects: subjects,
     );
   }
 }

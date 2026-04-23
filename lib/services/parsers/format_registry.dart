@@ -1,4 +1,6 @@
 import 'book_format_parser.dart';
+import 'epub_parser.dart';
+import 'pdf_parser.dart';
 
 /// 格式注册表
 ///
@@ -192,6 +194,12 @@ class FormatRegistry {
   /// ## 注册策略
   /// 在此方法内部调用 [register] 注册所有支持的格式：
   /// - EPUB格式：使用EpubParser解析
+  /// - PDF格式：使用PdfParser解析
+  static void initialize() {
+    register('.epub', EpubParser());
+    register('.pdf', PdfParser());
+  }
+  
   /// 清空所有已注册的解析器
   ///
   /// 移除注册表中的所有解析器映射关系。
