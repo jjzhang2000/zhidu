@@ -1,12 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import '../models/book.dart';
+import '../models/opf_metadata.dart';
 import 'epub_service.dart';
 import 'pdf_service.dart';
 import 'log_service.dart';
 import 'storage_config.dart';
 import 'file_storage_service.dart';
+import 'opf_reader_service.dart';
 
 /// 书籍管理服务 - 负责书籍的导入、存储、查询和删除
 ///
@@ -158,10 +161,12 @@ class BookService {
   /// 从指定路径导入书籍 - 支持测试和直接导入
   ///
   /// 导入流程：
-  /// 1. 根据文件扩展名选择对应的解析服务
-  /// 2. 解析文件，提取书籍信息（标题、作者、章节等）
-  /// 3. 检查是否已存在相同书籍（标题+作者去重）
-  /// 4. 保存到内存列表和文件系统
+  /// 1. 首先尝试读取同目录下的metadata.opf文件（优先级最高）
+  /// 2. 根据文件扩展名选择对应的解析服务
+  /// 3. 解析文件，提取书籍信息（标题、作者、章节等）
+  /// 4. 如果存在OPF元数据，则优先使用OPF中的信息
+  /// 5. 检查是否已存在相同书籍（标题+作者去重）
+  /// 6. 保存到内存列表和文件系统
   ///
   /// 返回值：
   /// - 成功：返回新导入或已存在的Book对象
@@ -174,6 +179,17 @@ class BookService {
     _log.v('BookService', 'importBookFromPath 开始执行: $filePath');
     try {
       _log.d('BookService', '开始导入书籍: $filePath');
+
+      // 首先尝试读取同目录下的metadata.opf文件
+      OpfMetadata? opfMetadata;
+      try {
+        opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
+        if (opfMetadata != null) {
+          _log.d('BookService', '成功读取外部OPF元数据');
+        }
+      } catch (e) {
+        _log.w('BookService', '读取外部OPF元数据失败，继续使用原解析逻辑: $e');
+      }
 
       final extension = p.extension(filePath).toLowerCase();
 
@@ -190,6 +206,35 @@ class BookService {
       } else {
         _log.w('BookService', '不支持的文件格式: $extension');
         return null;
+      }
+
+      if (book != null && opfMetadata != null) {
+        // 如果OPF元数据存在，优先使用OPF中的信息
+        book = book.copyWith(
+          title: opfMetadata.title ?? book.title,
+          author: opfMetadata.author ?? book.author,
+        );
+
+        // 处理封面文件（如果OPF中指定了封面文件）
+        if (opfMetadata.coverPath != null) {
+          final bookDir = p.dirname(filePath);
+          final coverAbsolutePath = p.join(bookDir, opfMetadata.coverPath!);
+          if (await File(coverAbsolutePath).exists()) {
+            // 将封面文件复制到书籍存储目录
+            final coverDestPath = await StorageConfig.getCoverSavePath(
+              book.id,
+              _getMimeTypeFromExtension(p.extension(coverAbsolutePath)),
+            );
+            
+            try {
+              await File(coverAbsolutePath).copy(coverDestPath);
+              book = book.copyWith(coverPath: coverDestPath);
+              _log.d('BookService', '成功使用外部封面文件: $coverDestPath');
+            } catch (e) {
+              _log.w('BookService', '复制外部封面文件失败: $e');
+            }
+          }
+        }
       }
 
       if (book != null) {
@@ -330,6 +375,23 @@ class BookService {
       return book.title.toLowerCase().contains(lowerQuery) ||
           book.author.toLowerCase().contains(lowerQuery);
     }).toList();
+  }
+
+  /// 根据文件扩展名获取MIME类型
+  String _getMimeTypeFromExtension(String extension) {
+    switch (extension.toLowerCase()) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.svg':
+        return 'image/svg+xml';
+      default:
+        return 'image/jpeg'; // 默认使用JPEG
+    }
   }
 
   /// 更新章节标题映射 - 用于修正EPUB解析错误的章节标题

@@ -287,11 +287,13 @@ class EpubParser implements BookFormatParser {
   Future<ChapterContent> getChapterContent(
       String filePath, Chapter chapter) async {
     _log.v('EpubParser',
-        'getChapterContent 开始执行, filePath: $filePath, chapter: ${chapter.title}');
+        'getChapterContent 开始执行，filePath: $filePath');
+    _log.v('EpubParser',
+        '章节信息：title=${chapter.title}, index=${chapter.index}, level=${chapter.level}, href=${chapter.location.href}');
 
     final file = File(filePath);
     if (!await file.exists()) {
-      _log.w('EpubParser', '文件不存在: $filePath');
+      _log.w('EpubParser', '文件不存在：$filePath');
       throw Exception('EPUB file not found: $filePath');
     }
 
@@ -299,40 +301,55 @@ class EpubParser implements BookFormatParser {
     final href = chapter.location.href;
 
     if (href == null || href.isEmpty) {
-      _log.w('EpubParser', '章节没有href: ${chapter.title}');
+      _log.w('EpubParser', '章节没有 href: ${chapter.title}');
       return ChapterContent(plainText: '');
     }
 
-    // 首选方案：使用EpubReader查找章节内容
-    try {
-      final epubBook = await EpubReader.readBook(bytes);
-      final chapterIndex = chapter.index;
-      final epubChapter =
-          _findEpubChapterByIndex(epubBook.chapters, chapterIndex);
+    _log.d('EpubParser', '准备提取章节内容，href: $href');
 
-      if (epubChapter != null) {
-        final htmlContent = epubChapter.htmlContent ?? '';
+    // 首选方案：直接从 archive 根据 href 提取章节 HTML文件内容
+    // 这样可以确保只获取特定章节的内容，而不是整本书
+    try {
+      _log.d('EpubParser', '尝试从 archive 提取章节内容...');
+      final htmlContent = await _getChapterHtmlFromArchive(bytes, href);
+      if (htmlContent != null && htmlContent.isNotEmpty) {
+        _log.d('EpubParser', '✓ 成功从 archive 提取章节内容，href: $href, 内容长度：${htmlContent.length}');
+        _log.d('EpubParser', '内容预览：${htmlContent.substring(0, htmlContent.length > 200 ? 200 : htmlContent.length)}');
         final plainText = _extractTextFromHtml(htmlContent);
         return ChapterContent(
           plainText: plainText,
           htmlContent: htmlContent,
         );
+      } else {
+        _log.w('EpubParser', '从 archive 提取的内容为空');
       }
     } catch (e) {
-      _log.e('EpubParser', '使用EpubReader获取章节内容失败', e);
+      _log.e('EpubParser', '从 archive 提取章节内容失败', e);
     }
 
-    // 回退方案：从archive直接读取HTML文件
-    final htmlContent = await _getChapterHtmlFromArchive(bytes, href);
-    if (htmlContent != null) {
-      final plainText = _extractTextFromHtml(htmlContent);
-      return ChapterContent(
-        plainText: plainText,
-        htmlContent: htmlContent,
-      );
+    // 回退方案：使用 EpubReader 查找章节内容
+    try {
+      _log.d('EpubParser', '尝试使用 EpubReader 提取章节内容...');
+      final epubBook = await EpubReader.readBook(bytes);
+      
+      // 尝试通过章节索引查找（可能不准确，作为备选方案）
+      if (chapter.index >= 0 && chapter.index < epubBook.chapters.length) {
+        final epubChapter = epubBook.chapters[chapter.index];
+        final htmlContent = epubChapter.htmlContent ?? '';
+        if (htmlContent.isNotEmpty) {
+          _log.d('EpubParser', '✓ 使用 EpubReader 获取章节内容，索引：${chapter.index}, 内容长度：${htmlContent.length}');
+          final plainText = _extractTextFromHtml(htmlContent);
+          return ChapterContent(
+            plainText: plainText,
+            htmlContent: htmlContent,
+          );
+        }
+      }
+    } catch (e) {
+      _log.e('EpubParser', '使用 EpubReader 获取章节内容失败', e);
     }
 
-    _log.w('EpubParser', '无法获取章节内容: ${chapter.title}');
+    _log.w('EpubParser', '无法获取章节内容：${chapter.title}, href: $href');
     return ChapterContent(plainText: '');
   }
 
@@ -1037,47 +1054,41 @@ class EpubParser implements BookFormatParser {
       List<EpubChapter>? chapters, int targetIndex) {
     if (chapters == null) return null;
 
-    var currentIndex = 0;
-    EpubChapter? result;
-
-    void traverseChapters(List<EpubChapter> chapters) {
-      for (final chapter in chapters) {
-        if (currentIndex == targetIndex) {
-          result = chapter;
-          return;
-        }
-        currentIndex++;
-        if (chapter.subChapters?.isNotEmpty == true) {
-          traverseChapters(chapter.subChapters!);
-          if (result != null) return;
-        }
-      }
+    // This function should only consider top-level chapters for indexing
+    // If targetIndex is within the bounds of top-level chapters list, return that chapter
+    if (targetIndex >= 0 && targetIndex < chapters.length) {
+      return chapters[targetIndex];
     }
-
-    traverseChapters(chapters);
-    return result;
+    
+    return null;
   }
 
   /// 方法名：_getChapterHtmlFromArchive
   /// 功能：从archive获取指定href的HTML内容
   ///
   /// 参数：
-  /// - bytes: EPUB文件字节
-  /// - href: 章节文件路径（可能含锚点）
+  /// - bytes: EPUB 文件字节
+  /// - href: 章节文件路径（可能具锚点）
   ///
-  /// 返回值：HTML字符串，未找到返回null
+  /// 返回值：HTML 字符串，未找到返回 null
   ///
   /// 调用方：getChapterContent()
   ///
-  /// 说明：href可能带有#锚点，需要移除；文件名大小写可能不匹配
+  /// 说明：href 可能带有#锚点，需要提取锚点并根据锚点截取特定章节内容
   Future<String?> _getChapterHtmlFromArchive(
       Uint8List bytes, String href) async {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
-      final hrefWithoutAnchor = href.split('#').first;
+      
+      // 分离文件路径和锚点
+      final hrefParts = href.split('#');
+      final hrefWithoutAnchor = hrefParts[0];
+      final anchor = hrefParts.length > 1 ? hrefParts[1] : null;
       final hrefWithoutAnchorLower = hrefWithoutAnchor.toLowerCase();
 
-      // 多种匹配方式尝试
+      _log.d('EpubParser', '从 archive 提取章节：href=$href, anchor=$anchor');
+
+      // 多种匹配方式尝试查找文件
       for (final archiveFile in archive.files) {
         final archiveName = archiveFile.name;
         final archiveNameLower = archiveName.toLowerCase();
@@ -1095,13 +1106,132 @@ class EpubParser implements BookFormatParser {
                     .endsWith(hrefWithoutAnchorLower.split('/').last));
 
         if (isMatch) {
-          return utf8.decode(archiveFile.content as List<int>);
+          final fullHtml = utf8.decode(archiveFile.content as List<int>);
+          
+          // 如果没有锚点，返回整个文件内容
+          if (anchor == null || anchor.isEmpty) {
+            _log.d('EpubParser', '无锚点，返回整个文件内容');
+            return fullHtml;
+          }
+          
+          // 有锚点时，提取锚点对应的章节片段
+          final chapterHtml = _extractChapterByAnchor(fullHtml, anchor);
+          if (chapterHtml != null) {
+            _log.d('EpubParser', '成功提取锚点 #$anchor 对应的章节内容');
+            return chapterHtml;
+          } else {
+            _log.w('EpubParser', '未找到锚点 #$anchor，返回整个文件内容');
+            return fullHtml;
+          }
         }
       }
 
+      _log.w('EpubParser', '未找到文件：$hrefWithoutAnchor');
       return null;
     } catch (e) {
-      _log.e('EpubParser', '从archive获取章节HTML失败', e);
+      _log.e('EpubParser', '从 archive 获取章节 HTML 失败', e);
+      return null;
+    }
+  }
+
+  /// 根据锚点从完整 HTML 中提取特定章节内容
+  ///
+  /// EPUB 文件中，多个章节可能共享同一个 HTML 文件，通过锚点（如 #nav_point_1）区分。
+  /// 此方法提取锚点对应的章节片段，避免返回整个文件内容。
+  ///
+  /// 参数：
+  /// - [fullHtml]: 完整的 HTML 文件内容
+  /// - [anchor]: 锚点 ID（不包含#符号）
+  ///
+  /// 返回值：锚点对应的章节 HTML 片段，如果未找到则返回 null
+  ///
+  /// 提取策略：
+  /// 1. 查找包含 id="anchor" 的元素
+  /// 2. 提取该元素及其后续内容，直到下一个同级标题元素或文件结束
+  String? _extractChapterByAnchor(String fullHtml, String anchor) {
+    try {
+      _log.d('EpubParser', '开始提取锚点内容：anchor=$anchor, HTML 长度=${fullHtml.length}');
+      
+      // 策略 1：查找包含 id="anchor" 或 name="anchor" 的元素
+      // 使用字符串插值构建正则表达式
+      final anchorPattern = RegExp('(id|name)\\s*=\\s*["\']?$anchor["\']?', caseSensitive: false);
+      final anchorMatch = anchorPattern.firstMatch(fullHtml);
+      
+      if (anchorMatch == null) {
+        _log.w('EpubParser', '未找到锚点：$anchor');
+        return null;
+      }
+
+      _log.d('EpubParser', '找到锚点位置：${anchorMatch.start}');
+      final startPos = anchorMatch.start;
+      
+      // 从锚点位置向前查找，找到包含该锚点的完整元素
+      // 通常锚点在标题元素中，如 <h1 id="nav_point_1">第一章</h1>
+      // 我们需要找到这个元素的开始标签
+      
+      // 向前查找最近的 '<'
+      int elementStart = startPos;
+      int searchCount = 0;
+      while (elementStart > 0 && fullHtml[elementStart - 1] != '<' && searchCount < 500) {
+        elementStart--;
+        searchCount++;
+      }
+      
+      if (searchCount >= 500) {
+        _log.w('EpubParser', '向前查找开始标签超时，使用当前位置');
+      }
+      
+      // 向后查找该元素的结束标签 '>'
+      int elementEnd = startPos;
+      searchCount = 0;
+      while (elementEnd < fullHtml.length && fullHtml[elementEnd] != '>' && searchCount < 500) {
+        elementEnd++;
+        searchCount++;
+      }
+      elementEnd++; // 包含 '>'
+      
+      if (searchCount >= 500) {
+        _log.w('EpubParser', '向后查找结束标签超时');
+      }
+      
+      // 判断是否是自闭合标签
+      final tagContent = fullHtml.substring(elementStart, elementEnd);
+      _log.d('EpubParser', '提取到的标签：$tagContent');
+      
+      final isSelfClosing = tagContent.endsWith('/>');
+      
+      if (isSelfClosing) {
+        // 自闭合标签，直接返回该标签
+        _log.d('EpubParser', '自闭合标签，返回该标签');
+        return tagContent;
+      }
+      
+      // 提取标签名
+      final tagNameMatch = RegExp(r'<(\w+)').firstMatch(tagContent);
+      if (tagNameMatch == null) {
+        _log.w('EpubParser', '无法提取标签名');
+        return null;
+      }
+      final tagName = tagNameMatch.group(1);
+      _log.d('EpubParser', '标签名：$tagName');
+      
+      // 查找对应的结束标签，如 </h1>, </div>, </section>
+      final endTagPattern = RegExp('</$tagName\\s*>', caseSensitive: false);
+      final endTagMatch = endTagPattern.firstMatch(fullHtml.substring(elementEnd));
+      
+      if (endTagMatch != null) {
+        // 找到结束标签，返回整个元素
+        final chapterContent = fullHtml.substring(elementStart, elementEnd + endTagMatch.end);
+        _log.d('EpubParser', '成功提取章节内容，长度：${chapterContent.length}');
+        return chapterContent;
+      } else {
+        // 没有找到结束标签，返回从锚点元素到文件末尾的内容
+        // 这可能不是最理想的，但至少能返回一些内容
+        _log.w('EpubParser', '未找到结束标签，返回从锚点到文件末尾的内容');
+        return fullHtml.substring(elementStart);
+      }
+    } catch (e) {
+      _log.e('EpubParser', '提取锚点内容失败：anchor=$anchor', e);
       return null;
     }
   }

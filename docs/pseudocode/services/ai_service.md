@@ -1,0 +1,763 @@
+# AIService - AI 服务伪代码文档
+
+## 概述
+
+AIService 是一个单例模式的 AI 服务，负责与大语言模型 API 的交互。支持智谱 AI 和通义千问等 OpenAI 兼容接口，提供章节摘要和全书摘要生成能力。
+
+---
+
+## 单例模式实现
+
+```pseudocode
+CLASS AIService:
+    // 单例实例 - 静态私有变量
+    PRIVATE STATIC _instance: AIService = AIService._internal()
+    
+    // 工厂构造函数 - 返回单例实例
+    PUBLIC STATIC FACTORY AIService():
+        RETURN _instance
+    
+    // 私有命名构造函数 - 防止外部实例化
+    PRIVATE CONSTRUCTOR _internal():
+        _config = null
+        _httpClient = null
+```
+
+---
+
+## 数据结构
+
+### AIConfig 类
+
+```pseudocode
+CLASS AIConfig:
+    // AI 服务提供商标识
+    provider: String              // 'zhipu' 或 'qwen'
+    
+    // API 密钥
+    apiKey: String                // 用于身份验证
+    
+    // 模型名称
+    model: String                 // 如 'glm-4-flash', 'qwen-plus'
+    
+    // API 基础 URL
+    baseUrl: String               // API 服务地址
+    
+    // 构造函数
+    CONSTRUCTOR AIConfig(provider, apiKey, model, baseUrl):
+        this.provider = provider
+        this.apiKey = apiKey
+        this.model = model
+        this.baseUrl = baseUrl
+    
+    // 从 JSON 创建
+    STATIC FACTORY fromJson(json: Map<String, dynamic>):
+        provider = json['ai_provider'] ?? 'zhipu'
+        providerConfig = json[provider] ?? {}
+        
+        RETURN AIConfig(
+            provider: provider,
+            apiKey: providerConfig['api_key'] ?? '',
+            model: providerConfig['model'] ?? 'glm-4-flash',
+            baseUrl: providerConfig['base_url'] ?? ''
+        )
+    
+    // 从 AiSettings 创建
+    STATIC FACTORY fromAiSettings(settings: AiSettings):
+        RETURN AIConfig(
+            provider: settings.provider,
+            apiKey: settings.apiKey,
+            model: settings.model,
+            baseUrl: settings.baseUrl
+        )
+    
+    // 检查配置有效性
+    PROPERTY isValid -> Boolean:
+        RETURN apiKey.isNotEmpty 
+           AND apiKey != 'YOUR_ZHIPU_API_KEY_HERE'
+           AND apiKey != 'YOUR_QWEN_API_KEY_HERE'
+```
+
+### AIService 私有属性
+
+```pseudocode
+PRIVATE PROPERTIES:
+    _config: AIConfig?            // AI 配置对象
+    _httpClient: http.Client?     // HTTP 客户端（可被测试替换）
+    _log: LogService              // 日志服务实例
+```
+
+---
+
+## 方法伪代码
+
+### init() - 初始化 AI 服务
+
+```pseudocode
+ASYNC METHOD init():
+    // 从 SettingsService 加载配置
+    await reloadConfig()
+    
+    // 监听 AI 设置变化
+    SettingsService().aiSettings.addListener(_onAiSettingsChanged)
+```
+
+**初始化流程图:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     init() 初始化流程                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  reloadConfig()                                             │
+│      ├─ 从 SettingsService 获取 AI 设置                     │
+│      ├─ 验证配置有效性                                       │
+│      ├─ 有效 → 创建 AIConfig                                 │
+│      └─ 无效 → _config = null                               │
+│      ↓                                                      │
+│  添加监听器                                                  │
+│      SettingsService().aiSettings.addListener(...)          │
+│      ↓                                                      │
+│  初始化完成                                                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### dispose() - 清理资源
+
+```pseudocode
+METHOD dispose():
+    // 移除监听器
+    SettingsService().aiSettings.removeListener(_onAiSettingsChanged)
+```
+
+---
+
+### _onAiSettingsChanged() - AI 设置变化回调
+
+```pseudocode
+PRIVATE METHOD _onAiSettingsChanged():
+    _log.d('AIService', 'AI设置发生变化，重新加载配置')
+    
+    // 重新加载配置
+    reloadConfig()
+```
+
+---
+
+### reloadConfig() - 重新加载 AI 配置
+
+```pseudocode
+ASYNC METHOD reloadConfig():
+    TRY:
+        // 从 SettingsService 获取 AI 设置
+        aiSettings = SettingsService().settings.aiSettings
+        
+        // 检查配置有效性
+        IF aiSettings.isValid:
+            // 创建 AIConfig 实例
+            _config = AIConfig.fromAiSettings(aiSettings)
+            
+            _log.d('AIService', 
+                'AI配置加载成功: {_config.provider}, model: {_config.model}')
+        
+        ELSE:
+            _log.w('AIService', 'AI配置无效，请检查设置')
+            _config = null
+    
+    CATCH e:
+        _log.e('AIService', '从SettingsService加载AI配置失败', e)
+```
+
+---
+
+### isConfigured - 检查配置状态
+
+```pseudocode
+PUBLIC PROPERTY isConfigured -> Boolean:
+    RETURN _config?.isValid ?? false
+```
+
+---
+
+### generateFullChapterSummary() - 生成章节摘要
+
+```pseudocode
+ASYNC METHOD generateFullChapterSummary(content: String, chapterTitle: String? = null) -> String?:
+    // 记录详细日志
+    _log.v('AIService', 
+        'generateFullChapterSummary 开始，content length: {content.length}, chapterTitle: {chapterTitle}')
+    
+    // 检查配置有效性
+    IF _config == null OR NOT _config.isValid:
+        _log.w('AIService', 'AI配置未设置或API Key无效')
+        RETURN null
+    
+    // 从 SettingsService 读取语言设置
+    langSettings = SettingsService().settings.languageSettings
+    _log.d('AIService', 
+        '语言设置：aiLanguageMode={langSettings.aiLanguageMode}, aiOutputLanguage={langSettings.aiOutputLanguage}')
+    
+    // 根据语言模式生成语言指令
+    languageInstruction: String
+    
+    IF langSettings.aiLanguageMode == 'book':
+        // 从内容检测语言
+        detectedLanguage = _detectLanguageFromContent(content)
+        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
+        _log.d('AIService', 
+            '检测到书籍语言为: {detectedLanguage}, 使用语言指令: {languageInstruction}')
+    
+    ELSE:
+        // 使用预设语言指令
+        languageInstruction = AiPrompts.getLanguageInstruction(
+            langSettings.aiLanguageMode,
+            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
+                           THEN langSettings.aiOutputLanguage 
+                           ELSE null
+        )
+    
+    _log.d('AIService', '生成的语言指令：{languageInstruction}')
+    
+    // 构建提示词
+    prompt = AiPrompts.chapterSummary(
+        chapterTitle: chapterTitle,
+        content: content,
+        languageInstruction: languageInstruction
+    )
+    
+    TRY:
+        // 调用 AI API
+        RETURN await _callAI(prompt, systemMessage: languageInstruction)
+    
+    CATCH e:
+        _log.e('AIService', '生成章节摘要失败', e)
+        RETURN null
+```
+
+**生成流程图:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│         generateFullChapterSummary() 生成流程                │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  输入: content, chapterTitle                                 │
+│      ↓                                                      │
+│  检查配置有效性                                              │
+│      ├─ 无效 → RETURN null                                  │
+│      ↓                                                      │
+│  获取语言设置                                                │
+│      ↓                                                      │
+│  确定语言指令                                                │
+│      ├─ 'book' 模式 → 检测内容语言                          │
+│      ├─ 'system' 模式 → 使用系统语言                        │
+│      └─ 'manual' 模式 → 使用指定语言                        │
+│      ↓                                                      │
+│  构建提示词 (AiPrompts.chapterSummary)                       │
+│      ↓                                                      │
+│  调用 AI API (_callAI)                                       │
+│      ├─ 成功 → RETURN 摘要内容                              │
+│      └─ 失败 → RETURN null                                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### generateBookSummaryFromPreface() - 基于前言生成全书摘要
+
+```pseudocode
+ASYNC METHOD generateBookSummaryFromPreface(
+    title: String, 
+    author: String, 
+    prefaceContent: String, 
+    totalChapters: int? = null
+) -> String?:
+    // 记录详细日志
+    _log.v('AIService', 
+        'generateBookSummaryFromPreface 开始，title: {title}, author: {author}, prefaceContent length: {prefaceContent.length}')
+    
+    // 检查配置有效性
+    IF _config == null OR NOT _config.isValid:
+        _log.w('AIService', 'AI服务未配置或API Key无效')
+        RETURN null
+    
+    // 获取语言设置
+    langSettings = SettingsService().settings.languageSettings
+    
+    // 根据语言模式生成语言指令
+    languageInstruction: String
+    
+    IF langSettings.aiLanguageMode == 'book':
+        detectedLanguage = _detectLanguageFromContent(prefaceContent)
+        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
+    
+    ELSE:
+        languageInstruction = AiPrompts.getLanguageInstruction(
+            langSettings.aiLanguageMode,
+            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
+                           THEN langSettings.aiOutputLanguage 
+                           ELSE null
+        )
+    
+    // 构建提示词
+    prompt = AiPrompts.bookSummaryFromPreface(
+        title: title,
+        author: author,
+        prefaceContent: prefaceContent,
+        totalChapters: totalChapters,
+        languageInstruction: languageInstruction
+    )
+    
+    TRY:
+        RETURN await _callAI(prompt, systemMessage: languageInstruction)
+    
+    CATCH e:
+        _log.e('AIService', '基于前言生成全书摘要失败', e)
+        RETURN null
+```
+
+---
+
+### generateBookSummary() - 基于章节摘要生成全书摘要
+
+```pseudocode
+ASYNC METHOD generateBookSummary(
+    title: String, 
+    author: String, 
+    chapterSummaries: String, 
+    totalChapters: int? = null
+) -> String?:
+    // 记录详细日志
+    _log.v('AIService', 
+        'generateBookSummary 开始，title: {title}, author: {author}, chapterSummaries length: {chapterSummaries.length}')
+    
+    // 检查配置有效性
+    IF _config == null OR NOT _config.isValid:
+        _log.w('AIService', 'AI服务未配置或API Key无效')
+        RETURN null
+    
+    // 获取语言设置
+    langSettings = SettingsService().settings.languageSettings
+    
+    // 根据语言模式生成语言指令
+    languageInstruction: String
+    
+    IF langSettings.aiLanguageMode == 'book':
+        detectedLanguage = _detectLanguageFromContent(chapterSummaries)
+        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
+    
+    ELSE:
+        languageInstruction = AiPrompts.getLanguageInstruction(
+            langSettings.aiLanguageMode,
+            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
+                           THEN langSettings.aiOutputLanguage 
+                           ELSE null
+        )
+    
+    // 构建提示词
+    prompt = AiPrompts.bookSummary(
+        title: title,
+        author: author,
+        chapterSummaries: chapterSummaries,
+        totalChapters: totalChapters,
+        languageInstruction: languageInstruction
+    )
+    
+    TRY:
+        RETURN await _callAI(prompt, systemMessage: languageInstruction)
+    
+    CATCH e:
+        _log.e('AIService', '生成全书摘要失败', e)
+        RETURN null
+```
+
+---
+
+### _detectLanguageFromContent() - 从内容检测语言
+
+```pseudocode
+PRIVATE METHOD _detectLanguageFromContent(content: String) -> String:
+    // 空内容返回默认语言
+    IF content.isEmpty:
+        RETURN 'zh'
+    
+    // 初始化字符计数器
+    chineseChars = 0
+    englishChars = 0
+    japaneseChars = 0
+    koreanChars = 0
+    punctuationChars = 0
+    
+    // 遍历每个字符
+    FOR i = 0 TO content.length - 1:
+        charCode = content.codeUnitAt(i)
+        
+        // 检测中文字符 (CJK 统一汉字、扩展A、兼容汉字)
+        IF (charCode >= 0x4e00 AND charCode <= 0x9fff) OR
+           (charCode >= 0x3400 AND charCode <= 0x4dbf) OR
+           (charCode >= 0xf900 AND charCode <= 0xfaff):
+            chineseChars++
+        
+        // 检测日文字符 (平假名、片假名)
+        ELSE IF (charCode >= 0x3040 AND charCode <= 0x309f) OR
+                (charCode >= 0x30a0 AND charCode <= 0x30ff) OR
+                (charCode >= 0x31f0 AND charCode <= 0x31ff):
+            japaneseChars++
+        
+        // 检测韩文字符 (韩文音节)
+        ELSE IF charCode >= 0xac00 AND charCode <= 0xd7af:
+            koreanChars++
+        
+        // 检测英文字符 (A-Z, a-z)
+        ELSE IF (charCode >= 65 AND charCode <= 90) OR
+                (charCode >= 97 AND charCode <= 122):
+            englishChars++
+        
+        // 检测标点符号
+        ELSE IF (charCode >= 32 AND charCode <= 47) OR
+                (charCode >= 58 AND charCode <= 64) OR
+                (charCode >= 12288 AND charCode <= 12543):
+            punctuationChars++
+    
+    // 计算总有效字符数
+    totalChars = chineseChars + englishChars + japaneseChars + koreanChars
+    
+    // 无有效字符返回默认
+    IF totalChars == 0:
+        RETURN 'zh'
+    
+    // 计算各语言比例
+    chineseRatio = chineseChars / totalChars
+    englishRatio = englishChars / totalChars
+    japaneseRatio = japaneseChars / totalChars
+    koreanRatio = koreanChars / totalChars
+    
+    // 中文优先判断（30%阈值）
+    IF chineseRatio >= 0.3:
+        RETURN 'zh'
+    
+    // 其他语言按比例判断
+    ELSE IF japaneseRatio > englishRatio AND japaneseRatio > koreanRatio:
+        RETURN 'ja'
+    
+    ELSE IF koreanRatio > englishRatio:
+        RETURN 'ko'
+    
+    ELSE IF englishRatio > chineseRatio AND 
+            englishRatio > japaneseRatio AND 
+            englishRatio > koreanRatio:
+        RETURN 'en'
+    
+    // 按数量判断
+    maxCount = 0
+    detectedLanguage = 'zh'
+    
+    IF chineseChars > maxCount:
+        maxCount = chineseChars
+        detectedLanguage = 'zh'
+    
+    IF englishChars > maxCount:
+        maxCount = englishChars
+        detectedLanguage = 'en'
+    
+    IF japaneseChars > maxCount:
+        maxCount = japaneseChars
+        detectedLanguage = 'ja'
+    
+    IF koreanChars > maxCount:
+        maxCount = koreanChars
+        detectedLanguage = 'ko'
+    
+    RETURN detectedLanguage
+```
+
+**语言检测流程图:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           _detectLanguageFromContent() 检测流程              │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  输入: content (文本内容)                                    │
+│      ↓                                                      │
+│  遍历每个字符，统计各类字符数量                               │
+│      ├─ 中文字符 (CJK)                                       │
+│      ├─ 日文字符 (假名)                                      │
+│      ├─ 韩文字符 (音节)                                      │
+│      ├─ 英文字符 (A-Z, a-z)                                  │
+│      └─ 标点符号                                             │
+│      ↓                                                      │
+│  计算各语言比例                                              │
+│      ↓                                                      │
+│  判断语言                                                    │
+│      ├─ 中文比例 >= 30% → 'zh'                              │
+│      ├─ 日文比例最高 → 'ja'                                  │
+│      ├─ 韩文比例最高 → 'ko'                                  │
+│      ├─ 英文比例最高 → 'en'                                  │
+│      └─ 按数量判断 → 最大数量的语言                          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### _getLanguageInstructionForLanguage() - 生成语言指令
+
+```pseudocode
+PRIVATE METHOD _getLanguageInstructionForLanguage(languageCode: String) -> String:
+    SWITCH languageCode:
+        CASE 'zh':
+            RETURN 'IMPORTANT: Respond in Chinese (简体中文).'
+        CASE 'en':
+            RETURN 'IMPORTANT: Respond in English.'
+        CASE 'ja':
+            RETURN 'IMPORTANT: Respond in Japanese (日本語).'
+        CASE 'ko':
+            RETURN 'IMPORTANT: Respond in Korean (한국어).'
+        CASE 'fr':
+            RETURN 'IMPORTANT: Respond in French (Français).'
+        CASE 'de':
+            RETURN 'IMPORTANT: Respond in German (Deutsch).'
+        CASE 'ru':
+            RETURN 'IMPORTANT: Respond in Russian (Русский).'
+        CASE 'es':
+            RETURN 'IMPORTANT: Respond in Spanish (Español).'
+        DEFAULT:
+            RETURN 'IMPORTANT: Respond in Chinese (简体中文).'
+```
+
+---
+
+### _callAI() - 调用 AI API
+
+```pseudocode
+PRIVATE ASYNC METHOD _callAI(prompt: String, systemMessage: String? = null) -> String?:
+    // 构建请求 URL
+    url = Uri.parse('{_config.baseUrl}/chat/completions')
+    
+    // 获取 HTTP 客户端（使用 Mock 或真实客户端）
+    client = _httpClient ?? http.Client()
+    
+    // 构建消息列表
+    messages = []
+    
+    // 如果有系统消息，添加为 system role
+    IF systemMessage != null AND systemMessage.isNotEmpty:
+        messages.add({'role': 'system', 'content': systemMessage})
+    
+    // 添加用户提示词
+    messages.add({'role': 'user', 'content': prompt})
+    
+    // 发送 POST 请求
+    response = await client.post(
+        url,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer {_config.apiKey}'
+        },
+        body: jsonEncode({
+            'model': _config.model,
+            'messages': messages,
+            'temperature': 0.7,
+            'max_tokens': 1000
+        })
+    )
+    
+    // 处理响应
+    IF response.statusCode == 200:
+        // 解析 JSON 响应
+        json = jsonDecode(response.body)
+        
+        // 提取 AI 生成的内容
+        RETURN json['choices']?[0]?['message']?['content']
+    
+    ELSE:
+        // 记录错误
+        _log.e('AIService', 
+            'AI API调用失败：{response.statusCode} - {response.body}')
+        RETURN null
+```
+
+**API 请求格式:**
+
+```json
+{
+  "model": "qwen-plus",
+  "messages": [
+    {"role": "system", "content": "IMPORTANT: Respond in Chinese."},
+    {"role": "user", "content": "请对以下章节内容生成摘要..."}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 1000
+}
+```
+
+**API 响应格式:**
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "content": "## 核心内容\n本章介绍了..."
+      }
+    }
+  ]
+}
+```
+
+---
+
+### updateConfig() - 更新配置
+
+```pseudocode
+PUBLIC METHOD updateConfig(settings: AiSettings):
+    // 创建新的 AIConfig
+    _config = AIConfig(
+        provider: settings.provider,
+        apiKey: settings.apiKey,
+        model: settings.model,
+        baseUrl: settings.baseUrl
+    )
+    
+    _log.d('AIService', 
+        '配置已更新: provider={settings.provider}, model={settings.model}')
+```
+
+---
+
+### testConnection() - 测试连接
+
+```pseudocode
+PUBLIC ASYNC METHOD testConnection() -> Boolean:
+    // 检查配置有效性
+    IF _config == null OR NOT _config.isValid:
+        _log.w('AIService', '测试连接失败：配置无效')
+        RETURN false
+    
+    TRY:
+        // 构建请求 URL
+        url = Uri.parse('{_config.baseUrl}/chat/completions')
+        
+        // 获取客户端
+        client = _httpClient ?? http.Client()
+        
+        // 发送简单测试请求
+        response = await client.post(
+            url,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer {_config.apiKey}'
+            },
+            body: jsonEncode({
+                'model': _config.model,
+                'messages': [{'role': 'user', 'content': 'Hello'}],
+                'temperature': 0.7,
+                'max_tokens': 10
+            })
+        )
+        
+        // 检查响应状态
+        IF response.statusCode == 200:
+            _log.d('AIService', '测试连接成功')
+            RETURN true
+        
+        ELSE:
+            _log.w('AIService', '测试连接失败: {response.statusCode}')
+            RETURN false
+    
+    CATCH e:
+        _log.e('AIService', '测试连接异常', e)
+        RETURN false
+```
+
+---
+
+## 测试支持方法
+
+### resetForTest() - 重置服务状态
+
+```pseudocode
+PUBLIC STATIC METHOD resetForTest():
+    _instance._config = null
+    _instance._httpClient = null
+```
+
+### setMockClient() - 设置 Mock HTTP 客户端
+
+```pseudocode
+PUBLIC METHOD setMockClient(client: MockClient):
+    _httpClient = client
+```
+
+---
+
+## 错误处理
+
+### 配置无效
+
+```pseudocode
+IF _config == null OR NOT _config.isValid:
+    _log.w('AIService', 'AI配置未设置或API Key无效')
+    RETURN null
+```
+
+### API 调用失败
+
+```pseudocode
+IF response.statusCode != 200:
+    _log.e('AIService', 'AI API调用失败：{response.statusCode}')
+    RETURN null
+```
+
+### 网络异常
+
+```pseudocode
+CATCH e:
+    _log.e('AIService', '生成摘要失败', e)
+    RETURN null
+```
+
+---
+
+## 并发控制
+
+AIService 不使用并发控制，原因:
+
+1. AI 调用是异步操作，不会阻塞
+2. HTTP 客户端支持并发请求
+3. 并发控制在 SummaryService 层实现
+
+**注意事项:**
+
+- 高频调用可能导致 API 限流
+- 建议在调用层（SummaryService）控制并发数
+- API Key 泄露风险需注意安全存储
+
+---
+
+## API 兼容性
+
+### 支持的提供商
+
+| 提供商 | Base URL | 模型示例 |
+|--------|----------|----------|
+| 智谱 AI | https://open.bigmodel.cn/api/paas/v4 | glm-4-flash, glm-4 |
+| 通义千问 | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen-plus, qwen-turbo |
+
+### OpenAI 兼容接口
+
+所有提供商使用 OpenAI 兼容的 `/chat/completions` 端点:
+
+```
+POST {baseUrl}/chat/completions
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer {apiKey}
+Body:
+  model, messages, temperature, max_tokens
+```
