@@ -274,3 +274,123 @@ ai_config.json
 - 重构UI组件以接受localizations参数
 - 为动态内容添加参数化消息支持
 - 重新生成国际化代码并验证所有界面正确显示
+
+---
+
+#### 2026-04-24: 流式显示功能实现
+
+**功能描述**：
+实现AI摘要生成过程中的实时流式显示，让用户无需等待完整结果，即可看到AI逐步生成内容的过程。
+
+**核心实现**：
+
+**1. AI服务层 (`ai_service.dart`)**
+- 添加 `generateFullChapterSummaryStream` 方法：流式生成章节摘要
+- 添加 `generateBookSummaryStream` 方法：流式生成基于章节摘要的全书摘要
+- 添加 `generateBookSummaryFromPrefaceStream` 方法：流式生成基于前言的全书摘要
+- 使用 `dart:io` 的原生 `HttpClient` 实现真正的流式请求，避免Flutter http包的缓冲问题
+- SSE数据解析优化：正确处理被分割的数据块，支持增量式JSON解析
+
+**2. 摘要服务层 (`summary_service.dart`)**
+- 添加流式回调广播机制：
+  - `_streamingCallbacks` / `_bookStreamingCallbacks`：章节/全书摘要回调映射
+  - `registerStreamingCallback` / `registerBookStreamingCallback`：注册流式回调
+  - `unregisterStreamingCallback` / `unregisterBookStreamingCallback`：取消注册
+  - `_notifyStreamingContent` / `_notifyBookStreamingContent`：触发回调
+- 修改 `generateSingleSummary`：内部使用流式方法，支持实时回调
+- 修改 `_generateBookSummaryFromPreface`：使用流式方法
+- 修改 `_generateBookSummaryFromChapters`：使用流式方法
+- 修复标题移除逻辑：支持 `## 第X章：xxx` 等多种标题格式
+
+**3. UI层 - SummaryScreen (`summary_screen.dart`)**
+- 添加 `_streamingSummary` 状态：存储流式内容
+- 修改 `_loadSummary`：注册流式回调，实时显示生成内容
+- 修改 `_buildBody`：生成中时显示流式内容而非静态加载
+- 修复 `_buildNormalSummaryView`：使用 `_title` 而非固定"本章摘要"
+- 添加防重复机制：`_hasLoadedSummary` 和 `_listeningChapterKey`
+
+**4. UI层 - BookDetailScreen (`book_detail_screen.dart`)**
+- 添加 `_streamingBookSummary` 状态：存储流式全书摘要
+- 在 `initState` 中注册全书摘要流式回调
+- 在 `dispose` 中取消回调注册
+- 修改 `_buildAIIntroductionContent`：优先显示流式内容
+- 添加 `_buildStreamingBookSummary` 方法：构建流式视图
+- 修改 `_refreshBookIfNeeded`：检测到全书摘要变化后清空流式状态
+- 修改标题栏：流式期间显示"AI正在生成摘要..."
+
+**数据流**：
+```
+用户触发生成
+    ↓
+调用流式方法 (AIService._callAIStream)
+    ↓
+HttpClient 发送请求并监听 SSE 数据流
+    ↓
+每个 chunk 到达 → yield 内容片段
+    ↓
+SummaryService 累积内容并触发回调
+    ↓
+_notifyStreamingContent 调用 UI 回调
+    ↓
+UI setState 更新 _streamingSummary
+    ↓
+_buildBody / _buildAIIntroductionContent 显示流式内容
+    ↓
+生成完成 → 保存到文件 → BookService 更新 book.aiIntroduction
+    ↓
+_refreshTimer 检测变化 → 清空 _streamingSummary → 显示最终摘要
+```
+
+**关键技术点**：
+
+**SSE数据处理**：
+```dart
+// 缓冲区处理，支持被分割的数据块
+String buffer = '';
+await for (final chunk in response.transform(utf8.decoder)) {
+  buffer += chunk;
+  while (buffer.contains('\n')) {
+    // 提取完整行并解析
+  }
+}
+```
+
+**防重复生成**：
+```dart
+// UI层防止重复监听
+if (_hasLoadedSummary && _listeningChapterKey == chapterKey) return;
+
+// 服务层防止重复生成
+if (_generatingKeys.contains(key)) return false;
+```
+
+**章节切换保护**：
+```dart
+// 使用闭包捕获当前章节信息
+final capturedBookId = widget.bookId;
+final capturedChapterIndex = widget.chapterIndex;
+generatingFuture.then((_) {
+  if (capturedBookId != widget.bookId) return; // 已切换章节，忽略
+  // 处理完成逻辑
+});
+```
+
+**标题移除正则**：
+```dart
+// 匹配多种标题格式
+final titlePattern = RegExp(
+  r'^##\s*(章节标题[：:]\s*.+|第[一二三四五六七八九十0-9]+章[：:]\s*.+|前言|序言|引言|序|跋|后记|附录.*)$'
+);
+```
+
+**用户体验优化**：
+- 生成中显示动画指示器（蓝色圆点跳动）
+- 标题动态切换：生成中"AI正在生成摘要..." → 完成"内容介绍"
+- 流式内容与最终摘要无缝切换
+- 章节切换时自动清理旧回调，避免内存泄漏
+
+**注意事项**：
+- 流式生成依赖 AI API 的 SSE (Server-Sent Events) 支持
+- 智谱和通义千问均支持流式响应
+- 网络延迟可能影响流式体验（每字符约70-80ms）
+- 应用完全重启才能生效（Service单例在热重载时可能保持旧状态）

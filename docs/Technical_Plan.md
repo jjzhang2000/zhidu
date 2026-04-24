@@ -75,9 +75,71 @@
 - **全书概览生成逻辑**：
   - **有前言/序言**：直接从前言内容生成全书摘要（800-900字，Markdown格式）
   - **无前言/序言**：等待所有章节摘要生成完成后，基于章节摘要生成全书摘要
+  - **流式显示**：AI生成过程中实时展示内容，无需等待完整结果
 - **章节精炼**：用户点击目录进入某一章时，AI对该章节内容进行摘要提炼（800-900字，Markdown格式）
+  - **流式显示**：边看边生成，AI每生成一个字立即显示在界面上
 - **输出格式**：统一使用Markdown格式，包含标题、段落、列表等，便于阅读和导出
-- **技术实现**：调用智谱/通义千问API，使用集中管理的提示词模板（ai_prompts.dart）
+- **技术实现**：
+  - 调用智谱/通义千问API，使用集中管理的提示词模板（ai_prompts.dart）
+  - 使用 `dart:io` 的 `HttpClient` 实现 SSE (Server-Sent Events) 流式请求
+  - 支持数据块分割处理，确保流式内容正确解析
+  - UI层通过回调机制实时更新显示内容
+
+### 3.2.1 流式显示技术方案
+
+**核心机制**：
+```
+用户触发生成
+    ↓
+调用流式AI方法 (AIService._callAIStream)
+    ↓
+HttpClient 发送请求并监听 SSE 数据流
+    ↓
+每个 chunk 到达 → yield 内容片段
+    ↓
+SummaryService 累积内容并触发回调
+    ↓
+UI setState 更新 _streamingSummary
+    ↓
+UI 实时显示流式内容
+    ↓
+生成完成 → 保存到文件 → 显示最终摘要
+```
+
+**技术实现细节**：
+
+1. **AI服务层** (`ai_service.dart`)
+   - 使用 `dart:io` 的 `HttpClient` 替代 `package:http`，避免缓冲
+   - 实现 SSE 数据解析，支持数据块被分割的情况
+   - 提供 `generateFullChapterSummaryStream`、`generateBookSummaryStream`、`generateBookSummaryFromPrefaceStream` 等流式方法
+
+2. **摘要服务层** (`summary_service.dart`)
+   - 实现流式回调广播机制：
+     - `_streamingCallbacks`：章节摘要回调映射
+     - `_bookStreamingCallbacks`：全书摘要回调映射
+   - 提供注册/取消注册方法
+   - 在流式接收过程中触发回调通知UI
+
+3. **UI层** (`summary_screen.dart`, `book_detail_screen.dart`)
+   - 注册流式回调，实时更新 `_streamingSummary` 状态
+   - 使用 `setState` 触发重建，显示最新内容
+   - 完成后清空流式状态，显示最终摘要
+   - 动态标题：生成中显示"AI正在生成摘要..."，完成后显示正常标题
+
+**SSE数据处理**：
+```dart
+String buffer = '';
+await for (final chunk in response.transform(utf8.decoder)) {
+  buffer += chunk;
+  // 处理被分割的数据块
+  while (buffer.contains('\n')) {
+    final lineEnd = buffer.indexOf('\n');
+    final line = buffer.substring(0, lineEnd);
+    buffer = buffer.substring(lineEnd + 1);
+    // 解析并 yield 内容
+  }
+}
+```
 
 ### 3.3 设置管理系统
 - **统一设置中心**：集中管理AI、主题、语言、存储设置
@@ -255,6 +317,12 @@ Documents/zhidu/
 - [x] 设置管理重构（AI、主题、语言、存储设置统一管理）
 
 ### 阶段六：功能扩展（部分完成）
+- [x] **流式显示功能** - AI摘要生成实时流式显示
+  - [x] 章节摘要流式生成与显示
+  - [x] 全书摘要流式生成与显示
+  - [x] 动态标题切换（生成中/完成状态）
+  - [x] SSE数据流解析与处理
+  - [x] UI实时更新机制
 - [x] 多语言界面支持 - 已完成AI设置、主题设置、语言设置等界面的国际化
 - [ ] 复习卡片功能
 - [ ] 云同步备份
