@@ -2,7 +2,7 @@
 
 ## 概述
 
-SummaryService 是一个单例模式的摘要管理服务，负责章节摘要和全书摘要的生成、存储、读取和删除。支持并发控制，防止同一章节被重复生成摘要。
+SummaryService 是一个单例模式的摘要管理服务，负责章节摘要和全书摘要的生成、存储、读取和删除。支持并发控制、流式内容更新，防止同一章节被重复生成摘要。
 
 ---
 
@@ -29,6 +29,9 @@ CLASS SummaryService:
         _concurrentRequestSemaphore = Semaphore(3)
         _generatingKeys = Set<String>()
         _generatingFutures = Map<String, Future<void>>()
+        _streamingCallbacks = Map<String, Function(String)>()
+        _bookStreamingCallbacks = Map<String, Function(String)>()
+        _generatingBookSummaryKeys = Set<String>()
 ```
 
 ---
@@ -83,6 +86,100 @@ PRIVATE PROPERTIES:
     _concurrentRequestSemaphore: Semaphore   // AI 请求信号量（最大3）
     _generatingKeys: Set<String>              // 正在生成的章节标识
     _generatingFutures: Map<String, Future<void>>  // 生成中的 Future
+    
+    // 流式内容回调
+    _streamingCallbacks: Map<String, Function(String)>  // 章节流式回调
+    _bookStreamingCallbacks: Map<String, Function(String)>  // 全书流式回调
+    _generatingBookSummaryKeys: Set<String>   // 全书摘要生成中标记
+    _completedKeys: Set<String>              // 已完成章节key集合
+```
+
+---
+
+## 流式回调管理
+
+### 注册章节流式回调
+
+```pseudocode
+PUBLIC METHOD registerStreamingCallback(
+    bookId: String,
+    chapterIndex: int,
+    callback: Function(String)
+):
+    // 生成章节唯一标识键
+    key = _key(bookId, chapterIndex)
+    
+    // 注册回调函数
+    _streamingCallbacks[key] = callback
+    _log.d('SummaryService', '注册章节流式回调: {key}')
+```
+
+### 取消章节流式回调
+
+```pseudocode
+PUBLIC METHOD unregisterStreamingCallback(
+    bookId: String,
+    chapterIndex: int
+):
+    key = _key(bookId, chapterIndex)
+    _streamingCallbacks.remove(key)
+    _log.d('SummaryService', '取消章节流式回调: {key}')
+```
+
+### 触发章节流式内容更新
+
+```pseudocode
+PRIVATE METHOD _notifyStreamingContent(
+    bookId: String,
+    chapterIndex: int,
+    content: String
+):
+    key = _key(bookId, chapterIndex)
+    callback = _streamingCallbacks[key]
+    
+    IF callback != null:
+        callback(content)
+```
+
+### 注册全书流式回调
+
+```pseudocode
+PUBLIC METHOD registerBookStreamingCallback(
+    bookId: String,
+    callback: Function(String)
+):
+    _bookStreamingCallbacks[bookId] = callback
+    _generatingBookSummaryKeys.add(bookId)
+    _log.d('SummaryService', '注册全书摘要流式回调: {bookId}')
+```
+
+### 取消全书流式回调
+
+```pseudocode
+PUBLIC METHOD unregisterBookStreamingCallback(bookId: String):
+    _bookStreamingCallbacks.remove(bookId)
+    _generatingBookSummaryKeys.remove(bookId)
+    _log.d('SummaryService', '取消全书摘要流式回调: {bookId}')
+```
+
+### 触发全书流式内容更新
+
+```pseudocode
+PRIVATE METHOD _notifyBookStreamingContent(
+    bookId: String,
+    content: String
+):
+    callback = _bookStreamingCallbacks[bookId]
+    
+    IF callback != null:
+        callback(content)
+```
+
+### 检查全书摘要是否正在生成
+
+```pseudocode
+PUBLIC METHOD isGeneratingBookSummary(bookId: String) -> bool:
+    RETURN _generatingBookSummaryKeys.contains(bookId)
 ```
 
 ---
@@ -148,7 +245,10 @@ PUBLIC METHOD isGenerating(bookId: String, chapterIndex: int) -> Boolean:
 ### getGeneratingFuture() - 获取生成中的 Future
 
 ```pseudocode
-PUBLIC METHOD getGeneratingFuture(bookId: String, chapterIndex: int) -> Future<void>?:
+PUBLIC METHOD getGeneratingFuture(
+    bookId: String,
+    chapterIndex: int
+) -> Future<void>?:
     // 返回正在生成的 Future，用于等待完成
     RETURN _generatingFutures[_key(bookId, chapterIndex)]
 ```
@@ -158,7 +258,10 @@ PUBLIC METHOD getGeneratingFuture(bookId: String, chapterIndex: int) -> Future<v
 ### getSummary() - 获取章节摘要
 
 ```pseudocode
-ASYNC METHOD getSummary(bookId: String, chapterIndex: int) -> ChapterSummary?:
+ASYNC METHOD getSummary(
+    bookId: String,
+    chapterIndex: int
+) -> ChapterSummary?:
     _log.v('SummaryService', 
         'getSummary 开始执行, bookId: {bookId}, chapterIndex: {chapterIndex}')
     
@@ -333,14 +436,15 @@ ASYNC METHOD saveBookSummary(bookId: String, summary: String):
 
 ---
 
-### generateSingleSummary() - 生成单个章节摘要（带并发控制）
+### generateSingleSummary() - 生成单个章节摘要（带流式和并发控制）
 
 ```pseudocode
 ASYNC METHOD generateSingleSummary(
     bookId: String,
     chapterIndex: int,
     chapterTitle: String,
-    content: String
+    content: String,
+    onContentUpdate: Function(String)?  // 实时内容更新回调（可选）
 ) -> Boolean:
     // 生成章节唯一标识
     key = _key(bookId, chapterIndex)
@@ -363,16 +467,29 @@ ASYNC METHOD generateSingleSummary(
     TRY:
         _log.d('SummaryService', '开始生成摘要: {key}')
         
-        // 调用 AI 生成摘要
-        summary = await _aiService.generateFullChapterSummary(
+        // 调用 AI 流式生成摘要
+        stream = _aiService.generateFullChapterSummaryStream(
             content,
-            chapterTitle: chapterTitle
+            chapterTitle: chapterTitle,
+            bookId: bookId
         )
         
-        IF summary != null AND summary.isNotEmpty:
+        accumulatedContent = ''
+        
+        // 实时接收流式内容
+        AWAIT FOR chunk IN stream:
+            accumulatedContent += chunk
+            
+            // 触发流式内容更新（回调 + 广播）
+            IF onContentUpdate != null:
+                onContentUpdate(accumulatedContent)
+            _notifyStreamingContent(bookId, chapterIndex, accumulatedContent)
+        
+        // 生成完成，处理最终内容
+        IF accumulatedContent.isNotEmpty:
             // 提取 AI 返回的章节标题
-            extractedTitle = extractTitleFromSummary(summary)
-            cleanSummary = removeTitleLineFromSummary(summary)
+            extractedTitle = extractTitleFromSummary(accumulatedContent)
+            cleanSummary = removeTitleLineFromSummary(accumulatedContent)
             
             // 如果提取到有效标题，更新书籍元数据
             IF extractedTitle != null AND extractedTitle.isNotEmpty:
@@ -416,11 +533,11 @@ ASYNC METHOD generateSingleSummary(
         _concurrentRequestSemaphore.release()
 ```
 
-**并发控制流程图:**
+**流式生成流程图:**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│       generateSingleSummary() 并发控制流程                   │
+│       generateSingleSummary() 流式生成流程                  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  用户点击生成                                                │
@@ -429,24 +546,28 @@ ASYNC METHOD generateSingleSummary(
 │      ├─ 正在生成 → RETURN false                             │
 │      ↓                                                      │
 │  获取信号量许可                                              │
-│      ├─ 有许可 → 继续                                       │
-│      ├─ 无许可 → 等待                                       │
 │      ↓                                                      │
 │  加入 _generatingKeys                                       │
 │      ↓                                                      │
-│  创建 Completer 并加入 _generatingFutures                   │
+│  创建 Completer                                             │
 │      ↓                                                      │
-│  调用 AI 生成摘要                                            │
+│  调用 AI 流式生成 (Stream)                                  │
+│      ↓                                                      │
+│  实时接收 chunks                                            │
+│      ↓                                                      │
+│  累积内容 → 触发回调                                        │
+│      ├─ onContentUpdate(callback参数)                       │
+│      └─ _notifyStreamingContent(广播机制)                    │
+│      ↓                                                      │
+│  流结束                                                     │
 │      ↓                                                      │
 │  提取标题 → 更新章节标题                                     │
 │      ↓                                                      │
 │  保存摘要文件                                                │
 │      ↓                                                      │
-│  complete() 完成 Completer                                   │
+│  complete() Completer                                       │
 │      ↓                                                      │
-│  从 _generatingKeys 和 _generatingFutures 移除              │
-│      ↓                                                      │
-│  释放信号量许可                                              │
+│  清理标记 + 释放信号量                                       │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -508,15 +629,18 @@ ASYNC METHOD generateSummariesForBook(book: Book):
 │      │                                                      │
 │      ├─ EPUB 格式                                            │
 │      │   ├─ 先生成全书摘要（基于目录）                       │
-│      │   │   └─ _generateBookSummaryFromPreface()           │
+│      │   │   └─ _generateBookSummaryFromPreface()            │
+│      │   │       └─ 流式生成 + 实时回调                      │
 │      │   └─ 再生成章节摘要                                   │
 │      │       └─ _generateChapterSummaries()                 │
 │      │                                                      │
 │      └─ PDF 格式                                             │
 │          ├─ 先生成章节摘要                                   │
-│          │   └─ _generateChapterSummaries()                 │
+│          │   └─ _generateChapterSummaries()                  │
+│          │       └─ 流式生成 + 实时回调                      │
 │          └─ 再生成全书摘要（基于章节摘要）                   │
-│              └─ _generateBookSummaryFromChapters()          │
+│              └─ _generateBookSummaryFromChapters()           │
+│                  └─ 流式生成 + 实时回调                      │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -532,7 +656,7 @@ PRIVATE ASYNC METHOD _generateChapterSummaries(
     parser: dynamic
 ):
     // 只为顶层章节（level==0）生成摘要
-    topLevelChapters = chapters.where((c) => c.level == 0).toList()
+    topLevelChapters = chapters.where((c) -> c.level == 0).toList()
     _log.d('SummaryService', 
         '开始生成章节摘要: 顶层章节 {topLevelChapters.length} 章')
     
@@ -588,7 +712,7 @@ PRIVATE ASYNC METHOD _processChapterConcurrently(
         chapterContent = content.htmlContent
         
         IF chapterContent != null AND chapterContent.isNotEmpty:
-            // 生成摘要
+            // 生成摘要（使用流式方法）
             await generateSingleSummary(
                 book.id,
                 chapterIndex,
@@ -606,7 +730,7 @@ PRIVATE ASYNC METHOD _processChapterConcurrently(
 
 ---
 
-### _generateBookSummaryFromPreface() - 从前言生成全书摘要
+### _generateBookSummaryFromPreface() - 从前言生成全书摘要（流式）
 
 ```pseudocode
 PRIVATE ASYNC METHOD _generateBookSummaryFromPreface(
@@ -654,16 +778,25 @@ PRIVATE ASYNC METHOD _generateBookSummaryFromPreface(
             CATCH e:
                 _log.w('SummaryService', '获取第一章内容用于语言检测失败: {e}')
         
-        // 调用 AI 生成全书摘要
-        bookSummary = await _aiService.generateBookSummaryFromPreface(
+        // 调用 AI 流式生成全书摘要
+        stream = _aiService.generateBookSummaryFromPrefaceStream(
             title: book.title,
             author: book.author,
             prefaceContent: prefaceContent.toString(),
-            totalChapters: chapters.length
+            totalChapters: chapters.length,
+            bookId: book.id
         )
         
-        IF bookSummary != null AND bookSummary.isNotEmpty:
-            await saveBookSummary(book.id, bookSummary)
+        accumulatedContent = ''
+        
+        // 实时接收流式内容
+        AWAIT FOR chunk IN stream:
+            accumulatedContent += chunk
+            // 触发流式内容更新
+            _notifyBookStreamingContent(book.id, accumulatedContent)
+        
+        IF accumulatedContent.isNotEmpty:
+            await saveBookSummary(book.id, accumulatedContent)
             _log.info('SummaryService', '全书摘要生成成功: {book.title}')
         
         ELSE:
@@ -675,7 +808,7 @@ PRIVATE ASYNC METHOD _generateBookSummaryFromPreface(
 
 ---
 
-### _generateBookSummaryFromChapters() - 从章节摘要生成全书摘要
+### _generateBookSummaryFromChapters() - 从章节摘要生成全书摘要（流式）
 
 ```pseudocode
 PRIVATE ASYNC METHOD _generateBookSummaryFromChapters(
@@ -740,16 +873,25 @@ PRIVATE ASYNC METHOD _generateBookSummaryFromChapters(
                 '\n\n参考内容样本（用于语言识别）：\n' +
                 contentSamples.join('\n\n')
         
-        // 调用 AI 生成全书摘要
-        bookSummary = await _aiService.generateBookSummary(
+        // 调用 AI 流式生成全书摘要
+        stream = _aiService.generateBookSummaryStream(
             title: book.title,
             author: book.author,
             chapterSummaries: combinedContent,
-            totalChapters: chapters.length
+            totalChapters: chapters.length,
+            bookId: book.id
         )
         
-        IF bookSummary != null AND bookSummary.isNotEmpty:
-            await saveBookSummary(book.id, bookSummary)
+        accumulatedContent = ''
+        
+        // 实时接收流式内容
+        AWAIT FOR chunk IN stream:
+            accumulatedContent += chunk
+            // 触发流式内容更新
+            _notifyBookStreamingContent(book.id, accumulatedContent)
+        
+        IF accumulatedContent.isNotEmpty:
+            await saveBookSummary(book.id, accumulatedContent)
             _log.info('SummaryService', '全书摘要生成成功: {book.title}')
         
         ELSE:
@@ -810,8 +952,12 @@ PUBLIC METHOD removeTitleLineFromSummary(summary: String) -> String:
     // 获取第一行
     firstLine = lines[0].trim()
     
-    // 匹配标题模式
-    titlePattern = RegExp('^##\s*章节标题[：:]\s*.+$')
+    // 匹配标题模式：## 章节标题：xxx 或 ## 第X章：xxx 等
+    titlePattern = RegExp(
+        '^##\s*(章节标题[：:]\s*.+|' +
+        '第[一二三四五六七八九十0-9]+章[：:]\s*.+|' +
+        '前言|序言|引言|序|跋|后记|附录.*)$'
+    )
     
     IF titlePattern.hasMatch(firstLine):
         // 如果第二行是空行，跳过前两行
@@ -841,7 +987,7 @@ ASYNC METHOD getAllSummaries() -> List<ChapterSummary>:
     
     // 获取所有书籍目录
     bookDirs = await booksDir.list()
-        .where((e) => e is Directory)
+        .where((e) -> e is Directory)
         .cast<Directory>()
         .toList()
     
@@ -868,9 +1014,42 @@ ASYNC METHOD deleteAllSummariesForBook(bookId: String):
 
 ---
 
+## 流式回调架构
+
+### 双层流式回调机制
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    流式回调架构                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  第一层：方法参数回调 (onContentUpdate)                      │
+│      ├─ 通过 generateSingleSummary() 参数传入               │
+│      ├─ 适用于单个调用者的实时更新                          │
+│      └─ 生命周期：单次方法调用                              │
+│                                                             │
+│  第二层：注册式回调 (registerStreamingCallback)             │
+│      ├─ 通过 registerStreamingCallback() 注册              │
+│      ├─ 适用于多个监听者的广播机制                          │
+│      └─ 生命周期：需要手动 unregister                       │
+│                                                             │
+│  工作流程:                                                   │
+│      1. UI 注册回调 registerStreamingCallback()             │
+│      2. 调用 generateSingleSummary()                        │
+│      3. 流式接收 AI 内容                                    │
+│      4. 触发回调 onContentUpdate(accumulatedContent)        │
+│      5. 广播内容 _notifyStreamingContent()                  │
+│      6. UI 更新状态 setState(() => _streamingSummary)        │
+│      7. 生成完成，UI 清理回调 unregisterStreamingCallback() │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 并发控制机制
 
-### 双层并发控制
+### 三层并发控制
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -878,7 +1057,7 @@ ASYNC METHOD deleteAllSummariesForBook(bookId: String):
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  第一层：章节级并发控制                                       │
-│      ├─ _generatingKeys: Set<String>                        │
+│      ├─ _generatingKeys: Set<String>                       │
 │      ├─ _generatingFutures: Map<String, Future<void>>       │
 │      ├─ 防止同一章节被重复生成                               │
 │      └─ 允许其他调用者等待完成                               │
@@ -888,11 +1067,17 @@ ASYNC METHOD deleteAllSummariesForBook(bookId: String):
 │      ├─ 限制同时进行的AI请求总数                             │
 │      └─ 防止API限流和性能问题                                │
 │                                                             │
+│  第三层：任务级并发控制                                       │
+│      ├─ _processChapterConcurrently 中的局部 Semaphore       │
+│      ├─ 控制同时处理的章节数量                               │
+│      └─ 每个书籍生成任务独立管理                              │
+│                                                             │
 │  工作流程:                                                   │
 │      1. 检查 _generatingKeys（章节级）                       │
-│      2. 获取 _concurrentRequestSemaphore（AI级）            │
-│      3. 执行生成任务                                         │
-│      4. 释放资源                                             │
+│      2. 获取 _concurrentRequestSemaphore（AI级）              │
+│      3. 执行流式生成任务                                     │
+│      4. 实时触发回调                                         │
+│      5. 释放资源                                             │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -906,18 +1091,18 @@ ASYNC METHOD deleteAllSummariesForBook(bookId: String):
 │                                                             │
 │  初始状态: _availablePermits = 3                            │
 │                                                             │
-│  任务1 acquire() → _availablePermits = 2                    │
-│  任务2 acquire() → _availablePermits = 1                    │
-│  任务3 acquire() → _availablePermits = 0                    │
+│  任务1 acquire() → _availablePermits = 2                   │
+│  任务2 acquire() → _availablePermits = 1                   │
+│  任务3 acquire() → _availablePermits = 0                   │
 │                                                             │
-│  任务4 acquire() → 无许可，加入等待队列                      │
-│  任务5 acquire() → 无许可，加入等待队列                      │
+│  任务4 acquire() → 无许可，加入等待队列                     │
+│  任务5 acquire() → 无许可，加入等待队列                     │
 │                                                             │
-│  任务1 release() → 唤醒任务4                                │
-│  任务2 release() → 唤醒任务5                                │
+│  任务1 release() → 唤醒任务4                               │
+│  任务2 release() → 唤醒任务5                               │
 │  任务3 release() → _availablePermits = 1                    │
 │                                                             │
-│  结果: 最多3个任务同时执行                                   │
+│  结果: 最多3个任务同时执行                                  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -946,8 +1131,9 @@ CATCH e, stackTrace:
 ### 空摘要处理
 
 ```pseudocode
-IF summary == null OR summary.isEmpty:
+IF accumulatedContent.isEmpty:
     _log.w('SummaryService', 'AI返回空摘要: {key}')
+    completer.completeError('Empty summary')
     RETURN false
 ```
 
@@ -1011,26 +1197,12 @@ sampleLength = min(content.length, 500)
 
 ---
 
-## 测试支持
+## 版本历史
 
-```pseudocode
-// 测试用例示例
-TEST SummaryService:
-    // 测试并发控制
-    result1 = await generateSingleSummary(bookId, 0, title, content)
-    result2 = await generateSingleSummary(bookId, 0, title, content)
-    ASSERT result2 == false  // 第二次应被拒绝
-    
-    // 测试摘要保存
-    summary = await getSummary(bookId, 0)
-    ASSERT summary != null
-    ASSERT summary.objectiveSummary.isNotEmpty
-    
-    // 测试全书摘要
-    bookSummary = await getBookSummary(bookId)
-    ASSERT bookSummary != null
-    
-    // 测试标题提取
-    title = extractTitleFromSummary('## 章节标题：测试标题\n\n内容...')
-    ASSERT title == '测试标题'
-```
+- **2026-04-24**: 添加流式显示功能
+  - 新增流式回调注册/取消方法
+  - 新增 `_notifyStreamingContent` 和 `_notifyBookStreamingContent`
+  - 更新 `generateSingleSummary` 支持流式生成
+  - 更新 `_generateBookSummaryFromPreface` 支持流式生成
+  - 更新 `_generateBookSummaryFromChapters` 支持流式生成
+  - 更新 `removeTitleLineFromSummary` 支持更多标题格式

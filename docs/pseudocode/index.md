@@ -355,22 +355,32 @@ EpubParser/PdfParser.parseFile()
     ↓
 SummaryService.generateSummariesForBook()
     ↓
-┌─────────────────────────────┐
-│ EPUB 格式                    │
-│ 1. 从前言生成全书摘要        │
-│ 2. 生成章节摘要              │
-└─────────────────────────────┘
-┌─────────────────────────────┐
-│ PDF 格式                     │
-│ 1. 生成章节摘要              │
-│ 2. 从章节摘要生成全书摘要    │
-└─────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ EPUB 格式                                                │
+│ 1. 从前言生成全书摘要（流式）                           │
+│    └─ generateBookSummaryFromPrefaceStream()            │
+│       └─ 实时更新到 UI (registerBookStreamingCallback)  │
+│ 2. 生成章节摘要（流式）                                 │
+│    └─ generateSingleSummary()                           │
+│       └─ 实时更新到 UI (registerStreamingCallback)      │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ PDF 格式                                                 │
+│ 1. 生成章节摘要（流式）                                 │
+│    └─ generateSingleSummary()                           │
+│       └─ 实时更新到 UI (registerStreamingCallback)      │
+│ 2. 从章节摘要生成全书摘要（流式）                       │
+│    └─ generateBookSummaryStream()                       │
+│       └─ 实时更新到 UI (registerBookStreamingCallback)  │
+└─────────────────────────────────────────────────────────┘
     ↓
-AIService.generateXxxSummary()
+AIService.generateXxxSummaryStream()
     ↓
-调用 AI API
+调用 AI API (SSE 流式响应)
     ↓
-保存摘要到文件
+实时累积内容 → 触发流式回调 → UI 实时显示
+    ↓
+流结束 → 保存摘要到文件
     ↓
 用户阅读摘要
 ```
@@ -398,10 +408,16 @@ AIService.generateXxxSummary()
 ### 响应式编程
 - `ValueNotifier` 实现设置变更的实时响应
 - UI 自动重建以应用新设置
+- **流式回调机制**实现 AI 生成内容的实时更新
 
 ### 并发控制
 - `Semaphore` 控制并发 AI 请求数
 - 防止重复生成同一章节摘要
+
+### 观察者模式（流式回调）
+- **章节流式回调**: `registerStreamingCallback()` / `unregisterStreamingCallback()`
+- **全书流式回调**: `registerBookStreamingCallback()` / `unregisterBookStreamingCallback()`
+- UI 层注册回调，实时接收 AI 生成内容更新
 
 ---
 
@@ -502,9 +518,31 @@ Documents/zhidu/
 
 ## 版本信息
 
-- **文档生成时间**: 2026-04-22
-- **项目版本**: v1.0
+- **文档更新时间**: 2026-04-24
+- **项目版本**: v1.1
 - **Flutter 版本**: >= 3.0.0
+
+### 近期更新
+
+#### 2026-04-24: 流式显示功能
+- **新增**: 章节摘要流式生成
+  - `SummaryService.registerStreamingCallback()` - 注册章节流式回调
+  - `SummaryService.unregisterStreamingCallback()` - 取消章节流式回调
+  - `AIService.generateFullChapterSummaryStream()` - 流式生成章节摘要
+  
+- **新增**: 全书摘要流式生成
+  - `SummaryService.registerBookStreamingCallback()` - 注册全书流式回调
+  - `SummaryService.unregisterBookStreamingCallback()` - 取消全书流式回调
+  - `AIService.generateBookSummaryStream()` - 流式生成全书摘要
+  - `AIService.generateBookSummaryFromPrefaceStream()` - 基于前言的流式生成
+
+- **新增**: SSE 数据解析
+  - `AIService._callAIStream()` - 内部流式 API 调用方法
+  - 支持 Server-Sent Events 数据实时解析
+
+- **更新**: 标题移除逻辑
+  - `SummaryService.removeTitleLineFromSummary()` - 支持更多标题格式
+  - 新增对 `第X章：xxx`、`前言`、`序言` 等格式的识别
 
 ---
 

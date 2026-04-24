@@ -185,7 +185,11 @@ PUBLIC PROPERTY isConfigured -> Boolean:
 ### generateFullChapterSummary() - 生成章节摘要
 
 ```pseudocode
-ASYNC METHOD generateFullChapterSummary(content: String, chapterTitle: String? = null) -> String?:
+ASYNC METHOD generateFullChapterSummary(
+    content: String,
+    chapterTitle: String? = null,
+    bookId: String? = null
+) -> String?:
     // 记录详细日志
     _log.v('AIService', 
         'generateFullChapterSummary 开始，content length: {content.length}, chapterTitle: {chapterTitle}')
@@ -204,8 +208,12 @@ ASYNC METHOD generateFullChapterSummary(content: String, chapterTitle: String? =
     languageInstruction: String
     
     IF langSettings.aiLanguageMode == 'book':
-        // 从内容检测语言
-        detectedLanguage = _detectLanguageFromContent(content)
+        IF bookId != null:
+            // 优先从书籍元数据获取语言信息
+            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
+        ELSE:
+            // 从内容检测语言
+            detectedLanguage = _detectLanguageFromMetadataAndContent(content)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
         _log.d('AIService', 
             '检测到书籍语言为: {detectedLanguage}, 使用语言指令: {languageInstruction}')
@@ -267,6 +275,62 @@ ASYNC METHOD generateFullChapterSummary(content: String, chapterTitle: String? =
 
 ---
 
+### generateFullChapterSummaryStream() - 生成章节摘要（流式）
+
+```pseudocode
+STREAM METHOD generateFullChapterSummaryStream(
+    content: String,
+    chapterTitle: String? = null,
+    bookId: String? = null
+) -> Stream<String>:
+    // 记录详细日志
+    _log.v('AIService', 
+        'generateFullChapterSummaryStream 开始，content length: {content.length}, chapterTitle: {chapterTitle}')
+    
+    // 检查配置有效性
+    IF _config == null OR NOT _config.isValid:
+        _log.w('AIService', 'AI 配置未设置或 API Key 无效')
+        RETURN empty stream
+    
+    // 从 SettingsService 读取语言设置
+    langSettings = SettingsService().settings.languageSettings
+    
+    // 根据语言模式生成语言指令
+    languageInstruction: String
+    
+    IF langSettings.aiLanguageMode == 'book':
+        IF bookId != null:
+            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
+        ELSE:
+            detectedLanguage = _detectLanguageFromMetadataAndContent(content)
+        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
+    
+    ELSE:
+        languageInstruction = AiPrompts.getLanguageInstruction(
+            langSettings.aiLanguageMode,
+            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
+                           THEN langSettings.aiOutputLanguage 
+                           ELSE null
+        )
+    
+    // 构建提示词
+    prompt = AiPrompts.chapterSummary(
+        chapterTitle: chapterTitle,
+        content: content,
+        languageInstruction: languageInstruction
+    )
+    
+    TRY:
+        // 调用流式 AI API，逐个 yield 内容片段
+        AWAIT FOR chunk IN _callAIStream(prompt, systemMessage: languageInstruction):
+            YIELD chunk
+    
+    CATCH e:
+        _log.e('AIService', '生成章节摘要流失败', e)
+```
+
+---
+
 ### generateBookSummaryFromPreface() - 基于前言生成全书摘要
 
 ```pseudocode
@@ -274,7 +338,8 @@ ASYNC METHOD generateBookSummaryFromPreface(
     title: String, 
     author: String, 
     prefaceContent: String, 
-    totalChapters: int? = null
+    totalChapters: int? = null,
+    bookId: String? = null
 ) -> String?:
     // 记录详细日志
     _log.v('AIService', 
@@ -292,7 +357,10 @@ ASYNC METHOD generateBookSummaryFromPreface(
     languageInstruction: String
     
     IF langSettings.aiLanguageMode == 'book':
-        detectedLanguage = _detectLanguageFromContent(prefaceContent)
+        IF bookId != null:
+            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent)
+        ELSE:
+            detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
     
     ELSE:
@@ -322,6 +390,66 @@ ASYNC METHOD generateBookSummaryFromPreface(
 
 ---
 
+### generateBookSummaryFromPrefaceStream() - 基于前言生成全书摘要（流式）
+
+```pseudocode
+STREAM METHOD generateBookSummaryFromPrefaceStream(
+    title: String,
+    author: String,
+    prefaceContent: String,
+    totalChapters: int? = null,
+    bookId: String? = null
+) -> Stream<String>:
+    // 记录详细日志
+    _log.v('AIService', 
+        'generateBookSummaryFromPrefaceStream 开始，title: {title}, author: {author}')
+    
+    // 检查配置有效性
+    IF _config == null OR NOT _config.isValid:
+        _log.w('AIService', 'AI 服务未配置或 API Key 无效')
+        RETURN empty stream
+    
+    // 获取语言设置
+    langSettings = SettingsService().settings.languageSettings
+    
+    // 根据语言模式生成语言指令
+    languageInstruction: String
+    
+    IF langSettings.aiLanguageMode == 'book':
+        IF bookId != null:
+            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent)
+        ELSE:
+            detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent)
+        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
+    
+    ELSE:
+        languageInstruction = AiPrompts.getLanguageInstruction(
+            langSettings.aiLanguageMode,
+            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
+                           THEN langSettings.aiOutputLanguage 
+                           ELSE null
+        )
+    
+    // 构建提示词
+    prompt = AiPrompts.bookSummaryFromPreface(
+        title: title,
+        author: author,
+        prefaceContent: prefaceContent,
+        totalChapters: totalChapters,
+        languageInstruction: languageInstruction
+    )
+    
+    TRY:
+        // 调用流式 AI API
+        AWAIT FOR chunk IN _callAIStream(prompt, systemMessage: languageInstruction):
+            YIELD chunk
+    
+    CATCH e:
+        _log.e('AIService', '基于前言生成全书摘要流失败', e)
+```
+
+---
+
 ### generateBookSummary() - 基于章节摘要生成全书摘要
 
 ```pseudocode
@@ -329,7 +457,8 @@ ASYNC METHOD generateBookSummary(
     title: String, 
     author: String, 
     chapterSummaries: String, 
-    totalChapters: int? = null
+    totalChapters: int? = null,
+    bookId: String? = null
 ) -> String?:
     // 记录详细日志
     _log.v('AIService', 
@@ -347,7 +476,10 @@ ASYNC METHOD generateBookSummary(
     languageInstruction: String
     
     IF langSettings.aiLanguageMode == 'book':
-        detectedLanguage = _detectLanguageFromContent(chapterSummaries)
+        IF bookId != null:
+            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries)
+        ELSE:
+            detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
     
     ELSE:
@@ -373,6 +505,66 @@ ASYNC METHOD generateBookSummary(
     CATCH e:
         _log.e('AIService', '生成全书摘要失败', e)
         RETURN null
+```
+
+---
+
+### generateBookSummaryStream() - 基于章节摘要生成全书摘要（流式）
+
+```pseudocode
+STREAM METHOD generateBookSummaryStream(
+    title: String,
+    author: String,
+    chapterSummaries: String,
+    totalChapters: int? = null,
+    bookId: String? = null
+) -> Stream<String>:
+    // 记录详细日志
+    _log.v('AIService', 
+        'generateBookSummaryStream 开始，title: {title}, author: {author}')
+    
+    // 检查配置有效性
+    IF _config == null OR NOT _config.isValid:
+        _log.w('AIService', 'AI 服务未配置或 API Key 无效')
+        RETURN empty stream
+    
+    // 获取语言设置
+    langSettings = SettingsService().settings.languageSettings
+    
+    // 根据语言模式生成语言指令
+    languageInstruction: String
+    
+    IF langSettings.aiLanguageMode == 'book':
+        IF bookId != null:
+            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries)
+        ELSE:
+            detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries)
+        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
+    
+    ELSE:
+        languageInstruction = AiPrompts.getLanguageInstruction(
+            langSettings.aiLanguageMode,
+            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
+                           THEN langSettings.aiOutputLanguage 
+                           ELSE null
+        )
+    
+    // 构建提示词
+    prompt = AiPrompts.bookSummary(
+        title: title,
+        author: author,
+        chapterSummaries: chapterSummaries,
+        totalChapters: totalChapters,
+        languageInstruction: languageInstruction
+    )
+    
+    TRY:
+        // 调用流式 AI API
+        AWAIT FOR chunk IN _callAIStream(prompt, systemMessage: languageInstruction):
+            YIELD chunk
+    
+    CATCH e:
+        _log.e('AIService', '生成全书摘要流失败', e)
 ```
 
 ---
@@ -532,6 +724,137 @@ PRIVATE METHOD _getLanguageInstructionForLanguage(languageCode: String) -> Strin
 
 ---
 
+### _detectLanguageFromMetadataAndContentWithBookId() - 从书籍元数据和内容检测语言
+
+```pseudocode
+PRIVATE ASYNC METHOD _detectLanguageFromMetadataAndContentWithBookId(
+    bookId: String,
+    content: String
+) -> String:
+    // 从书籍元数据获取语言信息
+    book = BookService().getBookById(bookId)
+    
+    IF book != null AND book.language != null AND book.language.isNotEmpty:
+        _log.d('AIService', '从元数据获取到语言信息: {book.language}')
+        // 转换为标准语言代码
+        RETURN _convertLanguageCodeToStandard(book.language)
+    
+    // 元数据中没有，从内容中检测
+    _log.d('AIService', '元数据中没有语言信息，从内容中检测语言')
+    RETURN _detectLanguageFromMetadataAndContent(content)
+```
+
+---
+
+### _detectLanguageFromMetadataAndContent() - 从元数据和内容检测语言
+
+```pseudocode
+PRIVATE METHOD _detectLanguageFromMetadataAndContent(content: String) -> String:
+    IF content.isEmpty:
+        RETURN 'zh'
+    
+    // 计算不同语言的字符数量
+    chineseChars = 0
+    englishChars = 0
+    japaneseChars = 0
+    koreanChars = 0
+    punctuationChars = 0
+    
+    FOR each char IN content:
+        charCode = char.codeUnit
+        
+        // 检测中文字符 (CJK)
+        IF isChineseChar(charCode):
+            chineseChars++
+        
+        // 检测日文字符 (平假名、片假名)
+        ELSE IF isJapaneseChar(charCode):
+            japaneseChars++
+        
+        // 检测韩文字符
+        ELSE IF isKoreanChar(charCode):
+            koreanChars++
+        
+        // 检测英文字符
+        ELSE IF isEnglishChar(charCode):
+            englishChars++
+        
+        // 检测标点符号
+        ELSE IF isPunctuation(charCode):
+            punctuationChars++
+    
+    // 计算总有效字符数
+    totalChars = chineseChars + englishChars + japaneseChars + koreanChars
+    
+    IF totalChars == 0:
+        RETURN 'zh'
+    
+    // 计算比例
+    chineseRatio = chineseChars / totalChars
+    englishRatio = englishChars / totalChars
+    japaneseRatio = japaneseChars / totalChars
+    koreanRatio = koreanChars / totalChars
+    
+    // 中文优先判断（30%阈值）
+    IF chineseRatio >= 0.3:
+        RETURN 'zh'
+    
+    // 其他语言按比例判断
+    ELSE IF japaneseRatio > englishRatio AND japaneseRatio > koreanRatio:
+        RETURN 'ja'
+    
+    ELSE IF koreanRatio > englishRatio:
+        RETURN 'ko'
+    
+    ELSE IF englishRatio > chineseRatio AND 
+            englishRatio > japaneseRatio AND 
+            englishRatio > koreanRatio:
+        RETURN 'en'
+    
+    // 按数量判断
+    maxCount = 0
+    detectedLanguage = 'zh'
+    
+    IF chineseChars > maxCount:
+        maxCount = chineseChars
+        detectedLanguage = 'zh'
+    
+    IF englishChars > maxCount:
+        maxCount = englishChars
+        detectedLanguage = 'en'
+    
+    IF japaneseChars > maxCount:
+        maxCount = japaneseChars
+        detectedLanguage = 'ja'
+    
+    IF koreanChars > maxCount:
+        maxCount = koreanChars
+        detectedLanguage = 'ko'
+    
+    RETURN detectedLanguage
+```
+
+---
+
+### _convertLanguageCodeToStandard() - 转换语言代码为标准格式
+
+```pseudocode
+PRIVATE METHOD _convertLanguageCodeToStandard(languageCode: String) -> String:
+    // 处理带区域代码的语言代码
+    IF languageCode.contains('-'):
+        // 如 'zh-CN' -> 'zh', 'en-US' -> 'en'
+        RETURN languageCode.split('-')[0]
+    
+    ELSE IF languageCode.contains('_'):
+        // 如 'zh_CN' -> 'zh'
+        RETURN languageCode.split('_')[0]
+    
+    // 已经是标准格式
+    RETURN languageCode
+```
+
+---
+
 ### _callAI() - 调用 AI API
 
 ```pseudocode
@@ -580,6 +903,163 @@ PRIVATE ASYNC METHOD _callAI(prompt: String, systemMessage: String? = null) -> S
         _log.e('AIService', 
             'AI API调用失败：{response.statusCode} - {response.body}')
         RETURN null
+```
+
+---
+
+### _callAIStream() - 调用 AI API（流式）
+
+```pseudocode
+PRIVATE STREAM METHOD _callAIStream(prompt: String, systemMessage: String? = null) -> Stream<String>:
+    // 构建请求 URL
+    url = Uri.parse('{_config.baseUrl}/chat/completions')
+    
+    // 构建消息列表
+    messages = []
+    
+    // 如果有系统消息，添加为 system role
+    IF systemMessage != null AND systemMessage.isNotEmpty:
+        messages.add({'role': 'system', 'content': systemMessage})
+    
+    // 添加用户提示词
+    messages.add({'role': 'user', 'content': prompt})
+    
+    // 构建请求体（启用流式响应）
+    requestBody = jsonEncode({
+        'model': _config.model,
+        'messages': messages,
+        'temperature': 0.7,
+        'max_tokens': 1000,
+        'stream': true  // 启用流式响应
+    })
+    
+    // 使用 dart:io HttpClient 实现真正的流式请求
+    httpClient = HttpClient()
+    httpClient.connectionTimeout = Duration(seconds: 30)
+    
+    TRY:
+        // 创建请求
+        request = await httpClient.postUrl(url)
+        request.headers.set('Content-Type', 'application/json')
+        request.headers.set('Authorization', 'Bearer {_config.apiKey}')
+        request.headers.set('Accept', 'text/event-stream')
+        request.headers.set('Cache-Control', 'no-cache')
+        
+        // 写入请求体
+        request.add(utf8.encode(requestBody))
+        
+        // 获取响应流
+        response = await request.close()
+        
+        IF response.statusCode == 200:
+            // SSE 数据缓冲区
+            buffer = ''
+            insideDataEvent = false
+            currentDataContent = ''
+            
+            // 监听数据到达事件
+            AWAIT FOR chunk IN response.transform(utf8.decoder):
+                _log.d('AIService', '收到数据块，长度: {chunk.length}')
+                
+                buffer += chunk
+                
+                // 持续处理缓冲区
+                WHILE buffer.isNotEmpty:
+                    // 查找 "data: " 起始位置
+                    IF NOT insideDataEvent:
+                        dataIndex = buffer.indexOf('data: ')
+                        
+                        IF dataIndex == -1:
+                            // 未找到 data: ，清除缓冲区
+                            buffer = ''
+                            BREAK
+                        
+                        ELSE IF dataIndex > 0:
+                            // 去掉 data: 之前的内容
+                            buffer = buffer.substring(dataIndex)
+                            CONTINUE
+                        
+                        // 找到 data: ，开始收集数据
+                        insideDataEvent = true
+                        buffer = buffer.substring(6)  // 去掉 "data: " 前缀
+                        currentDataContent = ''
+                    
+                    // 查找行结束符
+                    lineEnd = buffer.indexOf('\n')
+                    
+                    IF lineEnd == -1:
+                        // 没有完整的行，需要等待更多数据
+                        currentDataContent += buffer
+                        buffer = ''
+                        BREAK
+                    
+                    // 提取完整行
+                    line = currentDataContent + buffer.substring(0, lineEnd).trim()
+                    buffer = buffer.substring(lineEnd + 1)
+                    
+                    // 检查是否是 [DONE] 标记
+                    IF line == '[DONE]':
+                        _log.d('AIService', '收到 [DONE]，流式响应结束')
+                        RETURN
+                    
+                    IF line.isEmpty:
+                        // 空行表示事件结束
+                        insideDataEvent = false
+                        CONTINUE
+                    
+                    // 解析 JSON
+                    TRY:
+                        jsonData = jsonDecode(line)
+                        content = jsonData['choices']?[0]?['delta']?['content']
+                        
+                        IF content != null AND content.isNotEmpty:
+                            _log.d('AIService', '解析到内容片段: "{content}"')
+                            YIELD content  // 流式返回内容片段
+                    
+                    CATCH e:
+                        _log.w('AIService', '解析SSE数据失败: {e}, line: {line}')
+            
+        ELSE:
+            _log.e('AIService', 'AI API 流式调用失败：{response.statusCode}')
+    
+    CATCH e:
+        _log.e('AIService', '流式请求异常', e)
+    
+    FINALLY:
+        httpClient.close()
+```
+
+**SSE 流式响应处理流程:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│               _callAIStream() 流式响应流程                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  发送请求 (stream: true)                                    │
+│      ↓                                                      │
+│  获取响应流 (response.transform(utf8.decoder))              │
+│      ↓                                                      │
+│  接收数据块 (chunk)                                         │
+│      ↓                                                      │
+│  累积到 buffer                                               │
+│      ↓                                                      │
+│  查找 "data: " 标记                                        │
+│      ↓                                                      │
+│  提取完整行 (以 \n 结束)                                    │
+│      ↓                                                      │
+│  检查是否是 [DONE]                                          │
+│      ├─ 是 → 流结束                                        │
+│      ↓ 否                                                   │
+│  解析 JSON                                                  │
+│      ↓                                                      │
+│  提取 content 字段                                          │
+│      ↓                                                      │
+│  YIELD 内容片段                                             │
+│      ↓                                                      │
+│  继续接收下一个数据块                                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **API 请求格式:**
@@ -687,6 +1167,29 @@ PUBLIC STATIC METHOD resetForTest():
     _instance._httpClient = null
 ```
 
+---
+
+## 流式与非流式方法对比
+
+| 非流式方法 | 流式方法 | 返回值类型 | 使用场景 |
+|-----------|---------|-----------|---------|
+| generateFullChapterSummary() | generateFullChapterSummaryStream() | String? / Stream<String> | 需要实时反馈时使用流式 |
+| generateBookSummary() | generateBookSummaryStream() | String? / Stream<String> | 需要实时反馈时使用流式 |
+| generateBookSummaryFromPreface() | generateBookSummaryFromPrefaceStream() | String? / Stream<String> | 需要实时反馈时使用流式 |
+
+**流式方法特点:**
+1. 使用 `Stream<String>` 返回类型
+2. 内部调用 `_callAIStream()` 而非 `_callAI()`
+3. 支持 SSE (Server-Sent Events) 数据解析
+4. 可以实时获取 AI 生成的内容片段
+5. UI 可以通过 `await for` 循环接收内容更新
+
+**SSE 数据格式:**
+```
+data: {"choices":[{"delta":{"content":"内容片段"},"index":0,"finish_reason":null}]}
+data: [DONE]
+```
+
 ### setMockClient() - 设置 Mock HTTP 客户端
 
 ```pseudocode
@@ -753,6 +1256,7 @@ AIService 不使用并发控制，原因:
 
 所有提供商使用 OpenAI 兼容的 `/chat/completions` 端点:
 
+**非流式请求:**
 ```
 POST {baseUrl}/chat/completions
 Headers:
@@ -761,3 +1265,28 @@ Headers:
 Body:
   model, messages, temperature, max_tokens
 ```
+
+**流式请求:**
+```
+POST {baseUrl}/chat/completions
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer {apiKey}
+  Accept: text/event-stream
+  Cache-Control: no-cache
+Body:
+  model, messages, temperature, max_tokens, stream: true
+```
+
+---
+
+## 版本历史
+
+- **2026-04-24**: 添加流式显示功能
+  - 新增流式方法：generateFullChapterSummaryStream()
+  - 新增流式方法：generateBookSummaryStream()
+  - 新增流式方法：generateBookSummaryFromPrefaceStream()
+  - 新增内部方法：_callAIStream() 支持 SSE 数据解析
+  - 新增语言检测方法：_detectLanguageFromMetadataAndContentWithBookId()
+  - 新增语言代码转换方法：_convertLanguageCodeToStandard()
+  - 所有生成方法支持 bookId 参数用于元数据语言检测
