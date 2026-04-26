@@ -23,9 +23,10 @@ SummaryScreen (StatefulWidget)
 │
 └── _SummaryScreenState (State)
     ├── Services: AIService, LogService, SummaryService, BookService
-    ├── State Variables: summary, content, title, flags
-    ├── PDF State: _pdfCurrentPage, _pdfTotalPages
-    └── Navigation: _chapters (filtered top-level)
+├── State Variables: summary, content, title, flags
+├── PDF State: _pdfCurrentPage, _pdfTotalPages
+├── Navigation: _chapters (filtered top-level)
+└── Controllers: _tabController
 ```
 
 ---
@@ -58,11 +59,12 @@ SummaryScreen (StatefulWidget)
 | `_isLoadingContent` | bool | Content loading state |
 | `_content` | String | Chapter HTML content |
 | `_title` | String | Dynamic chapter title |
-| `_showOriginalText` | bool | View mode toggle |
+// Removed `_showOriginalText` as it's now managed by tab controller
 | `_contentTooShort` | bool | Content length flag |
 | `_chapters` | List<Chapter> | Top-level chapters only |
 | `_pdfCurrentPage` | int | PDF current page |
 | `_pdfTotalPages` | int | PDF total pages |
+| `_tabController` | TabController? | Controller for vertical tab navigation |
 
 ---
 
@@ -79,6 +81,11 @@ PROCEDURE initState():
   // Initialize content then load summary
   _initializeContent().then():
     _loadSummary()
+  
+  // Initialize tab controller for vertical tab layout
+  _tabController = TabController(length: 2, vsync: this)
+  _tabController.addListener():
+    IF mounted: setState()
 END PROCEDURE
 ```
 
@@ -111,14 +118,10 @@ END PROCEDURE
 
 ```
 PROCEDURE _checkContentLength():
-  textContent = _extractTextContent(_content)
-  byteLength = utf8.encode(textContent).length
-  
-  _contentTooShort = byteLength < 2000
-  
+
   // Auto-switch to original view if content too short and no summary
   IF _contentTooShort AND _summary == null:
-    _showOriginalText = true
+    _tabController.animateTo(1)  // Switch to original text tab (index 1)
 END PROCEDURE
 ```
 
@@ -386,21 +389,19 @@ ELSE:
 ```
 Padding(16)
 └── Row
-    ├── Left Toggle Button
-    │   └── InkWell
-    │       └── Container(primary.withAlpha(30), borderRadius: 20)
-    │           └── Icon:
-    │               IF _showOriginalText: auto_awesome (switch to summary)
-    │               ELSE: menu_book (switch to original)
-    │
-    ├── SizedBox(width: 8)
-    │
-    └── Expanded Content
-        ├── IF _showOriginalText OR _summary == null:
-        │   _buildOriginalTextView()
-        │
-        └── ELSE:
-            _buildSummaryContent()
+    ├── Column (Vertical Tab Bar)
+    │   ├── _buildVerticalTab(0, Icons.auto_awesome)
+    │   ├── Container(height: 1, width: 60, color: grey.withAlpha(100)) (divider)
+    │   └── _buildVerticalTab(1, Icons.menu_book, disabled: if content too short)
+    └── Expanded: Container(selectedColor)
+        └── TabBarView(controller: _tabController)
+            ├── _buildSummaryContent() (tab 0 - summary view)
+            └── _buildOriginalTextView() (tab 1 - original text view)
+
+_buildVerticalTab(index, icon, {disabled = false}):
+    InkWell (if not disabled)
+        Container(width: 60, padding: vertical(12), color: selected/unselected)
+        └── Icon(icon, size: 24, color: selected/disabled/unselected)
 ```
 
 ### Summary Content Widget Tree
@@ -592,18 +593,18 @@ PdfPageView updates to new page
 
 ## Conditional Rendering Logic
 
-### View Mode Toggle
+### Vertical Tab Navigation
 
 ```
-_showOriginalText = false AND _summary != null:
+_tabController.index = 0 AND _summary != null:
     → Show summary content (Markdown rendered)
 
-_showOriginalText = true OR _summary == null:
+_tabController.index = 1 OR _summary == null:
     → Show original text (HTML or PDF)
 
-Toggle button disabled conditions:
-    ├── _contentTooShort AND _showOriginalText (content too short)
-    └── NOT _aiService.isConfigured AND _showOriginalText AND _summary == null
+Original text tab disabled conditions:
+    ├── _contentTooShort (content too short)
+    └── NOT _aiService.isConfigured AND _summary == null
 ```
 
 ### Generate Button Visibility
@@ -673,15 +674,15 @@ Transitions:
     └── Generation failure: false, _error set
 ```
 
-### View Mode State
+### Vertical Tab State
 
 ```
-_showOriginalText = false → Summary view
-_showOriginalText = true → Original text view
+_tabController.index = 0 → Summary view
+_tabController.index = 1 → Original text view
 
 Auto-switch conditions:
-    ├── _contentTooShort AND _summary == null → true
-    └── User toggle → flip value
+    ├── _contentTooShort AND _summary == null → animateTo(1) (switch to original text)
+    └── User tab selection → animateTo(target index)
 ```
 
 ---
@@ -809,4 +810,25 @@ newTitle = updatedBook.chapterTitles?[chapterIndex]
 setState(): _title = newTitle OR _title
     ↓
 AppBar shows updated title
+```
+
+---
+
+## Vertical Tab Controller Management
+
+```
+_initState():
+    ↓
+_tabController = TabController(length: 2, vsync: this)
+    ↓
+_tabController.addListener():
+    IF mounted: setState()
+
+dispose():
+    ↓
+_tabController?.dispose()
+    ↓
+_uiRefreshTimer?.cancel()
+    ↓
+super.dispose()
 ```

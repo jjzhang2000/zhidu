@@ -323,6 +323,12 @@ Documents/zhidu/
   - [x] 动态标题切换（生成中/完成状态）
   - [x] SSE数据流解析与处理
   - [x] UI实时更新机制
+- [x] **UI垂直Tab布局改进** - 提升用户界面的易用性和美观度
+  - [x] BookDetailScreen垂直Tab布局实现
+  - [x] SummaryScreen垂直Tab布局实现
+  - [x] TabController状态管理
+  - [x] 一致的视觉设计语言
+  - [x] 无障碍访问支持
 - [x] 多语言界面支持 - 已完成AI设置、主题设置、语言设置等界面的国际化
 - [ ] 复习卡片功能
 - [ ] 云同步备份

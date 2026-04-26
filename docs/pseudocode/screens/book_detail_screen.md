@@ -16,7 +16,8 @@ BookDetailScreen (StatefulWidget)
 └── _BookDetailScreenState (State)
     ├── Services: BookService, AIService, SummaryService, LogService
     ├── State: Book _book, List<Chapter> _flatChapters
-    ├── Flags: _isLoadingChapters, _showChapterStructure, _isPreGenerating
+    ├── Flags: _isLoadingChapters, _isPreGenerating
+├── Controllers: _tabController
     └── Timer: _refreshTimer (3-second interval)
 ```
 
@@ -33,8 +34,8 @@ BookDetailScreen (StatefulWidget)
 | `_book` | Book | Current book (may be refreshed) |
 | `_flatChapters` | List<Chapter> | Flattened chapter list |
 | `_isLoadingChapters` | bool | Chapter loading state |
-| `_showChapterStructure` | bool | View mode toggle (false=summary, true=chapters) |
 | `_isPreGenerating` | bool | Background generation flag |
+| `_tabController` | TabController? | Controller for vertical tab navigation |
 | `_refreshTimer` | Timer? | Periodic refresh timer (3s) |
 
 ---
@@ -54,6 +55,11 @@ PROCEDURE initState():
   // Start background summary pre-generation
   _startPreGeneration()
   
+  // Initialize tab controller for vertical tab layout
+  _tabController = TabController(length: 2, vsync: this)
+  _tabController.addListener():
+    IF mounted: setState()
+  
   // Start periodic refresh timer (checks for summary completion)
   _refreshTimer = Timer.periodic(3 seconds, _refreshBookIfNeeded)
 END PROCEDURE
@@ -63,6 +69,8 @@ END PROCEDURE
 
 ```
 PROCEDURE dispose():
+  // Release tab controller
+  _tabController?.dispose()
   // Cancel timer to prevent memory leak
   _refreshTimer?.cancel()
   super.dispose()
@@ -169,13 +177,7 @@ PROCEDURE _getChapterTitle(index, chapter):
 END PROCEDURE
 ```
 
-### `_toggleView()`
-
-```
-PROCEDURE _toggleView():
-  setState():
-    _showChapterStructure = NOT _showChapterStructure
-END PROCEDURE
+// Removed _toggleView() method as it's no longer used with vertical tab layout
 ```
 
 ---
@@ -229,23 +231,19 @@ ELSE:
 
 ```
 Row
-├── Padding(top: 14, right: 8)
-│   └── InkWell(onTap: _toggleView)
-│       └── Container(primary.withAlpha(30), borderRadius: 20)
-│           └── Icon: 
-│               IF _showChapterStructure: auto_awesome (switch to summary)
-│               ELSE: format_list_numbered (switch to chapters)
-│
-└── Expanded: Card
-    └── Column
-        ├── Padding(16): Row
-        │   ├── Icon: current mode icon
-        │   ├── SizedBox(width: 8)
-        │   └── Text: "目录" OR "内容介绍"
-        ├── Divider(height: 1)
-        └── Expanded: Padding(16)
-            ├── IF _showChapterStructure: _buildChapterStructureContent()
-            └── ELSE: _buildAIIntroductionContent()
+├── Column (Vertical Tab Bar)
+│   ├── _buildVerticalTab(0, Icons.auto_awesome)
+│   ├── Container(height: 1, width: 60, color: grey.withAlpha(100)) (divider)
+│   └── _buildVerticalTab(1, Icons.format_list_numbered)
+└── Expanded: Container(selectedColor)
+    └── TabBarView(controller: _tabController)
+        ├── _buildAIIntroductionContent() (tab 0 - summary view)
+        └── _buildChapterStructureContent() (tab 1 - chapter view)
+
+_buildVerticalTab(index, icon):
+    InkWell
+        Container(width: 60, padding: vertical(12), color: selected/unselected)
+        └── Icon(icon, size: 24, color: selected/unselected)
 ```
 
 ### AI Introduction Content Widget Tree

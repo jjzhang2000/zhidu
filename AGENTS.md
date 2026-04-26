@@ -394,3 +394,52 @@ final titlePattern = RegExp(
 - 智谱和通义千问均支持流式响应
 - 网络延迟可能影响流式体验（每字符约70-80ms）
 - 应用完全重启才能生效（Service单例在热重载时可能保持旧状态）
+
+---
+
+#### 2026-04-26: UI垂直Tab布局改进
+
+**功能描述**：
+将原有的切换按钮改为垂直Tab布局，提升用户界面的易用性和美观度。
+
+**核心实现**：
+
+**1. BookDetailScreen (`book_detail_screen.dart`)**
+- 引入 `TabController` 管理垂直Tab切换
+- 实现 `TickerViewStateMixin` 以支持Tab控制器动画
+- 创建 `_buildVerticalTab` 方法构建垂直Tab按钮
+- 将原先的左右布局改为左列垂直Tab + 右侧内容区域布局
+- 优化颜色层级：选中Tab使用主题色背景，未选中Tab使用灰色背景
+- 保持与右侧内容区域相同的背景色
+
+**2. SummaryScreen (`summary_screen.dart`)**
+- 引入 `TabController` 管理垂直Tab切换
+- 实现 `TickerViewStateMixin` 以支持Tab控制器动画
+- 创建 `_buildVerticalTab` 方法构建垂直Tab按钮
+- 将原先的左右布局改为左列垂直Tab + 右侧内容区域布局
+- 优化颜色层级：选中Tab使用主题色背景，未选中Tab使用灰色背景
+- 保持与右侧内容区域相同的背景色
+- 更新内容长度检查逻辑，内容过短时自动切换到原文视图
+
+**UI布局结构**：
+```
+Row
+├── Column (垂直Tab栏)
+│   ├── Summary Tab (auto_awesome icon)
+│   ├── Divider
+│   └── Chapters/Original Text Tab (format_list_numbered/menu_book icon)
+└── Expanded (TabBarView内容区)
+    ├── Summary Content
+    └── Chapter/Original Content
+```
+
+**用户体验优化**：
+- 更直观的Tab切换体验
+- 一致的视觉设计语言
+- 无障碍访问支持
+- 响应式布局适配不同屏幕尺寸
+
+**注意事项**：
+- Tab控制器需要在 `initState` 中初始化并在 `dispose` 中释放
+- 需要正确处理Tab切换事件和状态更新
+- 要考虑禁用状态下Tab的视觉表现
