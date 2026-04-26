@@ -427,29 +427,33 @@ class _BookCardState extends State<BookCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       /// 书籍标题，单行显示，超出省略
-                      Text(
-                        widget.book.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                      Flexible(  // 添加Flexible以确保在空间不足时可以收缩
+                        child: Text(
+                          widget.book.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-
+ 
                       /// 作者名称，单行显示，超出省略
-                      Text(
-                        widget.book.author,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey[600],
+                      Flexible(  // 添加Flexible以允许收缩
+                        child: Text(
+                          widget.book.author,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       const Spacer(),
-
+ 
                       /// 阅读进度条，仅当有进度时显示
                       if (widget.book.readingProgress > 0)
                         LinearProgressIndicator(
