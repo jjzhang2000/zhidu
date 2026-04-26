@@ -378,15 +378,28 @@ void dispose() {
     final coverSize = 100.0;
 
     if (_book.coverPath != null && File(_book.coverPath!).existsSync()) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.file(
-          File(_book.coverPath!),
-          width: coverSize,
-          height: coverSize * 1.5,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              _buildDefaultCover(coverSize),
+      return Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.3),
+              spreadRadius: 2,
+              blurRadius: 5,
+              offset: const Offset(0, 3), // 阴影偏移
+            ),
+          ],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            File(_book.coverPath!),
+            width: coverSize,
+            height: coverSize * 1.5,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                _buildDefaultCover(coverSize),
+          ),
         ),
       );
     }
@@ -401,6 +414,14 @@ void dispose() {
       decoration: BoxDecoration(
         color: Colors.blueGrey[100],
         borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.3),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3), // 阴影偏移
+          ),
+        ],
       ),
       child: Center(
         child: Icon(
