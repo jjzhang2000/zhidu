@@ -559,7 +559,7 @@ class SummaryService {
         return true;
       } else {
         _log.w('SummaryService', 'AI返回空摘要: $key');
-        completer.completeError('Empty summary');
+        completer.complete(); // 空摘要时不视为错误
         return false;
       }
     } catch (e, stackTrace) {
@@ -694,7 +694,7 @@ class SummaryService {
         return true;
       } else {
         _log.w('SummaryService', 'AI返回空摘要: $key');
-        completer.completeError('Empty summary');
+        completer.complete(); // 空摘要时不视为错误
         return false;
       }
     } catch (e, stackTrace) {
