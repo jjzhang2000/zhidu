@@ -694,9 +694,9 @@ void _checkContentLength() {
 
     // 生成中时，显示流式内容（如果已有内容）或加载视图
     if (_isGenerating) {
-      // 如果已经有流式内容，显示流式视图
+      // 如果已经有流式内容，但仍需要显示Tab布局
       if (_streamingSummary.isNotEmpty) {
-        return _buildSummaryContent();
+        return _buildSummaryView(); // 使用Tab布局，内容由Tab控制器决定
       }
       // 否则显示加载动画
       return _buildGeneratingView();
