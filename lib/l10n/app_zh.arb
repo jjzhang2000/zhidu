@@ -101,6 +101,7 @@
   "zhipuProvider": "智谱",
   "qwenProvider": "通义千问",
   "ollamaProvider": "Ollama（本地）",
+  "lmstudioProvider": "LM Studio（本地）",
   "chineseLanguage": "简体中文",
   "englishLanguage": "English",
   "japaneseLanguage": "日本語",

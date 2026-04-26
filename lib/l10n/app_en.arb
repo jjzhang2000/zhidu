@@ -60,6 +60,7 @@
   "zhipuProvider": "Zhipu",
   "qwenProvider": "Qwen",
   "ollamaProvider": "Ollama (Local)",
+  "lmstudioProvider": "LM Studio (Local)",
   "chineseLanguage": "Simplified Chinese",
   "englishLanguage": "English",
   "japaneseLanguage": "Japanese",

@@ -60,6 +60,7 @@
   "zhipuProvider": "智譜",
   "qwenProvider": "通義千問",
   "ollamaProvider": "Ollama（ローカル）",
+  "lmstudioProvider": "LM Studio（ローカル）",
   "chineseLanguage": "簡体中国語",
   "englishLanguage": "英語",
   "japaneseLanguage": "日本語",

@@ -49,6 +49,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     MapEntry('zhipu', '智谱'),
     MapEntry('qwen', '通义千问'),
     MapEntry('ollama', 'Ollama（本地）'),
+    MapEntry('lmstudio', 'LM Studio（本地）'),
   ];
 
   /// 获取国际化提供商选项
@@ -57,6 +58,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       MapEntry('zhipu', localizations.zhipuProvider),
       MapEntry('qwen', localizations.qwenProvider),
       MapEntry('ollama', localizations.ollamaProvider),
+      MapEntry('lmstudio', localizations.lmstudioProvider),
     ];
   }
 
@@ -76,6 +78,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   static const _modelsByProvider = {
     'zhipu': ['glm-4-flash', 'glm-4', 'glm-4-plus'],
     'qwen': ['qwen-turbo', 'qwen-plus', 'qwen-max'],
+    'lmstudio': ['local-model', 'Llama-3.2-3B-Instruct', 'phi3', 'gemma2'],
   };
 
   /// 默认Base URL映射
@@ -83,6 +86,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     'zhipu': 'https://open.bigmodel.cn/api/paas/v4',
     'qwen': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     'ollama': 'http://localhost:11434/v1',
+    'lmstudio': 'http://localhost:1234/v1',
   };
 
   /// 当前选中的提供商

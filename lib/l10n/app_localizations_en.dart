@@ -196,6 +196,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ollamaProvider => 'Ollama (Local)';
 
   @override
+  String get lmstudioProvider => 'LM Studio (Local)';
+
+  @override
   String get chineseLanguage => 'Simplified Chinese';
 
   @override

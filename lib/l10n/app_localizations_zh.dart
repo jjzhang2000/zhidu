@@ -196,6 +196,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ollamaProvider => 'Ollama（本地）';
 
   @override
+  String get lmstudioProvider => 'LM Studio（本地）';
+
+  @override
   String get chineseLanguage => '简体中文';
 
   @override

@@ -451,6 +451,12 @@ abstract class AppLocalizations {
   /// **'Ollama (Local)'**
   String get ollamaProvider;
 
+  /// No description provided for @lmstudioProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'LM Studio (Local)'**
+  String get lmstudioProvider;
+
   /// No description provided for @chineseLanguage.
   ///
   /// In en, this message translates to:

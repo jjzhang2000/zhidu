@@ -42,7 +42,7 @@ import '../models/app_settings.dart';
 /// - AIService初始化时使用
 class AIConfig {
   /// AI服务提供商标识
-  /// 有效值：'zhipu'（智谱）或 'qwen'（通义千问）
+  /// 有效值：'zhipu'（智谱）、'qwen'（通义千问）、'ollama'（本地Ollama）、'lmstudio'（本地LM Studio）
   final String provider;
 
   /// API密钥
