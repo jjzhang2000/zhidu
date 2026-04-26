@@ -60,7 +60,8 @@ class SummaryScreen extends StatefulWidget {
   State<SummaryScreen> createState() => _SummaryScreenState();
 }
 
-class _SummaryScreenState extends State<SummaryScreen> {
+class _SummaryScreenState extends State<SummaryScreen>
+    with TickerProviderStateMixin {
   /// AI服务（用于检查配置状态）
   final _aiService = AIService();
 
@@ -88,11 +89,11 @@ class _SummaryScreenState extends State<SummaryScreen> {
   /// 章节内容（HTML格式）
   String _content = '';
 
-  /// 章节标题（动态更新，可能被AI生成的标题覆盖）
-  String _title = '';
+/// 章节标题（动态更新，可能被AI生成的标题覆盖）
+String _title = '';
 
-  /// 是否显示原文视图（false: 显示摘要，true: 显示原文）
-  bool _showOriginalText = false;
+/// Tab控制器（用于垂直Tab布局）
+TabController? _tabController;
 
   /// 内容是否过短（少于2000字节）
   /// 内容过短时，默认显示原文视图，且摘要按钮禁用
@@ -124,18 +125,25 @@ class _SummaryScreenState extends State<SummaryScreen> {
       _chapters = widget.chapters!.where((c) => c.level == 0).toList();
     }
 
-    // 初始化流程：先加载内容，再加载摘要
-    // 使用then链式调用确保顺序执行
-    _initializeContent().then((_) {
-      _loadSummary();
-    });
+// 初始化流程：先加载内容，再加载摘要
+// 使用then链式调用确保顺序执行
+_initializeContent().then((_) {
+  _loadSummary();
+});
+
+// 初始化Tab控制器
+_tabController = TabController(length: 2, vsync: this);
+_tabController!.addListener(() {
+  if (mounted) setState(() {});
+});
   }
 
-  @override
-  void dispose() {
-    _uiRefreshTimer?.cancel();  // 清理UI刷新定时器
-    super.dispose();
-  }
+@override
+void dispose() {
+  _tabController?.dispose(); // 释放Tab控制器
+  _uiRefreshTimer?.cancel(); // 清理UI刷新定时器
+  super.dispose();
+}
 
   /// 初始化章节内容
   ///
@@ -171,21 +179,21 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
   }
 
-  /// 检查内容长度
-  ///
-  /// 内容少于2000字节时：
-  /// 1. 标记为过短，禁用摘要生成按钮
-  /// 2. 如果没有摘要，自动显示原文视图
-  void _checkContentLength() {
-    final textContent = _extractTextContent(_content);
-    final byteLength = utf8.encode(textContent).length;
-    _contentTooShort = byteLength < 2000;
+/// 检查内容长度
+///
+/// 内容少于2000字节时：
+/// 1. 标记为过短，禁用摘要生成按钮
+/// 2. 如果没有摘要，自动切换到原文视图（Tab 1）
+void _checkContentLength() {
+  final textContent = _extractTextContent(_content);
+  final byteLength = utf8.encode(textContent).length;
+  _contentTooShort = byteLength < 2000;
 
-    // 内容过短且没有摘要时，默认显示原文
-    if (_contentTooShort && _summary == null) {
-      _showOriginalText = true;
-    }
+  // 内容过短且没有摘要时，默认切换到原文视图
+  if (_contentTooShort && _summary == null) {
+    _tabController?.animateTo(1);
   }
+}
 
   /// 从文件加载章节内容
   ///
@@ -764,75 +772,82 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
-  /// 构建摘要/原文视图
-  ///
-  /// 布局说明：
-  /// - 左侧：切换按钮（摘要/原文切换）
-  /// - 右侧：内容区域（根据_showOriginalText显示摘要或原文）
-  ///
-  /// PDF原文阅读功能：
-  /// - PDF格式的书籍在原文模式下使用PdfDocumentViewBuilder
-  /// - 支持单页PDF查看，配合翻页按钮
-  Widget _buildSummaryView() {
-    // 判断是否为PDF格式
-    final bool isPdf =
-        widget.book != null && widget.book!.format == BookFormat.pdf;
+/// 构建摘要/原文视图（垂直Tab布局）
+///
+/// 布局说明：
+/// - 左侧：垂直Tab栏（摘要/原文切换）
+/// - 右侧：TabBarView内容区
+///
+/// PDF原文阅读功能：
+/// - PDF格式的书籍在原文模式下使用PdfDocumentViewBuilder
+/// - 支持单页PDF查看，配合翻页按钮
+Widget _buildSummaryView() {
+  // 原文视图禁用条件：
+  // 1. 内容过短
+  // 2. AI未配置且没有摘要
+  final bool originalViewDisabled =
+      _contentTooShort || (!_aiService.isConfigured && _summary == null);
 
-    // 切换按钮禁用条件：
-    // 1. 内容过短且正在显示原文
-    // 2. AI未配置且正在显示原文且没有摘要
-    final bool aiButtonDisabled = (_contentTooShort && _showOriginalText) ||
-        (!_aiService.isConfigured && _showOriginalText && _summary == null);
+  // 三层颜色区分（加大色差）
+  final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
+  final unselectedColor = Colors.grey.withAlpha(80);
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 左侧切换按钮
-          Padding(
-            padding: const EdgeInsets.only(left: 8, top: 14),
-            child: InkWell(
-              onTap: aiButtonDisabled
-                  ? null
-                  : () {
-                      setState(() {
-                        _showOriginalText = !_showOriginalText;
-                      });
-                    },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: aiButtonDisabled
-                      ? Colors.grey.withAlpha(30)
-                      : Theme.of(context).colorScheme.primary.withAlpha(30),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  // 图标说明：
-                  // - 星星图标：当前显示原文，点击切换到摘要
-                  // - 书本图标：当前显示摘要，点击切换到原文
-                  _showOriginalText ? Icons.auto_awesome : Icons.menu_book,
-                  size: 20,
-                  color: aiButtonDisabled
-                      ? Colors.grey
-                      : Theme.of(context).colorScheme.primary,
-                ),
-              ),
+  return Padding(
+    padding: const EdgeInsets.all(16),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 左侧垂直Tab栏（无整体背景，每个Tab独立背景色）
+        Column(
+          children: [
+            _buildVerticalTab(0, Icons.auto_awesome, selectedColor: selectedColor, unselectedColor: unselectedColor),
+            Container(height: 1, width: 60, color: Colors.grey.withAlpha(100)),
+            _buildVerticalTab(1, Icons.menu_book, selectedColor: selectedColor, unselectedColor: unselectedColor, disabled: originalViewDisabled),
+          ],
+        ),
+        // 右侧Tab内容区（与选中Tab同色）
+        Expanded(
+          child: Container(
+            color: selectedColor,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildSummaryContent(),
+                _buildOriginalTextView(),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          // 右侧内容区域
-          Expanded(
-            child: _showOriginalText || _summary == null
-                ? _buildOriginalTextView()
-                : _buildSummaryContent(),
-          ),
-        ],
+        ),
+      ],
+    ),
+  );
+}
+
+/// 构建垂直Tab按钮（仅图标）
+///
+/// 颜色层级：
+/// - 未选中：灰色背景（与页面有明显区分）
+/// - 选中：主题色背景（与右侧内容框同色）
+Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor, required Color unselectedColor, bool disabled = false}) {
+  final isSelected = _tabController?.index == index;
+  return InkWell(
+    onTap: disabled ? null : () => _tabController?.animateTo(index),
+    child: Container(
+      width: 60,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      color: isSelected ? selectedColor : unselectedColor,
+      child: Icon(
+        icon,
+        size: 24,
+        color: disabled
+            ? Colors.grey.withAlpha(100)
+            : isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey,
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// 构建摘要内容视图
   ///
@@ -854,199 +869,195 @@ class _SummaryScreenState extends State<SummaryScreen> {
     return _buildEmptySummaryView();
   }
 
-  /// 流式摘要视图
-  ///
-  /// 显示AI正在生成摘要的过程，实时展示AI生成的内容
-  Widget _buildStreamingSummaryView() {
-    final htmlContent = md.markdownToHtml(_streamingSummary);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: constraints.maxHeight,
-            ),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+/// 流式摘要视图
+///
+/// 显示AI正在生成摘要的过程，实时展示AI生成的内容
+Widget _buildStreamingSummaryView() {
+  final htmlContent = md.markdownToHtml(_streamingSummary);
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      return SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: constraints.maxHeight,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.auto_awesome,
-                            color: Colors.blue, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'AI正在生成摘要...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Html(
-                      data: htmlContent,
-                      style: {
-                        'body': Style(
-                          fontSize: FontSize(14),
-                          lineHeight: const LineHeight(1.6),
-                          margin: Margins.zero,
-                          padding: HtmlPaddings.zero,
-                        ),
-                        'h2': Style(
-                          fontSize: FontSize(15),
-                          fontWeight: FontWeight.bold,
-                          margin: Margins.only(bottom: 8, top: 16),
-                        ),
-                        'h3': Style(
-                          fontSize: FontSize(14),
-                          fontWeight: FontWeight.bold,
-                          margin: Margins.only(bottom: 6, top: 12),
-                        ),
-                        'p': Style(
-                          fontSize: FontSize(14),
-                          lineHeight: const LineHeight(1.6),
-                          margin: Margins.only(bottom: 8),
-                        ),
-                        'ul': Style(
-                          margin: Margins.only(bottom: 8),
-                        ),
-                        'li': Style(
-                          fontSize: FontSize(14),
-                          lineHeight: const LineHeight(1.5),
-                        ),
-                        'strong': Style(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // 显示"正在打字"动画效果
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
+                    const Icon(Icons.auto_awesome,
+                        color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI正在生成摘要...',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
                     ),
                   ],
                 ),
-              ),
+                const Divider(height: 24),
+                Html(
+                  data: htmlContent,
+                  style: {
+                    'body': Style(
+                      fontSize: FontSize(14),
+                      lineHeight: const LineHeight(1.6),
+                      margin: Margins.zero,
+                      padding: HtmlPaddings.zero,
+                    ),
+                    'h2': Style(
+                      fontSize: FontSize(15),
+                      fontWeight: FontWeight.bold,
+                      margin: Margins.only(bottom: 8, top: 16),
+                    ),
+                    'h3': Style(
+                      fontSize: FontSize(14),
+                      fontWeight: FontWeight.bold,
+                      margin: Margins.only(bottom: 6, top: 12),
+                    ),
+                    'p': Style(
+                      fontSize: FontSize(14),
+                      lineHeight: const LineHeight(1.6),
+                      margin: Margins.only(bottom: 8),
+                    ),
+                    'ul': Style(
+                      margin: Margins.only(bottom: 8),
+                    ),
+                    'li': Style(
+                      fontSize: FontSize(14),
+                      lineHeight: const LineHeight(1.5),
+                    ),
+                    'strong': Style(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  },
+                ),
+                const SizedBox(height: 16),
+                // 显示"正在打字"动画效果
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
-  /// 正常摘要视图
-  ///
-  /// 显示已生成的完整摘要内容
-  Widget _buildNormalSummaryView(String htmlContent) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: constraints.maxHeight,
-            ),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+/// 正常摘要视图
+///
+/// 显示已生成的完整摘要内容
+Widget _buildNormalSummaryView(String htmlContent) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      return SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: constraints.maxHeight,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.auto_awesome,
-                            color: Colors.blue, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _title,  // 使用当前标题，与AppBar一致
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Html(
-                      data: htmlContent,
-                      style: {
-                        'body': Style(
-                          fontSize: FontSize(14),
-                          lineHeight: const LineHeight(1.6),
-                          margin: Margins.zero,
-                          padding: HtmlPaddings.zero,
-                        ),
-                        'h2': Style(
-                          fontSize: FontSize(15),
+                    const Icon(Icons.auto_awesome,
+                        color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _title, // 使用当前标题，与AppBar一致
+                        style: TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          margin: Margins.only(bottom: 8, top: 16),
+                          color: Colors.blue,
                         ),
-                        'h3': Style(
-                          fontSize: FontSize(14),
-                          fontWeight: FontWeight.bold,
-                          margin: Margins.only(bottom: 6, top: 12),
-                        ),
-                        'p': Style(
-                          fontSize: FontSize(14),
-                          lineHeight: const LineHeight(1.6),
-                          margin: Margins.only(bottom: 8),
-                        ),
-                        'ul': Style(
-                          margin: Margins.only(bottom: 8),
-                        ),
-                        'li': Style(
-                          fontSize: FontSize(14),
-                          lineHeight: const LineHeight(1.5),
-                        ),
-                        'strong': Style(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      },
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
-              ),
+                const Divider(height: 24),
+                Html(
+                  data: htmlContent,
+                  style: {
+                    'body': Style(
+                      fontSize: FontSize(14),
+                      lineHeight: const LineHeight(1.6),
+                      margin: Margins.zero,
+                      padding: HtmlPaddings.zero,
+                    ),
+                    'h2': Style(
+                      fontSize: FontSize(15),
+                      fontWeight: FontWeight.bold,
+                      margin: Margins.only(bottom: 8, top: 16),
+                    ),
+                    'h3': Style(
+                      fontSize: FontSize(14),
+                      fontWeight: FontWeight.bold,
+                      margin: Margins.only(bottom: 6, top: 12),
+                    ),
+                    'p': Style(
+                      fontSize: FontSize(14),
+                      lineHeight: const LineHeight(1.6),
+                      margin: Margins.only(bottom: 8),
+                    ),
+                    'ul': Style(
+                      margin: Margins.only(bottom: 8),
+                    ),
+                    'li': Style(
+                      fontSize: FontSize(14),
+                      lineHeight: const LineHeight(1.5),
+                    ),
+                    'strong': Style(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  },
+                ),
+              ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   /// 空摘要视图
   ///
@@ -1086,44 +1097,34 @@ class _SummaryScreenState extends State<SummaryScreen> {
         _pdfCurrentPage = startPage;
       }
 
-      // 使用pdfrx库的PdfDocumentViewBuilder加载PDF
-      return PdfDocumentViewBuilder.file(
-        widget.filePath!,
-        builder: (context, document) {
-          if (document == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          _pdfTotalPages = document.pages.length;
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              color: Colors.grey.withAlpha(30),
-              child: PdfPageView(
-                document: document,
-                // 页码限制在有效范围内
-                pageNumber: _pdfCurrentPage.clamp(1, _pdfTotalPages),
-              ),
-            ),
-          );
-        },
-      );
-    }
+// 使用pdfrx库的PdfDocumentViewBuilder加载PDF
+    return PdfDocumentViewBuilder.file(
+      widget.filePath!,
+      builder: (context, document) {
+        if (document == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        _pdfTotalPages = document.pages.length;
+        return PdfPageView(
+          document: document,
+          // 页码限制在有效范围内
+          pageNumber: _pdfCurrentPage.clamp(1, _pdfTotalPages),
+        );
+      },
+    );
+  }
 
-    // EPUB/其他格式：显示HTML内容
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: constraints.maxHeight,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.withAlpha(30),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Html(
+// EPUB/其他格式：显示HTML内容（背景由父Container提供）
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      return SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: constraints.maxHeight,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Html(
                 data: _content,
                 style: {
                   'body': Style(
@@ -1214,9 +1215,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final isFirst = widget.chapterIndex <= 0;
     final isLast = widget.chapterIndex >= _chapters.length - 1;
 
-    // 判断是否为PDF原文模式
-    final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
-    final isPdfOriginalView = isPdf && _showOriginalText;
+// 判断是否为PDF原文模式
+final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
+final isPdfOriginalView = isPdf && (_tabController?.index == 1);
 
     // 计算PDF页码翻页范围（仅PDF原文阅读时有效）
     final currentChapter =

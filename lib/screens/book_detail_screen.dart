@@ -45,7 +45,8 @@ class BookDetailScreen extends StatefulWidget {
   State<BookDetailScreen> createState() => _BookDetailScreenState();
 }
 
-class _BookDetailScreenState extends State<BookDetailScreen> {
+class _BookDetailScreenState extends State<BookDetailScreen>
+    with TickerProviderStateMixin {
   /// 书籍管理服务（单例）
   final _bookService = BookService();
 
@@ -72,8 +73,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   /// 是否正在加载章节列表
   bool _isLoadingChapters = false;
 
-  /// 当前视图模式：false=全书摘要，true=章节目录
-  bool _showChapterStructure = false;
+/// Tab控制器（用于垂直Tab布局）
+TabController? _tabController;
 
   /// 是否正在后台预生成摘要
   ///
@@ -109,8 +110,14 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       }
     });
 
-    // 启动后台预生成摘要任务
-    _startPreGeneration();
+// 启动后台预生成摘要任务
+_startPreGeneration();
+
+// 初始化Tab控制器
+_tabController = TabController(length: 2, vsync: this);
+_tabController!.addListener(() {
+  if (mounted) setState(() {});
+});
 
     // 启动定时刷新机制
     // 目的：检测全书摘要是否生成完成，及时更新UI
@@ -119,14 +126,16 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    // 清理定时器，防止内存泄漏
-    _refreshTimer?.cancel();
-    // 取消全书摘要流式回调
-    _summaryService.unregisterBookStreamingCallback(_book.id);
-    super.dispose();
-  }
+@override
+void dispose() {
+  // 释放Tab控制器
+  _tabController?.dispose();
+  // 清理定时器，防止内存泄漏
+  _refreshTimer?.cancel();
+  // 取消全书摘要流式回调
+  _summaryService.unregisterBookStreamingCallback(_book.id);
+  super.dispose();
+}
 
   /// 加载书籍章节列表
   ///
@@ -279,14 +288,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     return chapter.title;
   }
 
-  /// 切换视图模式
-  ///
-  /// 在"全书摘要"和"章节目录"之间切换。
-  void _toggleView() {
-    setState(() {
-      _showChapterStructure = !_showChapterStructure;
-    });
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -373,15 +375,15 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   /// 1. 如果[_book.coverPath]存在且文件有效，显示实际封面
   /// 2. 否则显示默认封面图标
   Widget _buildCover() {
-    final coverSize = 120.0;
+    final coverSize = 100.0;
 
     if (_book.coverPath != null && File(_book.coverPath!).existsSync()) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.file(
           File(_book.coverPath!),
-          width: coverSize * 0.7,
-          height: coverSize,
+          width: coverSize,
+          height: coverSize * 1.5,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) =>
               _buildDefaultCover(coverSize),
@@ -394,8 +396,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   /// 构建默认封面（当无封面图片时）
   Widget _buildDefaultCover(double size) {
     return Container(
-      width: size * 0.7,
-      height: size,
+      width: size,
+      height: size * 1.5,
       decoration: BoxDecoration(
         color: Colors.blueGrey[100],
         borderRadius: BorderRadius.circular(8),
@@ -415,7 +417,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: Colors.grey[80],
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -435,96 +437,69 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     );
   }
 
-  /// 构建主内容区域（全书摘要/章节目录切换）
-  ///
-  /// 布局：左侧切换按钮 + 右侧内容卡片
-  ///
-  /// 切换按钮：
-  /// - 图标：星星（摘要模式）或列表（目录模式）
-  /// - 点击切换视图
-  ///
-  /// 内容卡片：
-  /// - 显示全书摘要或章节目录
-  /// - 根据当前模式切换显示内容
-  Widget _buildAIIntroduction() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 左侧切换按钮（在卡片外部）
-        Padding(
-          padding: const EdgeInsets.only(top: 14, right: 8),
-          child: InkWell(
-            onTap: _toggleView,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withAlpha(30),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                // 图标与当前模式相反，提示用户点击后切换到什么
-                _showChapterStructure
-                    ? Icons.auto_awesome
-                    : Icons.format_list_numbered,
-                size: 20,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
+/// 构建主内容区域（垂直Tab布局）
+///
+/// 布局：左侧垂直Tab栏 + 右侧TabBarView内容区
+///
+/// 颜色层级（三层区分）：
+/// - 页面背景：Scaffold默认（白色/浅色）
+/// - 未选中Tab：灰色背景（较明显）
+/// - 选中Tab + 右侧内容框：主题色背景（最明显）
+Widget _buildAIIntroduction() {
+  final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
+  final unselectedColor = Colors.grey.withAlpha(80);
+  
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // 左侧垂直Tab栏（无整体背景，每个Tab独立背景色）
+      Column(
+        children: [
+          _buildVerticalTab(0, Icons.auto_awesome, selectedColor: selectedColor, unselectedColor: unselectedColor),
+          Container(height: 1, width: 60, color: Colors.grey.withAlpha(100)),
+          _buildVerticalTab(1, Icons.format_list_numbered, selectedColor: selectedColor, unselectedColor: unselectedColor),
+        ],
+      ),
+      // 右侧Tab内容区（与选中Tab同色）
+      Expanded(
+        child: Container(
+          color: selectedColor,
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildAIIntroductionContent(),
+              _buildChapterStructureContent(),
+            ],
           ),
         ),
-        // 主内容卡片
-        Expanded(
-          child: Card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 标题栏
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _showChapterStructure
-                            ? Icons.format_list_numbered
-                            : Icons.auto_awesome,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _showChapterStructure
-                              ? '目录'
-                              : (_streamingBookSummary.isNotEmpty
-                                  ? 'AI正在生成摘要...'
-                                  : '内容介绍'),
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                // 内容区域（可滚动）
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _showChapterStructure
-                        ? _buildChapterStructureContent()
-                        : _buildAIIntroductionContent(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
+
+/// 构建垂直Tab按钮（仅图标）
+///
+/// 颜色层级：
+/// - 未选中：灰色背景（与页面有明显区分）
+/// - 选中：主题色背景（与右侧内容框同色）
+Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor, required Color unselectedColor}) {
+  final isSelected = _tabController?.index == index;
+  return InkWell(
+    onTap: () => _tabController?.animateTo(index),
+    child: Container(
+      width: 60,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      color: isSelected ? selectedColor : unselectedColor,
+      child: Icon(
+        icon,
+        size: 24,
+        color: isSelected
+            ? Theme.of(context).colorScheme.primary
+            : Colors.grey,
+      ),
+    ),
+  );
+}
 
   /// 构建全书摘要内容
   ///
@@ -640,73 +615,71 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     );
   }
 
-  /// 构建流式全书摘要视图
-  Widget _buildStreamingBookSummary() {
-    final htmlContent = md.markdownToHtml(_streamingBookSummary);
-    return Expanded(
-      child: GestureDetector(
-        onTap: _flatChapters.isNotEmpty
-            ? () {
-                final firstChapter = _flatChapters.first;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SummaryScreen(
-                      bookId: _book.id,
-                      chapterIndex: firstChapter.index,
-                      chapterTitle: firstChapter.title,
-                      filePath: _book.filePath,
-                      chapters: _flatChapters,
-                      book: _book,
-                    ),
-                  ),
-                );
-              }
-            : null,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Html(
-              data: htmlContent,
-              style: {
-                'body': Style(
-                  fontSize: FontSize(14),
-                  lineHeight: const LineHeight(1.6),
-                  margin: Margins.zero,
-                  padding: HtmlPaddings.zero,
+/// 构建流式全书摘要视图
+Widget _buildStreamingBookSummary() {
+  final htmlContent = md.markdownToHtml(_streamingBookSummary);
+  return GestureDetector(
+    onTap: _flatChapters.isNotEmpty
+        ? () {
+            final firstChapter = _flatChapters.first;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SummaryScreen(
+                  bookId: _book.id,
+                  chapterIndex: firstChapter.index,
+                  chapterTitle: firstChapter.title,
+                  filePath: _book.filePath,
+                  chapters: _flatChapters,
+                  book: _book,
                 ),
-                'h2': Style(
-                  fontSize: FontSize(16),
-                  fontWeight: FontWeight.bold,
-                  margin: Margins.only(bottom: 8, top: 16),
-                ),
-                'h3': Style(
-                  fontSize: FontSize(15),
-                  fontWeight: FontWeight.bold,
-                  margin: Margins.only(bottom: 6, top: 12),
-                ),
-                'p': Style(
-                  fontSize: FontSize(14),
-                  lineHeight: const LineHeight(1.6),
-                  margin: Margins.only(bottom: 8),
-                ),
-                'ul': Style(
-                  margin: Margins.only(bottom: 8),
-                ),
-                'li': Style(
-                  fontSize: FontSize(14),
-                  lineHeight: const LineHeight(1.5),
-                ),
-                'strong': Style(
-                  fontWeight: FontWeight.bold,
-                ),
-              },
+              ),
+            );
+          }
+        : null,
+    child: SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Html(
+          data: htmlContent,
+          style: {
+            'body': Style(
+              fontSize: FontSize(14),
+              lineHeight: const LineHeight(1.6),
+              margin: Margins.zero,
+              padding: HtmlPaddings.zero,
             ),
-          ),
+            'h2': Style(
+              fontSize: FontSize(16),
+              fontWeight: FontWeight.bold,
+              margin: Margins.only(bottom: 8, top: 16),
+            ),
+            'h3': Style(
+              fontSize: FontSize(15),
+              fontWeight: FontWeight.bold,
+              margin: Margins.only(bottom: 6, top: 12),
+            ),
+            'p': Style(
+              fontSize: FontSize(14),
+              lineHeight: const LineHeight(1.6),
+              margin: Margins.only(bottom: 8),
+            ),
+            'ul': Style(
+              margin: Margins.only(bottom: 8),
+            ),
+            'li': Style(
+              fontSize: FontSize(14),
+              lineHeight: const LineHeight(1.5),
+            ),
+            'strong': Style(
+              fontWeight: FontWeight.bold,
+            ),
+          },
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// 构建章节目录内容
   ///
