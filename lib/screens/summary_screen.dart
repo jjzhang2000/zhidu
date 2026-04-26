@@ -390,6 +390,11 @@ void _checkContentLength() {
       if (_content.isNotEmpty && _aiService.isConfigured) {
         _log.d('SummaryScreen', '没有现有摘要，自动启动AI生成: $chapterKey');
         // 自动启动AI摘要生成，并进入流式显示
+        // 先设置生成状态，避免按钮显示
+        setState(() {
+          _isGenerating = true;
+          _streamingSummary = '';
+        });
         _generateSummaryWithStreaming();
       } else {
         // 不满足生成条件，仅加载摘要（可能是空的）
