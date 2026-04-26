@@ -293,7 +293,8 @@ void _checkContentLength() {
   ///
   /// 核心逻辑：
   /// - 如果有正在生成的Future，注册流式回调监听内容更新
-  /// - 如果没有正在生成，直接加载已有摘要
+  /// - 如果没有正在生成但没有摘要，自动启动AI生成摘要并进入流式显示
+  /// - 如果没有正在生成且有摘要，直接加载已有摘要
   /// - 流式内容会实时更新 _streamingSummary，UI会自动显示
   /// - 防止重复加载：同一个章节只处理一次
   Future<void> _loadSummary() async {
@@ -372,15 +373,32 @@ void _checkContentLength() {
       return;
     }
 
-    // 没有正在生成，直接加载已有摘要
+    // 没有正在生成，检查是否已有摘要
     _hasLoadedSummary = true;
     _listeningChapterKey = chapterKey;
 
     final summary = await _summaryService.getSummary(widget.bookId, widget.chapterIndex);
-    if (!mounted) return;
-    setState(() {
-      _summary = summary;
-    });
+    
+    if (summary != null) {
+      // 已有摘要，直接显示
+      if (!mounted) return;
+      setState(() {
+        _summary = summary;
+      });
+    } else {
+      // 没有摘要，检查是否满足生成条件
+      if (_content.isNotEmpty && _aiService.isConfigured) {
+        _log.d('SummaryScreen', '没有现有摘要，自动启动AI生成: $chapterKey');
+        // 自动启动AI摘要生成，并进入流式显示
+        _generateSummaryWithStreaming();
+      } else {
+        // 不满足生成条件，仅加载摘要（可能是空的）
+        if (!mounted) return;
+        setState(() {
+          _summary = summary;
+        });
+      }
+    }
   }
 
   /// 生成章节摘要
@@ -630,7 +648,8 @@ void _checkContentLength() {
           // 1. 没有摘要
           // 2. 没有正在生成
           // 3. 有内容可用
-          if (_summary == null && !_isGenerating && _content.isNotEmpty)
+          // 4. AI服务已配置
+          if (_summary == null && !_isGenerating && _content.isNotEmpty && _aiService.isConfigured)
             TextButton.icon(
               onPressed: _generateSummaryWithStreaming,
               icon: const Icon(Icons.auto_awesome, size: 20),
