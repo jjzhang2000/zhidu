@@ -31,21 +31,21 @@ import '../models/chapter.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import '../services/log_service.dart';
-import 'summary_screen.dart';
+import 'chapter_screen.dart';
 
 /// 书籍详情页面的StatefulWidget
 ///
 /// 接收一个[Book]对象，显示该书籍的详细信息。
-class BookDetailScreen extends StatefulWidget {
+class BookScreen extends StatefulWidget {
   final Book book;
 
-  const BookDetailScreen({super.key, required this.book});
+  const BookScreen({super.key, required this.book});
 
   @override
-  State<BookDetailScreen> createState() => _BookDetailScreenState();
+  State<BookScreen> createState() => _BookScreenState();
 }
 
-class _BookDetailScreenState extends State<BookDetailScreen>
+class _BookScreenState extends State<BookScreen>
     with TickerProviderStateMixin {
   /// 书籍管理服务（单例）
   final _bookService = BookService();
@@ -146,14 +146,14 @@ void dispose() {
   /// 1. 在目录视图展示章节结构
   /// 2. 点击章节时跳转到对应位置
   Future<void> _loadChapters() async {
-    _log.v('BookDetailScreen', '_loadChapters 开始执行');
+    _log.v('BookScreen', '_loadChapters 开始执行');
     setState(() => _isLoadingChapters = true);
 
     try {
       // 根据书籍格式获取对应的解析器
       final parser = FormatRegistry.getParser('.${_book.format.name}');
       if (parser == null) {
-        _log.e('BookDetailScreen', '不支持的格式: ${_book.format}');
+        _log.e('BookScreen', '不支持的格式: ${_book.format}');
         setState(() => _isLoadingChapters = false);
         return;
       }
@@ -166,9 +166,9 @@ void dispose() {
         _isLoadingChapters = false;
       });
 
-      _log.d('BookDetailScreen', '章节加载完成: ${chapters.length} 个章节');
+      _log.d('BookScreen', '章节加载完成: ${chapters.length} 个章节');
     } catch (e, stackTrace) {
-      _log.e('BookDetailScreen', '加载章节列表失败', e, stackTrace);
+      _log.e('BookScreen', '加载章节列表失败', e, stackTrace);
       if (mounted) {
         setState(() {
           _isLoadingChapters = false;
@@ -195,13 +195,13 @@ void dispose() {
   void _startPreGeneration() {
     // AI未配置则跳过
     if (!_aiService.isConfigured) {
-      _log.d('BookDetailScreen', 'AI服务未配置，跳过预生成');
+      _log.d('BookScreen', 'AI服务未配置，跳过预生成');
       return;
     }
 
     // 防止重复启动预生成任务
     if (_isPreGenerating) {
-      _log.d('BookDetailScreen', '已在预生成中，跳过');
+      _log.d('BookScreen', '已在预生成中，跳过');
       return;
     }
 
@@ -210,7 +210,7 @@ void dispose() {
     // 异步执行，不阻塞UI
     Future(() async {
       try {
-        _log.d('BookDetailScreen', '开始后台预生成章节摘要');
+        _log.d('BookScreen', '开始后台预生成章节摘要');
 
         // 先刷新一次，因为 generateSummariesForBook 可能在前台已完成前言摘要
         // 避免重复生成或状态不一致
@@ -218,12 +218,12 @@ void dispose() {
 
         // 执行摘要生成
         await _summaryService.generateSummariesForBook(_book);
-        _log.d('BookDetailScreen', '后台预生成章节摘要完成');
+        _log.d('BookScreen', '后台预生成章节摘要完成');
 
         // 生成完成后再次刷新书籍状态
         _refreshBookIfNeeded();
       } catch (e, stackTrace) {
-        _log.e('BookDetailScreen', '后台预生成章节摘要失败', e, stackTrace);
+        _log.e('BookScreen', '后台预生成章节摘要失败', e, stackTrace);
       } finally {
         _isPreGenerating = false;
       }
@@ -557,11 +557,11 @@ Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor
       onTap: _flatChapters.isNotEmpty
           ? () {
               final firstChapter = _flatChapters.first;
-              _log.d('BookDetailScreen', '点击全书摘要，进入第一章: ${firstChapter.title}');
+              _log.d('BookScreen', '点击全书摘要，进入第一章: ${firstChapter.title}');
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SummaryScreen(
+                  builder: (context) => ChapterScreen(
                     bookId: _book.id,
                     chapterIndex: firstChapter.index,
                     chapterTitle: firstChapter.title,
@@ -627,7 +627,7 @@ Widget _buildStreamingBookSummary() {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => SummaryScreen(
+                builder: (context) => ChapterScreen(
                   bookId: _book.id,
                   chapterIndex: firstChapter.index,
                   chapterTitle: firstChapter.title,
@@ -735,7 +735,7 @@ Widget _buildStreamingBookSummary() {
   /// **交互规则**：
   /// - 只有顶层章节(level=0)可以点击
   /// - 子章节不可点击（onTap为null）
-  /// - 点击顶层章节跳转到[SummaryScreen]
+  /// - 点击顶层章节跳转到[ChapterScreen]
   List<Widget> _buildChapterList() {
     final widgets = <Widget>[];
     for (final chapter in _flatChapters) {
@@ -762,11 +762,11 @@ Widget _buildStreamingBookSummary() {
             // 只有顶层章节才能点击进入阅读
             onTap: chapter.level == 0
                 ? () {
-                    _log.d('BookDetailScreen', '点击章节: ${chapter.title}');
+                    _log.d('BookScreen', '点击章节: ${chapter.title}');
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => SummaryScreen(
+                        builder: (context) => ChapterScreen(
                           bookId: _book.id,
                           chapterIndex: chapter.index,
                           chapterTitle: chapter.title,

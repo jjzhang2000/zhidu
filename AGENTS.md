@@ -40,8 +40,8 @@ lib/
 │   └── chapter_summary.dart # 章节摘要
 ├── screens/                  # UI页面
 │   ├── home_screen.dart     # 首页（书架/发现/我的）
-│   ├── book_detail_screen.dart # 书籍详情（全书概览）
-│   ├── summary_screen.dart  # 章节摘要页
+│   ├── book_screen.dart # 书籍详情（全书概览）
+│   ├── chapter_screen.dart  # 章节摘要页
 │   ├── pdf_reader_screen.dart # PDF阅读器
 │   ├── ai_config_screen.dart # AI配置页面
 │   ├── settings_screen.dart # 设置主页面
@@ -302,14 +302,14 @@ ai_config.json
 - 修改 `_generateBookSummaryFromChapters`：使用流式方法
 - 修复标题移除逻辑：支持 `## 第X章：xxx` 等多种标题格式
 
-**3. UI层 - SummaryScreen (`summary_screen.dart`)**
+**3. UI层 - ChapterScreen (`chapter_screen.dart`)**
 - 添加 `_streamingSummary` 状态：存储流式内容
 - 修改 `_loadSummary`：注册流式回调，实时显示生成内容
 - 修改 `_buildBody`：生成中时显示流式内容而非静态加载
 - 修复 `_buildNormalSummaryView`：使用 `_title` 而非固定"本章摘要"
 - 添加防重复机制：`_hasLoadedSummary` 和 `_listeningChapterKey`
 
-**4. UI层 - BookDetailScreen (`book_detail_screen.dart`)**
+**4. UI层 - BookScreen (`book_screen.dart`)**
 - 添加 `_streamingBookSummary` 状态：存储流式全书摘要
 - 在 `initState` 中注册全书摘要流式回调
 - 在 `dispose` 中取消回调注册
@@ -404,7 +404,7 @@ final titlePattern = RegExp(
 
 **核心实现**：
 
-**1. BookDetailScreen (`book_detail_screen.dart`)**
+**1. BookScreen (`book_screen.dart`)**
 - 引入 `TabController` 管理垂直Tab切换
 - 实现 `TickerViewStateMixin` 以支持Tab控制器动画
 - 创建 `_buildVerticalTab` 方法构建垂直Tab按钮
@@ -412,7 +412,7 @@ final titlePattern = RegExp(
 - 优化颜色层级：选中Tab使用主题色背景，未选中Tab使用灰色背景
 - 保持与右侧内容区域相同的背景色
 
-**2. SummaryScreen (`summary_screen.dart`)**
+**2. ChapterScreen (`chapter_screen.dart`)**
 - 引入 `TabController` 管理垂直Tab切换
 - 实现 `TickerViewStateMixin` 以支持Tab控制器动画
 - 创建 `_buildVerticalTab` 方法构建垂直Tab按钮

@@ -90,8 +90,8 @@ graph TD
     G --> I[BookCard - 书籍卡片]
     
     I --> J[_openBook - 打开书籍详情]
-    J --> K[Navigator.push - 跳转到BookDetailScreen]
-    K --> L[BookDetailScreen]
+    J --> K[Navigator.push - 跳转到BookScreen]
+    K --> L[BookScreen]
     
     I --> M[_showDeleteConfirmDialog - 显示删除确认对话框]
     M --> N[BookService.deleteBook - 删除书籍记录]
@@ -235,7 +235,7 @@ graph TB
         F[HomeScreen] --> G[BookshelfScreen]
         F --> H[导入书籍流程]
         G --> I[BookCard]
-        I --> J[BookDetailScreen]
+        I --> J[BookScreen]
         I --> K[删除书籍流程]
         G --> L[设置页面]
     end
@@ -297,7 +297,7 @@ graph TD
     F --> L[等待生成完成]
     L --> M[清理生成标记]
     
-    C --> N[BookDetailScreen._refreshTimer]
+    C --> N[BookScreen._refreshTimer]
     N --> O[每3秒检查更新]
     O --> P[调用_refreshBookIfNeeded]
     P --> Q[比较aiIntroduction是否有变化]
@@ -334,7 +334,7 @@ graph LR
     B2 --> C3[Navigator.push]
     C2 --> D2[获取最新书籍数据 - 同步]
     C3 --> D3[跳转到详情页 - 异步]
-    D3 --> E2[BookDetailScreen.initState]
+    D3 --> E2[BookScreen.initState]
     E2 --> F2[页面构建]
     
     A3[主题设置变更] --> B3[ValueNotifier监听]
@@ -415,7 +415,7 @@ graph LR
     D1 --> E1[_saveBooksIndex/_saveBookMetadata]
     E1 --> F1[BookshelfScreen.refresh]
     
-    A2[请求AI摘要] --> B2[SummaryScreen._generateSummary]
+    A2[请求AI摘要] --> B2[ChapterScreen._generateSummary]
     B2 --> C2[SummaryService.generateSummary]
     C2 --> D2[AIService._callAI - HTTP请求]
     D2 --> E2[AI服务响应]

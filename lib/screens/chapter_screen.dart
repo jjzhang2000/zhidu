@@ -36,7 +36,7 @@ import '../services/log_service.dart';
 /// - [filePath]: 文件路径（用于重新加载内容）
 /// - [chapters]: 章节列表（用于导航）
 /// - [book]: 书籍对象（包含AI更新后的章节标题）
-class SummaryScreen extends StatefulWidget {
+class ChapterScreen extends StatefulWidget {
   final String bookId;
   final int chapterIndex;
   final String chapterTitle;
@@ -45,7 +45,7 @@ class SummaryScreen extends StatefulWidget {
   final List<Chapter>? chapters;
   final Book? book;
 
-  const SummaryScreen({
+  const ChapterScreen({
     super.key,
     required this.bookId,
     required this.chapterIndex,
@@ -57,10 +57,10 @@ class SummaryScreen extends StatefulWidget {
   });
 
   @override
-  State<SummaryScreen> createState() => _SummaryScreenState();
+  State<ChapterScreen> createState() => _ChapterScreenState();
 }
 
-class _SummaryScreenState extends State<SummaryScreen>
+class _ChapterScreenState extends State<ChapterScreen>
     with TickerProviderStateMixin {
   /// AI服务（用于检查配置状态）
   final _aiService = AIService();
@@ -205,7 +205,7 @@ void _checkContentLength() {
 
       // 如果没有传入章节列表，从文件解析
       if (chapters.isEmpty && widget.filePath != null) {
-        _log.d('SummaryScreen', '使用FormatRegistry加载章节列表');
+        _log.d('ChapterScreen', '使用FormatRegistry加载章节列表');
 
         // 根据文件扩展名获取解析器
         final extension = _getFileExtension(widget.filePath!);
@@ -214,7 +214,7 @@ void _checkContentLength() {
         if (parser != null) {
           chapters = await parser.getChapters(widget.filePath!);
         } else {
-          _log.e('SummaryScreen', '不支持的格式: $extension');
+          _log.e('ChapterScreen', '不支持的格式: $extension');
         }
       }
 
@@ -222,7 +222,7 @@ void _checkContentLength() {
       final topLevelChapters = chapters.where((c) => c.level == 0).toList();
       _chapters = topLevelChapters;
 
-      _log.d('SummaryScreen',
+      _log.d('ChapterScreen',
           '第一级章节总数: ${topLevelChapters.length}, 请求索引: ${widget.chapterIndex}');
 
       // 检查索引有效性
@@ -256,7 +256,7 @@ void _checkContentLength() {
           }
         }
       } catch (e) {
-        _log.e('SummaryScreen', '获取章节内容失败', e);
+        _log.e('ChapterScreen', '获取章节内容失败', e);
       }
 
       if (content == null || content.isEmpty) {
@@ -302,7 +302,7 @@ void _checkContentLength() {
 
     // 防止重复加载同一个章节
     if (_hasLoadedSummary && _listeningChapterKey == chapterKey) {
-      _log.d('SummaryScreen', '章节 $chapterKey 已加载过，跳过');
+      _log.d('ChapterScreen', '章节 $chapterKey 已加载过，跳过');
       return;
     }
 
@@ -311,7 +311,7 @@ void _checkContentLength() {
 
     if (generatingFuture != null) {
       // 有正在后台生成的摘要
-      _log.d('SummaryScreen', '章节正在生成中，监听流式内容: $chapterKey');
+      _log.d('ChapterScreen', '章节正在生成中，监听流式内容: $chapterKey');
 
       _hasLoadedSummary = true;
       _listeningChapterKey = chapterKey;
@@ -388,7 +388,7 @@ void _checkContentLength() {
     } else {
       // 没有摘要，检查是否满足生成条件
       if (_content.isNotEmpty && _aiService.isConfigured) {
-        _log.d('SummaryScreen', '没有现有摘要，自动启动AI生成: $chapterKey');
+        _log.d('ChapterScreen', '没有现有摘要，自动启动AI生成: $chapterKey');
         // 自动启动AI摘要生成，并进入流式显示
         // 先设置生成状态，避免按钮显示
         setState(() {
@@ -1210,7 +1210,7 @@ Widget _buildNormalSummaryView(String htmlContent) {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => SummaryScreen(
+        builder: (context) => ChapterScreen(
           bookId: widget.bookId,
           chapterIndex: index,
           chapterTitle: chapter.title,

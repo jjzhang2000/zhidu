@@ -46,7 +46,7 @@ rm lib/services/section_summary_service.dart
 rm lib/models/section_summary.dart
 
 // 方案2: 如果要保留功能，需要在阅读界面集成
-// 在 SummaryScreen 中添加小节级别摘要生成入口
+// 在 ChapterScreen 中添加小节级别摘要生成入口
 ```
 
 **实际修改:**

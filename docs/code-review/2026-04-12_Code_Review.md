@@ -138,10 +138,10 @@ addedAt: DateTime.now(), // TODO: 从数据库读取addedAt字段
 | 方法 | 文件 | 行号 | 特点 |
 |------|------|------|------|
 | `_extractTextFromHtml` | `epub_service.dart` | 270-287 | 基础版：去 script/style/标签/空白 |
-| `_extractTextContent` | `summary_screen.dart` | 266-286 | 增强版：额外去 img/audio/video/iframe + 截断 4000 字符 |
+| `_extractTextContent` | `chapter_screen.dart` | 266-286 | 增强版：额外去 img/audio/video/iframe + 截断 4000 字符 |
 
 **处理**: ❌ **暂不处理** - 原因：
-1. 两处功能需求不同：EpubService 需要完整文本，SummaryScreen 需要截断版本
+1. 两处功能需求不同：EpubService 需要完整文本，ChapterScreen 需要截断版本
 2. 合并后可能需要添加参数控制，反而增加复杂度
 3. 建议保持现状，各自独立维护
 
@@ -151,8 +151,8 @@ addedAt: DateTime.now(), // TODO: 从数据库读取addedAt字段
 |------|------|------|
 | `EpubService.flattenChapters` | `epub_service.dart` | 1008-1022 |
 | `SummaryService._flattenWithIndex` | `summary_service.dart` | 299-315 |
-| `BookDetailScreen._flattenChaptersWithIndex` | `book_detail_screen.dart` | 99-107 |
-| `SummaryScreen._loadChapterContent` 中的 `flatten` | `summary_screen.dart` | 104-111 |
+| `BookScreen._flattenChaptersWithIndex` | `book_screen.dart` | 99-107 |
+| `ChapterScreen._loadChapterContent` 中的 `flatten` | `chapter_screen.dart` | 104-111 |
 
 **处理**: ❌ **暂不处理** - 原因：
 1. 已删除 `EpubService.flattenChapters`
@@ -279,7 +279,7 @@ List<_ChapterWithIndex> _flattenWithIndex(List<dynamic> hierarchicalChapters)
 
 **文件**: 
 - `lib/screens/home_screen.dart:321-332`（`BookCard._buildDefaultCover`）
-- `lib/screens/book_detail_screen.dart:270-286`（`_BookDetailScreenState._buildDefaultCover`）
+- `lib/screens/book_screen.dart:270-286`（`_BookScreenState._buildDefaultCover`）
 
 **处理**: ❌ **暂不处理** - 原因：
 1. 两处方法虽然相似，但参数不同（一个无参，一个带 size 参数）

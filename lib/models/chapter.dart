@@ -18,8 +18,8 @@ import 'chapter_location.dart';
 /// - PdfParser：解析PDF文件时创建Chapter对象
 /// - BookFormatParser：作为解析器的通用返回类型
 /// - SummaryService：生成摘要时获取章节信息
-/// - BookDetailScreen：显示书籍目录时读取章节列表
-/// - SummaryScreen：显示章节摘要时读取章节信息
+/// - BookScreen：显示书籍目录时读取章节列表
+/// - ChapterScreen：显示章节摘要时读取章节信息
 /// - PdfReaderScreen：PDF阅读时定位章节
 class Chapter {
   /// 章节唯一标识符

@@ -117,7 +117,7 @@ User reads and navigates
 ### Flow 2: Open PDF from Chapter
 
 ```
-User taps chapter in BookDetailScreen
+User taps chapter in BookScreen
     ↓
 Navigator.push(PdfReaderScreen(
   book: book,
@@ -197,7 +197,7 @@ PdfViewerParams:
 ## Navigation Flow
 
 ```
-BookDetailScreen (PDF book)
+BookScreen (PDF book)
     ↓ (tap chapter)
 PdfReaderScreen
     ├── Displays PDF content
@@ -208,7 +208,7 @@ PdfViewer handles navigation
     ↓ (back button)
 Navigator.pop()
     ↓
-Return to BookDetailScreen
+Return to BookScreen
 ```
 
 ---
@@ -239,10 +239,10 @@ Used for:
 
 ---
 
-## Integration with SummaryScreen
+## Integration with ChapterScreen
 
 ```
-SummaryScreen (PDF book)
+ChapterScreen (PDF book)
     ↓ (tap "阅读原文" button)
 Shows PDF original text view
     ↓
@@ -253,7 +253,7 @@ Single page view with navigation buttons
 Different from full PdfReaderScreen
 
 PdfReaderScreen = Full-screen PDF reader
-SummaryScreen PDF view = Embedded single-page viewer
+ChapterScreen PDF view = Embedded single-page viewer
 ```
 
 ---
@@ -292,7 +292,7 @@ User imports PDF book
     ↓
 User taps book card
     ↓
-BookDetailScreen shows summary
+BookScreen shows summary
     ↓
 User taps summary or chapter
     ↓

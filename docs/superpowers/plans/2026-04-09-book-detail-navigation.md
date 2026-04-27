@@ -1,10 +1,10 @@
-# BookDetailScreen Navigation Implementation Plan
+# BookScreen Navigation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Modify BookDetailScreen navigation to go directly to SummaryScreen when clicking chapters or content introduction box
+**Goal:** Modify BookScreen navigation to go directly to ChapterScreen when clicking chapters or content introduction box
 
-**Architecture:** Transform SummaryScreen to support optional content loading via filePath; add flat chapter list in BookDetailScreen for index lookup; redirect navigation flows from ChapterListScreen to SummaryScreen
+**Architecture:** Transform ChapterScreen to support optional content loading via filePath; add flat chapter list in BookScreen for index lookup; redirect navigation flows from ChapterListScreen to ChapterScreen
 
 **Tech Stack:** Flutter, epub_plus for EPUB parsing, existing Service layer (EpubService, SummaryService)
 
@@ -14,16 +14,16 @@
 
 ```
 lib/screens/
-├── summary_screen.dart          # MODIFY - Add filePath parameter, internal content loading
-└── book_detail_screen.dart      # MODIFY - Add flatChapters, change navigation logic
+├── chapter_screen.dart          # MODIFY - Add filePath parameter, internal content loading
+└── book_screen.dart      # MODIFY - Add flatChapters, change navigation logic
 ```
 
 ---
 
-### Task 1: Modify SummaryScreen Constructor Parameters
+### Task 1: Modify ChapterScreen Constructor Parameters
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart:12-18`
+- Modify: `lib/screens/chapter_screen.dart:12-18`
 
 **Goal:** Make chapterContent optional and add filePath parameter for internal content loading
 
@@ -44,14 +44,14 @@ import '../services/epub_service.dart';  // NEW
 Replace constructor (lines 12-18):
 
 ```dart
-class SummaryScreen extends StatefulWidget {
+class ChapterScreen extends StatefulWidget {
   final String bookId;
   final int chapterIndex;
   final String chapterTitle;
   final String? chapterContent;  // CHANGED: now optional
   final String? filePath;  // NEW: for loading EPUB content
 
-  const SummaryScreen({
+  const ChapterScreen({
     super.key,
     required this.bookId,
     required this.chapterIndex,
@@ -61,28 +61,28 @@ class SummaryScreen extends StatefulWidget {
   });
 
   @override
-  State<SummaryScreen> createState() => _SummaryScreenState();
+  State<ChapterScreen> createState() => _ChapterScreenState();
 }
 ```
 
 - [ ] **Step 3: Run flutter analyze**
 
 Run: `flutter analyze`
-Expected: No errors related to SummaryScreen constructor changes
+Expected: No errors related to ChapterScreen constructor changes
 
 - [ ] **Step 4: Commit constructor parameter changes**
 
 ```bash
-git add lib/screens/summary_screen.dart
-git commit -m "refactor: make SummaryScreen.chapterContent optional, add filePath parameter"
+git add lib/screens/chapter_screen.dart
+git commit -m "refactor: make ChapterScreen.chapterContent optional, add filePath parameter"
 ```
 
 ---
 
-### Task 2: Add Content Loading Logic to SummaryScreen State
+### Task 2: Add Content Loading Logic to ChapterScreen State
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart:24-44`
+- Modify: `lib/screens/chapter_screen.dart:24-44`
 
 **Goal:** Add internal content loading capability when filePath is provided
 
@@ -91,7 +91,7 @@ git commit -m "refactor: make SummaryScreen.chapterContent optional, add filePat
 Replace state class variables (lines 24-31):
 
 ```dart
-class _SummaryScreenState extends State<SummaryScreen> {
+class _ChapterScreenState extends State<ChapterScreen> {
   final _aiService = AIService();
   final _summaryService = SummaryService();
   final _epubService = EpubService();  // NEW
@@ -196,16 +196,16 @@ Expected: No errors
 - [ ] **Step 5: Commit content loading logic**
 
 ```bash
-git add lib/screens/summary_screen.dart
-git commit -m "feat: add internal content loading to SummaryScreen"
+git add lib/screens/chapter_screen.dart
+git commit -m "feat: add internal content loading to ChapterScreen"
 ```
 
 ---
 
-### Task 3: Modify SummaryScreen UI to Handle Loading State
+### Task 3: Modify ChapterScreen UI to Handle Loading State
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart:159-192`
+- Modify: `lib/screens/chapter_screen.dart:159-192`
 
 **Goal:** Add content loading indicator in UI
 
@@ -278,16 +278,16 @@ Expected: No errors
 - [ ] **Step 5: Commit UI loading state changes**
 
 ```bash
-git add lib/screens/summary_screen.dart
-git commit -m "feat: add content loading UI to SummaryScreen"
+git add lib/screens/chapter_screen.dart
+git commit -m "feat: add content loading UI to ChapterScreen"
 ```
 
 ---
 
-### Task 4: Update SummaryScreen Generate Summary Method
+### Task 4: Update ChapterScreen Generate Summary Method
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart:46-126`
+- Modify: `lib/screens/chapter_screen.dart:46-126`
 
 **Goal:** Use internal _content variable instead of widget.chapterContent
 
@@ -336,16 +336,16 @@ Expected: No errors
 - [ ] **Step 5: Commit generate summary changes**
 
 ```bash
-git add lib/screens/summary_screen.dart
-git commit -m "refactor: use internal _content in SummaryScreen._generateSummary"
+git add lib/screens/chapter_screen.dart
+git commit -m "refactor: use internal _content in ChapterScreen._generateSummary"
 ```
 
 ---
 
-### Task 5: Add Flat Chapter List to BookDetailScreen
+### Task 5: Add Flat Chapter List to BookScreen
 
 **Files:**
-- Modify: `lib/screens/book_detail_screen.dart:22-57`
+- Modify: `lib/screens/book_screen.dart:22-57`
 
 **Goal:** Add flat chapter list for index lookup alongside hierarchical list
 
@@ -383,7 +383,7 @@ Replace _loadChapters method (lines 40-57):
         });
       }
     } catch (e, stackTrace) {
-      _log.e('BookDetailScreen', '加载章节列表失败', e, stackTrace);
+      _log.e('BookScreen', '加载章节列表失败', e, stackTrace);
       if (mounted) {
         setState(() {
           _isLoadingChapters = false;
@@ -401,18 +401,18 @@ Expected: No errors
 - [ ] **Step 4: Commit flat chapter list changes**
 
 ```bash
-git add lib/screens/book_detail_screen.dart
-git commit -m "feat: add flat chapter list to BookDetailScreen"
+git add lib/screens/book_screen.dart
+git commit -m "feat: add flat chapter list to BookScreen"
 ```
 
 ---
 
-### Task 6: Modify Chapter Click Handler in BookDetailScreen
+### Task 6: Modify Chapter Click Handler in BookScreen
 
 **Files:**
-- Modify: `lib/screens/book_detail_screen.dart:443-459`
+- Modify: `lib/screens/book_screen.dart:443-459`
 
-**Goal:** Navigate to SummaryScreen directly when clicking chapter in TOC
+**Goal:** Navigate to ChapterScreen directly when clicking chapter in TOC
 
 - [ ] **Step 1: Replace chapter onTap handler**
 
@@ -442,7 +442,7 @@ Replace _buildChapterTree onTap (lines 443-450):
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => SummaryScreen(
+                builder: (context) => ChapterScreen(
                   bookId: _book.id,
                   chapterIndex: index,
                   chapterTitle: chapter.title,
@@ -461,8 +461,8 @@ Expected: No errors
 - [ ] **Step 3: Commit chapter click handler changes**
 
 ```bash
-git add lib/screens/book_detail_screen.dart
-git commit -m "feat: navigate to SummaryScreen on chapter click in TOC"
+git add lib/screens/book_screen.dart
+git commit -m "feat: navigate to ChapterScreen on chapter click in TOC"
 ```
 
 ---
@@ -470,9 +470,9 @@ git commit -m "feat: navigate to SummaryScreen on chapter click in TOC"
 ### Task 7: Modify Content Introduction Box Click Handler
 
 **Files:**
-- Modify: `lib/screens/book_detail_screen.dart:386-403`
+- Modify: `lib/screens/book_screen.dart:386-403`
 
-**Goal:** Navigate to SummaryScreen when clicking content introduction box
+**Goal:** Navigate to ChapterScreen when clicking content introduction box
 
 - [ ] **Step 1: Replace introduction box onTap**
 
@@ -504,7 +504,7 @@ Replace InkWell onTap in _buildAIIntroductionContent (lines 387-393):
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SummaryScreen(
+              builder: (context) => ChapterScreen(
                 bookId: _book.id,
                 chapterIndex: targetIndex,
                 chapterTitle: chapter.title,
@@ -523,8 +523,8 @@ Expected: No errors
 - [ ] **Step 3: Commit introduction box click changes**
 
 ```bash
-git add lib/screens/book_detail_screen.dart
-git commit -m "feat: navigate to SummaryScreen on introduction box click"
+git add lib/screens/book_screen.dart
+git commit -m "feat: navigate to ChapterScreen on introduction box click"
 ```
 
 ---
@@ -532,7 +532,7 @@ git commit -m "feat: navigate to SummaryScreen on introduction box click"
 ### Task 8: Remove ChapterListScreen Import and Navigation
 
 **Files:**
-- Modify: `lib/screens/book_detail_screen.dart:10`
+- Modify: `lib/screens/book_screen.dart:10`
 
 **Goal:** Remove unused ChapterListScreen import since we no longer navigate to it
 
@@ -552,7 +552,7 @@ Expected: No errors (unused import warning should disappear)
 - [ ] **Step 3: Commit import removal**
 
 ```bash
-git add lib/screens/book_detail_screen.dart
+git add lib/screens/book_screen.dart
 git commit -m "refactor: remove unused ChapterListScreen import"
 ```
 
@@ -576,10 +576,10 @@ Expected: All existing tests pass (widget_test.dart)
 
 Run: `flutter run`
 Manual verification:
-1. Open a book in BookDetailScreen
-2. Click a chapter in TOC → Should navigate to SummaryScreen
-3. Click content introduction box → Should navigate to first chapter SummaryScreen
-4. Verify SummaryScreen loads content when filePath provided
+1. Open a book in BookScreen
+2. Click a chapter in TOC → Should navigate to ChapterScreen
+3. Click content introduction box → Should navigate to first chapter ChapterScreen
+4. Verify ChapterScreen loads content when filePath provided
 5. Verify error handling when chapter not found
 
 - [ ] **Step 4: Create final commit if needed**
@@ -596,8 +596,8 @@ git commit -m "fix: resolve issues found during testing"
 ## Self-Review Checklist
 
 - [x] **Spec coverage:** All requirements from spec implemented
-  - Chapter click → SummaryScreen ✓
-  - Introduction box click → SummaryScreen ✓
+  - Chapter click → ChapterScreen ✓
+  - Introduction box click → ChapterScreen ✓
   - currentChapter handling ✓
   - Error handling ✓
   

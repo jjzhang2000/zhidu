@@ -120,7 +120,7 @@ UI 实时显示流式内容
    - 提供注册/取消注册方法
    - 在流式接收过程中触发回调通知UI
 
-3. **UI层** (`summary_screen.dart`, `book_detail_screen.dart`)
+3. **UI层** (`chapter_screen.dart`, `book_screen.dart`)
    - 注册流式回调，实时更新 `_streamingSummary` 状态
    - 使用 `setState` 触发重建，显示最新内容
    - 完成后清空流式状态，显示最终摘要
@@ -324,8 +324,8 @@ Documents/zhidu/
   - [x] SSE数据流解析与处理
   - [x] UI实时更新机制
 - [x] **UI垂直Tab布局改进** - 提升用户界面的易用性和美观度
-  - [x] BookDetailScreen垂直Tab布局实现
-  - [x] SummaryScreen垂直Tab布局实现
+  - [x] BookScreen垂直Tab布局实现
+  - [x] ChapterScreen垂直Tab布局实现
   - [x] TabController状态管理
   - [x] 一致的视觉设计语言
   - [x] 无障碍访问支持

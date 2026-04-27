@@ -189,7 +189,7 @@ ASYNC PROCEDURE _openBook(context):
   latestBook = _bookService.getBookById(book.id) OR book
   
   AWAIT Navigator.push(
-    BookDetailScreen(book: latestBook)
+    BookScreen(book: latestBook)
   )
   
   // Refresh card after return (update progress)
@@ -360,7 +360,7 @@ _openBook() called
     ↓
 Get latest book from BookService
     ↓
-Navigator.push(BookDetailScreen)
+Navigator.push(BookScreen)
     ↓
 User views book details
     ↓
@@ -425,7 +425,7 @@ Back to bookshelf
 HomeScreen
 ├── FloatingActionButton → Import Book
 ├── BookshelfScreen
-│   ├── BookCard → BookDetailScreen
+│   ├── BookCard → BookScreen
 │   └── Settings icon → SettingsScreen
 │   └── Search box → Filter books
 ```

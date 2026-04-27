@@ -233,7 +233,7 @@ parser.parse(filePath) → BookMetadata
 ```
 用户点击书籍
     ↓
-BookDetailScreen加载
+BookScreen加载
     ↓
 parser = FormatRegistry.getParser(book.format)
     ↓
@@ -275,7 +275,7 @@ content = parser.getChapterContent(filePath, chapter)
 ### 现有EPUB功能保持
 
 1. **层级章节处理**：EpubParser内部获取层级章节，但只返回第一级，与当前实际使用一致
-2. **章节导航**：SummaryScreen不再需要 `level == 0` 过滤
+2. **章节导航**：ChapterScreen不再需要 `level == 0` 过滤
 3. **内容渲染**：EPUB的HTML内容通过 `htmlContent` 字段保留
 4. **AI摘要**：统一使用 `plainText` 字段
 
@@ -301,7 +301,7 @@ content = parser.getChapterContent(filePath, chapter)
 5. 重构PdfService为PdfParser（适配新接口）
 6. 修改BookService使用FormatRegistry
 7. 修改SummaryService统一处理所有格式
-8. 修改BookDetailScreen和SummaryScreen使用新模型
+8. 修改BookScreen和ChapterScreen使用新模型
 9. 删除旧格式相关的硬编码逻辑
 
 ## 优势

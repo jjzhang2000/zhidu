@@ -183,7 +183,7 @@ class EpubParser implements BookFormatParser {
   ///
   /// 返回值：Chapter对象列表，包含章节标题、位置、层级信息
   ///
-  /// 调用方：BookDetailScreen、SummaryScreen
+  /// 调用方：BookScreen、ChapterScreen
   ///
   /// 算法逻辑：
   /// 1. 读取文件字节

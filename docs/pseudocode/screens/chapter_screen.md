@@ -2,7 +2,7 @@
 
 ## Overview
 
-**File**: `lib/screens/summary_screen.dart`
+**File**: `lib/screens/chapter_screen.dart`
 **Purpose**: Core reading interface for chapter summaries and original text
 **Pattern**: Complex StatefulWidget with dual view modes and PDF/EPUB handling
 
@@ -11,7 +11,7 @@
 ## StatefulWidget Structure
 
 ```
-SummaryScreen (StatefulWidget)
+ChapterScreen (StatefulWidget)
 ├── Parameters:
 │   ├── String bookId (required)
 │   ├── int chapterIndex (required)
@@ -21,7 +21,7 @@ SummaryScreen (StatefulWidget)
 │   ├── List<Chapter>? chapters (optional)
 │   └── Book? book (optional)
 │
-└── _SummaryScreenState (State)
+└── _ChapterScreenState (State)
     ├── Services: AIService, LogService, SummaryService, BookService
 ├── State Variables: summary, content, title, flags
 ├── PDF State: _pdfCurrentPage, _pdfTotalPages
@@ -320,7 +320,7 @@ PROCEDURE _navigateToChapter(index):
   chapter = _chapters[index]
   
   Navigator.pushReplacement(
-    SummaryScreen(
+    ChapterScreen(
       bookId: widget.bookId,
       chapterIndex: index,
       chapterTitle: chapter.title,
@@ -481,9 +481,9 @@ Positioned(left: 16, right: 16, bottom: 16)
 ### Flow 1: Open Chapter
 
 ```
-User taps chapter in BookDetailScreen
+User taps chapter in BookScreen
     ↓
-Navigator.push(SummaryScreen)
+Navigator.push(ChapterScreen)
     ↓
 initState():
     ├── Filter chapters to top-level
@@ -558,7 +558,7 @@ Tap << button (previous chapter)
     ↓
 _navigateToChapter(chapterIndex - 1)
     ↓
-Navigator.pushReplacement(new SummaryScreen)
+Navigator.pushReplacement(new ChapterScreen)
     ↓
 New chapter loads
     ↓
@@ -753,9 +753,9 @@ USE PARSER:
 ## Navigation Flow
 
 ```
-BookDetailScreen
+BookScreen
     ↓ (tap chapter or summary)
-SummaryScreen
+ChapterScreen
     ├── View summary
     ├── View original text
     ├── Generate summary
@@ -764,7 +764,7 @@ SummaryScreen
     ↓ (back button)
 Navigator.pop()
     ↓
-Return to BookDetailScreen
+Return to BookScreen
 ```
 
 ---

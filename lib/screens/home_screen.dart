@@ -15,7 +15,7 @@ import '../services/book_service.dart';
 import '../services/summary_service.dart';
 import '../services/log_service.dart';
 import '../models/book.dart';
-import 'book_detail_screen.dart';
+import 'book_screen.dart';
 import 'settings_screen.dart';
 
 /// ============================================================================
@@ -203,14 +203,15 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
             ),
             child: TextField(
               controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: AppLocalizations.of(context)?.search ?? '搜索',
-                    hintStyle: const TextStyle(color: Colors.white70, fontSize: 13),
-                    border: InputBorder.none,
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 18),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    isDense: true,
-                  ),
+              decoration: InputDecoration(
+                hintText: AppLocalizations.of(context)?.search ?? '搜索',
+                hintStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+                border: InputBorder.none,
+                prefixIcon:
+                    const Icon(Icons.search, color: Colors.white70, size: 18),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                isDense: true,
+              ),
               style: const TextStyle(color: Colors.white, fontSize: 13),
 
               /// 输入变化时更新搜索关键词，触发重建过滤书籍
@@ -266,9 +267,9 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            isSearching 
-              ? (AppLocalizations.of(context)?.noRelatedBooks ?? '未找到相关书籍') 
-              : (AppLocalizations.of(context)?.bookshelfEmpty ?? '书架空空如也'),
+            isSearching
+                ? (AppLocalizations.of(context)?.noRelatedBooks ?? '未找到相关书籍')
+                : (AppLocalizations.of(context)?.bookshelfEmpty ?? '书架空空如也'),
             style: const TextStyle(
               fontSize: 18,
               color: Colors.grey,
@@ -276,9 +277,10 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            isSearching 
-              ? (AppLocalizations.of(context)?.tryOtherKeywords ?? '请尝试其他关键词') 
-              : (AppLocalizations.of(context)?.clickToAddBooks ?? '点击右下角按钮添加书籍'),
+            isSearching
+                ? (AppLocalizations.of(context)?.tryOtherKeywords ?? '请尝试其他关键词')
+                : (AppLocalizations.of(context)?.clickToAddBooks ??
+                    '点击右下角按钮添加书籍'),
             style: const TextStyle(
               fontSize: 14,
               color: Colors.grey,
@@ -427,7 +429,8 @@ class _BookCardState extends State<BookCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       /// 书籍标题，单行显示，超出省略
-                      Flexible(  // 添加Flexible以确保在空间不足时可以收缩
+                      Flexible(
+                        // 添加Flexible以确保在空间不足时可以收缩
                         child: Text(
                           widget.book.title,
                           style: const TextStyle(
@@ -439,9 +442,10 @@ class _BookCardState extends State<BookCard> {
                         ),
                       ),
                       const SizedBox(height: 2),
- 
+
                       /// 作者名称，单行显示，超出省略
-                      Flexible(  // 添加Flexible以允许收缩
+                      Flexible(
+                        // 添加Flexible以允许收缩
                         child: Text(
                           widget.book.author,
                           style: TextStyle(
@@ -453,7 +457,7 @@ class _BookCardState extends State<BookCard> {
                         ),
                       ),
                       const Spacer(),
- 
+
                       /// 阅读进度条，仅当有进度时显示
                       if (widget.book.readingProgress > 0)
                         LinearProgressIndicator(
@@ -513,7 +517,7 @@ class _BookCardState extends State<BookCard> {
   /// 参数：context - BuildContext
   /// 流程：
   ///   1. 从BookService获取最新书籍信息（确保数据同步）
-  ///   2. 跳转到BookDetailScreen
+  ///   2. 跳转到BookScreen
   ///   3. 返回后刷新卡片状态（更新阅读进度等）
   /// 说明：使用mounted检查确保组件仍存在
   void _openBook(BuildContext context) async {
@@ -522,7 +526,7 @@ class _BookCardState extends State<BookCard> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BookDetailScreen(book: latestBook),
+        builder: (context) => BookScreen(book: latestBook),
       ),
     );
 
@@ -550,7 +554,9 @@ class _BookCardState extends State<BookCard> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppLocalizations.of(context)?.confirmRemoval ?? '确认移除'),
-        content: Text(AppLocalizations.of(context)?.removeConfirmation(widget.book.title) ?? '确定要从书架移除《${widget.book.title}》吗？'),
+        content: Text(AppLocalizations.of(context)
+                ?.removeConfirmation(widget.book.title) ??
+            '确定要从书架移除《${widget.book.title}》吗？'),
         actions: [
           /// 取消按钮
           TextButton(

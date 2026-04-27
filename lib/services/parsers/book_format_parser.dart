@@ -66,7 +66,7 @@ abstract class BookFormatParser {
   ///
   /// 调用方：
   /// - BookService.importBook()：导入时获取章节列表
-  /// - BookDetailScreen：显示书籍目录
+  /// - BookScreen：显示书籍目录
   ///
   /// 异步原因：需要读取文件系统并解析章节结构
   ///
@@ -117,7 +117,7 @@ abstract class BookFormatParser {
   ///
   /// 调用方：
   /// - BookService.importBook()：导入时提取封面
-  /// - BookDetailScreen：显示书籍封面
+  /// - BookScreen：显示书籍封面
   ///
   /// 实现细节：
   /// - EPUB格式：从OPF文件指定的封面图片提取，或使用第一张图片

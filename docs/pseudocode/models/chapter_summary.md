@@ -363,7 +363,7 @@ END FUNCTION
 ### Display in UI
 
 ```
-// In SummaryScreen
+// In ChapterScreen
 WIDGET buildChapterSummaryView(ChapterSummary summary):
     RETURN Column(
         children: [

@@ -10,10 +10,10 @@
 
 ---
 
-### Task 1: Add navigation buttons to SummaryScreen
+### Task 1: Add navigation buttons to ChapterScreen
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart`
+- Modify: `lib/screens/chapter_screen.dart`
 
 - [ ] **Step 1: Add _chapters field to store chapter list**
 
@@ -148,7 +148,7 @@ void _navigateToChapter(int index) {
   Navigator.pushReplacement(
     context,
     MaterialPageRoute(
-      builder: (context) => SummaryScreen(
+      builder: (context) => ChapterScreen(
         bookId: widget.bookId,
         chapterIndex: index,
         chapterTitle: chapter.title,
@@ -162,7 +162,7 @@ void _navigateToChapter(int index) {
 
 - [ ] **Step 6: Run flutter analyze to verify**
 
-Run: `flutter analyze lib/screens/summary_screen.dart`
+Run: `flutter analyze lib/screens/chapter_screen.dart`
 Expected: No errors
 
 - [ ] **Step 7: Build to verify**
@@ -173,8 +173,8 @@ Expected: Build successful
 - [ ] **Step 8: Commit**
 
 ```bash
-git add lib/screens/summary_screen.dart
-git commit -m "feat: add chapter navigation buttons to SummaryScreen"
+git add lib/screens/chapter_screen.dart
+git commit -m "feat: add chapter navigation buttons to ChapterScreen"
 ```
 
 ---

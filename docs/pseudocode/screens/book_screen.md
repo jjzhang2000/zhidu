@@ -2,7 +2,7 @@
 
 ## Overview
 
-**File**: `lib/screens/book_detail_screen.dart`
+**File**: `lib/screens/book_screen.dart`
 **Purpose**: Display book details, AI-generated summary, and chapter list
 **Pattern**: StatefulWidget with timer-based refresh and background pre-generation
 
@@ -11,9 +11,9 @@
 ## StatefulWidget Structure
 
 ```
-BookDetailScreen (StatefulWidget)
+BookScreen (StatefulWidget)
 ├── Parameter: Book book
-└── _BookDetailScreenState (State)
+└── _BookScreenState (State)
     ├── Services: BookService, AIService, SummaryService, LogService
     ├── State: Book _book, List<Chapter> _flatChapters
     ├── Flags: _isLoadingChapters, _isPreGenerating
@@ -81,7 +81,7 @@ END PROCEDURE
 
 ```
 ASYNC PROCEDURE _loadChapters():
-  _log.v('BookDetailScreen', '_loadChapters 开始执行')
+  _log.v('BookScreen', '_loadChapters 开始执行')
   setState(): _isLoadingChapters = true
   
   TRY:
@@ -89,7 +89,7 @@ ASYNC PROCEDURE _loadChapters():
     parser = FormatRegistry.getParser('.' + _book.format.name)
     
     IF parser == null:
-      _log.e('BookDetailScreen', '不支持的格式')
+      _log.e('BookScreen', '不支持的格式')
       setState(): _isLoadingChapters = false
       RETURN
     
@@ -100,9 +100,9 @@ ASYNC PROCEDURE _loadChapters():
       _flatChapters = chapters
       _isLoadingChapters = false
     
-    _log.d('BookDetailScreen', '章节加载完成: ${chapters.length} 个章节')
+    _log.d('BookScreen', '章节加载完成: ${chapters.length} 个章节')
   CATCH e, stackTrace:
-    _log.e('BookDetailScreen', '加载章节列表失败', e, stackTrace)
+    _log.e('BookScreen', '加载章节列表失败', e, stackTrace)
     IF mounted:
       setState(): _isLoadingChapters = false
 END PROCEDURE
@@ -114,12 +114,12 @@ END PROCEDURE
 PROCEDURE _startPreGeneration():
   // Skip if AI not configured
   IF NOT _aiService.isConfigured:
-    _log.d('BookDetailScreen', 'AI服务未配置，跳过预生成')
+    _log.d('BookScreen', 'AI服务未配置，跳过预生成')
     RETURN
   
   // Prevent duplicate pre-generation tasks
   IF _isPreGenerating:
-    _log.d('BookDetailScreen', '已在预生成中，跳过')
+    _log.d('BookScreen', '已在预生成中，跳过')
     RETURN
   
   _isPreGenerating = true
@@ -127,19 +127,19 @@ PROCEDURE _startPreGeneration():
   // Execute asynchronously (non-blocking)
   Future():
     TRY:
-      _log.d('BookDetailScreen', '开始后台预生成章节摘要')
+      _log.d('BookScreen', '开始后台预生成章节摘要')
       
       // Refresh first to avoid duplicate generation
       _refreshBookIfNeeded()
       
       // Generate summaries for all chapters
       AWAIT _summaryService.generateSummariesForBook(_book)
-      _log.d('BookDetailScreen', '后台预生成章节摘要完成')
+      _log.d('BookScreen', '后台预生成章节摘要完成')
       
       // Refresh again after completion
       _refreshBookIfNeeded()
     CATCH e, stackTrace:
-      _log.e('BookDetailScreen', '后台预生成章节摘要失败', e, stackTrace)
+      _log.e('BookScreen', '后台预生成章节摘要失败', e, stackTrace)
     FINALLY:
       _isPreGenerating = false
 END PROCEDURE
@@ -283,7 +283,7 @@ ELSE:
                     │   ├── color: grey IF level > 0
                     │   └── maxLines: 1, ellipsis
                     └── onTap: 
-                        IF level == 0: navigate to SummaryScreen
+                        IF level == 0: navigate to ChapterScreen
                         ELSE: null (sub-chapters not clickable)
 ```
 
@@ -296,7 +296,7 @@ ELSE:
 ```
 User taps book card on home screen
     ↓
-Navigator.push(BookDetailScreen(book: book))
+Navigator.push(BookScreen(book: book))
     ↓
 initState():
     ├── Get latest book data
@@ -320,7 +320,7 @@ Display chapter list with hierarchy
     ↓
 User taps top-level chapter
     ↓
-Navigator.push(SummaryScreen(chapter))
+Navigator.push(ChapterScreen(chapter))
 ```
 
 ### Flow 3: Read from Summary
@@ -331,7 +331,7 @@ User views AI-generated summary
 User taps summary content area
     ↓
 IF chapters exist:
-    Navigator.push(SummaryScreen(firstChapter))
+    Navigator.push(ChapterScreen(firstChapter))
     ↓
 Enter chapter reading mode
 ```
@@ -339,7 +339,7 @@ Enter chapter reading mode
 ### Flow 4: Background Pre-generation
 
 ```
-BookDetailScreen opens
+BookScreen opens
     ↓
 _startPreGeneration() called
     ↓
@@ -386,11 +386,11 @@ UI shows new summary
 ```
 HomeScreen (BookCard)
     ↓ (tap book card)
-BookDetailScreen
+BookScreen
     ├── Shows book info + AI summary
     ├── Shows chapter list (toggle)
     ↓ (tap chapter OR summary)
-SummaryScreen
+ChapterScreen
     ├── Chapter summary display
     ├── Original text view
     └── Chapter navigation
@@ -452,7 +452,7 @@ Toggle button icon:
 ### Chapter Clickability
 
 ```
-chapter.level == 0 → Clickable, navigates to SummaryScreen
+chapter.level == 0 → Clickable, navigates to ChapterScreen
 chapter.level > 0 → Not clickable (sub-chapters)
 
 Reason: Only navigate between top-level chapters

@@ -1,30 +1,30 @@
-# BookDetailScreen Navigation Design
+# BookScreen Navigation Design
 
 ## Overview
 
-Modify navigation flow from BookDetailScreen to improve user experience:
-- Clicking a chapter in the TOC should directly navigate to that chapter's summary page (SummaryScreen)
+Modify navigation flow from BookScreen to improve user experience:
+- Clicking a chapter in the TOC should directly navigate to that chapter's summary page (ChapterScreen)
 - Clicking the content introduction box should navigate to the last read chapter's summary, or the first chapter's summary if no previous reading history
 
 ## Requirements
 
 ### 1. Chapter Click Navigation
 
-When user clicks any chapter in the TOC (目录) in BookDetailScreen:
-- Navigate directly to SummaryScreen (章节摘要界面)
+When user clicks any chapter in the TOC (目录) in BookScreen:
+- Navigate directly to ChapterScreen (章节摘要界面)
 - Pass chapter index, title, and file path
-- SummaryScreen loads chapter content internally if not provided
+- ChapterScreen loads chapter content internally if not provided
 
 ### 2. Content Introduction Box Click Navigation
 
 When user clicks the AI-generated content introduction box:
-- If `book.currentChapter >= 1`: navigate to that chapter's SummaryScreen (索引从1开始表示有阅读历史)
-- If `book.currentChapter == 0`: navigate to first chapter (index 0) SummaryScreen
+- If `book.currentChapter >= 1`: navigate to that chapter's ChapterScreen (索引从1开始表示有阅读历史)
+- If `book.currentChapter == 0`: navigate to first chapter (index 0) ChapterScreen
 - Pass chapter index, title, and file path
 
 ## Design
 
-### SummaryScreen Modifications
+### ChapterScreen Modifications
 
 **Parameter Changes:**
 - `chapterContent` becomes optional: `String? chapterContent`
@@ -73,7 +73,7 @@ _loadChapterContent() async {
 - Add loading indicator when `_isLoadingContent == true`
 - Existing `_isGenerating` indicator for summary generation remains
 
-### BookDetailScreen Modifications
+### BookScreen Modifications
 
 **New Data:**
 - `List<ChapterInfo> _flatChapters = []` - Flat chapter list for index lookup
@@ -126,7 +126,7 @@ void _onChapterClick(ChapterInfo chapter) {
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (context) => SummaryScreen(
+      builder: (context) => ChapterScreen(
         bookId: _book.id,
         chapterIndex: index,
         chapterTitle: chapter.title,
@@ -164,7 +164,7 @@ void _onIntroductionClick() {
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (context) => SummaryScreen(
+      builder: (context) => ChapterScreen(
         bookId: _book.id,
         chapterIndex: targetIndex,
         chapterTitle: chapter.title,
@@ -177,23 +177,23 @@ void _onIntroductionClick() {
 
 **Removed Code:**
 - Remove navigation to ChapterListScreen from all click handlers
-- Remove `_openChapter` method or repurpose for SummaryScreen
+- Remove `_openChapter` method or repurpose for ChapterScreen
 
 ## Data Flow
 
 ```
-BookDetailScreen
+BookScreen
 │
 ├─ Click TOC chapter
 │   ├─ Find index in _flatChapters by title
-│   └─ Navigate to SummaryScreen
-│       └─ SummaryScreen loads content from filePath
+│   └─ Navigate to ChapterScreen
+│       └─ ChapterScreen loads content from filePath
 │
 └─ Click content introduction box
     ├─ Determine index: currentChapter > 0 ? currentChapter : 0
     ├─ Get title from _flatChapters[index]
-    └─ Navigate to SummaryScreen
-        └─ SummaryScreen loads content from filePath
+    └─ Navigate to ChapterScreen
+        └─ ChapterScreen loads content from filePath
 ```
 
 ## Error Handling
@@ -203,17 +203,17 @@ All error cases are handled with SnackBar notifications:
 1. **Flat chapters list empty:** "章节列表未加载完成"
 2. **Chapter not found in flat list:** "无法找到章节：{title}"
 3. **Chapter index out of range:** "章节索引超出范围"
-4. **SummaryScreen content loading failure:** Shows error state in UI with retry option
-5. **SummaryScreen missing both content and filePath:** Shows error "未提供章节内容或文件路径"
+4. **ChapterScreen content loading failure:** Shows error state in UI with retry option
+5. **ChapterScreen missing both content and filePath:** Shows error "未提供章节内容或文件路径"
 
 ## Files to Modify
 
-1. `lib/screens/summary_screen.dart`
+1. `lib/screens/chapter_screen.dart`
    - Modify constructor parameters
    - Add content loading logic
    - Add loading state UI
 
-2. `lib/screens/book_detail_screen.dart`
+2. `lib/screens/book_screen.dart`
    - Add `_flatChapters` data
    - Modify `_loadChapters` to load flat list
    - Modify chapter click handlers

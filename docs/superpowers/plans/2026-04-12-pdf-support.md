@@ -552,7 +552,7 @@ git commit -m "feat: create PDF reader screen with page navigation"
 ### Task 5: 集成PDF阅读到章节列表
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart`
+- Modify: `lib/screens/chapter_screen.dart`
 
 - [ ] **Step 1: 导入PDF阅读器屏幕**
 
@@ -563,7 +563,7 @@ import 'pdf_reader_screen.dart';
 - [ ] **Step 2: 更新章节点击处理逻辑**
 
 ```dart
-// 在_summary_screen.dart中找到章节点击处理部分
+// 在_chapter_screen.dart中找到章节点击处理部分
 onPressed: () {
   if (widget.book.format == BookFormat.pdf) {
     Navigator.push(
@@ -599,7 +599,7 @@ Expected: 点击PDF书籍章节能打开PDF阅读器
 - [ ] **Step 4: 提交集成更改**
 
 ```bash
-git add lib/screens/summary_screen.dart
+git add lib/screens/chapter_screen.dart
 git commit -m "feat: integrate PDF reader into chapter list navigation"
 ```
 

@@ -18,8 +18,8 @@
 | lib/services/book_service.dart | 更新章节标题 | 新增方法 |
 | lib/services/ai_prompts.dart | AI输出格式 | 修改prompt |
 | lib/services/summary_service.dart | 标题解析与更新 | 新增逻辑 |
-| lib/screens/book_detail_screen.dart | 章节列表显示 | 修改显示逻辑 |
-| lib/screens/summary_screen.dart | AppBar标题显示 | 修改显示逻辑 |
+| lib/screens/book_screen.dart | 章节列表显示 | 修改显示逻辑 |
+| lib/screens/chapter_screen.dart | AppBar标题显示 | 修改显示逻辑 |
 
 ---
 
@@ -340,14 +340,14 @@ git commit -m "feat: add title extraction logic to SummaryService"
 
 ---
 
-### Task 5: BookDetailScreen显示逻辑修改
+### Task 5: BookScreen显示逻辑修改
 
 **Files:**
-- Modify: `lib/screens/book_detail_screen.dart`
+- Modify: `lib/screens/book_screen.dart`
 
 - [ ] **Step 1: 在_book定义后添加获取章节标题的方法**
 
-在`_BookDetailScreenState`类中，在`_refreshBookIfNeeded`方法附近添加辅助方法：
+在`_BookScreenState`类中，在`_refreshBookIfNeeded`方法附近添加辅助方法：
 
 ```dart
 String _getChapterTitle(int index, Chapter chapter) {
@@ -378,7 +378,7 @@ title: Text(
 - [ ] **Step 3: 运行flutter analyze验证**
 
 ```bash
-flutter analyze lib/screens/book_detail_screen.dart
+flutter analyze lib/screens/book_screen.dart
 ```
 
 Expected: No issues found
@@ -386,18 +386,18 @@ Expected: No issues found
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lib/screens/book_detail_screen.dart
+git add lib/screens/book_screen.dart
 git commit -m "feat: update chapter list to show extracted titles"
 ```
 
 ---
 
-### Task 6: SummaryScreen显示逻辑修改
+### Task 6: ChapterScreen显示逻辑修改
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart`
+- Modify: `lib/screens/chapter_screen.dart`
 
-- [ ] **Step 1: 在_SummaryScreenState类中添加_getChapterTitle方法**
+- [ ] **Step 1: 在_ChapterScreenState类中添加_getChapterTitle方法**
 
 在类中添加辅助方法：
 
@@ -433,7 +433,7 @@ appBar: AppBar(
 
 - [ ] **Step 3: 添加BookService实例**
 
-在`_SummaryScreenState`类中，在已有`_summaryService`后添加`_bookService`：
+在`_ChapterScreenState`类中，在已有`_summaryService`后添加`_bookService`：
 
 ```dart
 final _bookService = BookService();
@@ -521,7 +521,7 @@ Future<void> _generateSummary() async {
 - [ ] **Step 5: 运行flutter analyze验证**
 
 ```bash
-flutter analyze lib/screens/summary_screen.dart
+flutter analyze lib/screens/chapter_screen.dart
 ```
 
 Expected: No issues found
@@ -529,8 +529,8 @@ Expected: No issues found
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/screens/summary_screen.dart
-git commit -m "feat: update SummaryScreen to show extracted title in AppBar"
+git add lib/screens/chapter_screen.dart
+git commit -m "feat: update ChapterScreen to show extracted title in AppBar"
 ```
 
 ---

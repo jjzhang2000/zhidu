@@ -25,8 +25,8 @@
 **Modified Files:**
 - `lib/services/book_service.dart` - 使用FormatRegistry
 - `lib/services/summary_service.dart` - 统一处理所有格式
-- `lib/screens/book_detail_screen.dart` - 使用新的Chapter模型
-- `lib/screens/summary_screen.dart` - 移除level过滤
+- `lib/screens/book_screen.dart` - 使用新的Chapter模型
+- `lib/screens/chapter_screen.dart` - 移除level过滤
 
 ---
 
@@ -920,10 +920,10 @@ git commit -m "refactor: unify summary generation for all formats using FormatRe
 
 ---
 
-### Task 7: 修改BookDetailScreen使用新的Chapter模型
+### Task 7: 修改BookScreen使用新的Chapter模型
 
 **Files:**
-- Modify: `lib/screens/book_detail_screen.dart`
+- Modify: `lib/screens/book_screen.dart`
 
 - [ ] **Step 1: Update imports and ChapterInfo usage**
 
@@ -939,12 +939,12 @@ List<Chapter> _flatChapters = [];
 
 ```dart
 Future<void> _loadChapters() async {
-  _log.v('BookDetailScreen', '_loadChapters 开始执行');
+  _log.v('BookScreen', '_loadChapters 开始执行');
   try {
     // 使用FormatRegistry获取解析器
     final parser = FormatRegistry.getParser(_book.format.name);
     if (parser == null) {
-      _log.e('BookDetailScreen', '不支持的格式: ${_book.format}');
+      _log.e('BookScreen', '不支持的格式: ${_book.format}');
       return;
     }
     
@@ -955,9 +955,9 @@ Future<void> _loadChapters() async {
       _isLoading = false;
     });
     
-    _log.d('BookDetailScreen', '章节加载完成: ${chapters.length} 个章节');
+    _log.d('BookScreen', '章节加载完成: ${chapters.length} 个章节');
   } catch (e) {
-    _log.e('BookDetailScreen', '加载章节失败', e);
+    _log.e('BookScreen', '加载章节失败', e);
     setState(() {
       _isLoading = false;
     });
@@ -985,7 +985,7 @@ List<Widget> _buildChapterTree(List<Chapter> chapters, [int depth = 0]) {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SummaryScreen(
+              builder: (context) => ChapterScreen(
                 bookId: _book.id,
                 chapterIndex: chapter.index, // 使用chapter.index
                 chapterTitle: chapter.title,
@@ -1003,19 +1003,19 @@ List<Widget> _buildChapterTree(List<Chapter> chapters, [int depth = 0]) {
 }
 ```
 
-- [ ] **Step 4: Commit BookDetailScreen changes**
+- [ ] **Step 4: Commit BookScreen changes**
 
 ```bash
-git add lib/screens/book_detail_screen.dart
-git commit -m "refactor: update BookDetailScreen to use new Chapter model"
+git add lib/screens/book_screen.dart
+git commit -m "refactor: update BookScreen to use new Chapter model"
 ```
 
 ---
 
-### Task 8: 修改SummaryScreen使用新的Chapter模型
+### Task 8: 修改ChapterScreen使用新的Chapter模型
 
 **Files:**
-- Modify: `lib/screens/summary_screen.dart`
+- Modify: `lib/screens/chapter_screen.dart`
 
 - [ ] **Step 1: Update imports and ChapterInfo to Chapter**
 
@@ -1071,7 +1071,7 @@ Future<void> _loadContent() async {
       }
     }
   } catch (e) {
-    _log.e('SummaryScreen', '加载内容失败', e);
+    _log.e('ChapterScreen', '加载内容失败', e);
     setState(() {
       _error = '加载内容失败: $e';
     });
@@ -1083,11 +1083,11 @@ Future<void> _loadContent() async {
 }
 ```
 
-- [ ] **Step 4: Commit SummaryScreen changes**
+- [ ] **Step 4: Commit ChapterScreen changes**
 
 ```bash
-git add lib/screens/summary_screen.dart
-git commit -m "refactor: update SummaryScreen to use new Chapter model"
+git add lib/screens/chapter_screen.dart
+git commit -m "refactor: update ChapterScreen to use new Chapter model"
 ```
 
 ---

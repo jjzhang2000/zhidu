@@ -37,12 +37,12 @@ docs/pseudocode/
 │   └── chapter_summary.md        # 章节摘要模型
 ├── screens/
 │   ├── ai_config_screen.md       # AI 配置页面
-│   ├── book_detail_screen.md     # 书籍详情页面
+│   ├── book_screen.md     # 书籍详情页面
 │   ├── home_screen.md            # 首页
 │   ├── language_settings_screen.md # 语言设置页面
 │   ├── pdf_reader_screen.md      # PDF 阅读器页面
 │   ├── settings_screen.md        # 设置主页面
-│   ├── summary_screen.md         # 摘要显示页面
+│   ├── chapter_screen.md         # 摘要显示页面
 │   └── theme_settings_screen.md  # 主题设置页面
 ├── services/
 │   ├── ai_prompts.md             # AI 提示词模板
@@ -151,13 +151,13 @@ AI 配置页面，提供：
 
 **文档**: [screens/ai_config_screen.md](screens/ai_config_screen.md)
 
-#### book_detail_screen.dart
+#### book_screen.dart
 书籍详情页面，显示：
 - 全书摘要
 - 章节列表
 - 阅读入口
 
-**文档**: [screens/book_detail_screen.md](screens/book_detail_screen.md)
+**文档**: [screens/book_screen.md](screens/book_screen.md)
 
 #### home_screen.dart
 首页，包含：
@@ -194,13 +194,13 @@ PDF 阅读器，提供：
 
 **文档**: [screens/settings_screen.md](screens/settings_screen.md)
 
-#### summary_screen.dart
+#### chapter_screen.dart
 摘要显示页面，展示：
 - 章节摘要
 - 原文跳转
 - 摘要生成
 
-**文档**: [screens/summary_screen.md](screens/summary_screen.md)
+**文档**: [screens/chapter_screen.md](screens/chapter_screen.md)
 
 #### theme_settings_screen.dart
 主题设置页面，配置：

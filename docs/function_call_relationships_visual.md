@@ -15,8 +15,8 @@ graph TB
             HS[HomeScreen<br/>主页]
             BS[BookshelfScreen<br/>书架]
             BC[BookCard<br/>书籍卡片]
-            BDS[BookDetailScreen<br/>书籍详情]
-            SS[SummaryScreen<br/>摘要阅读]
+            BDS[BookScreen<br/>书籍详情]
+            SS[ChapterScreen<br/>摘要阅读]
             SET[SettingsScreen<br/>设置]
         end
         
@@ -196,9 +196,9 @@ journey
       浏览书籍列表: 3: BookshelfScreen
       选择书籍: 4: BookCard点击
     section 书籍阅读
-      查看详情: 2: BookDetailScreen
-      选择章节: 1: SummaryScreen
-      阅读内容: 5: SummaryScreen内容显示
+      查看详情: 2: BookScreen
+      选择章节: 1: ChapterScreen
+      阅读内容: 5: ChapterScreen内容显示
     section 设置操作
       进入设置: 3: SettingsScreen
       修改配置: 4: 各类设置页面
@@ -208,7 +208,7 @@ journey
 
 ```mermaid
 flowchart LR
-    A[用户打开书籍详情] --> B[BookDetailScreen.initState]
+    A[用户打开书籍详情] --> B[BookScreen.initState]
     B --> C[启动后台预生成]
     C --> D{AI服务配置?}
     D -->|已配置| E[SummaryService.generateSummariesForBook]

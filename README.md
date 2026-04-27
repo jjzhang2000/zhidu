@@ -207,8 +207,8 @@ zhidu/
 │   │   └── chapter_summary.dart # 章节摘要
 │   ├── screens/                  # UI页面
 │   │   ├── home_screen.dart     # 首页（书架/发现/我的）
-│   │   ├── book_detail_screen.dart # 书籍详情（全书概览）
-│   │   ├── summary_screen.dart  # 章节摘要页
+│   │   ├── book_screen.dart # 书籍详情（全书概览）
+│   │   ├── chapter_screen.dart  # 章节摘要页
 │   │   ├── pdf_reader_screen.dart # PDF阅读器
 │   │   ├── ai_config_screen.dart # AI配置页面
 │   │   ├── settings_screen.dart # 设置主页面

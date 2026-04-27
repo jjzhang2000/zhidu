@@ -62,12 +62,12 @@ final Map<int, String>? chapterTitles; // 章节索引 -> 标题
 
 ### UI层修改
 
-**文件**: `lib/screens/book_detail_screen.dart`
+**文件**: `lib/screens/book_screen.dart`
 
 - `_buildChapterList()`方法：显示章节时优先使用`book.chapterTitles?[index]`
 - 监听书籍元数据变化，自动刷新章节列表
 
-**文件**: `lib/screens/summary_screen.dart`
+**文件**: `lib/screens/chapter_screen.dart`
 
 - AppBar标题：优先使用`book.chapterTitles?[chapterIndex]`
 - 监听书籍元数据变化，自动刷新标题
@@ -82,10 +82,10 @@ PdfParser.getChapters()
     │ 正则检测初始标题（如"全文"、"第X章")
     │
     ▼
-BookDetailScreen显示占位符标题
+BookScreen显示占位符标题
     │
     ▼
-用户点击章节 → SummaryScreen
+用户点击章节 → ChapterScreen
     │
     ▼
 生成摘要 → AI调用
@@ -130,8 +130,8 @@ AI返回内容格式：
 ### 实时更新机制
 
 使用`BookService.updateBook()`触发元数据保存，UI层通过以下方式监听：
-- `BookDetailScreen`: 定时刷新机制（已有，每3秒刷新）
-- `SummaryScreen`: 在`_generateSummary()`完成后主动刷新标题
+- `BookScreen`: 定时刷新机制（已有，每3秒刷新）
+- `ChapterScreen`: 在`_generateSummary()`完成后主动刷新标题
 
 ## 影响范围
 
@@ -141,8 +141,8 @@ AI返回内容格式：
 | lib/services/ai_prompts.dart | 修改prompt |
 | lib/services/summary_service.dart | 新增标题解析逻辑 |
 | lib/services/book_service.dart | 新增方法 |
-| lib/screens/book_detail_screen.dart | 显示逻辑修改 |
-| lib/screens/summary_screen.dart | 显示逻辑修改 |
+| lib/screens/book_screen.dart | 显示逻辑修改 |
+| lib/screens/chapter_screen.dart | 显示逻辑修改 |
 
 ## 兼容性
 

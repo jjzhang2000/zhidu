@@ -506,9 +506,9 @@
 - Mock BookService
 - Widget测试使用testWidgets
 
-#### 4.4.2 BookDetailScreen测试
+#### 4.4.2 BookScreen测试
 
-**文件**: `test/screens/book_detail_screen_test.dart`
+**文件**: `test/screens/book_screen_test.dart`
 
 | 测试项 | 测试内容 | 优先级 |
 |--------|----------|--------|
@@ -516,7 +516,7 @@
 | 章节列表测试 | 加载状态、列表显示 | P0 |
 | 视图切换测试 | 摘要/目录切换 | P0 |
 | 全书摘要测试 | Markdown渲染 | P0 |
-| 章节点击测试 | 导航到SummaryScreen | P1 |
+| 章节点击测试 | 导航到ChapterScreen | P1 |
 | 预生成测试 | 后台任务启动 | P1 |
 
 **测试用例数**: ~15个
@@ -525,9 +525,9 @@
 - Mock BookService、SummaryService、AIService
 - Mock FormatRegistry
 
-#### 4.4.3 SummaryScreen测试
+#### 4.4.3 ChapterScreen测试
 
-**文件**: `test/screens/summary_screen_test.dart`
+**文件**: `test/screens/chapter_screen_test.dart`
 
 | 测试项 | 测试内容 | 优先级 |
 |--------|----------|--------|
@@ -861,8 +861,8 @@
 **目标**: Screens模块85%覆盖
 
 1. 完成HomeScreen测试
-2. 完成BookDetailScreen测试
-3. 完成SummaryScreen测试
+2. 完成BookScreen测试
+3. 完成ChapterScreen测试
 4. 完成其他Screen基础测试
 
 **里程碑**: Screens模块测试覆盖率≥85%
@@ -989,8 +989,8 @@ test/
 │       └── book_format_parser_test.dart
 ├── screens/
 │   ├── home_screen_test.dart
-│   ├── book_detail_screen_test.dart
-│   ├── summary_screen_test.dart
+│   ├── book_screen_test.dart
+│   ├── chapter_screen_test.dart
 │   ├── settings_screen_test.dart
 │   ├── pdf_reader_screen_test.dart
 │   ├── ai_config_screen_test.dart                [新增]

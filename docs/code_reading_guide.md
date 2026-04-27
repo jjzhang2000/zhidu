@@ -103,9 +103,9 @@ Future<void> _importBook() async {
 }
 ```
 
-### 2. 书籍详情屏幕 (BookDetailScreen)
+### 2. 书籍详情屏幕 (BookScreen)
 
-位于 `lib/screens/book_detail_screen.dart`，展示书籍详细信息：
+位于 `lib/screens/book_screen.dart`，展示书籍详细信息：
 
 #### 主要功能
 - **全书摘要展示**: 显示AI生成的书籍概览（Markdown渲染）
@@ -133,9 +133,9 @@ _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
 });
 ```
 
-### 3. 摘要阅读屏幕 (SummaryScreen)
+### 3. 摘要阅读屏幕 (ChapterScreen)
 
-位于 `lib/screens/summary_screen.dart`，是核心阅读界面：
+位于 `lib/screens/chapter_screen.dart`，是核心阅读界面：
 
 #### 功能特性
 - **AI摘要与原文切换**: 可在AI生成的摘要和原文之间切换

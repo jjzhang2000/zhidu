@@ -22,8 +22,8 @@ Unified chapter model representing a single chapter in a book. Serves as the com
 - PdfParser: Creates Chapter objects when parsing PDF files
 - BookFormatParser: Uses as common return type
 - SummaryService: Gets chapter info when generating summaries
-- BookDetailScreen: Displays book table of contents
-- SummaryScreen: Displays chapter summary info
+- BookScreen: Displays book table of contents
+- ChapterScreen: Displays chapter summary info
 - PdfReaderScreen: Locates chapters during PDF reading
 
 ### Properties
@@ -171,8 +171,8 @@ Related Models:                                 │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Usage Scenarios                          │
-│  - BookDetailScreen: Display TOC                            │
-│  - SummaryScreen: Navigate between chapters                │
+│  - BookScreen: Display TOC                            │
+│  - ChapterScreen: Navigate between chapters                │
 │  - PdfReaderScreen: Jump to chapter page                   │
 │  - SummaryService: Generate chapter summaries               │
 └─────────────────────────────────────────────────────────────┘
@@ -259,7 +259,7 @@ restoredChapter = Chapter.fromJson(json)
 ### Navigation Usage
 
 ```
-// In BookDetailScreen - Display TOC
+// In BookScreen - Display TOC
 WIDGET buildChapterList(List<Chapter> chapters):
     RETURN ListView.builder(
         itemCount = chapters.length,
