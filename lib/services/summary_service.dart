@@ -37,6 +37,7 @@ import 'book_service.dart';
 import 'ai_service.dart';
 import 'parsers/format_registry.dart';
 import 'storage_config.dart';
+import 'translation_service.dart';
 
 /// 信号量类，用于控制并发数
 class Semaphore {
@@ -263,13 +264,13 @@ class SummaryService {
   /// 返回：章节摘要对象，不存在则返回null
   ///
   /// 文件路径：`{应用目录}/books/{bookId}/chapter-{index}.md`
-  Future<ChapterSummary?> getSummary(String bookId, int chapterIndex) async {
+  Future<ChapterSummary?> getSummary(String bookId, int chapterIndex, {String language = 'zh'}) async {
     _log.v('SummaryService',
-        'getSummary 开始执行, bookId: $bookId, chapterIndex: $chapterIndex');
+        'getSummary 开始执行, bookId: $bookId, chapterIndex: $chapterIndex, language: $language');
 
     try {
       final filePath =
-          await StorageConfig.getChapterSummaryPath(bookId, chapterIndex);
+          await StorageConfig.getChapterSummaryPath(bookId, chapterIndex, language: language);
       final content = await _fileStorage.readText(filePath);
 
       if (content == null || content.isEmpty) {
@@ -304,13 +305,13 @@ class SummaryService {
   /// - [summary]：要保存的章节摘要对象
   ///
   /// 文件路径：`{应用目录}/books/{bookId}/chapter-{index}.md`
-  Future<void> saveSummary(ChapterSummary summary) async {
+  Future<void> saveSummary(ChapterSummary summary, {String language = 'zh'}) async {
     try {
       final filePath = await StorageConfig.getChapterSummaryPath(
-          summary.bookId, summary.chapterIndex);
+          summary.bookId, summary.chapterIndex, language: language);
       await _fileStorage.writeText(filePath, summary.objectiveSummary);
       _log.d(
-          'SummaryService', '摘要已保存: ${summary.bookId}_${summary.chapterIndex}');
+          'SummaryService', '摘要已保存: ${summary.bookId}_${summary.chapterIndex}_$language');
     } catch (e, stackTrace) {
       _log.e('SummaryService', 'saveSummary 失败', e, stackTrace);
     }
@@ -323,12 +324,13 @@ class SummaryService {
   /// 参数：
   /// - [bookId]：书籍唯一标识
   /// - [chapterIndex]：章节索引
-  Future<void> deleteSummary(String bookId, int chapterIndex) async {
+  /// - [language]：语言代码（如 'zh', 'en', 'ja'），默认为 'zh'
+  Future<void> deleteSummary(String bookId, int chapterIndex, {String language = 'zh'}) async {
     try {
       final filePath =
-          await StorageConfig.getChapterSummaryPath(bookId, chapterIndex);
+          await StorageConfig.getChapterSummaryPath(bookId, chapterIndex, language: language);
       await _fileStorage.deleteFile(filePath);
-      _log.d('SummaryService', '摘要已删除: ${bookId}_$chapterIndex');
+      _log.d('SummaryService', '摘要已删除: ${bookId}_${chapterIndex}_$language');
     } catch (e, stackTrace) {
       _log.e('SummaryService', 'deleteSummary 失败', e, stackTrace);
     }
@@ -401,9 +403,9 @@ class SummaryService {
   /// 返回：全书摘要文本，不存在则返回null
   ///
   /// 文件路径：`{应用目录}/books/{bookId}/book-summary.md`
-  Future<String?> getBookSummary(String bookId) async {
+  Future<String?> getBookSummary(String bookId, {String language = 'zh'}) async {
     try {
-      final filePath = await StorageConfig.getBookSummaryPath(bookId);
+      final filePath = await StorageConfig.getBookSummaryPath(bookId, language: language);
       return await _fileStorage.readText(filePath);
     } catch (e, stackTrace) {
       _log.e('SummaryService', 'getBookSummary 失败: $bookId', e, stackTrace);
@@ -418,13 +420,14 @@ class SummaryService {
   /// 参数：
   /// - [bookId]：书籍唯一标识
   /// - [summary]：全书摘要文本
+  /// - [language]：语言代码（如 'zh', 'en', 'ja'），默认为 'zh'
   ///
   /// 副作用：更新BookService中对应书籍的aiIntroduction字段
-  Future<void> saveBookSummary(String bookId, String summary) async {
+  Future<void> saveBookSummary(String bookId, String summary, {String language = 'zh'}) async {
     try {
-      final filePath = await StorageConfig.getBookSummaryPath(bookId);
+      final filePath = await StorageConfig.getBookSummaryPath(bookId, language: language);
       await _fileStorage.writeText(filePath, summary);
-      _log.d('SummaryService', '书籍摘要已保存: $bookId');
+      _log.d('SummaryService', '书籍摘要已保存: $bookId, language: $language');
 
       // 同时更新书籍元数据中的aiIntroduction
       final book = _bookService.getBookById(bookId);
@@ -488,6 +491,7 @@ class SummaryService {
     String chapterTitle,
     String content, {
     Function(String)? onContentUpdate,  // 实时内容更新回调
+    String language = 'zh',  // 语言代码
   }) async {
     final key = _key(bookId, chapterIndex);
 
@@ -508,7 +512,7 @@ class SummaryService {
     _generatingFutures[key] = completer.future;
 
     try {
-      _log.d('SummaryService', '开始生成摘要: $key');
+      _log.d('SummaryService', '开始生成摘要: $key, language: $language');
 
       // 调用AI流式生成摘要（内部使用流式方法）
       final stream = _aiService.generateFullChapterSummaryStream(
@@ -553,8 +557,8 @@ class SummaryService {
           createdAt: DateTime.now(),
         );
 
-        await saveSummary(chapterSummary);
-        _log.info('SummaryService', '摘要生成成功: $key');
+        await saveSummary(chapterSummary, language: language);
+        _log.info('SummaryService', '摘要生成成功: $key, language: $language');
         completer.complete();
         return true;
       } else {
@@ -624,6 +628,7 @@ class SummaryService {
     String chapterTitle,
     String content, {
     Function(String)? onContentUpdate,  // 实时内容更新回调
+    String language = 'zh',  // 语言代码
   }) async {
     final key = _key(bookId, chapterIndex);
 
@@ -644,7 +649,7 @@ class SummaryService {
     _generatingFutures[key] = completer.future;
 
     try {
-      _log.d('SummaryService', '开始流式生成摘要: $key');
+      _log.d('SummaryService', '开始流式生成摘要: $key, language: $language');
 
       // 调用AI流式生成摘要
       final stream = _aiService.generateFullChapterSummaryStream(
@@ -688,8 +693,8 @@ class SummaryService {
           createdAt: DateTime.now(),
         );
 
-        await saveSummary(chapterSummary);
-        _log.info('SummaryService', '流式摘要生成成功: $key');
+        await saveSummary(chapterSummary, language: language);
+        _log.info('SummaryService', '流式摘要生成成功: $key, language: $language');
         completer.complete();
         return true;
       } else {
@@ -801,7 +806,7 @@ class SummaryService {
       if (chapterIndex < 0) continue; // 跳过无效index
 
       // 跳过已有摘要的章节
-      final existingSummary = await getSummary(book.id, chapterIndex);
+      final existingSummary = await getSummary(book.id, chapterIndex, language: 'zh');
       if (existingSummary != null) {
         _log.d('SummaryService', '章节 $chapterIndex 已有摘要，跳过');
         continue;
@@ -848,6 +853,7 @@ class SummaryService {
           chapterIndex,
           chapter.title,
           chapterContent,
+          language: 'zh',
         );
       }
     } catch (e, stackTrace) {
@@ -945,7 +951,7 @@ class SummaryService {
       }
 
       if (accumulatedContent.isNotEmpty) {
-        await saveBookSummary(book.id, accumulatedContent);
+        await saveBookSummary(book.id, accumulatedContent, language: 'zh');
         _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
       } else {
         _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
@@ -991,7 +997,7 @@ class SummaryService {
       final contentSamples = <String>[];
 
       for (int i = 0; i < chapters.length && i < 10; i++) {
-        final summary = await getSummary(book.id, i);
+        final summary = await getSummary(book.id, i, language: 'zh');
         if (summary != null && summary.objectiveSummary.isNotEmpty) {
           // 截取前200字避免内容过长
           final shortSummary = summary.objectiveSummary.length > 200
@@ -1056,7 +1062,7 @@ class SummaryService {
       }
 
       if (accumulatedContent.isNotEmpty) {
-        await saveBookSummary(book.id, accumulatedContent);
+        await saveBookSummary(book.id, accumulatedContent, language: 'zh');
         _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
       } else {
         _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
@@ -1190,15 +1196,21 @@ class SummaryService {
     return _generatingTranslationKeys.contains('${bookId}_${chapterIndex}_$targetLang');
   }
 
-  /// 流式生成章节译文
+  /// 流式生成章节译文（格式保留）
+  ///
+  /// 使用TranslationService进行格式保留的分段翻译：
+  /// 1. 解析文档结构（EPUB/PDF）
+  /// 2. 分段翻译，保留格式信息
+  /// 3. 重组译文，还原原始结构
   ///
   /// 参数：
   /// - [bookId]：书籍唯一标识
   /// - [chapterIndex]：章节索引
-  /// - [content]：章节正文内容（纯文本）
+  /// - [content]：章节正文内容（HTML或纯文本）
   /// - [chapterTitle]：章节标题
   /// - [sourceLang]：源语言代码
   /// - [targetLang]：目标语言代码
+  /// - [bookFormat]：书籍格式（'epub' 或 'pdf'），用于选择对应的解析器
   /// - [onContentUpdate]：内容更新回调函数（用于流式显示）
   ///
   /// 返回：`true` 表示生成成功，`false` 表示失败
@@ -1209,6 +1221,7 @@ class SummaryService {
     String? chapterTitle,
     required String sourceLang,
     required String targetLang,
+    String? bookFormat,
     Function(String)? onContentUpdate,
   }) async {
     final key = '${bookId}_${chapterIndex}_$targetLang';
@@ -1222,27 +1235,43 @@ class SummaryService {
     _generatingTranslationKeys.add(key);
 
     try {
-      _log.d('SummaryService', '开始流式生成译文: $key');
+      _log.d('SummaryService', '开始流式生成译文（格式保留）: $key, format: $bookFormat');
 
-      final stream = _aiService.translateChapterStream(
-        content,
-        chapterTitle: chapterTitle,
-        sourceLang: sourceLang,
-        targetLang: targetLang,
-      );
+      // 使用TranslationService进行格式保留翻译
+      final translationService = TranslationService();
+      String translatedContent;
 
-      String accumulatedContent = '';
-
-      await for (final chunk in stream) {
-        accumulatedContent += chunk;
-
-        if (onContentUpdate != null) {
-          onContentUpdate(accumulatedContent);
-        }
+      // 根据书籍格式选择对应的解析器
+      if (bookFormat == 'epub') {
+        // EPUB格式：直接翻译HTML
+        translatedContent = await translationService.translateEpubContent(
+          content,
+          sourceLang: sourceLang,
+          targetLang: targetLang,
+          chapterTitle: chapterTitle,
+          onProgress: (currentTranslation) {
+            if (onContentUpdate != null) {
+              onContentUpdate(currentTranslation);
+            }
+          },
+        );
+      } else {
+        // PDF格式：PdfParser将纯文本包裹为<p>...</p>，直接翻译HTML
+        translatedContent = await translationService.translateEpubContent(
+          content,
+          sourceLang: sourceLang,
+          targetLang: targetLang,
+          chapterTitle: chapterTitle,
+          onProgress: (currentTranslation) {
+            if (onContentUpdate != null) {
+              onContentUpdate(currentTranslation);
+            }
+          },
+        );
       }
 
-      if (accumulatedContent.isNotEmpty) {
-        await saveTranslation(bookId, chapterIndex, targetLang, accumulatedContent);
+      if (translatedContent.isNotEmpty) {
+        await saveTranslation(bookId, chapterIndex, targetLang, translatedContent);
         _log.info('SummaryService', '译文生成成功: $key');
         return true;
       } else {

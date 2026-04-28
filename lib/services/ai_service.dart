@@ -319,11 +319,9 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
+      languageInstruction = _getLanguageInstructionForModel(
+        aiLanguageMode: langSettings.aiLanguageMode,
+        aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
 
@@ -398,11 +396,9 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
+      languageInstruction = _getLanguageInstructionForModel(
+        aiLanguageMode: langSettings.aiLanguageMode,
+        aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
 
@@ -486,11 +482,9 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
+      languageInstruction = _getLanguageInstructionForModel(
+        aiLanguageMode: langSettings.aiLanguageMode,
+        aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
 
@@ -575,11 +569,9 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
+      languageInstruction = _getLanguageInstructionForModel(
+        aiLanguageMode: langSettings.aiLanguageMode,
+        aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
 
@@ -641,11 +633,9 @@ class AIService {
       String detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries);
       languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
     } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
+      languageInstruction = _getLanguageInstructionForModel(
+        aiLanguageMode: langSettings.aiLanguageMode,
+        aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
 
@@ -693,11 +683,9 @@ class AIService {
       String detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent);
       languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
     } else {
-      languageInstruction = AiPrompts.getLanguageInstruction(
-        langSettings.aiLanguageMode,
-        manualLanguage: langSettings.aiLanguageMode == 'manual'
-            ? langSettings.aiOutputLanguage
-            : null,
+      languageInstruction = _getLanguageInstructionForModel(
+        aiLanguageMode: langSettings.aiLanguageMode,
+        aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
 
@@ -1202,8 +1190,12 @@ class AIService {
         String currentDataContent = '';
 
         // 监听数据到达事件
+        int chunkCount = 0;
         await for (final chunk in response.transform(utf8.decoder)) {
-          _log.d('AIService', '收到数据块，长度: ${chunk.length}');
+          chunkCount++;
+          if (chunkCount <= 3) {
+            _log.d('AIService', '收到数据块 #$chunkCount，长度: ${chunk.length}');
+          }
 
           buffer += chunk;
 
@@ -1344,46 +1336,116 @@ class AIService {
     }
   }
 
-  /// 方法名：translateChapterStream
-  /// 功能：流式翻译章节内容
-  ///
-  /// 参数：
-  /// - content: 章节原文内容
-  /// - chapterTitle: 章节标题（可选）
-  /// - sourceLang: 源语言代码（如 'zh', 'en', 'ja'）
-  /// - targetLang: 目标语言代码（如 'zh', 'en', 'ja'）
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的翻译内容流
-  /// - 失败时返回空流
-  Stream<String> translateChapterStream(
+  /// 方法名：translateHtmlStream
+  /// 功能：流式翻译HTML内容（保留HTML标签）
+  Stream<String> translateHtmlStream(
     String content, {
     String? chapterTitle,
     required String sourceLang,
     required String targetLang,
   }) async* {
     _log.v('AIService',
-        'translateChapterStream 开始执行，content length: ${content.length}, sourceLang: $sourceLang, targetLang: $targetLang');
+        'translateHtmlStream 开始执行，content length: ${content.length}, sourceLang: $sourceLang, targetLang: $targetLang');
     if (_config == null || !_config!.isValid) {
       _log.w('AIService', 'AI 配置未设置或 API Key 无效');
       return;
     }
 
-    final prompt = AiPrompts.translateChapter(
+    final prompt = AiPrompts.translateHtml(
       content: content,
       chapterTitle: chapterTitle,
       sourceLang: sourceLang,
       targetLang: targetLang,
     );
 
-    final systemMessage = 'IMPORTANT: Respond in $targetLang.';
+    final systemMessage = 'You are a professional translator. Translate ALL text content to $targetLang. Do NOT mix languages. Preserve ALL HTML tags exactly as they appear.';
 
     try {
       await for (final chunk in _callAIStream(prompt, systemMessage: systemMessage)) {
         yield chunk;
       }
     } catch (e) {
-      _log.e('AIService', '翻译章节流失败', e);
+      _log.e('AIService', '翻译HTML流失败', e);
+    }
+  }
+
+  /// 检测系统语言
+  ///
+  /// 通过 Platform.localeName 获取系统语言设置
+  /// 返回语言代码：'zh'（中文）、'en'（英文）、'ja'（日文）等
+  String _detectSystemLanguage() {
+    try {
+      final locale = Platform.localeName;
+      _log.d('AIService', '系统 locale: $locale');
+      
+      if (locale.startsWith('zh') || locale.contains('_CN') || locale.contains('_TW') || locale.contains('_HK')) {
+        return 'zh';
+      } else if (locale.startsWith('ja') || locale.contains('_JP')) {
+        return 'ja';
+      } else if (locale.startsWith('en') || locale.contains('_US') || locale.contains('_GB')) {
+        return 'en';
+      } else if (locale.startsWith('ko') || locale.contains('_KR')) {
+        return 'ko';
+      }
+      
+      // 默认中文
+      _log.d('AIService', '无法识别的系统 locale，默认使用中文');
+      return 'zh';
+    } catch (e) {
+      _log.w('AIService', '检测系统语言失败: $e，使用默认中文');
+      return 'zh';
+    }
+  }
+
+  /// 获取语言指令（包含系统语言检测）
+  ///
+  /// 根据语言设置模式和系统语言生成具体的AI语言指令
+  String _getLanguageInstructionForModel({
+    required String aiLanguageMode,
+    String? aiOutputLanguage,
+  }) {
+    String systemLanguage = _detectSystemLanguage();
+    
+    return AiPrompts.getLanguageInstruction(
+      aiLanguageMode,
+      manualLanguage: aiLanguageMode == 'manual' ? aiOutputLanguage : null,
+      systemLanguage: aiLanguageMode == 'system' ? systemLanguage : null,
+    );
+  }
+
+  /// 获取当前目标语言代码
+  ///
+  /// 根据AI语言模式动态确定目标语言：
+  /// - 'book' 模式：从书籍元数据或内容中检测语言
+  /// - 'system' 模式：检测系统语言
+  /// - 'manual' 模式：使用用户配置的语言
+  ///
+  /// 参数：
+  /// - [aiLanguageMode]: AI语言模式 ('book', 'system', 'manual')
+  /// - [aiOutputLanguage]: 用户配置的语言（manual模式时使用）
+  /// - [bookLanguage]: 书籍语言（book模式时使用）
+  /// - [content]: 章节内容（book模式且无书籍语言时用于检测）
+  ///
+  /// 返回：目标语言代码（如 'zh', 'en', 'ja'）
+  String getTargetLanguage({
+    required String aiLanguageMode,
+    String? aiOutputLanguage,
+    String? bookLanguage,
+    String? content,
+  }) {
+    switch (aiLanguageMode) {
+      case 'system':
+        return _detectSystemLanguage();
+      case 'manual':
+        return aiOutputLanguage ?? 'zh';
+      case 'book':
+      default:
+        if (bookLanguage != null && bookLanguage.isNotEmpty) {
+          return bookLanguage;
+        } else if (content != null && content.isNotEmpty) {
+          return _detectLanguageFromMetadataAndContent(content);
+        }
+        return 'zh';
     }
   }
 }

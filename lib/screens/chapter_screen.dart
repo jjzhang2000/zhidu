@@ -13,6 +13,7 @@
 /// - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -131,8 +132,75 @@ TabController? _tabController;
   /// 源语言代码（从书籍元数据获取）
   String? _sourceLang;
 
+  /// 摘要语言代码（当前使用的摘要语言）
+  String _summaryLang = 'zh';
+
   /// 译文Tab是否禁用（当书籍语言与目标语言相同时禁用）
   bool _translationTabDisabled = false;
+
+  /// 获取当前摘要语言
+  String _getCurrentSummaryLanguage() {
+    final langSettings = SettingsService().settings.languageSettings;
+    switch (langSettings.aiLanguageMode) {
+      case 'system':
+        return _detectSystemLanguage();
+      case 'manual':
+        return langSettings.aiOutputLanguage;
+      case 'book':
+      default:
+        return widget.book?.language ?? 'zh';
+    }
+  }
+
+  /// 更新目标语言设置
+  ///
+  /// 每次切换到译文Tab时调用，确保使用最新的AI输出语言设置
+  Future<void> _updateTargetLanguage() async {
+    final langSettings = SettingsService().settings.languageSettings;
+    
+    // 根据AI语言模式确定目标语言
+    switch (langSettings.aiLanguageMode) {
+      case 'system':
+        _targetLang = _detectSystemLanguage();
+        _log.d('ChapterScreen', '跟随系统语言，目标语言: $_targetLang');
+        break;
+      case 'manual':
+        _targetLang = langSettings.aiOutputLanguage;
+        _log.d('ChapterScreen', '用户自选语言，目标语言: $_targetLang');
+        break;
+      case 'book':
+      default:
+        _targetLang = langSettings.aiOutputLanguage;
+        _log.d('ChapterScreen', '跟随书籍语言，目标语言: $_targetLang');
+        break;
+    }
+    
+    _translationTabDisabled = _sourceLang == _targetLang;
+    _log.d('ChapterScreen', '更新目标语言: $_targetLang, 源语言: $_sourceLang, 禁用: $_translationTabDisabled');
+  }
+
+  /// 检测系统语言
+  String _detectSystemLanguage() {
+    try {
+      final locale = Platform.localeName;
+      _log.d('ChapterScreen', '系统 locale: $locale');
+      
+      if (locale.startsWith('zh') || locale.contains('_CN') || locale.contains('_TW') || locale.contains('_HK')) {
+        return 'zh';
+      } else if (locale.startsWith('ja') || locale.contains('_JP')) {
+        return 'ja';
+      } else if (locale.startsWith('en') || locale.contains('_US') || locale.contains('_GB')) {
+        return 'en';
+      } else if (locale.startsWith('ko') || locale.contains('_KR')) {
+        return 'ko';
+      }
+      
+      return 'zh';
+    } catch (e) {
+      _log.w('ChapterScreen', '检测系统语言失败: $e，使用默认中文');
+      return 'zh';
+    }
+  }
 
   @override
   void initState() {
@@ -155,9 +223,11 @@ _tabController = TabController(length: 3, vsync: this);
 _tabController!.addListener(() {
   if (mounted) {
     setState(() {});
-    // 当切换到译文Tab时，加载译文
+    // 当切换到译文Tab时，重新加载语言设置并加载译文
     if (_tabController?.index == 1) {
-      _loadTranslation();
+      _updateTargetLanguage().then((_) {
+        _loadTranslation();
+      });
     }
   }
 });
@@ -242,9 +312,25 @@ void dispose() {
 
     _log.d('ChapterScreen', '源语言: $_sourceLang');
 
-    _targetLang = langSettings.aiOutputLanguage;
+    // 根据AI语言模式确定目标语言
+    switch (langSettings.aiLanguageMode) {
+      case 'system':
+        _targetLang = _detectSystemLanguage();
+        _log.d('ChapterScreen', '跟随系统语言，目标语言: $_targetLang');
+        break;
+      case 'manual':
+        _targetLang = langSettings.aiOutputLanguage;
+        _log.d('ChapterScreen', '用户自选语言，目标语言: $_targetLang');
+        break;
+      case 'book':
+      default:
+        _targetLang = langSettings.aiOutputLanguage;
+        _log.d('ChapterScreen', '跟随书籍语言，目标语言: $_targetLang');
+        break;
+    }
 
-    _log.d('ChapterScreen', '目标语言: $_targetLang');
+    // 同步更新摘要语言（摘要语言和翻译目标语言保持一致）
+    _summaryLang = _targetLang ?? 'zh';
 
     _translationTabDisabled = _sourceLang == _targetLang;
     
@@ -442,7 +528,7 @@ void dispose() {
         _summaryService.unregisterStreamingCallback(capturedBookId, capturedChapterIndex);
 
         // 加载最终摘要
-        _summaryService.getSummary(capturedBookId, capturedChapterIndex).then((summary) {
+        _summaryService.getSummary(capturedBookId, capturedChapterIndex, language: _summaryLang).then((summary) {
           if (!mounted) return;
           if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
 
@@ -470,7 +556,7 @@ void dispose() {
     _hasLoadedSummary = true;
     _listeningChapterKey = chapterKey;
 
-    final summary = await _summaryService.getSummary(widget.bookId, widget.chapterIndex);
+    final summary = await _summaryService.getSummary(widget.bookId, widget.chapterIndex, language: _summaryLang);
     
     if (summary != null) {
       // 已有摘要，直接显示
@@ -534,6 +620,7 @@ void dispose() {
         widget.chapterIndex,
         _title,
         plainText,
+        language: _summaryLang,
       );
 
       if (!mounted) return;
@@ -543,6 +630,7 @@ void dispose() {
         final summary = await _summaryService.getSummary(
           widget.bookId,
           widget.chapterIndex,
+          language: _summaryLang,
         );
 
         // 检查AI是否更新了章节标题
@@ -620,6 +708,7 @@ void dispose() {
         widget.chapterIndex,
         _title,
         plainText,
+        language: _summaryLang,
         onContentUpdate: (content) {
           // 立即更新UI状态，不使用延迟
           if (mounted) {
@@ -637,6 +726,7 @@ void dispose() {
         final summary = await _summaryService.getSummary(
           widget.bookId,
           widget.chapterIndex,
+          language: _summaryLang,
         );
 
         final updatedBook = _bookService.getBookById(widget.bookId);
@@ -703,6 +793,50 @@ void dispose() {
     return filePath.substring(lastDot).toLowerCase();
   }
 
+  /// 清理 <code> 和 <pre> 标签中多余的反斜杠
+  String _cleanCodeBackslashes(String html) {
+    return html.replaceAllMapped(
+      RegExp(r'(<code[^>]*>)([\s\S]*?)(</code>)|(<pre[^>]*>)([\s\S]*?)(</pre>)', caseSensitive: false),
+      (match) {
+        if (match.group(0)!.startsWith('<code') || match.group(0)!.startsWith('<CODE')) {
+          final content = match.group(2)!;
+          return '${match.group(1)}${content.replaceAll(r'\\', r'\')}${match.group(3)}';
+        } else {
+          final content = match.group(5)!;
+          return '${match.group(4)}${content.replaceAll(r'\\', r'\')}${match.group(6)}';
+        }
+      },
+    );
+  }
+
+  /// 将HTML中的代码块替换为唯一占位符
+  ///
+  /// 返回包含两个元素的列表：[处理后的HTML, 原始代码块列表]
+  List<dynamic> _extractCodeBlocksToPlaceholders(String html) {
+    final codeBlocks = <String>[];
+    final codeRegex = RegExp(r'(<code[^>]*>[\s\S]*?</code>)|(<pre[^>]*>[\s\S]*?</pre>)', caseSensitive: false, dotAll: true);
+
+    int index = 0;
+    final result = html.replaceAllMapped(codeRegex, (match) {
+      codeBlocks.add(match.group(0)!);
+      return '%%ZHIDU_CODE_BLOCK_${index++}%%';
+    });
+
+    return [result, codeBlocks];
+  }
+
+  /// 将占位符替换回原始代码块
+  String _restorePlaceholdersToCodeBlocks(String html, List<String> codeBlocks) {
+    final placeholderRegex = RegExp(r'%%ZHIDU_CODE_BLOCK_(\d+)%%');
+    return html.replaceAllMapped(placeholderRegex, (match) {
+      final index = int.tryParse(match.group(1)!) ?? -1;
+      if (index >= 0 && index < codeBlocks.length) {
+        return codeBlocks[index];
+      }
+      return match.group(0)!;
+    });
+  }
+
   /// 加载译文
   ///
   /// 检查是否已有译文缓存，有则直接显示，无则自动生成
@@ -711,7 +845,7 @@ void dispose() {
     if (_targetLang == null || _content.isEmpty) return;
 
     try {
-      // 检查是否已有译文缓存
+      // 检查是否已有译文缓存（使用当前目标语言）
       final cachedTranslation = await _summaryService.getTranslation(
           widget.bookId, widget.chapterIndex, _targetLang!);
 
@@ -719,7 +853,14 @@ void dispose() {
         // 有缓存译文，直接显示
         if (mounted) {
           setState(() {
-            _translationContent = cachedTranslation;
+            String processedTranslation = _cleanCodeBackslashes(cachedTranslation);
+            // 检查是否包含占位符（新格式的译文）
+            if (processedTranslation.contains('%%ZHIDU_CODE_BLOCK_')) {
+              final extractedResult = _extractCodeBlocksToPlaceholders(_content);
+              final codeBlocks = extractedResult[1] as List<String>;
+              processedTranslation = _restorePlaceholdersToCodeBlocks(processedTranslation, codeBlocks);
+            }
+            _translationContent = processedTranslation;
             _isTranslating = false;
             _streamingTranslation = '';
           });
@@ -772,20 +913,27 @@ void dispose() {
     }
 
     try {
-      final plainText = _extractTextContent(_content);
-      _log.d('ChapterScreen', '开始调用 SummaryService.generateTranslationStream，plainText.length: ${plainText.length}');
+      final bookFormat = widget.book?.format.name ?? 'epub';
+
+      // 提取原文中的代码块为占位符
+      final extractedResult = _extractCodeBlocksToPlaceholders(_content);
+      final contentWithPlaceholders = extractedResult[0] as String;
+      final codeBlocks = List<String>.from(extractedResult[1]);
+
+      _log.d('ChapterScreen', '提取了 ${codeBlocks.length} 个代码块');
 
       final success = await _summaryService.generateTranslationStream(
         bookId: widget.bookId,
         chapterIndex: widget.chapterIndex,
-        content: plainText,
+        content: contentWithPlaceholders,
         chapterTitle: _title,
         sourceLang: _sourceLang ?? 'zh',
         targetLang: _targetLang!,
+        bookFormat: bookFormat,
         onContentUpdate: (content) {
           if (mounted) {
             setState(() {
-              _streamingTranslation = content;
+              _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks);
             });
           }
         },
@@ -799,7 +947,7 @@ void dispose() {
         final translation = await _summaryService.getTranslation(
             widget.bookId, widget.chapterIndex, _targetLang!);
         setState(() {
-          _translationContent = translation;
+          _translationContent = translation != null ? _restorePlaceholdersToCodeBlocks(_cleanCodeBackslashes(translation), codeBlocks) : null;
           _isTranslating = false;
           _streamingTranslation = '';
         });
@@ -1152,6 +1300,16 @@ Widget _buildStreamingSummaryView() {
                     'strong': Style(
                       fontWeight: FontWeight.bold,
                     ),
+                    'code': Style(
+                      fontFamily: 'Consolas',
+                      fontSize: FontSize(13),
+                    ),
+                    'pre': Style(
+                      fontFamily: 'Consolas',
+                      fontSize: FontSize(13),
+                      padding: HtmlPaddings.all(8),
+                      margin: Margins.only(bottom: 12),
+                    ),
                   },
                 ),
                 const SizedBox(height: 16),
@@ -1245,6 +1403,16 @@ Widget _buildNormalSummaryView(String htmlContent) {
                     'strong': Style(
                       fontWeight: FontWeight.bold,
                     ),
+                    'code': Style(
+                      fontFamily: 'Consolas',
+                      fontSize: FontSize(13),
+                    ),
+                    'pre': Style(
+                      fontFamily: 'Consolas',
+                      fontSize: FontSize(13),
+                      padding: HtmlPaddings.all(8),
+                      margin: Margins.only(bottom: 12),
+                    ),
                   },
                 ),
               ],
@@ -1314,8 +1482,8 @@ Widget _buildNormalSummaryView(String htmlContent) {
 
     // 有译文内容（翻译完成后的最终显示）
     if (_translationContent != null && _translationContent!.isNotEmpty) {
-      final htmlContent = md.markdownToHtml(_translationContent!);
-      return _buildTranslationHtmlView(htmlContent);
+      // AI返回的是HTML内容，直接渲染，无需Markdown转换
+      return _buildTranslationHtmlView(_translationContent!);
     }
 
     // 无译文且未生成（翻译启动中）
@@ -1342,7 +1510,8 @@ Widget _buildNormalSummaryView(String htmlContent) {
 
   /// 流式译文视图
   Widget _buildStreamingTranslationView() {
-    final htmlContent = md.markdownToHtml(_streamingTranslation);
+    // AI返回的是HTML内容，直接渲染，无需Markdown转换
+    final htmlContent = _cleanCodeBackslashes(_streamingTranslation);
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -1368,6 +1537,16 @@ Widget _buildNormalSummaryView(String htmlContent) {
                         fontSize: FontSize(14),
                         lineHeight: const LineHeight(1.6),
                         margin: Margins.only(bottom: 8),
+                      ),
+                      'code': Style(
+                        fontFamily: 'Consolas',
+                        fontSize: FontSize(13),
+                      ),
+                      'pre': Style(
+                        fontFamily: 'Consolas',
+                        fontSize: FontSize(13),
+                        padding: HtmlPaddings.all(8),
+                        margin: Margins.only(bottom: 12),
                       ),
                     },
                   ),
@@ -1459,6 +1638,16 @@ Widget _buildNormalSummaryView(String htmlContent) {
                       'strong': Style(
                         fontWeight: FontWeight.bold,
                       ),
+                      'code': Style(
+                        fontFamily: 'Consolas',
+                        fontSize: FontSize(13),
+                      ),
+                      'pre': Style(
+                        fontFamily: 'Consolas',
+                        fontSize: FontSize(13),
+                        padding: HtmlPaddings.all(8),
+                        margin: Margins.only(bottom: 12),
+                      ),
                     },
                   ),
                 ],
@@ -1546,11 +1735,11 @@ Widget _buildNormalSummaryView(String htmlContent) {
                     margin: Margins.only(bottom: 12, top: 16),
                   ),
                   'code': Style(
-                    fontFamily: 'monospace',
+                    fontFamily: 'Consolas',
                     fontSize: FontSize(14),
                   ),
                   'pre': Style(
-                    fontFamily: 'monospace',
+                    fontFamily: 'Consolas',
                     fontSize: FontSize(14),
                     padding: HtmlPaddings.all(8),
                     margin: Margins.only(bottom: 16),

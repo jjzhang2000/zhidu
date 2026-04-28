@@ -28,12 +28,22 @@ class AiPrompts {
   ///
   /// 返回：
   /// - 对应模式的语言指令字符串
-  static String getLanguageInstruction(String mode, {String? manualLanguage}) {
+  static String getLanguageInstruction(String mode, {String? manualLanguage, String? systemLanguage}) {
     switch (mode) {
       case 'book':
         return 'IMPORTANT: Respond in the SAME LANGUAGE as the book content. Detect the language from the provided text and use that same language for your summary. Examples: English book → English, Chinese book → Chinese, Japanese book → Japanese, French book → French, German book → German. DO NOT use English if the book is not in English.';
       case 'system':
-        return 'Respond according to the system language setting.';
+        // 根据实际系统语言生成具体指令
+        switch (systemLanguage) {
+          case 'zh':
+            return 'IMPORTANT: Respond in Chinese (简体中文).';
+          case 'en':
+            return 'IMPORTANT: Respond in English.';
+          case 'ja':
+            return 'IMPORTANT: Respond in Japanese (日本語).';
+          default:
+            return 'IMPORTANT: Respond in Chinese (简体中文). This is based on the system language setting.';
+        }
       case 'manual':
         switch (manualLanguage) {
           case 'zh':
@@ -46,7 +56,7 @@ class AiPrompts {
             return 'Respond in the language specified by the system.';
         }
       default:
-        return 'Respond according to the system language setting.';
+        return 'IMPORTANT: Respond in Chinese (简体中文).';
     }
   }
 
@@ -254,41 +264,98 @@ Requirements:
 ''';
   }
 
-  /// 生成章节翻译提示词
+  /// 生成 HTML 翻译提示词
   ///
-  /// 用于将章节内容从源语言翻译为目标语言。
-  /// 保留原文的 Markdown 结构和格式，仅翻译文本内容。
+  /// 直接翻译 HTML 内容，要求 AI 保留所有 HTML 标签，
+  /// 仅翻译标签内的文本内容。
   ///
   /// 参数：
-  /// - [chapterTitle]: 章节标题
-  /// - [content]: 章节的完整文本内容
-  /// - [sourceLang]: 源语言代码（如 'zh', 'en', 'ja'）
-  /// - [targetLang]: 目标语言代码（如 'zh', 'en', 'ja'）
+  /// - [content]: HTML 格式的原文
+  /// - [sourceLang]: 源语言代码
+  /// - [targetLang]: 目标语言代码
+  /// - [chapterTitle]: 章节标题（可选）
   ///
-  /// 返回：
-  /// - 格式化的 AI 提示词字符串，要求 AI 输出翻译内容
-  static String translateChapter({
-    String? chapterTitle,
+  /// 返回：格式化的 AI 提示词
+  static String translateHtml({
     required String content,
     required String sourceLang,
     required String targetLang,
+    String? chapterTitle,
   }) {
     final sourceLangName = _getLanguageName(sourceLang);
     final targetLangName = _getLanguageName(targetLang);
+    final isEnglishOutput = targetLang == 'en';
+
+    if (isEnglishOutput) {
+      return _englishTranslateHtml(
+        content: content,
+        sourceLang: sourceLangName,
+        chapterTitle: chapterTitle,
+      );
+    }
 
     return '''
-请将以下章节内容从 $sourceLangName 翻译为 $targetLangName。
+请将以下 HTML 内容翻译为 **$targetLangName**。
 
-${chapterTitle != null ? '章节标题：$chapterTitle\n' : ''}原文内容：
+${chapterTitle != null ? '章节标题：$chapterTitle\n' : ''}HTML原文：
 $content
 
-要求：
-1. 保留原文的 Markdown 结构（标题、段落、列表、代码块等），仅翻译文本内容
-2. 保持原文的语气、风格和准确性
-3. 技术术语、专有名词、人名等保留原文，必要时可加括号标注原文
-4. 不要添加译者注或其他额外内容
-5. 直接输出翻译结果，不要添加"翻译："等前缀
-6. 输出语言：$targetLangName
+**重要：翻译规则**
+1. **所有文本必须统一翻译为 $targetLangName**，无论原文是哪种语言（日文、英文、俄文等），输出中只允许出现 $targetLangName
+2. **严格保留所有 HTML 标签**：标签的名称、属性、嵌套关系、顺序完全不变
+3. **只翻译标签内的纯文本**，不翻译标签名、属性值、URL、代码内容
+4. 技术术语（编程语言名称、API名、框架名、类名、方法名等）可以保留原文
+5. **代码块（`<code>` 或 `<pre>` 标签内的内容）完全不需要翻译，也不要进行任何转义处理**
+6. **对于 `<code>` 和 `<pre>` 中的内容，原样输出，不要添加或移除任何反斜杠**
+7. **输入中可能包含占位符 `%%ZHIDU_CODE_BLOCK_N%%`（N为数字），这些是代码块的标记，原样保留即可，不要翻译、解释或修改**
+8. 不要添加任何解释、注释或额外内容
+9. 直接输出翻译后的 HTML
+
+示例：
+输入：
+<h2><strong>重要概念</strong></h2>
+<p>这是一个包含<strong>粗体</strong>和<em>斜体</em>的段落。</p>
+<p>代码示例：<code>int x = 5;</code></p>
+
+输出（翻译后）：
+<h2><strong>Important Concept</strong></h2>
+<p>This is a paragraph containing <strong>bold</strong> and <em>italic</em> text.</p>
+<p>Code example: <code>int x = 5;</code></p>
+''';
+  }
+
+  static String _englishTranslateHtml({
+    required String content,
+    required String sourceLang,
+    String? chapterTitle,
+  }) {
+    return '''
+Please translate the following HTML content to **English**.
+
+${chapterTitle != null ? 'Chapter title: $chapterTitle\n' : ''}HTML source:
+$content
+
+**IMPORTANT: Translation Rules**
+1. **ALL text must be translated to English**, regardless of the source language (Japanese, Chinese, Russian, etc.). The output should contain ONLY English text (except for technical terms)
+2. **Strictly preserve ALL HTML tags**: tag names, attributes, nesting, and order must remain completely unchanged
+3. **Only translate the text content inside tags**, do not translate tag names, attribute values, URLs, or code
+4. Technical terms (programming language names, API names, framework names, class names, method names, etc.) can remain in original
+5. **Code blocks (content inside `<code>` or `<pre>` tags) should NOT be translated at all, and do NOT perform any escape processing**
+6. **For content in `<code>` and `<pre>`, output exactly as-is, do NOT add or remove any backslashes**
+7. **The input may contain placeholders `%%ZHIDU_CODE_BLOCK_N%%` (where N is a number), these are markers for code blocks - keep them as-is, do NOT translate, interpret, or modify them**
+8. Do NOT add any explanations, notes, or extra content
+9. Output ONLY the translated HTML
+
+Example:
+Input:
+<h2><strong>重要概念</strong></h2>
+<p>这是一个包含<strong>粗体</strong>和<em>斜体</em>的段落。</p>
+<p>代码示例：<code>int x = 5;</code></p>
+
+Output (translated):
+<h2><strong>Important Concept</strong></h2>
+<p>This is a paragraph containing <strong>bold</strong> and <em>italic</em> text.</p>
+<p>Code example: <code>int x = 5;</code></p>
 ''';
   }
 

@@ -155,7 +155,7 @@ class StorageConfig {
 
   /// 获取书籍摘要文件路径
   ///
-  /// 返回 `Documents/zhidu/books/{bookId}/summary.md` 文件路径。
+  /// 返回 `Documents/zhidu/books/{bookId}/summary-{lang}.md` 文件路径。
   /// 该文件存储全书级别的AI生成摘要，包括：
   /// - 核心主题和观点
   /// - 主要章节概要
@@ -165,36 +165,39 @@ class StorageConfig {
   ///
   /// Parameters:
   ///   - [bookId]: 书籍唯一标识符
+  ///   - [language]: 语言代码（如 'zh', 'en', 'ja'），默认为 'zh'
   ///
   /// Returns:
   ///   摘要文件的完整路径字符串
-  static Future<String> getBookSummaryPath(String bookId) async {
+  static Future<String> getBookSummaryPath(String bookId, {String language = 'zh'}) async {
     final bookDir = await getBookDirectory(bookId);
-    return p.join(bookDir.path, 'summary.md');
+    return p.join(bookDir.path, 'summary-$language.md');
   }
 
   /// 获取章节摘要文件路径
   ///
-  /// 返回 `Documents/zhidu/books/{bookId}/chapter-{index}.md` 文件路径。
+  /// 返回 `Documents/zhidu/books/{bookId}/chapter-{index}-{lang}.md` 文件路径。
   /// 章节索引使用3位数字零填充（如 001, 002, 012, 123）。
+  /// 语言代码为2字母代码（如 en, zh, ja）。
   /// 这确保文件按章节顺序正确排序。
   ///
   /// 示例：
-  /// - 第1章: `chapter-001.md`
-  /// - 第12章: `chapter-012.md`
-  /// - 第123章: `chapter-123.md`
+  /// - 第1章中文: `chapter-001-zh.md`
+  /// - 第12章英文: `chapter-012-en.md`
+  /// - 第123章日文: `chapter-123-ja.md`
   ///
   /// Parameters:
   ///   - [bookId]: 书籍唯一标识符
   ///   - [chapterIndex]: 章节索引（从0或1开始，取决于书籍结构）
+  ///   - [language]: 语言代码（如 'zh', 'en', 'ja'），默认为 'zh'
   ///
   /// Returns:
   ///   章节摘要文件的完整路径字符串
   static Future<String> getChapterSummaryPath(
-      String bookId, int chapterIndex) async {
+      String bookId, int chapterIndex, {String language = 'zh'}) async {
     final bookDir = await getBookDirectory(bookId);
     return p.join(
-        bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}.md');
+        bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$language.md');
   }
 
   /// 获取章节译文文件路径
@@ -217,7 +220,7 @@ class StorageConfig {
       String bookId, int chapterIndex, String targetLang) async {
     final bookDir = await getBookDirectory(bookId);
     return p.join(
-        bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$targetLang.md');
+        bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$targetLang.html');
   }
 
   /// 获取封面文件路径
