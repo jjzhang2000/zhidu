@@ -1174,7 +1174,7 @@ class AIService {
       'model': _config!.model,
       'messages': messages,
       'temperature': 0.7,
-      'max_tokens': 1000,
+      'max_tokens': 8000,  // 增加 token 限制以支持全文翻译
       'stream': true,  // 启用流式响应
     });
 
@@ -1341,6 +1341,49 @@ class AIService {
     } catch (e) {
       _log.e('AIService', '测试连接异常', e);
       return false;
+    }
+  }
+
+  /// 方法名：translateChapterStream
+  /// 功能：流式翻译章节内容
+  ///
+  /// 参数：
+  /// - content: 章节原文内容
+  /// - chapterTitle: 章节标题（可选）
+  /// - sourceLang: 源语言代码（如 'zh', 'en', 'ja'）
+  /// - targetLang: 目标语言代码（如 'zh', 'en', 'ja'）
+  ///
+  /// 返回值：
+  /// - 成功时返回 AI 生成的翻译内容流
+  /// - 失败时返回空流
+  Stream<String> translateChapterStream(
+    String content, {
+    String? chapterTitle,
+    required String sourceLang,
+    required String targetLang,
+  }) async* {
+    _log.v('AIService',
+        'translateChapterStream 开始执行，content length: ${content.length}, sourceLang: $sourceLang, targetLang: $targetLang');
+    if (_config == null || !_config!.isValid) {
+      _log.w('AIService', 'AI 配置未设置或 API Key 无效');
+      return;
+    }
+
+    final prompt = AiPrompts.translateChapter(
+      content: content,
+      chapterTitle: chapterTitle,
+      sourceLang: sourceLang,
+      targetLang: targetLang,
+    );
+
+    final systemMessage = 'IMPORTANT: Respond in $targetLang.';
+
+    try {
+      await for (final chunk in _callAIStream(prompt, systemMessage: systemMessage)) {
+        yield chunk;
+      }
+    } catch (e) {
+      _log.e('AIService', '翻译章节流失败', e);
     }
   }
 }

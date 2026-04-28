@@ -1115,6 +1115,150 @@ class SummaryService {
 
   // ==================== 标题提取工具方法 ====================
 
+  // ==================== 译文管理 ====================
+
+  /// 获取指定章节的译文
+  ///
+  /// 从文件系统读取译文内容，返回译文字符串。
+  /// 如果译文不存在或读取失败，返回null。
+  ///
+  /// 参数：
+  /// - [bookId]：书籍唯一标识
+  /// - [chapterIndex]：章节索引
+  /// - [targetLang]：目标语言代码（如 'en', 'zh', 'ja'）
+  ///
+  /// 返回：译文内容，不存在则返回null
+  ///
+  /// 文件路径：`{应用目录}/books/{bookId}/chapter-{index}-{targetLang}.md`
+  Future<String?> getTranslation(
+      String bookId, int chapterIndex, String targetLang) async {
+    try {
+      final filePath = await StorageConfig.getChapterTranslationPath(
+          bookId, chapterIndex, targetLang);
+      final content = await _fileStorage.readText(filePath);
+      return content;
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'getTranslation 失败: $bookId chapter $chapterIndex to $targetLang', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// 保存章节译文
+  ///
+  /// 将译文内容写入Markdown文件。
+  ///
+  /// 参数：
+  /// - [bookId]：书籍唯一标识
+  /// - [chapterIndex]：章节索引
+  /// - [targetLang]：目标语言代码
+  /// - [content]：译文内容
+  Future<void> saveTranslation(
+      String bookId, int chapterIndex, String targetLang, String content) async {
+    try {
+      final filePath = await StorageConfig.getChapterTranslationPath(
+          bookId, chapterIndex, targetLang);
+      await _fileStorage.writeText(filePath, content);
+      _log.d('SummaryService', '译文已保存: ${bookId}_${chapterIndex}_$targetLang');
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'saveTranslation 失败', e, stackTrace);
+    }
+  }
+
+  /// 删除指定章节的译文
+  ///
+  /// 参数：
+  /// - [bookId]：书籍唯一标识
+  /// - [chapterIndex]：章节索引
+  /// - [targetLang]：目标语言代码
+  Future<void> deleteTranslation(
+      String bookId, int chapterIndex, String targetLang) async {
+    try {
+      final filePath = await StorageConfig.getChapterTranslationPath(
+          bookId, chapterIndex, targetLang);
+      await _fileStorage.deleteFile(filePath);
+      _log.d('SummaryService', '译文已删除: ${bookId}_${chapterIndex}_$targetLang');
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', 'deleteTranslation 失败', e, stackTrace);
+    }
+  }
+
+  /// 译文生成中标记集合
+  final Set<String> _generatingTranslationKeys = {};
+
+  /// 检查指定译文是否正在生成
+  bool isTranslationGenerating(String bookId, int chapterIndex, String targetLang) {
+    return _generatingTranslationKeys.contains('${bookId}_${chapterIndex}_$targetLang');
+  }
+
+  /// 流式生成章节译文
+  ///
+  /// 参数：
+  /// - [bookId]：书籍唯一标识
+  /// - [chapterIndex]：章节索引
+  /// - [content]：章节正文内容（纯文本）
+  /// - [chapterTitle]：章节标题
+  /// - [sourceLang]：源语言代码
+  /// - [targetLang]：目标语言代码
+  /// - [onContentUpdate]：内容更新回调函数（用于流式显示）
+  ///
+  /// 返回：`true` 表示生成成功，`false` 表示失败
+  Future<bool> generateTranslationStream({
+    required String bookId,
+    required int chapterIndex,
+    required String content,
+    String? chapterTitle,
+    required String sourceLang,
+    required String targetLang,
+    Function(String)? onContentUpdate,
+  }) async {
+    final key = '${bookId}_${chapterIndex}_$targetLang';
+
+    // 防止重复生成
+    if (_generatingTranslationKeys.contains(key)) {
+      _log.d('SummaryService', '译文生成中，跳过重复请求: $key');
+      return false;
+    }
+
+    _generatingTranslationKeys.add(key);
+
+    try {
+      _log.d('SummaryService', '开始流式生成译文: $key');
+
+      final stream = _aiService.translateChapterStream(
+        content,
+        chapterTitle: chapterTitle,
+        sourceLang: sourceLang,
+        targetLang: targetLang,
+      );
+
+      String accumulatedContent = '';
+
+      await for (final chunk in stream) {
+        accumulatedContent += chunk;
+
+        if (onContentUpdate != null) {
+          onContentUpdate(accumulatedContent);
+        }
+      }
+
+      if (accumulatedContent.isNotEmpty) {
+        await saveTranslation(bookId, chapterIndex, targetLang, accumulatedContent);
+        _log.info('SummaryService', '译文生成成功: $key');
+        return true;
+      } else {
+        _log.w('SummaryService', 'AI返回空译文: $key');
+        return false;
+      }
+    } catch (e, stackTrace) {
+      _log.e('SummaryService', '流式生成译文失败: $key', e, stackTrace);
+      return false;
+    } finally {
+      _generatingTranslationKeys.remove(key);
+    }
+  }
+
+  // ==================== 标题提取工具方法 ====================
+
   /// 从摘要内容中提取章节标题
   ///
   /// AI生成的摘要可能包含格式化的标题行，例如：

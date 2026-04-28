@@ -192,31 +192,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: loc.appearanceSettingTitle,
       icon: Icons.palette,
       children: [
-        ListTile(
-          leading: const Icon(Icons.brightness_6),
-          title: Text(loc.themeSettingTitle),
-          subtitle: Text(_getThemeStatus()),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ThemeSettingsScreen(),
-              ),
+        ListenableBuilder(
+          listenable: SettingsService().themeMode,
+          builder: (context, _) {
+            return ListTile(
+              leading: const Icon(Icons.brightness_6),
+              title: Text(loc.themeSettingTitle),
+              subtitle: Text(_getThemeStatus()),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ThemeSettingsScreen(),
+                  ),
+                );
+              },
             );
           },
         ),
-        ListTile(
-          leading: const Icon(Icons.language),
-          title: Text(loc.languageSettingTitle),
-          subtitle: Text(_getLanguageStatus()),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const LanguageSettingsScreen(),
-              ),
+        ListenableBuilder(
+          listenable: SettingsService().languageSettings,
+          builder: (context, _) {
+            return ListTile(
+              leading: const Icon(Icons.language),
+              title: Text(loc.languageSettingTitle),
+              subtitle: Text(_getLanguageStatus()),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LanguageSettingsScreen(),
+                  ),
+                );
+              },
             );
           },
         ),
@@ -326,16 +336,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final lang = settings.aiOutputLanguage;
         switch (lang) {
           case 'zh':
-            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.chineseLanguage})';
+            aiLanguageText = 'AI: ${loc.chineseLanguage}';
             break;
           case 'en':
-            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.englishLanguage})';
+            aiLanguageText = 'AI: ${loc.englishLanguage}';
             break;
           case 'ja':
-            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.japaneseLanguage})';
+            aiLanguageText = 'AI: ${loc.japaneseLanguage}';
             break;
           default:
-            aiLanguageText = 'AI: ${loc.selectAiOutputLanguage} (${loc.chineseLanguage})';
+            aiLanguageText = 'AI: ${loc.chineseLanguage}';
             break;
         }
         break;

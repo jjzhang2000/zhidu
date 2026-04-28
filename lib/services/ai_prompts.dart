@@ -254,6 +254,68 @@ Requirements:
 ''';
   }
 
+  /// 生成章节翻译提示词
+  ///
+  /// 用于将章节内容从源语言翻译为目标语言。
+  /// 保留原文的 Markdown 结构和格式，仅翻译文本内容。
+  ///
+  /// 参数：
+  /// - [chapterTitle]: 章节标题
+  /// - [content]: 章节的完整文本内容
+  /// - [sourceLang]: 源语言代码（如 'zh', 'en', 'ja'）
+  /// - [targetLang]: 目标语言代码（如 'zh', 'en', 'ja'）
+  ///
+  /// 返回：
+  /// - 格式化的 AI 提示词字符串，要求 AI 输出翻译内容
+  static String translateChapter({
+    String? chapterTitle,
+    required String content,
+    required String sourceLang,
+    required String targetLang,
+  }) {
+    final sourceLangName = _getLanguageName(sourceLang);
+    final targetLangName = _getLanguageName(targetLang);
+
+    return '''
+请将以下章节内容从 $sourceLangName 翻译为 $targetLangName。
+
+${chapterTitle != null ? '章节标题：$chapterTitle\n' : ''}原文内容：
+$content
+
+要求：
+1. 保留原文的 Markdown 结构（标题、段落、列表、代码块等），仅翻译文本内容
+2. 保持原文的语气、风格和准确性
+3. 技术术语、专有名词、人名等保留原文，必要时可加括号标注原文
+4. 不要添加译者注或其他额外内容
+5. 直接输出翻译结果，不要添加"翻译："等前缀
+6. 输出语言：$targetLangName
+''';
+  }
+
+  /// 获取语言名称
+  static String _getLanguageName(String code) {
+    switch (code) {
+      case 'zh':
+        return '中文';
+      case 'en':
+        return '英文';
+      case 'ja':
+        return '日文';
+      case 'ko':
+        return '韩文';
+      case 'fr':
+        return '法文';
+      case 'de':
+        return '德文';
+      case 'ru':
+        return '俄文';
+      case 'es':
+        return '西班牙文';
+      default:
+        return code;
+    }
+  }
+
   /// 生成章节摘要提示词
   ///
   /// 用于为单个章节生成详细的摘要。

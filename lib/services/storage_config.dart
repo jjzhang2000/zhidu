@@ -197,6 +197,29 @@ class StorageConfig {
         bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}.md');
   }
 
+  /// 获取章节译文文件路径
+  ///
+  /// 返回 `Documents/zhidu/books/{bookId}/chapter-{index}-{lang}.md` 文件路径。
+  /// 章节索引使用3位数字零填充，语言代码为2字母代码（如 en, zh, ja）。
+  ///
+  /// 示例：
+  /// - 第1章英文译文: `chapter-001-en.md`
+  /// - 第5章日文译文: `chapter-005-ja.md`
+  ///
+  /// Parameters:
+  ///   - [bookId]: 书籍唯一标识符
+  ///   - [chapterIndex]: 章节索引
+  ///   - [targetLang]: 目标语言代码
+  ///
+  /// Returns:
+  ///   译文文件的完整路径字符串
+  static Future<String> getChapterTranslationPath(
+      String bookId, int chapterIndex, String targetLang) async {
+    final bookDir = await getBookDirectory(bookId);
+    return p.join(
+        bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$targetLang.md');
+  }
+
   /// 获取封面文件路径
   ///
   /// 查找书籍的封面图片文件，支持 JPG 和 PNG 格式。
