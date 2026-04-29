@@ -55,7 +55,6 @@ lib/
 │   ├── ai_service.dart      # AI服务（智谱/通义千问API）
 │   ├── ai_prompts.dart      # AI提示词模板（集中管理）
 │   ├── summary_service.dart # 摘要生成与管理
-│   ├── export_service.dart  # Markdown导出
 │   ├── storage_config.dart  # 存储路径配置
 │   ├── file_storage_service.dart # 文件存储服务
 │   ├── settings_service.dart # 设置管理服务（AI、主题、语言、存储）

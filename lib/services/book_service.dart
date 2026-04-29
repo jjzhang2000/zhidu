@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
@@ -324,14 +323,17 @@ class BookService {
   ///
   /// 删除流程：
   /// 1. 查找书籍，不存在则返回false
-  /// 2. 删除书籍数据目录（包含元数据、摘要等所有文件）
-  /// 3. 从内存列表中移除
-  /// 4. 更新索引文件
+  /// 2. 获取书籍目录路径（不创建目录）
+  /// 3. 删除书籍数据目录（包含元数据、摘要、封面等所有文件）
+  /// 4. 检查删除结果：
+  ///    - 成功：从内存列表中移除并更新索引文件
+  ///    - 失败：保留内存中的数据，返回false
   ///
   /// 注意事项：
   /// - 删除操作不可逆
   /// - 会同时删除该书籍的所有摘要数据
-  /// - 磁盘空间会立即释放
+  /// - 如果目录不存在，视为删除成功（幂等操作）
+  /// - 在Windows上，如果文件被其他进程占用，删除会失败
   Future<bool> deleteBook(String id) async {
     _log.d('BookService', '删除书籍: $id');
     try {
@@ -341,9 +343,22 @@ class BookService {
         return false;
       }
 
-      final bookDir = await StorageConfig.getBookDirectory(id);
-      await _fileStorage.deleteDirectory(bookDir.path);
+      // 获取书籍目录路径，不创建目录
+      final bookDirPath = await StorageConfig.getBookDirectoryPath(id);
+      final bookDir = Directory(bookDirPath);
+      
+      // 如果目录存在，尝试删除
+      if (await bookDir.exists()) {
+        final deleted = await _fileStorage.deleteDirectory(bookDirPath);
+        if (!deleted) {
+          _log.e('BookService', '删除书籍目录失败: ${book.title} ($id)');
+          return false;
+        }
+      } else {
+        _log.d('BookService', '书籍目录不存在，跳过删除: $id');
+      }
 
+      // 删除成功后，从内存列表中移除
       _books.removeWhere((b) => b.id == id);
       await _saveBooksIndex();
 

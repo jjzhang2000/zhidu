@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart' hide ThemeMode;
 import 'package:zhidu/l10n/app_localizations.dart';
-import '../services/export_service.dart';
-import '../services/book_service.dart';
-import '../services/summary_service.dart';
 import '../services/settings_service.dart';
 import '../models/app_settings.dart';
 import 'ai_config_screen.dart';
@@ -14,11 +11,10 @@ import 'language_settings_screen.dart';
 /// 功能模块：
 /// 1. AI配置：AI服务提供商、API密钥、模型等参数设置
 /// 2. 外观设置：主题模式、界面语言等
-/// 3. 数据导出：将书籍摘要导出为Markdown文件
-/// 4. 关于：应用信息、版本等
+/// 3. 关于：应用信息、版本等
 ///
 /// 设计特点：
-/// - 使用折叠面板组织不同设置类别
+/// - 使用卡片面板组织不同设置类别
 /// - 实时显示设置状态（如AI配置状态、主题模式等）
 /// - 响应式UI更新（设置变更后自动刷新显示）
 class SettingsScreen extends StatefulWidget {
@@ -29,43 +25,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  /// 服务实例
-  final _exportService = ExportService();
-  final _bookService = BookService();
-  final _summaryService = SummaryService();
-  final _settingsService = SettingsService();
-
-  /// 统计数据
-  int _summaryCount = 0;
-
-  /// 导出状态
-  bool _isExporting = false;
-
-  /// 初始化统计数据
-  ///
-  /// 在组件初始化时计算摘要总数
-  @override
-  void initState() {
-    super.initState();
-    _loadSummaryCount();
-  }
-
-  /// 加载摘要统计数据
-  ///
-  /// 从 SummaryService 获取所有摘要并计数，
-  /// 更新界面显示摘要总数
-  Future<void> _loadSummaryCount() async {
-    final summaries = await _summaryService.getAllSummaries();
-    setState(() {
-      _summaryCount = summaries.length;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final bookCount = _bookService.books.length;
-    final summaryCount = _summaryCount;
-    
     final loc = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
@@ -79,9 +40,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           _buildSectionHeader(loc.appearanceSettingTitle),
           _buildAppearanceSection(),
-          const SizedBox(height: 16),
-          _buildSectionHeader(loc.dataExportTitle),
-          _buildExportSection(),
           const SizedBox(height: 16),
           _buildSectionHeader(loc.aboutTitle),
           _buildAboutSection(),
@@ -128,21 +86,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ],
-            ),
-          ),
           ...children,
         ],
       ),
@@ -229,35 +172,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             );
           },
-        ),
-      ],
-    );
-  }
-
-  /// 构建数据导出区块
-  ///
-  /// 提供书籍摘要导出功能：
-  /// - 点击后遍历所有书籍
-  /// - 调用 ExportService 导出每本书的摘要为 Markdown
-  /// - 导出过程中禁用按钮，防止重复操作
-  Widget _buildExportSection() {
-    final loc = AppLocalizations.of(context)!;
-    return _buildSection(
-      title: loc.dataExportTitle,
-      icon: Icons.upload_file,
-      children: [
-        ListTile(
-          leading: const Icon(Icons.description),
-          title: Text(loc.exportBookSummaries),
-          subtitle: Text(loc.exportBookSummariesDesc),
-          trailing: _isExporting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.chevron_right),
-          onTap: _isExporting ? null : () => _exportBookSummaries(),
         ),
       ],
     );
@@ -386,55 +300,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '$aiLanguageText, $uiLanguageText';
   }
 
-  /// 导出所有书籍摘要
-  ///
-  /// 功能流程：
-  /// 1. 检查是否有书籍数据
-  /// 2. 设置导出状态为进行中
-  /// 3. 遍历所有书籍，调用 ExportService 导出
-  /// 4. 统计成功导出数量并提示用户
-  /// 5. 重置导出状态
-  ///
-  /// 导出文件位置：由 ExportService 决定（用户选择的目录）
-  Future<void> _exportBookSummaries() async {
-    final loc = AppLocalizations.of(context)!;
-    final books = _bookService.books;
-    if (books.isEmpty) {
-      _showSnackBar(loc.noBooks);
-      return;
-    }
-
-    setState(() => _isExporting = true);
-
-    try {
-      int successCount = 0;
-      for (final book in books) {
-        final result = await _exportService.exportBookSummaryToMarkdown(book);
-        if (result != null) successCount++;
-      }
-
-      if (successCount > 0) {
-        _showSnackBar('$successCount ${loc.booksCount} ${loc.success}');
-      } else {
-        _showSnackBar('${loc.exportBookSummariesDesc} - ${loc.failed}');
-      }
-    } finally {
-      setState(() => _isExporting = false);
-    }
-  }
-
-  /// 显示SnackBar提示
-  ///
-  /// 统一的提示显示方式：
-  /// - 底部显示
-  /// - 适当持续时间
-  /// - 与主题色彩适配
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
 }

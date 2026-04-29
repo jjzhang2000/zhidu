@@ -111,6 +111,22 @@ class StorageConfig {
     return p.join(appDir.path, 'books.json');
   }
 
+  /// 获取书籍目录路径（字符串）
+  ///
+  /// 返回指定书籍的存储目录路径 `Documents/zhidu/books/{bookId}/`。
+  /// 与 `getBookDirectory` 不同，此方法**不会**创建目录。
+  /// 适用于删除操作等只需要路径而不需要目录存在的场景。
+  ///
+  /// Parameters:
+  ///   - [bookId]: 书籍唯一标识符
+  ///
+  /// Returns:
+  ///   书籍目录的完整路径字符串
+  static Future<String> getBookDirectoryPath(String bookId) async {
+    final appDir = await getAppDirectory();
+    return p.join(appDir.path, 'books', bookId);
+  }
+
   /// 获取书籍目录
   ///
   /// 返回指定书籍的存储目录 `Documents/zhidu/books/{bookId}/`。
@@ -123,8 +139,8 @@ class StorageConfig {
   /// Returns:
   ///   书籍目录 [Directory] 对象
   static Future<Directory> getBookDirectory(String bookId) async {
-    final appDir = await getAppDirectory();
-    final bookDir = Directory(p.join(appDir.path, 'books', bookId));
+    final bookDirPath = await getBookDirectoryPath(bookId);
+    final bookDir = Directory(bookDirPath);
 
     if (!await bookDir.exists()) {
       await bookDir.create(recursive: true);

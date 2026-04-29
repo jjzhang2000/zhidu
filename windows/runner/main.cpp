@@ -24,10 +24,29 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
+  // Get screen work area size (excluding taskbar)
+  RECT workArea;
+  SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
+  LONG screenWidth = workArea.right - workArea.left;
+  LONG screenHeight = workArea.bottom - workArea.top;
+
+  // Calculate window size: height=full screen, width=3/4 of height
+  LONG windowHeight = screenHeight;
+  LONG windowWidth = static_cast<LONG>(windowHeight * 0.75);
+
+  // Ensure window width does not exceed screen width
+  if (windowWidth > screenWidth) {
+    windowWidth = screenWidth;
+  }
+
+  // Calculate center position
+  LONG windowLeft = workArea.left + (screenWidth - windowWidth) / 2;
+  LONG windowTop = workArea.top + (screenHeight - windowHeight) / 2;
+
   FlutterWindow window(project);
-  Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
-  if (!window.Create(L"zhidu", origin, size)) {
+  Win32Window::Point origin(windowLeft, windowTop);
+  Win32Window::Size size(windowWidth, windowHeight);
+  if (!window.Create(L"智读", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

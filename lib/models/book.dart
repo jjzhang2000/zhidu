@@ -193,7 +193,7 @@ class Book {
   ///
   /// 返回值：Map<String, dynamic>，包含所有字段的JSON表示
   ///
-  /// 调用方：Database（数据库存储时）、ExportService（导出时）
+  /// 调用方：BookService（书籍数据持久化时）
   Map<String, dynamic> toJson() {
     return {
       'id': id,

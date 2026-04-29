@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
 
 import 'screens/home_screen.dart';
@@ -16,6 +17,9 @@ import '../models/app_settings.dart' as AppModels;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 初始化窗口管理器（仅桌面版）
+  await _initWindowManager();
 
   // 初始化日志服务（可选：启用文件日志）
   await LogService().init(
@@ -40,6 +44,14 @@ void main() async {
   runApp(
     const ZhiduApp(),
   );
+}
+
+/// 初始化桌面窗口管理器
+Future<void> _initWindowManager() async {
+  await windowManager.ensureInitialized();
+
+  // 设置窗口最小尺寸
+  await windowManager.setMinimumSize(const Size(600, 400));
 }
 
 /// 初始化格式注册表，注册所有支持的解析器

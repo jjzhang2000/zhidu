@@ -297,7 +297,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   /// 返回值：Widget - GridView组件
   /// 说明：
   ///   - 每行4列（crossAxisCount: 4）
-  ///   - 宽高比0.7（竖向卡片）
+  ///   - 宽高比0.6（竖向卡片）
   ///   - 卡片间距12
   ///   - 每个书籍用BookCard组件展示
   Widget _buildBookGrid(List<Book> books) {
@@ -305,7 +305,7 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
-        childAspectRatio: 0.7,
+        childAspectRatio: 0.6,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -423,49 +423,72 @@ class _BookCardState extends State<BookCard> {
               /// 包含标题、作者、阅读进度条
               Expanded(
                 flex: 1,
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      /// 书籍标题，单行显示，超出省略
-                      Flexible(
-                        // 添加Flexible以确保在空间不足时可以收缩
-                        child: Text(
-                          widget.book.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 估算所需高度（标题行+间距+作者行）
+                    const neededHeight = 16.0 + 2.0 + 14.0; // fontSize 12 + gap + fontSize 10
+                    const progressHeight = 4.0;
+                    final hasProgress = widget.book.readingProgress > 0;
+                    final totalNeeded = neededHeight + (hasProgress ? progressHeight : 0) + 8.0; // padding
 
-                      /// 作者名称，单行显示，超出省略
-                      Flexible(
-                        // 添加Flexible以允许收缩
-                        child: Text(
-                          widget.book.author,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const Spacer(),
+                    // 根据可用空间缩放字体
+                    double scaleFactor = 1.0;
+                    if (constraints.maxHeight < totalNeeded) {
+                      scaleFactor = constraints.maxHeight / totalNeeded;
+                    }
 
-                      /// 阅读进度条，仅当有进度时显示
-                      if (widget.book.readingProgress > 0)
-                        LinearProgressIndicator(
-                          value: widget.book.readingProgress,
-                          backgroundColor: Colors.grey[200],
-                        ),
-                    ],
-                  ),
+                    final fontSize = 12.0 * scaleFactor;
+                    final authorFontSize = 10.0 * scaleFactor;
+                    final gap = 2.0 * scaleFactor;
+                    final vPadding = 4.0 * scaleFactor;
+                    final hPadding = 8.0 * scaleFactor;
+
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: hPadding,
+                        vertical: vPadding,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          /// 书籍标题，单行显示，超出省略
+                          Text(
+                            widget.book.title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: fontSize,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: gap),
+
+                          /// 作者名称，单行显示，超出省略
+                          Text(
+                            widget.book.author,
+                            style: TextStyle(
+                              fontSize: authorFontSize,
+                              color: Colors.grey[600],
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+
+                          /// 阅读进度条，仅当有进度时显示
+                          if (widget.book.readingProgress > 0) ...[
+                            const Spacer(),
+                            LinearProgressIndicator(
+                              value: widget.book.readingProgress,
+                              backgroundColor: Colors.grey[200],
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -484,12 +507,17 @@ class _BookCardState extends State<BookCard> {
   Widget _buildCover() {
     if (widget.book.coverPath != null &&
         File(widget.book.coverPath!).existsSync()) {
-      return Image.file(
-        File(widget.book.coverPath!),
-        fit: BoxFit.cover,
-
-        /// 图片加载失败时显示默认封面
-        errorBuilder: (context, error, stackTrace) => _buildDefaultCover(),
+      return ClipRect(
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: 1.0,
+          child: Image.file(
+            File(widget.book.coverPath!),
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+            errorBuilder: (context, error, stackTrace) => _buildDefaultCover(),
+          ),
+        ),
       );
     }
     return _buildDefaultCover();
