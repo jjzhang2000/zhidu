@@ -28,6 +28,16 @@ import '../services/parsers/format_registry.dart';
 import '../services/log_service.dart';
 import '../services/settings_service.dart';
 
+/// 滚动位置锚点
+class ScrollAnchor {
+  /// 滚动比例（0.0 = 顶部, 1.0 = 底部）
+  final double scrollRatio;
+  
+  const ScrollAnchor({
+    this.scrollRatio = 0.0,
+  });
+}
+
 /// 章节摘要界面 Widget
 ///
 /// 参数说明：
@@ -138,6 +148,15 @@ TabController? _tabController;
   /// 译文Tab是否禁用（当书籍语言与目标语言相同时禁用）
   bool _translationTabDisabled = false;
 
+  /// 译文滚动控制器
+  ScrollController? _translationScrollController;
+
+  /// 原文滚动控制器（EPUB格式）
+  ScrollController? _originalScrollController;
+
+  /// 当前共享的滚动锚点（用于Tab间同步）
+  ScrollAnchor _currentScrollAnchor = const ScrollAnchor();
+
   /// 获取当前摘要语言
   String _getCurrentSummaryLanguage() {
     final langSettings = SettingsService().settings.languageSettings;
@@ -206,40 +225,47 @@ TabController? _tabController;
   void initState() {
     super.initState();
 
-    // 过滤章节列表，只保留第一级章节（level == 0）
-    // 这样导航时按章节层级移动，而不是按所有子章节
     if (widget.chapters != null) {
       _chapters = widget.chapters!.where((c) => c.level == 0).toList();
     }
 
-// 初始化流程：先加载内容，再加载摘要
-// 使用then链式调用确保顺序执行
-_initializeContent().then((_) {
-  _loadSummary();
-});
+    _translationScrollController = ScrollController();
+    _originalScrollController = ScrollController();
 
-// 初始化Tab控制器
-_tabController = TabController(length: 3, vsync: this);
-_tabController!.addListener(() {
-  if (mounted) {
-    setState(() {});
-    // 当切换到译文Tab时，重新加载语言设置并加载译文
-    if (_tabController?.index == 1) {
-      _updateTargetLanguage().then((_) {
-        _loadTranslation();
-      });
-    }
-  }
-});
+    _initializeContent().then((_) {
+      _loadSummary();
+    });
 
-// 同步初始化语言设置，确保 _targetLang 立即可用
-_initializeLanguageSettings();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController!.addListener(() {
+      if (mounted) {
+        setState(() {});
+        
+        if (!_tabController!.indexIsChanging) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _syncScrollToTab(_tabController!.index);
+          });
+          
+          if (_tabController!.index == 1) {
+            _updateTargetLanguage().then((_) {
+              _loadTranslation();
+            });
+          }
+        } else {
+          _captureScrollAnchor(_tabController!.previousIndex);
+        }
+      }
+    });
+
+    _initializeLanguageSettings();
   }
 
 @override
 void dispose() {
-  _tabController?.dispose(); // 释放Tab控制器
-  _uiRefreshTimer?.cancel(); // 清理UI刷新定时器
+  _translationScrollController?.dispose();
+  _originalScrollController?.dispose();
+  _tabController?.dispose();
+  _uiRefreshTimer?.cancel();
   super.dispose();
 }
 
@@ -251,7 +277,6 @@ void dispose() {
   ///
   /// 同时检查内容长度，内容过短时自动切换到原文视图
   Future<void> _initializeContent() async {
-    // 优先使用已传入的内容（EPUB预加载场景）
     if (widget.chapterContent != null && widget.chapterContent!.isNotEmpty) {
       _content = widget.chapterContent!;
       _title = widget.chapterTitle;
@@ -261,7 +286,6 @@ void dispose() {
       return;
     }
 
-    // 从文件路径加载内容（延迟加载场景）
     if (widget.filePath != null) {
       if (!mounted) return;
       setState(() => _isLoadingContent = true);
@@ -269,7 +293,6 @@ void dispose() {
       return;
     }
 
-    // 既没有内容也没有文件路径，报错
     if (!mounted) return;
     setState(() {
       _error = '未提供章节内容或文件路径';
@@ -382,11 +405,9 @@ void dispose() {
     try {
       List<Chapter> chapters = widget.chapters ?? [];
 
-      // 如果没有传入章节列表，从文件解析
       if (chapters.isEmpty && widget.filePath != null) {
         _log.d('ChapterScreen', '使用FormatRegistry加载章节列表');
 
-        // 根据文件扩展名获取解析器
         final extension = _getFileExtension(widget.filePath!);
         final parser = FormatRegistry.getParser(extension);
 
@@ -397,14 +418,12 @@ void dispose() {
         }
       }
 
-      // 过滤出第一级章节
       final topLevelChapters = chapters.where((c) => c.level == 0).toList();
       _chapters = topLevelChapters;
 
       _log.d('ChapterScreen',
           '第一级章节总数: ${topLevelChapters.length}, 请求索引: ${widget.chapterIndex}');
 
-      // 检查索引有效性
       if (widget.chapterIndex < 0 ||
           widget.chapterIndex >= topLevelChapters.length) {
         if (!mounted) return;
@@ -419,7 +438,6 @@ void dispose() {
       final chapter = topLevelChapters[widget.chapterIndex];
       _title = chapter.title;
 
-      // 使用FormatRegistry获取章节内容
       String? content;
       try {
         if (widget.filePath != null) {
@@ -793,6 +811,59 @@ void dispose() {
     return filePath.substring(lastDot).toLowerCase();
   }
 
+  /// 捕获指定Tab的滚动锚点到共享变量
+  void _captureScrollAnchor(int tabIndex) {
+    ScrollController? controller;
+    
+    switch (tabIndex) {
+      case 1:
+        controller = _translationScrollController;
+        break;
+      case 2:
+        controller = _originalScrollController;
+        break;
+      default:
+        return;
+    }
+    
+    if (controller == null || !controller.hasClients) {
+      return;
+    }
+    
+    final maxScroll = controller.position.maxScrollExtent;
+    if (maxScroll > 0) {
+      _currentScrollAnchor = ScrollAnchor(
+        scrollRatio: controller.offset / maxScroll,
+      );
+    }
+  }
+
+  /// 将共享的滚动锚点恢复到指定Tab
+  void _syncScrollToTab(int tabIndex) {
+    if (tabIndex == 0) return;
+    
+    ScrollController? controller;
+    
+    switch (tabIndex) {
+      case 1:
+        controller = _translationScrollController;
+        break;
+      case 2:
+        controller = _originalScrollController;
+        break;
+      default:
+        return;
+    }
+    
+    if (controller == null || !controller.hasClients) {
+      return;
+    }
+    
+    final maxScroll = controller.position.maxScrollExtent;
+    final targetOffset = _currentScrollAnchor.scrollRatio * maxScroll;
+    controller.jumpTo(targetOffset.clamp(0.0, maxScroll));
+  }
+
   /// 清理 <code> 和 <pre> 标签中多余的反斜杠
   String _cleanCodeBackslashes(String html) {
     return html.replaceAllMapped(
@@ -850,11 +921,9 @@ void dispose() {
           widget.bookId, widget.chapterIndex, _targetLang!);
 
       if (cachedTranslation != null && cachedTranslation.isNotEmpty) {
-        // 有缓存译文，直接显示
         if (mounted) {
           setState(() {
             String processedTranslation = _cleanCodeBackslashes(cachedTranslation);
-            // 检查是否包含占位符（新格式的译文）
             if (processedTranslation.contains('%%ZHIDU_CODE_BLOCK_')) {
               final extractedResult = _extractCodeBlocksToPlaceholders(_content);
               final codeBlocks = extractedResult[1] as List<String>;
@@ -866,7 +935,6 @@ void dispose() {
           });
         }
       } else if (_aiService.isConfigured && _content.isNotEmpty) {
-        // 没有缓存译文且AI已配置，自动生成
         _log.d('ChapterScreen', '无译文缓存，自动开始翻译');
         if (mounted) {
           setState(() {
@@ -877,7 +945,6 @@ void dispose() {
         }
         _generateTranslationWithStreaming();
       } else {
-        // 不满足生成条件
         if (mounted) {
           setState(() {
             _translationContent = null;
@@ -915,7 +982,6 @@ void dispose() {
     try {
       final bookFormat = widget.book?.format.name ?? 'epub';
 
-      // 提取原文中的代码块为占位符
       final extractedResult = _extractCodeBlocksToPlaceholders(_content);
       final contentWithPlaceholders = extractedResult[0] as String;
       final codeBlocks = List<String>.from(extractedResult[1]);
@@ -932,8 +998,14 @@ void dispose() {
         bookFormat: bookFormat,
         onContentUpdate: (content) {
           if (mounted) {
+            _captureScrollAnchor(1);
+            
             setState(() {
               _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks);
+            });
+            
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _syncScrollToTab(1);
             });
           }
         },
@@ -1510,11 +1582,11 @@ Widget _buildNormalSummaryView(String htmlContent) {
 
   /// 流式译文视图
   Widget _buildStreamingTranslationView() {
-    // AI返回的是HTML内容，直接渲染，无需Markdown转换
     final htmlContent = _cleanCodeBackslashes(_streamingTranslation);
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
+          controller: _translationScrollController,
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: constraints.maxHeight,
@@ -1595,6 +1667,7 @@ Widget _buildNormalSummaryView(String htmlContent) {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
+          controller: _translationScrollController,
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: constraints.maxHeight,
@@ -1697,16 +1770,17 @@ Widget _buildNormalSummaryView(String htmlContent) {
   }
 
 // EPUB/其他格式：显示HTML内容（背景由父Container提供）
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      return SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: constraints.maxHeight,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Html(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          controller: _originalScrollController,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Html(
                 data: _content,
                 style: {
                   'body': Style(

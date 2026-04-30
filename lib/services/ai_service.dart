@@ -325,8 +325,6 @@ class AIService {
       );
     }
 
-    _log.d('AIService', '生成的语言指令：$languageInstruction');
-
     final prompt = AiPrompts.chapterSummary(
       chapterTitle: chapterTitle,
       content: content,
@@ -401,8 +399,6 @@ class AIService {
         aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
-
-    _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.chapterSummary(
       chapterTitle: chapterTitle,
@@ -488,8 +484,6 @@ class AIService {
       );
     }
 
-    _log.d('AIService', '生成的语言指令：$languageInstruction');
-
     final prompt = AiPrompts.bookSummaryFromPreface(
       title: title,
       author: author,
@@ -574,8 +568,6 @@ class AIService {
         aiOutputLanguage: langSettings.aiOutputLanguage,
       );
     }
-
-    _log.d('AIService', '生成的语言指令：$languageInstruction');
 
     final prompt = AiPrompts.bookSummary(
       title: title,
@@ -1249,8 +1241,7 @@ class AIService {
               final jsonData = jsonDecode(line);
               final content = jsonData['choices']?[0]?['delta']?['content'];
               if (content != null && content.isNotEmpty) {
-                _log.d('AIService', '解析到内容片段: "$content"');
-                yield content;  // 流式返回内容片段
+                yield content;
               }
             } catch (e) {
               _log.w('AIService', '解析SSE数据失败: $e, line: $line');
