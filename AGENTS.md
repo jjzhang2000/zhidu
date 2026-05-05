@@ -442,3 +442,75 @@ Row
 - Tab控制器需要在 `initState` 中初始化并在 `dispose` 中释放
 - 需要正确处理Tab切换事件和状态更新
 - 要考虑禁用状态下Tab的视觉表现
+
+---
+
+#### 2026-05-05: 窗口DPI双重缩放修复
+
+**问题描述**：
+应用启动时窗口尺寸远大于屏幕，部分内容超出屏幕可见区域，窗口位置偏移。
+
+**根本原因**：
+`windows/runner/main.cpp` 中存在 **DPI 双重缩放** 问题：
+1. `SystemParametersInfo(SPI_GETWORKAREA, ...)` 对于 PerMonitorV2 DPI 感知应用返回**物理像素**值
+2. 但 `Win32Window::Create()` 期望接收**逻辑像素**值，并会在内部再乘以 DPI 缩放因子
+3. 结果：物理像素值被再次缩放 → 窗口尺寸远大于预期，部分超出屏幕
+
+例如在 150% DPI 缩放的屏幕上：
+- 工作区物理像素：1920×1040
+- `Create()` 再乘以 1.5 → 变成 2880×1560，远超屏幕！
+
+**修复方案**（双重保障）：
+
+**1. C++ 层修复 (`windows/runner/main.cpp`)**
+- 添加 `#include <flutter_windows.h>`
+- 使用 `FlutterDesktopGetDpiForMonitor()` 获取主显示器 DPI 缩放因子
+- 将 `SystemParametersInfo` 返回的物理像素**除以缩放因子**转换为逻辑像素
+- 再传给 `Create()` 时就不会被双重缩放
+
+```cpp
+// 修复前（错误）：
+LONG screenWidth = workArea.right - workArea.left;  // 物理像素
+
+// 修复后（正确）：
+HMONITOR primaryMonitor = MonitorFromPoint({0, 0}, MONITOR_DEFAULTTONEAREST);
+UINT dpi = FlutterDesktopGetDpiForMonitor(primaryMonitor);
+double scale_factor = dpi / 96.0;
+LONG screenWidth = static_cast<LONG>((workArea.right - workArea.left) / scale_factor);  // 逻辑像素
+```
+
+**2. Dart 层修复 (`lib/main.dart`)**
+- 引入 `screen_retriever` 包获取屏幕实际可用尺寸（含 `visibleSize` 排除任务栏）
+- 使用 `windowManager.waitUntilReadyToShow()` 阻止窗口在设置好之前闪现
+- 根据屏幕尺寸计算窗口大小（高度=屏幕高，宽度=高度×0.75）
+- 调用 `windowManager.setSize()` + `center()` + `show()` 精确控制
+- 添加异常回退：获取屏幕信息失败时使用默认 960×720
+
+**3. 依赖更新 (`pubspec.yaml`)**
+- 新增 `screen_retriever: ^0.2.0` 直接依赖
+
+**窗口初始化流程**：
+```
+应用启动
+    ↓
+C++ main.cpp: 创建窗口（DPI修正后的逻辑像素）
+    ↓
+Dart main(): windowManager.ensureInitialized()
+    ↓
+windowManager.waitUntilReadyToShow()  // 阻止窗口闪现
+    ↓
+screenRetriever.getPrimaryDisplay()  // 获取屏幕实际尺寸
+    ↓
+计算窗口大小 (高度=屏幕高, 宽度=高度×0.75)
+    ↓
+windowManager.setSize() + center()  // 精确设置尺寸和位置
+    ↓
+windowManager.setMinimumSize(600, 400)
+    ↓
+windowManager.show()  // 设置完成后才显示
+```
+
+**教训**：
+- Windows PerMonitorV2 DPI 感知应用中，`SystemParametersInfo` 返回物理像素，需要手动转换
+- `Win32Window::Create()` 内部会做 DPI 缩放，传入的应该是逻辑像素
+- 双层保障（C++ + Dart）比单层更稳健，Dart 层的 `window_manager` 可以覆盖所有桌面平台

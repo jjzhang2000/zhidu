@@ -1,13 +1,13 @@
 # main.dart 伪代码说明
 
 ## 文件概述
-应用入口文件，负责初始化所有服务并启动 Flutter 应用。
+应用入口文件，负责初始化窗口管理器、所有服务并启动 Flutter 应用。
 
 ---
 
 ## 函数：main()
 
-**功能**：应用启动入口，初始化所有服务
+**功能**：应用启动入口，初始化窗口管理器和服务
 
 **伪代码**：
 ```
@@ -15,29 +15,93 @@ FUNCTION main() ASYNC:
     // 1. 确保 Flutter 绑定已初始化
     CALL WidgetsFlutterBinding.ensureInitialized()
     
-    // 2. 初始化日志服务
+    // 2. 初始化窗口管理器（桌面版，设置窗口尺寸和位置）
+    AWAIT _initWindowManager()
+    
+    // 3. 初始化日志服务
     AWAIT LogService().init(
-        minLevel = LogLevel.verbose,  // 记录所有级别日志
-        writeToFile = true            // 启用文件日志
+        minLevel = LogLevel.verbose,
+        writeToFile = true
     )
     LOG "应用启动"
     
-    // 3. 初始化格式注册表（注册 EPUB 和 PDF 解析器）
+    // 4. 初始化格式注册表（注册 EPUB 和 PDF 解析器）
     CALL _initializeFormatRegistry()
     
-    // 4. 初始化设置服务（优先初始化，其他服务依赖它）
+    // 5. 初始化设置服务（优先初始化，其他服务依赖它）
     AWAIT SettingsService().init()
     
-    // 5. 初始化其他依赖设置的服务
-    AWAIT BookService().init()        // 书籍管理服务
-    AWAIT AIService().init()          // AI服务
-    AWAIT SummaryService().init()     // 摘要服务
+    // 6. 初始化其他依赖设置的服务
+    AWAIT BookService().init()
+    AWAIT AIService().init()
+    AWAIT SummaryService().init()
     LOG "所有服务初始化完成"
     
-    // 6. 启动 Flutter 应用
+    // 7. 启动 Flutter 应用
     CALL runApp(ZhiduApp())
 END FUNCTION
 ```
+
+---
+
+## 函数：_initWindowManager()
+
+**功能**：初始化桌面窗口管理器，设置窗口尺寸、位置和最小尺寸
+
+**伪代码**：
+```
+FUNCTION _initWindowManager() ASYNC:
+    // 1. 确保窗口管理器已初始化
+    AWAIT windowManager.ensureInitialized()
+    
+    // 2. 等待窗口准备就绪（阻止窗口在设置好之前闪现）
+    AWAIT windowManager.waitUntilReadyToShow()
+    
+    // 3. 尝试获取屏幕尺寸并设置窗口
+    TRY:
+        // 3a. 获取主显示器信息
+        primaryDisplay = AWAIT screenRetriever.getPrimaryDisplay()
+        screenSize = primaryDisplay.visibleSize ?? primaryDisplay.size
+        
+        // 3b. 计算窗口尺寸：高度=屏幕高，宽度=高度×0.75（3:4比例）
+        windowHeight = screenSize.height
+        windowWidth = windowHeight * 0.75
+        
+        // 3c. 确保窗口宽度不超过屏幕宽度
+        IF windowWidth > screenSize.width THEN
+            windowWidth = screenSize.width
+        END IF
+        
+        // 3d. 设置窗口尺寸和居中位置
+        AWAIT windowManager.setSize(Size(windowWidth, windowHeight))
+        AWAIT windowManager.center()
+    
+    CATCH (e):
+        // 3e. 获取屏幕信息失败时使用默认尺寸
+        LOG WARNING "获取屏幕尺寸失败，使用默认窗口大小: {e}"
+        AWAIT windowManager.setSize(Size(960, 720))
+        AWAIT windowManager.center()
+    END TRY
+    
+    // 4. 设置窗口最小尺寸
+    AWAIT windowManager.setMinimumSize(Size(600, 400))
+    
+    // 5. 显示窗口（所有设置完成后才显示，避免闪烁）
+    AWAIT windowManager.show()
+END FUNCTION
+```
+
+**关键设计点**：
+- **waitUntilReadyToShow**: 阻止窗口在设置好之前闪现，避免用户看到窗口从默认位置跳到目标位置
+- **visibleSize vs size**: `visibleSize` 排除任务栏，`size` 是完整屏幕尺寸
+- **异常回退**: 如果 `screen_retriever` 获取失败（如非桌面平台），使用默认 960×720
+- **show() 最后调用**: 确保所有尺寸和位置设置完成后再显示窗口
+
+**窗口尺寸策略**：
+- 高度 = 屏幕工作区高度（全屏高，不含任务栏）
+- 宽度 = 高度 × 0.75（3:4 宽高比）
+- 如果计算宽度超过屏幕宽度，则宽度回退为屏幕宽度
+- 窗口居中显示
 
 ---
 
@@ -241,6 +305,14 @@ END METHOD
     ↓
 main()
     ↓
+初始化窗口管理器 (_initWindowManager)
+    ├─ windowManager.ensureInitialized()
+    ├─ windowManager.waitUntilReadyToShow()
+    ├─ screenRetriever.getPrimaryDisplay() → 计算窗口尺寸
+    ├─ windowManager.setSize() + center()
+    ├─ windowManager.setMinimumSize(600, 400)
+    └─ windowManager.show()
+    ↓
 初始化服务 (LogService → SettingsService → BookService → AIService → SummaryService)
     ↓
 启动 ZhiduApp
@@ -256,8 +328,12 @@ build() 创建 MaterialApp
 
 ## 关键设计点
 
-1. **服务初始化顺序**：SettingsService 优先初始化，其他服务依赖它
-2. **响应式更新**：使用 ValueNotifier 监听设置变化，自动重建 UI
-3. **国际化支持**：支持中文、英文、日文三种语言
-4. **主题管理**：支持亮色、暗色、跟随系统三种主题模式
-5. **单例模式**：所有 Service 使用单例模式，全局共享状态
+1. **窗口初始化优先**: `_initWindowManager()` 在所有服务初始化之前执行，确保窗口尺寸和位置在应用启动时就正确设置
+2. **双层窗口管理**: C++ 原生层（main.cpp）负责初始窗口创建，Dart 层（window_manager）负责精确尺寸和位置调整
+3. **DPI 感知**: C++ 层已修正 DPI 双重缩放问题，Dart 层使用 `screen_retriever` 获取逻辑像素尺寸
+4. **防闪烁**: `waitUntilReadyToShow()` + `show()` 确保窗口在所有设置完成后再显示
+5. **服务初始化顺序**：SettingsService 优先初始化，其他服务依赖它
+6. **响应式更新**：使用 ValueNotifier 监听设置变化，自动重建 UI
+7. **国际化支持**：支持中文、英文、日文三种语言
+8. **主题管理**：支持亮色、暗色、跟随系统三种主题模式
+9. **单例模式**：所有 Service 使用单例模式，全局共享状态

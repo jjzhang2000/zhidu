@@ -66,6 +66,7 @@ docs/pseudocode/
 
 ### 入口模块 (main.dart)
 应用启动和初始化，负责：
+- 初始化窗口管理器（桌面版窗口尺寸和位置）
 - 初始化所有 Service
 - 注册文件格式解析器
 - 启动 Flutter 应用
@@ -518,11 +519,22 @@ Documents/zhidu/
 
 ## 版本信息
 
-- **文档更新时间**: 2026-04-24
-- **项目版本**: v1.1
+- **文档更新时间**: 2026-05-05
+- **项目版本**: v1.2
 - **Flutter 版本**: >= 3.0.0
 
 ### 近期更新
+
+#### 2026-05-05: 窗口DPI双重缩放修复
+- **修复**: C++ 层 main.cpp 中 DPI 双重缩放问题
+  - `SystemParametersInfo` 返回物理像素需除以 DPI 缩放因子转换为逻辑像素
+  - 添加 `FlutterDesktopGetDpiForMonitor()` 获取 DPI 缩放因子
+- **新增**: Dart 层窗口管理器初始化
+  - `_initWindowManager()` - 初始化窗口尺寸和位置
+  - 使用 `screen_retriever` 获取屏幕实际可用尺寸
+  - 使用 `window_manager` 精确控制窗口（setSize/center/show）
+  - `waitUntilReadyToShow()` 防止窗口闪烁
+- **新增依赖**: `screen_retriever: ^0.2.0`
 
 #### 2026-04-24: 流式显示功能
 - **新增**: 章节摘要流式生成
