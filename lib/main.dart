@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'l10n/app_localizations.dart';
 
 import 'screens/home_screen.dart';
@@ -18,23 +19,18 @@ import '../models/app_settings.dart' as AppModels;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 初始化窗口管理器（仅桌面版）
   await _initWindowManager();
 
-  // 初始化日志服务（可选：启用文件日志）
   await LogService().init(
-    minLevel: LogLevel.verbose, // 记录所有级别日志
-    writeToFile: true, // 同时写入文件
+    minLevel: LogLevel.verbose,
+    writeToFile: true,
   );
 
   LogService().info('Main', '应用启动');
 
-  // 初始化格式注册表
   _initializeFormatRegistry();
 
-  // 重要：首先初始化设置服务以确保自定义路径被加载
-  await SettingsService().init(); // 初始化设置服务
-  // 然后初始化其他依赖设置的服务
+  await SettingsService().init();
   await BookService().init();
   await AIService().init();
   await SummaryService().init();
@@ -46,12 +42,32 @@ void main() async {
   );
 }
 
-/// 初始化桌面窗口管理器
 Future<void> _initWindowManager() async {
   await windowManager.ensureInitialized();
 
-  // 设置窗口最小尺寸
+  await windowManager.waitUntilReadyToShow();
+
+  try {
+    final primaryDisplay = await screenRetriever.getPrimaryDisplay();
+    final screenSize = primaryDisplay.visibleSize ?? primaryDisplay.size;
+
+    double windowHeight = screenSize.height;
+    double windowWidth = windowHeight * 0.75;
+
+    if (windowWidth > screenSize.width) {
+      windowWidth = screenSize.width;
+    }
+
+    await windowManager.setSize(Size(windowWidth, windowHeight));
+    await windowManager.center();
+  } catch (e) {
+    LogService().w('Main', '获取屏幕尺寸失败，使用默认窗口大小: $e');
+    await windowManager.setSize(const Size(960, 720));
+    await windowManager.center();
+  }
+
   await windowManager.setMinimumSize(const Size(600, 400));
+  await windowManager.show();
 }
 
 /// 初始化格式注册表，注册所有支持的解析器
