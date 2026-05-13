@@ -27,7 +27,6 @@ graph TB
         PS["PdfService"]
         TS["TranslationService"]
         ORS["OpfReaderService"]
-        SPS["StoragePathService"]
     end
 
     subgraph 解析器["Parsers"]
@@ -70,7 +69,6 @@ graph TB
     INIT --> PS
     INIT --> TS
     INIT --> FR
-    INIT --> SPS
 
     FR --> EP
     FR --> PP
@@ -101,7 +99,6 @@ graph TB
     TS --> FS
 
     SS --> FS
-    SS --> SPS
 
     ZHIDU --> HS
     ZHIDU --> ST
@@ -308,8 +305,6 @@ erDiagram
 
   FileStorageService ||--|| StorageConfig : "使用路径约定"
 
-  SettingsService ||--|| StoragePathService : "自定义路径管理"
-
   settings_json {
     string ai_provider
     string api_key
@@ -477,7 +472,6 @@ flowchart TD
     SET --> AIC["AiConfigScreen"]
     SET --> THS["ThemeSettingsScreen"]
     SET --> LAS["LanguageSettingsScreen"]
-    SET --> STO["StorageSettingsScreen"]
 
     BS_NAV --> CS_NAV["Navigator.push(ChapterScreen)"]
     BS_NAV --> |"点击全书摘要"| CS_FIRST["Navigator.push(ChapterScreen<br/>chapterIndex=0)"]

@@ -29,7 +29,6 @@
                 │       ├── AiConfigScreen
                 │       ├── ThemeSettingsScreen
                 │       ├── LanguageSettingsScreen
-                │       └── StorageSettingsScreen
                 │
                 └── 全局监听 (ValueNotifier):
                         ├── SettingsService.themeNotifier → AppTheme
@@ -40,25 +39,25 @@
 
 ## 二、模块间依赖矩阵
 
-| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | EpubSvc | PdfSvc | SetSvc | TrSvc | OpfRdr | LogSvc | FileSvc | StoPath |
-|-------------------|:-----:|:-----:|:------:|:-------:|:------:|:------:|:-----:|:------:|:------:|:-------:|:-------:|
-| **main.dart**     |   ✓   |   ✓   |   ✓    |    ✓    |   ✓    |   ✓    |   ✓   |   —    |   ✓    |   ✓   |    ✓    |
-| **HomeScreen**    |   ✓   |   —   |   ✓    |    —    |   —    |   —    |   —   |   —    |   ✓    |   —   |    —    |
-| **BookScreen**    |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —   |   —    |   ✓    |   —   |    —    |
-| **ChapterScreen** |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   ✓   |   —    |   ✓    |   —   |    —    |
-| **PdfReaderScreen**|  ✓   |   —   |   —    |    —    |   ✓    |   —    |   —   |   —    |   —    |   —   |    —    |
-| **AiConfigScreen**|  —   |   ✓   |   —    |    —    |   —    |   ✓    |   —   |   —    |   —    |   —   |    —    |
-| **BookService**   |  —   |   —   |   ✓    |    ✓    |   ✓    |   —    |   —   |   —    |   ✓    |   ✓   |    —    |
-| **AIService**     |  ✓   |   —   |   —    |    —    |   —    |   ✓    |   —   |   —    |   ✓    |   —   |    —    |
-| **SummaryService**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —   |   —    |   ✓    |   ✓   |    —    |
-| **EpubService**   |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —   |    —    |
-| **PdfService**    |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —   |    —    |
-| **TranslationSvc**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —   |   —    |   ✓    |   ✓   |    —    |
-| **SettingsSvc**   |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   —    |   —    |   ✓   |   ✓    |
-| **EpubParser**    |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —   |    —    |
-| **PdfParser**     |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —   |    —    |
+| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | EpubSvc | PdfSvc | SetSvc | TrSvc | OpfRdr | LogSvc | FileSvc |
+|-------------------|:-----:|:-----:|:------:|:-------:|:------:|:------:|:-----:|:------:|:------:|:-------:|
+| **main.dart**     |   ✓   |   ✓   |   ✓    |    ✓    |   ✓    |   ✓    |   ✓   |   —    |   ✓    |   ✓    |
+| **HomeScreen**    |   ✓   |   —   |   ✓    |    —    |   —    |   —    |   —   |   —    |   ✓    |   —    |
+| **BookScreen**    |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —   |   —    |   ✓    |   —    |
+| **ChapterScreen** |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   ✓   |   —    |   ✓    |   —    |
+| **PdfReaderScreen**|  ✓   |   —   |   —    |    —    |   ✓    |   —    |   —   |   —    |   —    |   —    |
+| **AiConfigScreen**|  —   |   ✓   |   —    |    —    |   —    |   ✓    |   —   |   —    |   —    |   —    |
+| **BookService**   |  —   |   —   |   ✓    |    ✓    |   ✓    |   —    |   —   |   —    |   ✓    |   ✓    |
+| **AIService**     |  ✓   |   —   |   —    |    —    |   —    |   ✓    |   —   |   —    |   ✓    |   —    |
+| **SummaryService**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —   |   —    |   ✓    |   ✓    |
+| **EpubService**   |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
+| **PdfService**    |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
+| **TranslationSvc**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —   |   —    |   ✓    |   ✓    |
+| **SettingsSvc**   |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   —    |   —    |   ✓    |
+| **EpubParser**    |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
+| **PdfParser**     |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
 
-> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, SetSvc=SettingsService, TrSvc=TranslationService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService, StoPath=StoragePathService
+> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, SetSvc=SettingsService, TrSvc=TranslationService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService
 
 ---
 
@@ -263,8 +262,7 @@ ZhiduApp (MaterialApp)
     │       └── BottomNav[2] → SettingsScreen
     │               ├── AiConfigScreen
     │               ├── ThemeSettingsScreen
-    │               ├── LanguageSettingsScreen
-    │               └── StorageSettingsScreen
+    │               └── LanguageSettingsScreen
     │
     ├── BookScreen (接收 Book 对象)
     │       ├── 章节列表 → Navigator.push(ChapterScreen)
@@ -415,14 +413,18 @@ SummaryService.getBookSummaryContent()
 │  + getChapter..+ getChapterPages() + fileExists()                │
 │  + getChapterPageRange()                                        │
 │                                                                  │
-│  OpfReaderService          StorageConfig       StoragePathService│
-│  ────────────────          ─────────────       ────────────────── │
-│  + readFromOpfFile()       + getAppDirectory() + booksDirectory   │
-│  + readFromSameDirectory() + getBooksDirectory()+ backupDirectory│
-│  - _parseOpfContent()      + getCoverSavePath()+ init()          │
-│                            + getSettingsPath()+ setBooksDirectory│
-│                            + getSummaryPath() + resetBooks..()   │
-│                            + getTranslationPath()                │
+│  OpfReaderService          StorageConfig                         │
+│  ────────────────          ─────────────                         │
+│  + readFromOpfFile()       + getAppDirectory()                   │
+│  + readFromSameDirectory() + getBooksDirectory()                 │
+│  - _parseOpfContent()      + getBookDirectory()                  │
+│                            + getBooksIndexPath()                 │
+│                            + getBookMetadataPath()               │
+│                            + getBookSummaryPath()                │
+│                            + getChapterSummaryPath()             │
+│                            + getChapterTranslationPath()         │
+│                            + getCoverSavePath()                  │
+│                            + getCoverPath()                      │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -474,4 +476,4 @@ SummaryService.getBookSummaryContent()
 
 | 日期 | 更新内容 |
 |------|----------|
-| 2026-05-11 | 初始版本：完整类/函数调用关系图，含新服务(TranslationService, OpfReaderService, StoragePathService)、新模型(OpfMetadata)、OPF元数据集成流程 |
+| 2026-05-11 | 初始版本：完整类/函数调用关系图，含新服务(TranslationService, OpfReaderService)、新模型(OpfMetadata)、OPF元数据集成流程 |

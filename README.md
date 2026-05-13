@@ -214,7 +214,7 @@ zhidu/
 │   │   ├── settings_screen.dart # 设置主页面
 │   │   ├── theme_settings_screen.dart # 主题设置页面
 │   │   ├── language_settings_screen.dart # 语言设置页面
-│   │   └── storage_settings_screen.dart # 存储设置页面
+
 │   ├── services/                 # 业务服务层（单例模式）
 │   │   ├── book_service.dart    # 书籍管理（导入、解析）
 │   │   ├── epub_service.dart    # EPUB文件解析

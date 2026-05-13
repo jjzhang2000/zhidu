@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'storage_path_service.dart';
 
 /// 存储配置服务 - 管理应用文件存储路径
 ///
@@ -58,35 +57,13 @@ class StorageConfig {
   static Future<Directory> getAppDirectory() async {
     if (_appDir != null) return _appDir!;
 
-    // 尝试从StoragePathService获取自定义路径
-    try {
-      final storagePathService = StoragePathService();
-      final customPath = storagePathService.isUsingCustomBooksDirectory 
-          ? await storagePathService.getBooksDirectoryPath()
-          : null;
-      
-      if (customPath != null) {
-        _appDir = Directory(customPath);
-      } else {
-        // 使用默认路径
-        Directory docsDir;
-        if (_testBaseDir != null) {
-          docsDir = _testBaseDir!;
-        } else {
-          docsDir = await getApplicationDocumentsDirectory();
-        }
-        _appDir = Directory(p.join(docsDir.path, 'zhidu'));
-      }
-    } catch (e) {
-      // 如果获取自定义路径失败，使用默认路径
-      Directory docsDir;
-      if (_testBaseDir != null) {
-        docsDir = _testBaseDir!;
-      } else {
-        docsDir = await getApplicationDocumentsDirectory();
-      }
-      _appDir = Directory(p.join(docsDir.path, 'zhidu'));
+    Directory docsDir;
+    if (_testBaseDir != null) {
+      docsDir = _testBaseDir!;
+    } else {
+      docsDir = await getApplicationDocumentsDirectory();
     }
+    _appDir = Directory(p.join(docsDir.path, 'zhidu'));
 
     if (!await _appDir!.exists()) {
       await _appDir!.create(recursive: true);

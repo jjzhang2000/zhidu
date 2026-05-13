@@ -60,7 +60,6 @@ docs/pseudocode/
 │   ├── pdf_service.md            # PDF解析服务
 │   ├── settings_service.md       # 设置管理服务
 │   ├── storage_config.md         # 存储路径配置
-│   ├── storage_path_service.md   # 存储路径管理服务
 │   ├── summary_service.md        # 摘要管理服务
 │   ├── translation_service.md    # 翻译服务
 │   └── parsers/
@@ -134,7 +133,6 @@ docs/pseudocode/
 | `pdf_service.dart` | `PdfService` | PDF文件解析：元数据/章节/封面提取 |
 | `settings_service.dart` | `SettingsService` | 统一设置管理：AI/主题/语言，ValueNotifier响应式 |
 | `storage_config.dart` | `StorageConfig` | 存储路径配置：统一路径管理 |
-| `storage_path_service.dart` | `StoragePathService` | 自定义存储路径管理 |
 | `summary_service.dart` | `SummaryService` + `Semaphore` | 摘要生成/存储/并发控制/流式回调 |
 | `translation_service.dart` | `TranslationService` | 翻译服务：HTML格式保留的流式翻译 |
 
@@ -371,7 +369,7 @@ Documents/zhidu/                   (可自定义)
 #### 2026-05-11: 新增伪代码文档
 
 - **新增模型文档**: `opf_metadata.md`
-- **新增服务文档**: `epub_service.md`, `file_storage_service.md`, `opf_reader_service.md`, `pdf_service.md`, `storage_config.md`, `storage_path_service.md`, `translation_service.md`
+- **新增服务文档**: `epub_service.md`, `file_storage_service.md`, `opf_reader_service.md`, `pdf_service.md`, `storage_config.md`, `translation_service.md`
 - **新增**: Calibre OPF 元数据集成流程（OpfReaderService → OpfMetadata → Book合并）
 - **新增**: TranslationService 翻译服务（HTML格式保留 + 流式输出）
 - **新增**: 章节译文字段和文件路径规则
