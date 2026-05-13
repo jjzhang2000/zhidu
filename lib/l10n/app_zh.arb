@@ -1,7 +1,6 @@
 {
   "appTitle": "智读",
   "homeTabBookshelf": "书架",
-  "homeTabDiscovery": "发现",
   "homeTabProfile": "我的",
   "settingsTitle": "设置",
   "aiConfigTitle": "AI配置",
@@ -69,7 +68,6 @@
   "failed": "失败",
   "loading": "加载中...",
   "bookShelf": "书架",
-  "discovery": "发现",
   "myProfile": "我的",
   "version": "版本",
   "aiServiceSettings": "AI 服务设置",
@@ -125,9 +123,6 @@
   },
   "@homeTabBookshelf": {
     "description": "首页标签页 - 书架"
-  },
-  "@homeTabDiscovery": {
-    "description": "首页标签页 - 发现"
   },
   "@homeTabProfile": {
     "description": "首页标签页 - 我的"

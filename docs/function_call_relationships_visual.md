@@ -463,11 +463,10 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    APP["MaterialApp(ZhiduApp)"] --> HS["HomeScreen<br/>BottomNav: 书架 | 发现 | 我的"]
+    APP["MaterialApp(ZhiduApp)"] --> HS["HomeScreen<br/>书架 + 导入按钮"]
 
     HS --> BS_NAV["Navigator.push(BookScreen)"]
-    HS --> DISC["发现页"]
-    HS --> SET["我的 → SettingsScreen"]
+    HS --> SET["设置 → SettingsScreen"]
 
     SET --> AIC["AiConfigScreen"]
     SET --> THS["ThemeSettingsScreen"]

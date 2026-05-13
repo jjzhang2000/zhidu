@@ -257,12 +257,7 @@ ZhiduApp (MaterialApp)
     │
     ├── HomeScreen
     │       ├── 悬浮按钮 → BookService().importBook() → 文件选择 → 导入
-    │       ├── BookCard.onTap → Navigator.push(BookScreen)
-    │       ├── BottomNav[1] → 发现页 (DiscoverScreen)
-    │       └── BottomNav[2] → SettingsScreen
-    │               ├── AiConfigScreen
-    │               ├── ThemeSettingsScreen
-    │               └── LanguageSettingsScreen
+    │       └── BookCard.onTap → Navigator.push(BookScreen)
     │
     ├── BookScreen (接收 Book 对象)
     │       ├── 章节列表 → Navigator.push(ChapterScreen)

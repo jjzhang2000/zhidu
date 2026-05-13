@@ -109,12 +109,6 @@ abstract class AppLocalizations {
   /// **'Bookshelf'**
   String get homeTabBookshelf;
 
-  /// Home tab - Discovery
-  ///
-  /// In en, this message translates to:
-  /// **'Discovery'**
-  String get homeTabDiscovery;
-
   /// Home tab - Profile
   ///
   /// In en, this message translates to:
@@ -360,12 +354,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bookshelf'**
   String get bookShelf;
-
-  /// No description provided for @discovery.
-  ///
-  /// In en, this message translates to:
-  /// **'Discovery'**
-  String get discovery;
 
   /// No description provided for @myProfile.
   ///

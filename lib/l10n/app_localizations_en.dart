@@ -15,9 +15,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeTabBookshelf => 'Bookshelf';
 
   @override
-  String get homeTabDiscovery => 'Discovery';
-
-  @override
   String get homeTabProfile => 'Profile';
 
   @override
@@ -147,9 +144,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bookShelf => 'Bookshelf';
-
-  @override
-  String get discovery => 'Discovery';
 
   @override
   String get myProfile => 'Profile';

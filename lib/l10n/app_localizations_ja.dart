@@ -15,9 +15,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeTabBookshelf => '本棚';
 
   @override
-  String get homeTabDiscovery => '発見';
-
-  @override
   String get homeTabProfile => 'マイページ';
 
   @override
@@ -147,9 +144,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get bookShelf => '本棚';
-
-  @override
-  String get discovery => '発見';
 
   @override
   String get myProfile => 'マイページ';

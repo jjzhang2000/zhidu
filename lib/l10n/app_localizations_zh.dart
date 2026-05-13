@@ -15,9 +15,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeTabBookshelf => '书架';
 
   @override
-  String get homeTabDiscovery => '发现';
-
-  @override
   String get homeTabProfile => '我的';
 
   @override
@@ -147,9 +144,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bookShelf => '书架';
-
-  @override
-  String get discovery => '发现';
 
   @override
   String get myProfile => '我的';

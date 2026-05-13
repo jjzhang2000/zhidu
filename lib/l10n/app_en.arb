@@ -1,7 +1,6 @@
 {
   "appTitle": "ZhiDu",
   "homeTabBookshelf": "Bookshelf",
-  "homeTabDiscovery": "Discovery",
   "homeTabProfile": "Profile",
   "settingsTitle": "Settings",
   "aiConfigTitle": "AI Configuration",
@@ -43,7 +42,6 @@
   "failed": "Failed",
   "loading": "Loading...",
   "bookShelf": "Bookshelf",
-  "discovery": "Discovery",
   "myProfile": "Profile",
   "version": "Version",
   "aiLayeredReader": "AI Layered Reader",
@@ -123,9 +121,6 @@
   },
   "@homeTabBookshelf": {
     "description": "Home tab - Bookshelf"
-  },
-  "@homeTabDiscovery": {
-    "description": "Home tab - Discovery"
   },
   "@homeTabProfile": {
     "description": "Home tab - Profile"

@@ -111,7 +111,7 @@ docs/pseudocode/
 | `ai_config_screen.dart` | AI配置页 | 提供商选择/API Key/模型/Base URL/连接测试 |
 | `book_screen.dart` | 书籍详情 | 全书摘要+章节列表+流式摘要显示 |
 | `chapter_screen.dart` | 章节阅读 | 摘要/原文/译文三Tab垂直布局 |
-| `home_screen.dart` | 首页 | 底部导航(书架/发现/我的)+书籍导入 |
+| `home_screen.dart` | 首页 | 书架界面+书籍导入 |
 | `language_settings_screen.dart` | 语言设置 | AI输出语言/界面语言(跟随/手动) |
 | `pdf_reader_screen.dart` | PDF阅读器 | 分页阅读+章节导航 |
 | `settings_screen.dart` | 设置主页 | 入口：AI/主题/语言/存储/数据管理 |

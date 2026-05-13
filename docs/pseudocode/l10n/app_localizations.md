@@ -86,10 +86,8 @@ version: String                     // 版本号
 #### 导航和标签
 ```
 homeTabBookshelf: String            // 首页 - 书架
-homeTabDiscovery: String            // 首页 - 发现
 homeTabProfile: String              // 首页 - 我的
 bookShelf: String                   // 书架
-discovery: String                   // 发现
 myProfile: String                   // 我的
 ```
 
