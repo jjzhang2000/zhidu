@@ -93,25 +93,11 @@ HomeScreen._importBook() / BookshelfScreen._importBook()
     │       │
     │       ├── FileStorageService().writeJson(metadataPath, book.toJson())
     │       ├── FileStorageService().writeJson(booksIndexPath, booksList)
-    │       └── SummaryService().generateSummariesForBook(bookId)
-    │               │
-    │               ├── [EPUB] _generateBookSummaryFromPreface()
-    │               │           └── AIService.generateBookSummaryFromPrefaceStream()
-    │               │               └── _callAIStream(systemPrompt, userPrompt, onChunk)
-    │               │                   └── HttpClient() → SSE 流式响应
-    │               │                       └── onChunk → _notifyBookStreamingContent()
-    │               │
-    │               ├── [EPUB/PDF] generateSingleSummary() × N (并发控制: semaphore max=3)
-    │               │               └── AIService.generateFullChapterSummaryStream()
-    │               │                   └── _callAIStream()
-    │               │                       └── onChunk → _notifyStreamingContent()
-    │               │
-    │               └── [PDF] _generateBookSummaryFromChapters()
-    │                           └── AIService.generateBookSummaryStream()
-    │                               └── _callAIStream()
-    │                                   └── onChunk → _notifyBookStreamingContent()
+    │       └── 返回 Book 对象（摘要生成不在此处触发）
     │
     └── UI 刷新: setState() → 书架更新、新书显示
+
+    ※ 注意：摘要生成在 BookScreen._startPreGeneration() 中触发，详见 3.2 节
 ```
 
 ### 3.2 阅读 + 摘要查看流程
@@ -120,34 +106,59 @@ HomeScreen._importBook() / BookshelfScreen._importBook()
 HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
     │
     ├── BookScreen.initState()
-    │       ├── _startPreGeneration() → SummaryService.generateSummariesForBook()
-    │       ├── _refreshBookIfNeeded() → Timer.periodic 定时刷新
-    │       │       ├── BookService().getBook(bookId)
-    │       │       └── 检测 aiIntroduction 变化 → 切换到最终摘要
-    │       └── 注册流式回调: registerBookStreamingCallback()
+    │       ├── 加载章节列表 (_loadChapters)
+    │       ├── 注册流式回调: registerBookStreamingCallback()
+    │       ├── 初始化 TabController (2 tabs)
+    │       ├── 启动定时刷新: Timer.periodic(3s) → _refreshBookIfNeeded()
+    │       └── addPostFrameCallback → _startPreGeneration()  (首次build后触发)
     │
-    └── BookScreen 构建
-            ├── Tab 0 (全书摘要)
-            │       ├── 流式中: 显示 _streamingBookSummary (实时更新)
-            │       └── 完成: 显示 book.aiIntroduction (Markdown渲染)
+    ├── BookScreen.build() (首次渲染，Tab框架就绪)
+    │       ├── Tab 0 (全书摘要) — 此时显示空占位/加载中
+    │       └── Tab 1 (章节目录)
+    │               └── 点击章节 → Navigator.push(ChapterScreen)
+    │                       │
+    │                       ├── ChapterScreen.initState()
+    │                       │       ├── _initializeContent()  (加载章节全文)
+    │                       │       ├── 初始化 TabController (3 tabs)
+    │                       │       ├── _initializeLanguageSettings()
+    │                       │       └── addPostFrameCallback → _loadSummary()  (首次build后触发)
+    │                       │
+    │                       ├── ChapterScreen.build() (首次渲染，Tab框架就绪)
+    │                       │       ├── Tab 0 (摘要) — 此时显示空占位/加载中
+    │                       │       ├── Tab 1 (译文)
+    │                       │       └── Tab 2 (原文)
+    │                       │
+    │                       └── _loadSummary() (addPostFrameCallback 触发，在build完成之后)
+    │                               │
+    │                               ├── 后台生成中 (generatingFuture != null)
+    │                               │       └── await generatingFuture → 加载最终摘要
+    │                               │
+    │                               ├── 摘要已缓存 → Markdown渲染章节摘要
+    │                               │
+    │                               └── 摘要不存在 → _generateSummaryWithStreaming()
+    │                                       └── SummaryService.generateSingleSummaryStream()
+    │                                           └── AIService.generateFullChapterSummaryStream()
+    │                                               └── _callAIStream() → SSE → onContentUpdate → UI实时显示
+    │                                                   └── 生成完成 → 保存文件 → 切换最终 Markdown
+    │
+    └── _startPreGeneration() (addPostFrameCallback 触发，在build完成之后)
             │
-            └── Tab 1 (章节目录)
-                    └── 点击章节 → Navigator.push(ChapterScreen)
-                            │
-                            ├── ChapterScreen.initState()
-                            │       ├── _loadSummary() → _loadFromLocal()
-                            │       │   └── FileStorageService().readText(summaryPath)
-                            │       ├── 若摘要不存在 → SummaryService.generateSingleSummary()
-                            │       │   └── AIService.generateFullChapterSummaryStream()
-                            │       │       └── _callAIStream() → SSE → onChunk → UI实时显示
-                            │       └── 注册流式回调: registerStreamingCallback()
-                            │
-                            └── ChapterScreen 构建 (垂直Tab布局)
-                                    ├── Tab 0 (摘要)  → Markdown渲染章节摘要
-                                    ├── Tab 1 (原文)  → 显示章节HTML/纯文本
-                                    └── Tab 2 (译文)  → TranslationService.translateEpubContent()
-                                                        └── AIService.translateHtmlStream()
-                                                            └── _callAIStream() → SSE → onChunk
+            └── SummaryService.generateSummariesForBook()
+                    │
+                    ├── [EPUB] _generateBookSummaryFromPreface()
+                    │           └── AIService.generateBookSummaryFromPrefaceStream()
+                    │               └── _callAIStream() → SSE → onChunk → _notifyBookStreamingContent()
+                    │
+                    ├── [EPUB/PDF] generateSingleSummary() × N (并发控制: semaphore max=3)
+                    │               └── AIService.generateFullChapterSummaryStream()
+                    │                   └── _callAIStream() → SSE → onChunk → _notifyStreamingContent()
+                    │
+                    └── [PDF] _generateBookSummaryFromChapters()
+                                └── AIService.generateBookSummaryStream()
+                                    └── _callAIStream() → SSE → onChunk → _notifyBookStreamingContent()
+            │
+            └── 流式回调 → setState → Tab 0 实时显示 _streamingBookSummary
+                    └── 生成完成 → _refreshTimer 检测到变化 → 切换到最终 Markdown 摘要
 ```
 
 ### 3.3 翻译流程

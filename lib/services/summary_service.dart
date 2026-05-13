@@ -8,7 +8,7 @@
 /// - 全书摘要：存储为Markdown文件，路径为 `{bookId}/book-summary.md`
 ///
 /// ## 摘要生成流程
-/// 1. 用户导入书籍后，调用 [generateSummariesForBook] 开始生成
+/// 1. 用户进入书籍详情页（BookScreen）后，调用 [generateSummariesForBook] 开始生成
 /// 2. 根据书籍格式选择不同的生成策略：
 ///    - EPUB：先生成全书摘要（基于目录），再生成章节摘要
 ///    - PDF：先生成章节摘要，再基于章节摘要生成全书摘要

@@ -189,11 +189,12 @@ TabController? _tabController;
         break;
       case 'book':
       default:
-        _targetLang = langSettings.aiOutputLanguage;
+        // 跟随书籍语言时，不需要翻译（保持原文语言）
+        _targetLang = _sourceLang;
         _log.d('ChapterScreen', '跟随书籍语言，目标语言: $_targetLang');
         break;
     }
-    
+
     _translationTabDisabled = _sourceLang == _targetLang;
     _log.d('ChapterScreen', '更新目标语言: $_targetLang, 源语言: $_sourceLang, 禁用: $_translationTabDisabled');
   }
@@ -232,10 +233,6 @@ TabController? _tabController;
     _translationScrollController = ScrollController();
     _originalScrollController = ScrollController();
 
-    _initializeContent().then((_) {
-      _loadSummary();
-    });
-
     _tabController = TabController(length: 3, vsync: this);
     _tabController!.addListener(() {
       if (mounted) {
@@ -258,6 +255,14 @@ TabController? _tabController;
     });
 
     _initializeLanguageSettings();
+
+    // 初始化章节内容，在首次build完成后加载摘要
+    // 这样垂直Tab框架已就绪，流式摘要可显示在正确的页面布局中
+    _initializeContent().then((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadSummary();
+      });
+    });
   }
 
 @override
@@ -347,16 +352,18 @@ void dispose() {
         break;
       case 'book':
       default:
-        _targetLang = langSettings.aiOutputLanguage;
-        _log.d('ChapterScreen', '跟随书籍语言，目标语言: $_targetLang');
+        // 跟随书籍语言时，目标语言=源语言，翻译自动禁用
+        _targetLang = _sourceLang;
+        _log.d('ChapterScreen', '跟随书籍语言，目标语言(同源语言): $_targetLang');
         break;
     }
 
     // 同步更新摘要语言（摘要语言和翻译目标语言保持一致）
     _summaryLang = _targetLang ?? 'zh';
 
+    // 跟随书籍语言时，_targetLang == _sourceLang，翻译自动禁用
     _translationTabDisabled = _sourceLang == _targetLang;
-    
+
     _log.d('ChapterScreen', '译文Tab禁用: $_translationTabDisabled');
   }
 
@@ -489,10 +496,9 @@ void dispose() {
   /// 加载章节摘要
   ///
   /// 核心逻辑：
-  /// - 如果有正在生成的Future，注册流式回调监听内容更新
+  /// - 如果有正在后台生成的摘要（来自BookScreen），等待其完成，然后加载最终结果
   /// - 如果没有正在生成但没有摘要，自动启动AI生成摘要并进入流式显示
   /// - 如果没有正在生成且有摘要，直接加载已有摘要
-  /// - 流式内容会实时更新 _streamingSummary，UI会自动显示
   /// - 防止重复加载：同一个章节只处理一次
   Future<void> _loadSummary() async {
     final chapterKey = '${widget.bookId}_${widget.chapterIndex}';
@@ -507,66 +513,44 @@ void dispose() {
         _summaryService.getGeneratingFuture(widget.bookId, widget.chapterIndex);
 
     if (generatingFuture != null) {
-      // 有正在后台生成的摘要
-      _log.d('ChapterScreen', '章节正在生成中，监听流式内容: $chapterKey');
+      // 后台正在生成（来自BookScreen），等待其完成，不尝试监听流式内容
+      // 因为 addPostFrameCallback 延迟导致回调注册时 chunk 可能已到达，
+      // 直接 await 后台 completion 比 registerStreamingCallback 更可靠
+      _log.d('ChapterScreen', '后台正在生成中，等待完成: $chapterKey');
 
       _hasLoadedSummary = true;
       _listeningChapterKey = chapterKey;
 
       setState(() {
         _isGenerating = true;
-        _streamingSummary = '';  // 清空，等待流式内容
-        _summary = null;  // 清空旧摘要，避免显示旧内容
+        _streamingSummary = '';
+        _summary = null;
       });
 
-      // 注册流式回调
-      _summaryService.registerStreamingCallback(
-        widget.bookId,
-        widget.chapterIndex,
-        (content) {
-          if (!mounted) return;
-          // 只有当前章节还在生成时才更新
-          if (_summaryService.isGenerating(widget.bookId, widget.chapterIndex)) {
-            setState(() {
-              _streamingSummary = content;
-            });
-          }
-        },
-      );
-
-      // 监听完成事件
       final capturedBookId = widget.bookId;
       final capturedChapterIndex = widget.chapterIndex;
-      generatingFuture.then((_) {
-        if (!mounted) return;
-        // 验证还是同一个章节
-        if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
 
-        // 取消回调注册
-        _summaryService.unregisterStreamingCallback(capturedBookId, capturedChapterIndex);
+      try {
+        await generatingFuture;
+      } catch (e) {
+        _log.w('ChapterScreen', '后台生成失败: $e');
+      }
 
-        // 加载最终摘要
-        _summaryService.getSummary(capturedBookId, capturedChapterIndex, language: _summaryLang).then((summary) {
-          if (!mounted) return;
-          if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
+      if (!mounted) return;
+      if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
 
-          setState(() {
-            _summary = summary;
-            _isGenerating = false;
-            _streamingSummary = '';  // 清空流式内容
-          });
-        });
-      }).catchError((e) {
-        if (!mounted) return;
-        if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
+      // 加载最终摘要
+      final summary = await _summaryService.getSummary(
+          capturedBookId, capturedChapterIndex, language: _summaryLang);
 
-        _summaryService.unregisterStreamingCallback(capturedBookId, capturedChapterIndex);
-        setState(() {
-          _error = '生成失败: $e';
-          _isGenerating = false;
-        });
+      if (!mounted) return;
+      if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
+
+      setState(() {
+        _summary = summary;
+        _isGenerating = false;
+        _streamingSummary = '';
       });
-
       return;
     }
 
@@ -586,8 +570,6 @@ void dispose() {
       // 没有摘要，检查是否满足生成条件
       if (_content.isNotEmpty && _aiService.isConfigured) {
         _log.d('ChapterScreen', '没有现有摘要，自动启动AI生成: $chapterKey');
-        // 自动启动AI摘要生成，并进入流式显示
-        // 先设置生成状态，避免按钮显示
         setState(() {
           _isGenerating = true;
           _streamingSummary = '';
@@ -1112,8 +1094,7 @@ void dispose() {
   /// 根据状态显示不同视图：
   /// 1. 加载中 -> 加载视图
   /// 2. 有错误且无内容 -> 错误视图
-  /// 3. 生成中 -> 生成视图（流式内容或加载动画）
-  /// 4. 其他 -> 摘要/原文视图
+  /// 3. 其他 -> 带Tab布局的摘要/原文/译文视图（生成中状态在Tab 0内显示）
   Widget _buildBody() {
     if (_isLoadingContent) {
       return _buildLoadingView();
@@ -1123,16 +1104,7 @@ void dispose() {
       return _buildErrorView();
     }
 
-    // 生成中时，显示流式内容（如果已有内容）或加载视图
-    if (_isGenerating) {
-      // 如果已经有流式内容，但仍需要显示Tab布局
-      if (_streamingSummary.isNotEmpty) {
-        return _buildSummaryView(); // 使用Tab布局，内容由Tab控制器决定
-      }
-      // 否则显示加载动画
-      return _buildGeneratingView();
-    }
-
+    // 始终使用Tab布局，生成中/流式/无摘要状态在 Tab 0 内部处理
     return _buildSummaryView();
   }
 
@@ -1309,6 +1281,11 @@ Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor
     // 如果在生成过程中，显示流式内容
     if (_isGenerating && _streamingSummary.isNotEmpty) {
       return _buildStreamingSummaryView();
+    }
+
+    // 如果正在生成但还没有流式内容，在Tab 0内显示加载提示
+    if (_isGenerating && _streamingSummary.isEmpty) {
+      return _buildGeneratingView();
     }
     
     // 否则显示正常摘要

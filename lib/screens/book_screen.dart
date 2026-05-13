@@ -110,19 +110,22 @@ TabController? _tabController;
       }
     });
 
-// 启动后台预生成摘要任务
-_startPreGeneration();
-
-// 初始化Tab控制器
-_tabController = TabController(length: 2, vsync: this);
-_tabController!.addListener(() {
-  if (mounted) setState(() {});
-});
+    // 初始化Tab控制器
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController!.addListener(() {
+      if (mounted) setState(() {});
+    });
 
     // 启动定时刷新机制
     // 目的：检测全书摘要是否生成完成，及时更新UI
     _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       _refreshBookIfNeeded();
+    });
+
+    // 在首次build完成后启动后台预生成摘要任务
+    // 这样Tab框架已就绪，流式摘要可以显示在正确的页面布局中
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startPreGeneration();
     });
   }
 
@@ -179,8 +182,8 @@ void dispose() {
 
   /// 后台静默预生成章节摘要
   ///
-  /// 当用户打开书籍详情页时，自动在后台启动摘要生成任务，
-  /// 这样用户在浏览全书摘要时，章节摘要已经在后台生成。
+  /// 在首次 build() 完成后通过 addPostFrameCallback 调用，
+  /// 确保垂直Tab框架已就绪，流式摘要内容可显示在正确的页面布局中。
   ///
   /// 预生成机制：
   /// 1. 检查AI服务是否已配置
