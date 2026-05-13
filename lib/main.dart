@@ -48,18 +48,57 @@ Future<void> _initWindowManager() async {
   await windowManager.waitUntilReadyToShow();
 
   try {
-    final primaryDisplay = await screenRetriever.getPrimaryDisplay();
-    final screenSize = primaryDisplay.visibleSize ?? primaryDisplay.size;
+    // Get all displays to handle multi-monitor setups with different DPI scales
+    final displays = await screenRetriever.getAllDisplays();
 
-    double windowHeight = screenSize.height;
-    double windowWidth = windowHeight * 0.75;
+    // Get the window's current bounds (where Windows placed it by default)
+    final windowBounds = await windowManager.getBounds();
 
-    if (windowWidth > screenSize.width) {
-      windowWidth = screenSize.width;
+    // Find which display the window center falls on
+    final windowCenterX = windowBounds.left + windowBounds.width / 2;
+    final windowCenterY = windowBounds.top + windowBounds.height / 2;
+
+    Display targetDisplay = displays.first;
+    for (final display in displays) {
+      // visiblePosition is the (x,y) of the visible work area on the virtual screen
+      // size is the full monitor resolution (both in logical pixels)
+      final displayLeft = display.visiblePosition?.dx ?? 0;
+      final displayTop = display.visiblePosition?.dy ?? 0;
+      final displayRight = displayLeft + display.size.width;
+      final displayBottom = displayTop + display.size.height;
+
+      if (windowCenterX >= displayLeft &&
+          windowCenterX <= displayRight &&
+          windowCenterY >= displayTop &&
+          windowCenterY <= displayBottom) {
+        targetDisplay = display;
+        break;
+      }
     }
 
-    await windowManager.setSize(Size(windowWidth, windowHeight));
-    await windowManager.center();
+    // Calculate window size relative to the target display's visible area
+    final displayPos = targetDisplay.visiblePosition ?? const Offset(0, 0);
+    final visibleSize = targetDisplay.visibleSize ?? targetDisplay.size;
+    final double screenHeight = visibleSize.height;
+    final double screenWidth = visibleSize.width;
+
+    double windowHeight = screenHeight;
+    double windowWidth = windowHeight * 0.75;
+
+    if (windowWidth > screenWidth) {
+      windowWidth = screenWidth;
+    }
+
+    // Center on the target display's visible area
+    final double windowLeft = displayPos.dx + (screenWidth - windowWidth) / 2;
+    final double windowTop = displayPos.dy + (screenHeight - windowHeight) / 2;
+
+    await windowManager.setBounds(Rect.fromLTWH(
+      windowLeft,
+      windowTop,
+      windowWidth,
+      windowHeight,
+    ));
   } catch (e) {
     LogService().w('Main', '获取屏幕尺寸失败，使用默认窗口大小: $e');
     await windowManager.setSize(const Size(960, 720));

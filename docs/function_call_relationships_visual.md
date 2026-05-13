@@ -1,402 +1,603 @@
-# 智读 (ZhiDu) - 可视化函数调用关系图
+# 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-本文档使用可视化图表展示智读应用的函数调用关系，从main入口开始，通过调用关系或功能操作关系连接各个类和函数。
+> **文档版本**: v2.0 | **更新日期**: 2026-05-11
 
-## 1. 应用架构总览图
+---
+
+## 一、全局架构总图
 
 ```mermaid
 graph TB
-    subgraph "外部服务"
-        AI[AI Provider API<br/>Zhipu/Qwen]
+    subgraph 入口层["main.dart"]
+        MAIN["main() 函数"] --> WM["_initWindowManager()"]
+        MAIN --> INIT["Service 初始化链"]
+        MAIN --> ZHIDU["ZhiduApp"]
     end
 
-    subgraph "应用层"
-        subgraph "UI层"
-            HS[HomeScreen<br/>主页]
-            BS[BookshelfScreen<br/>书架]
-            BC[BookCard<br/>书籍卡片]
-            BDS[BookScreen<br/>书籍详情]
-            SS[ChapterScreen<br/>摘要阅读]
-            SET[SettingsScreen<br/>设置]
-        end
-        
-        subgraph "服务层"
-            BSVC[BookService<br/>书籍服务]
-            AISC[AIService<br/>AI服务]
-            SSVC[SummaryService<br/>摘要服务]
-            SETSC[SettingsService<br/>设置服务]
-            LOG[LogService<br/>日志服务]
-            FSS[FileStorageService<br/>文件存储服务]
-        end
-        
-        subgraph "解析层"
-            FR[FormatRegistry<br/>格式注册表]
-            EPUB[EpubParser<br/>EPUB解析器]
-            PDF[PdfParser<br/>PDF解析器]
-        end
-        
-        subgraph "模型层"
-            BM[BookModel<br/>书籍模型]
-            CM[ChapterModel<br/>章节模型]
-            ASM[AppSettingsModel<br/>应用设置模型]
-        end
+    subgraph 服务层["Services (单例)"]
+        LS["LogService"]
+        SS["SettingsService"]
+        FS["FileStorageService"]
+        SC["StorageConfig"]
+        BS["BookService"]
+        AS["AIService"]
+        AP["AiPrompts"]
+        SuS["SummaryService"]
+        ES["EpubService"]
+        PS["PdfService"]
+        TS["TranslationService"]
+        ORS["OpfReaderService"]
+        SPS["StoragePathService"]
     end
 
-    subgraph "存储层"
-        STG[documents/zhidu/<br/>本地存储]
+    subgraph 解析器["Parsers"]
+        FR["FormatRegistry"]
+        EP["EpubParser"]
+        PP["PdfParser"]
+        BFP["<<interface>> BookFormatParser"]
     end
 
-    %% UI层连接
+    subgraph 模型层["Models"]
+        BK["Book"]
+        CH["Chapter"]
+        CS["ChapterSummary"]
+        CC["ChapterContent"]
+        CL["ChapterLocation"]
+        BM["BookMetadata"]
+        OM["OpfMetadata"]
+        AIS["AppSettings/AiSettings"]
+    end
+
+    subgraph UI层["Screens"]
+        HS["HomeScreen"]
+        BKS["BookScreen"]
+        CHS["ChapterScreen"]
+        PDS["PdfReaderScreen"]
+        ST["SettingsScreen"]
+        AIC["AiConfigScreen"]
+        THS["ThemeSettingsScreen"]
+        LAS["LanguageSettingsScreen"]
+    end
+
+    INIT --> LS
+    INIT --> SS
+    INIT --> FS
+    INIT --> SC
+    INIT --> BS
+    INIT --> AS
+    INIT --> SuS
+    INIT --> ES
+    INIT --> PS
+    INIT --> TS
+    INIT --> FR
+    INIT --> SPS
+
+    FR --> EP
+    FR --> PP
+    EP -.-> BFP
+    PP -.-> BFP
+
+    BS --> ES
+    BS --> PS
+    BS --> FS
+    BS --> SuS
+
+    AS --> AP
+    AS --> SS
+    AS --> LS
+
+    SuS --> AS
+    SuS --> FS
+    SuS --> BS
+
+    ES --> ORS
+    PS --> ORS
+    EP --> ORS
+    PP --> ORS
+    ORS --> OM
+
+    TS --> AS
+    TS --> BS
+    TS --> FS
+
+    SS --> FS
+    SS --> SPS
+
+    ZHIDU --> HS
+    ZHIDU --> ST
+
     HS --> BS
-    HS --> BC
-    BS --> BC
-    BC --> BDS
-    BC --> SS
-    HS --> SET
-    
-    %% 服务层连接
-    BSVC --> FSS
-    AISC --> LOG
-    SSVC --> AISC
-    SSVC --> BSVC
-    SETSC --> LOG
-    SETSC --> FSS
-    
-    %% 解析层连接
-    FR --> EPUB
-    FR --> PDF
-    BSVC --> FR
-    
-    %% 存储连接
-    BSVC --> STG
-    SSVC --> STG
-    SETSC --> STG
-    
-    %% AI服务连接
-    AISC --> AI
-    
-    %% 模型连接
-    BSVC --> BM
-    BSVC --> CM
-    SETSC --> ASM
+    HS --> BKS
+
+    BKS --> BS
+    BKS --> AS
+    BKS --> SuS
+    BKS --> CHS
+
+    CHS --> BS
+    CHS --> AS
+    CHS --> SuS
+    CHS --> TS
+
+    PDS --> BS
+    PDS --> PS
+
+    ST --> AIC
+    ST --> THS
+    ST --> LAS
+
+    AIC --> SS
+    AIC --> AS
+
+    THS --> SS
+    LAS --> SS
 ```
 
-## 2. 启动流程图
+---
 
-```mermaid
-sequenceDiagram
-    participant M as main()
-    participant WB as WidgetsFlutterBinding
-    participant LS as LogService
-    participant FR as FormatRegistry
-    participant BS as BookService
-    participant AIS as AIService
-    participant SS as SummaryService
-    participant SETS as SettingsService
-    participant ZA as ZhiduApp
-    
-    M->>WB: ensureInitialized()
-    M->>LS: init()
-    M->>FR: initializeFormatRegistry()
-    M->>BS: init()
-    M->>AIS: init()
-    M->>SS: init()
-    M->>SETS: init()
-    M->>ZA: runApp()
-    
-    Note over BS,SETS: 所有服务初始化完成
-    
-    ZA->>HS: build HomeScreen
-```
-
-## 3. 书籍导入流程图
+## 二、书籍导入流程（详细）
 
 ```mermaid
 flowchart TD
-    A[用户点击+按钮] --> B[HomeScreen._importBook]
-    B --> C[BookService.importBook]
-    C --> D[FilePicker.platform.pickFiles]
-    D --> E{选择文件?}
-    E -->|是| F[获取文件路径]
-    E -->|否| G[用户取消]
-    F --> H{文件类型}
-    H -->|EPUB| I[EpubService.parseEpubFile]
-    H -->|PDF| J[PdfService.parsePdfFile]
-    H -->|其他| K[格式不支持]
-    I --> L[BookMetadata创建]
-    J --> L
-    L --> M[_saveBooksIndex]
-    L --> N[_saveBookMetadata]
-    M --> O[BookshelfScreen刷新]
-    N --> O
-    O --> P[显示成功提示]
+    UI["HomeScreen / BookshelfScreen"] --> |"用户点击导入"| FP["file_picker 选择文件"]
+    FP --> |".epub"| EPUB["EpubService.parseEpubFile()"]
+    FP --> |".pdf"| PDF["PdfService.parsePdfFile()"]
 
-    style A fill:#e1f5fe
-    style P fill:#e8f5e8
-    style K fill:#ffebee
-    style G fill:#ffebee
+    subgraph EPUB解析流程
+        EPUB --> E1["EpubReader.readFromUri()"]
+        E1 --> E2["_extractChapters()"]
+        E1 --> E3["_extractCover()"]
+        E1 --> E4["OpfReaderService.readFromSameDirectory()"]
+        E4 --> E5["_parseOpfContent() XML解析"]
+        E5 --> E6["OpfMetadata"]
+    end
+
+    subgraph PDF解析流程
+        PDF --> P1["PdfDocument.openFile()"]
+        P1 --> P2["_detectChapters() 正则匹配"]
+        P1 --> P3["_extractCover() 渲染PNG"]
+        P1 --> P4["OpfReaderService.readFromSameDirectory()"]
+        P4 --> P5["_parseOpfContent() XML解析"]
+        P5 --> P6["OpfMetadata"]
+    end
+
+    E2 --> MERGE["合并OPF元数据"]
+    P2 --> MERGE
+    E6 --> MERGE
+    P6 --> MERGE
+
+    MERGE --> BOOK["Book 对象"]
+    BOOK --> SAVE["FileStorageService 持久化"]
+    SAVE --> SAVE1["writeJson(metadata.json)"]
+    SAVE --> SAVE2["writeJson(books.json)"]
+
+    SAVE --> GEN["SummaryService.generateSummariesForBook()"]
+    GEN --> |EPUB| BSP["_generateBookSummaryFromPreface()"]
+    GEN --> |ALL| CSS["generateSingleSummary() × N 并发max=3"]
+    GEN --> |PDF| BSC["_generateBookSummaryFromChapters()"]
+
+    BSP --> AI1["AIService.generateBookSummaryFromPrefaceStream()"]
+    CSS --> AI2["AIService.generateFullChapterSummaryStream()"]
+    BSC --> AI3["AIService.generateBookSummaryStream()"]
+
+    AI1 --> SSE["_callAIStream() SSE流式"]
+    AI2 --> SSE
+    AI3 --> SSE
+
+    SSE --> |"onChunk"| NOTIFY["_notifyStreamingContent() / _notifyBookStreamingContent()"]
+    NOTIFY --> UI_UPDATE["UI setState() 实时更新"]
 ```
 
-## 4. 服务层依赖关系图
+---
+
+## 三、阅读流程
+
+```mermaid
+flowchart TD
+    HOME["HomeScreen 书架"] --> |"BookCard.onTap"| BOOK_SCREEN["Navigator.push(BookScreen)"]
+
+    subgraph "BookScreen 书籍详情页"
+        BS_INIT["initState()"] --> PRE["_startPreGeneration() → SummaryService"]
+        BS_INIT --> REG["registerBookStreamingCallback()"]
+        BS_INIT --> TIMER["Timer.periodic _refreshBookIfNeeded()"]
+        TAB0["Tab 0: 全书摘要 (流式/最终)"]
+        TAB1["Tab 1: 章节目录列表"]
+        TAB1 --> |"点击章节"| CHAPTER_SCREEN["Navigator.push(ChapterScreen)"]
+    end
+
+    subgraph "ChapterScreen 章节阅读页"
+        CS_INIT["initState()"] --> LOAD["_loadSummary()"]
+        LOAD --> LOCAL["_loadFromLocal() → readText(summaryPath)"]
+        LOCAL --> |"摘要不存在"| GEN["SummaryService.generateSingleSummary()"]
+        GEN --> AI["AIService.generateFullChapterSummaryStream()"]
+        AI --> STREAM["SSE流式 → onChunk → UI实时显示"]
+
+        CS_INIT --> REG_CB["registerStreamingCallback()"]
+        TAB_SUMMARY["Tab 0: 摘要 (Markdown渲染)"]
+        TAB_ORIG["Tab 1: 原文 (HTML/纯文本)"]
+        TAB_TRANS["Tab 2: 译文"]
+
+        TAB_TRANS --> |"点击翻译"| TRANS["TranslationService.translateEpubContent()"]
+        TRANS --> TRANS_AI["AIService.translateHtmlStream()"]
+        TRANS_AI --> |"SSE流式"| TRANS_UI["UI实时显示译文"]
+    end
+
+    HOME --> BOOK_SCREEN
+```
+
+---
+
+## 四、Service 核心交互关系图
 
 ```mermaid
 graph LR
-    subgraph "核心服务"
-        LOG[LogService<br/>日志]
-        SETS[SettingsService<br/>设置]
-        FSS[FileStorageService<br/>文件存储]
+    subgraph 核心服务
+        BS["BookService<br/>书籍CRUD"]
+        AS["AIService<br/>AI API交互"]
+        SuS["SummaryService<br/>摘要管理"]
     end
-    
-    subgraph "业务服务"
-        BSVC[BookService<br/>书籍管理]
-        AISC[AIService<br/>AI接口]
-        SSVC[SummaryService<br/>摘要生成]
+
+    subgraph 文件解析
+        ES["EpubService<br/>EPUB解析"]
+        PS["PdfService<br/>PDF解析"]
     end
-    
-    subgraph "解析器"
-        EPUB[EpubParser]
-        PDF[PdfParser]
+
+    subgraph 基础设施
+        SS["SettingsService<br/>设置管理"]
+        FS["FileStorageService<br/>文件操作"]
+        LS["LogService<br/>日志"]
+        SC["StorageConfig<br/>路径配置"]
     end
-    
-    subgraph "外部依赖"
-        AI[AI API]
-        FS[文件系统]
+
+    subgraph 扩展功能
+        TS["TranslationService<br/>翻译服务"]
+        ORS["OpfReaderService<br/>OPF元数据"]
     end
-    
-    %% 核心服务关系
-    LOG -.-> BSVC
-    LOG -.-> AISC
-    LOG -.-> SSVC
-    LOG -.-> SETS
-    
-    %% 业务服务关系
-    SETS --> AISC
-    FSS --> BSVC
-    FSS --> SSVC
-    FSS --> SETS
-    
-    %% 解析器关系
-    BSVC --> EPUB
-    BSVC --> PDF
-    
-    %% 外部依赖
-    AISC --> AI
-    BSVC --> FS
-    SSVC --> FS
-    SETS --> FS
+
+    BS -->|"导入"| ES
+    BS -->|"导入"| PS
+    BS -->|"持久化"| FS
+    BS -->|"触发生成"| SuS
+
+    ES -->|"读取OPF"| ORS
+    PS -->|"读取OPF"| ORS
+
+    SuS -->|"调用AI"| AS
+    SuS -->|"保存摘要"| FS
+    SuS -->|"查询书籍"| BS
+
+    AS -->|"读取配置"| SS
+    AS -->|"日志"| LS
+
+    TS -->|"调用AI翻译"| AS
+    TS -->|"保存译文"| FS
+    TS -->|"查询书籍"| BS
+
+    SS -->|"读/写设置"| FS
+
+    ES -.-> LS
+    PS -.-> LS
+    BS -.-> LS
+    AS -.-> LS
+    SuS -.-> LS
+    TS -.-> LS
+    ORS -.-> LS
+
+    style BS fill:#4fc3f7,color:#000
+    style AS fill:#4fc3f7,color:#000
+    style SuS fill:#4fc3f7,color:#000
+    style LS fill:#81c784,color:#000
+    style FS fill:#81c784,color:#000
+    style SS fill:#81c784,color:#000
+    style ES fill:#ffb74d,color:#000
+    style PS fill:#ffb74d,color:#000
+    style TS fill:#ce93d8,color:#000
+    style ORS fill:#ce93d8,color:#000
 ```
 
-## 5. UI层交互流程图
+---
+
+## 五、数据库/文件持久化 UML
 
 ```mermaid
-journey
-    title UI层交互流程
-    section 书籍浏览
-      用户打开应用: 5: HomeScreen
-      浏览书籍列表: 3: BookshelfScreen
-      选择书籍: 4: BookCard点击
-    section 书籍阅读
-      查看详情: 2: BookScreen
-      选择章节: 1: ChapterScreen
-      阅读内容: 5: ChapterScreen内容显示
-    section 设置操作
-      进入设置: 3: SettingsScreen
-      修改配置: 4: 各类设置页面
+erDiagram
+  SettingsService ||--|| FileStorageService : "读/写 settings.json"
+  BookService ||--|| FileStorageService : "读/写 books.json + metadata.json"
+  SummaryService ||--|| FileStorageService : "写 chapter-XXX-zh.md"
+  TranslationService ||--|| FileStorageService : "写 chapter-XXX-en.html"
+
+  FileStorageService ||--|| StorageConfig : "使用路径约定"
+
+  SettingsService ||--|| StoragePathService : "自定义路径管理"
+
+  settings_json {
+    string ai_provider
+    string api_key
+    string model
+    string base_url
+    string theme_mode
+    string ui_language
+    string output_language
+  }
+
+  books_json {
+    array Book list
+  }
+
+  Book {
+    string id PK
+    string title
+    string author
+    string filePath
+    string coverPath
+    string format epub_or_pdf
+    string aiIntroduction
+    int totalChapters
+    datetime addedAt
+    string language
+    string publisher
+    string description
+    array subjects
+  }
+
+  chapter_nnn_zh_md {
+    string summary_markdown
+  }
+
+  chapter_nnn_en_html {
+    string translation_html
+  }
 ```
 
-## 6. AI摘要生成流程图
+---
+
+## 六、AIService 内部调用链
+
+```mermaid
+flowchart TD
+    subgraph AIService内部
+        CONFIG["_loadConfig()<br/>从SettingsService读取配置"]
+        STREAM["_callAIStream()<br/>HttpClient SSE流式请求"]
+        DETECT["detectLanguage()<br/>语言检测"]
+        TEST["testConnection()<br/>API连接测试"]
+    end
+
+    subgraph 流式公开方法
+        FS["generateFullChapterSummaryStream()<br/>章节摘要流式生成"]
+        BS["generateBookSummaryStream()<br/>全书摘要流式生成"]
+        BFP["generateBookSummaryFromPrefaceStream()<br/>基于前言的全书摘要"]
+        THS["translateHtmlStream()<br/>HTML格式保留流式翻译"]
+    end
+
+    CONFIG --> FS
+    CONFIG --> BS
+    CONFIG --> BFP
+    CONFIG --> THS
+    CONFIG --> DETECT
+    CONFIG --> TEST
+
+    FS --> STREAM
+    BS --> STREAM
+    BFP --> STREAM
+    THS --> STREAM
+
+    STREAM --> |"SSE onChunk"| CB["回调函数<br/>onChunk(String partialText)"]
+```
+
+---
+
+## 七、并发控制机制
+
+```mermaid
+flowchart TD
+    REQ["SummaryService.generateSingleSummary()<br/>收到章节摘要生成请求"]
+
+    REQ --> CHECK_GEN{"_generatingKeys<br/>是否已在生成中?"}
+
+    CHECK_GEN --> |"是"| WAIT["_generatingFutures.get()<br/>复用已有的Completer.future"]
+    CHECK_GEN --> |"否"| SEM["semaphore.acquire()<br/>等待并发槽位 (max=3)"]
+
+    SEM --> MARK["标记 _generatingKeys.add(key)"]
+    MARK --> COMPLETER["创建 Completer<String?>()"]
+    COMPLETER --> STORE["存储 _generatingFutures[key] = completer"]
+    STORE --> AI["AIService.generateFullChapterSummaryStream()"]
+
+    AI --> |"chunk流式"| NOTIFY["_notifyStreamingContent()"]
+    NOTIFY --> UI["UI setState() 实时显示"]
+
+    AI --> DONE["生成完成 → 保存到文件"]
+
+    DONE --> COMPLETE["completer.complete(result)"]
+    COMPLETE --> RELEASE["semaphore.release()"]
+    RELEASE --> CLEANUP["清理 _generatingKeys 和 _generatingFutures"]
+
+    WAIT --> RESULT["返回已有结果"]
+    COMPLETE --> RESULT
+```
+
+---
+
+## 八、设置响应式更新流程（ValueNotifier）
 
 ```mermaid
 flowchart LR
-    A[用户打开书籍详情] --> B[BookScreen.initState]
-    B --> C[启动后台预生成]
-    C --> D{AI服务配置?}
-    D -->|已配置| E[SummaryService.generateSummariesForBook]
-    D -->|未配置| F[跳过预生成]
-    E --> G[FormatRegistry.getParser]
-    G --> H[获取章节列表]
-    H --> I{书籍格式}
-    I -->|EPUB| J[从前言生成全书摘要]
-    I -->|PDF| K[先生成章节摘要]
-    J --> L[为每个章节生成摘要]
-    K --> L
-    L --> M[AIService.generateFullChapterSummary]
-    M --> N[HTTP AI API请求]
-    N --> O[获取AI响应]
-    O --> P[保存摘要到文件]
-    P --> Q[更新UI显示]
+    subgraph 用户操作
+        U1["AiConfigScreen<br/>修改AI配置"]
+        U2["ThemeSettingsScreen<br/>修改主题"]
+        U3["LanguageSettingsScreen<br/>修改语言"]
+    end
 
-    style A fill:#e1f5fe
-    style Q fill:#e8f5e8
-    style F fill:#fff3e0
+    subgraph SettingsService
+        SAVE["_saveSettings()"]
+        AI_NF["_aiConfigNotifier"]
+        T_NF["_themeNotifier"]
+        L_NF["_localeNotifier"]
+    end
+
+    subgraph 监听者
+        Z_AI["ZhiduApp<br/>AIConfigScreen"]
+        Z_T["ZhiduApp<br/>_onThemeChanged()"]
+        Z_L["ZhiduApp<br/>_onLocaleChanged()"]
+    end
+
+    subgraph 文件系统
+        FILE["FileStorageService.writeJson()<br/>settings.json"]
+    end
+
+    U1 --> SAVE
+    U2 --> SAVE
+    U3 --> SAVE
+
+    SAVE --> FILE
+
+    U1 --> AI_NF
+    U2 --> T_NF
+    U3 --> L_NF
+
+    AI_NF -.-> |"addListener"| Z_AI
+    T_NF -.-> |"addListener"| Z_T
+    L_NF -.-> |"addListener"| Z_L
+
+    Z_T --> |"rebuild MaterialApp"| APP["New MaterialApp<br/>with updated ThemeData"]
+    Z_L --> |"setState"| LOCALE["New locale + LocalizationsDelegates"]
 ```
 
-## 7. 设置变更传播图
+---
 
-```mermaid
-graph TD
-    A[SettingsService.updateXxx] --> B[ValueNotifier.notifyListeners]
-    B --> C{变更类型}
-    C -->|主题| D[ThemeModeChangeListener]
-    C -->|AI设置| E[AIConfigChangeListener]
-    C -->|语言| F[LanguageChangeListener]
-    
-    D --> G[UI重建应用新主题]
-    E --> H[AIService重新加载配置]
-    F --> I[AI提示词语言更新]
-    
-    G --> J[MaterialApp.theme更新]
-    H --> K[AIService._callAI使用新配置]
-    I --> L[AiPrompts.getLanguageInstruction]
-
-    style A fill:#e1f5fe
-    style J fill:#e8f5e8
-    style K fill:#e8f5e8
-    style L fill:#e8f5e8
-```
-
-## 8. 并发控制机制图
-
-```mermaid
-stateDiagram-v2
-    [*] --> Idle: 初始化
-    Idle --> Generating: 开始生成摘要
-    Generating --> Checking: 检查是否已在生成
-    Checking --> Wait: 已在生成，等待
-    Checking --> Process: 未在生成，处理
-    Process --> Store: 生成完成
-    Store --> Notify: 通知监听者
-    Notify --> Idle: 清理状态
-    Wait --> Done: 等待完成
-    Done --> Idle: 返回空闲
-```
-
-## 9. 数据流图
-
-```mermaid
-graph LR
-    subgraph "输入源"
-        USR[用户输入]
-        FILE[文件数据]
-        CONF[配置数据]
-    end
-    
-    subgraph "处理层"
-        UI[UI层]
-        SVC[服务层]
-        EXT[外部服务]
-    end
-    
-    subgraph "存储层"
-        MEM[内存]
-        DISK[磁盘]
-    end
-    
-    subgraph "输出"
-        DISP[UI显示]
-        SAVE[数据保存]
-    end
-    
-    USR --> UI
-    FILE --> SVC
-    CONF --> SVC
-    
-    UI --> SVC
-    SVC --> EXT
-    SVC --> MEM
-    SVC --> DISK
-    
-    MEM --> DISP
-    DISK --> DISP
-    SVC --> SAVE
-```
-
-## 10. 错误处理流程图
+## 九、UI 导航层级结构
 
 ```mermaid
 flowchart TD
-    A[发生错误] --> B{错误类型}
-    B -->|网络错误| C[AIService错误处理]
-    B -->|文件错误| D[FileStorageService错误处理]
-    B -->|解析错误| E[Parser错误处理]
-    B -->|配置错误| F[SettingsService错误处理]
-    
-    C --> G[记录日志]
-    D --> G
-    E --> G
-    F --> G
-    
-    G --> H{是否致命?}
-    H -->|是| I[显示错误信息]
-    H -->|否| J[使用默认值继续]
-    
-    I --> K[返回错误状态]
-    J --> L[继续执行]
-    
-    style A fill:#ffebee
-    style I fill:#ffcdd2
-    style L fill:#e8f5e8
+    APP["MaterialApp(ZhiduApp)"] --> HS["HomeScreen<br/>BottomNav: 书架 | 发现 | 我的"]
+
+    HS --> BS_NAV["Navigator.push(BookScreen)"]
+    HS --> DISC["发现页"]
+    HS --> SET["我的 → SettingsScreen"]
+
+    SET --> AIC["AiConfigScreen"]
+    SET --> THS["ThemeSettingsScreen"]
+    SET --> LAS["LanguageSettingsScreen"]
+    SET --> STO["StorageSettingsScreen"]
+
+    BS_NAV --> CS_NAV["Navigator.push(ChapterScreen)"]
+    BS_NAV --> |"点击全书摘要"| CS_FIRST["Navigator.push(ChapterScreen<br/>chapterIndex=0)"]
+
+    CS_NAV --> |"Tab: 译文"| TRANS["TranslationService.translateEpubContent()"]
+
+    CS_NAV --> |"返回"| POP["Navigator.pop()"]
+    BS_NAV --> |"返回"| POP
+    AIC --> |"返回"| POP
+    THS --> |"返回"| POP
+    LAS --> |"返回"| POP
 ```
 
-## 11. 架构分层图
+---
+
+## 十、格式解析器架构（策略+注册表）
 
 ```mermaid
-graph BT
-    subgraph "表现层"
-        UI[UI Components<br/>Screens & Widgets]
-    end
-    
-    subgraph "业务逻辑层" 
-        SVC[Service Layer<br/>Business Logic]
-    end
-    
-    subgraph "数据访问层"
-        DAO[Data Access<br/>File I/O & API]
-    end
-    
-    subgraph "数据层"
-        DATA[Data Layer<br/>JSON/Markdown Files]
-    end
-    
-    subgraph "外部服务"
-        EXT[External Services<br/>AI APIs]
-    end
-    
-    UI --> SVC
-    SVC --> DAO
-    DAO --> DATA
-    SVC --> EXT
+classDiagram
+    class BookFormatParser {
+        <<interface>>
+        +parse(filePath) BookMetadata
+        +getChapters(filePath) List~Chapter~
+        +getChapterContent(filePath, index) ChapterContent
+        +extractCover(filePath, bookId) String?
+    }
+
+    class EpubParser {
+        +parse()
+        +getChapters()
+        +getChapterContent()
+        +extractCover()
+    }
+
+    class PdfParser {
+        +parse()
+        +getChapters()
+        +getChapterContent()
+        +extractCover()
+    }
+
+    class FormatRegistry {
+        -static _registry: Map
+        +static register(extension, parser)
+        +static getParser(extension) BookFormatParser
+        +static get supportedFormats List~String~
+    }
+
+    BookFormatParser <|.. EpubParser : implements
+    BookFormatParser <|.. PdfParser : implements
+    FormatRegistry ..> BookFormatParser : stores
+    FormatRegistry --> EpubParser : creates
+    FormatRegistry --> PdfParser : creates
 ```
 
-## 12. 组件交互矩阵
+---
 
-| 组件 | 调用 | 被调用 | 依赖 | 被依赖 |
-|------|------|--------|------|--------|
-| HomeScreen | BookService | - | - | LogService |
-| BookService | FileStorageService | HomeScreen | FormatRegistry | LogService |
-| AIService | HTTP Client | SummaryService | SettingsService | LogService |
-| SummaryService | AIService | UI Components | BookService | - |
-| SettingsService | FileStorageService | All Services | - | LogService |
-
-## 13. 关键路径分析
+## 十一、数据模型关系图
 
 ```mermaid
-gantt
-    title 关键执行路径
-    dateFormat  YYYY-MM-DD
-    axisFormat  %H:%M:%S
-    
-    section UI渲染
-    HomeScreen构建 :done, des1, 2026-04-17 09:00:00, 0.5s
-    Bookshelf加载 :active, des2, 2026-04-17 09:00:00, 1s
-    
-    section 数据加载
-    服务初始化 :des3, 2026-04-17 09:00:00, 2s
-    书籍数据加载 :des4, 2026-04-17 09:00:01, 1s
-    
-    section AI处理
-    摘要生成 :des5, 2026-04-17 09:00:02, 5s
-    UI更新 :des6, 2026-04-17 09:00:07, 0.5s
+erDiagram
+    Book ||--o{ Chapter : contains
+    Book ||--o| BookMetadata : during-import
+    Book ||--o| OpfMetadata : enriches
+    Book ||--o| ChapterSummary : has-summaries
+    Chapter ||--|| ChapterLocation : uses
+    Chapter ||--o| ChapterContent : has
+    Chapter ||--o| ChapterSummary : has
+    OpfReaderService ||--o| OpfMetadata : parses
+
+    Book {
+        string id PK
+        string title
+        string author
+        string filePath
+        BookFormat format
+        int totalChapters
+        string aiIntroduction
+    }
+
+    Chapter {
+        int index UK
+        string title
+        string id UK
+        ChapterLocation location
+        bool isPreface
+    }
+
+    ChapterSummary {
+        int chapterIndex UK
+        string summary
+        string language
+        int wordCount
+    }
+
+    ChapterContent {
+        string htmlContent
+        string plainText
+    }
+
+    ChapterLocation {
+        string href
+        int pageNumber
+    }
+
+    OpfMetadata {
+        string title
+        string author
+        string language
+        string coverPath
+        string publisher
+        string description
+        array subjects
+    }
 ```
 
-这些可视化图表全面展示了智读应用的函数调用关系，从应用启动到用户交互再到数据处理的完整流程。
+---
+
+## 更新记录
+
+| 日期 | 更新内容 |
+|------|----------|
+| 2026-05-11 | 完整 Mermaid 可视化：全局架构图、导入/阅读/翻译流程图、Service交互图、并发控制图、ValueNotifier数据流图、导航图、解析器架构图、数据模型ER图 |

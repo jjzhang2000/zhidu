@@ -5,17 +5,21 @@
 **智读**是一款基于 Flutter 的 AI 分层阅读器，通过 AI 分层解析实现"先读薄，再读厚"的阅读体验。
 
 ### 技术栈
+
 - **框架**: Flutter >= 3.0.0
 - **语言**: Dart >= 3.0.0
 - **平台**: Windows, Android, iOS, macOS, Linux
 - **AI服务**: 智谱 AI、通义千问、Ollama (本地)
 
 ### 核心功能
+
 - EPUB/PDF文件解析
-- AI 章节摘要生成
-- AI 全书摘要生成
+- AI 章节摘要生成（流式）
+- AI 全书摘要生成（流式）
+- AI 翻译（HTML格式保留）
 - 分层阅读体验
 - 多语言界面支持
+- Calibre OPF 元数据集成
 
 ---
 
@@ -34,23 +38,31 @@ docs/pseudocode/
 │   ├── chapter.md                # 章节模型
 │   ├── chapter_content.md        # 章节内容模型
 │   ├── chapter_location.md       # 章节位置模型
-│   └── chapter_summary.md        # 章节摘要模型
+│   ├── chapter_summary.md        # 章节摘要模型
+│   └── opf_metadata.md           # OPF元数据模型
 ├── screens/
 │   ├── ai_config_screen.md       # AI 配置页面
-│   ├── book_screen.md     # 书籍详情页面
+│   ├── book_screen.md            # 书籍详情页面
+│   ├── chapter_screen.md         # 章节摘要页面
 │   ├── home_screen.md            # 首页
 │   ├── language_settings_screen.md # 语言设置页面
 │   ├── pdf_reader_screen.md      # PDF 阅读器页面
 │   ├── settings_screen.md        # 设置主页面
-│   ├── chapter_screen.md         # 摘要显示页面
 │   └── theme_settings_screen.md  # 主题设置页面
 ├── services/
 │   ├── ai_prompts.md             # AI 提示词模板
 │   ├── ai_service.md             # AI服务
 │   ├── book_service.md           # 书籍管理服务
+│   ├── epub_service.md           # EPUB解析服务
+│   ├── file_storage_service.md   # 文件存储服务
 │   ├── log_service.md            # 日志服务
+│   ├── opf_reader_service.md     # OPF元数据读取服务
+│   ├── pdf_service.md            # PDF解析服务
 │   ├── settings_service.md       # 设置管理服务
+│   ├── storage_config.md         # 存储路径配置
+│   ├── storage_path_service.md   # 存储路径管理服务
 │   ├── summary_service.md        # 摘要管理服务
+│   ├── translation_service.md    # 翻译服务
 │   └── parsers/
 │       ├── book_format_parser.md # 解析器接口
 │       ├── epub_parser.md        # EPUB解析器
@@ -65,12 +77,14 @@ docs/pseudocode/
 ## 模块说明
 
 ### 入口模块 (main.dart)
+
 应用启动和初始化，负责：
+
 - 初始化窗口管理器（桌面版窗口尺寸和位置）
-- 初始化所有 Service
+- 初始化所有 Service（单例模式）
 - 注册文件格式解析器
 - 启动 Flutter 应用
-- 管理全局主题和语言
+- 管理全局主题和语言（ValueNotifier 响应式更新）
 
 **文档**: [main.md](main.md)
 
@@ -78,264 +92,81 @@ docs/pseudocode/
 
 ### 数据模型模块 (models/)
 
-#### app_settings.dart
-应用设置数据模型，包含：
-- `AiSettings`: AI服务配置
-- `ThemeSettings`: 主题配置
-- `LanguageSettings`: 语言配置
-- `AppSettings`: 完整设置聚合
-
-**文档**: [models/app_settings.md](models/app_settings.md)
-
-#### book.dart
-书籍实体模型，包含：
-- 书籍基本信息（标题、作者、封面）
-- 阅读进度跟踪
-- 章节映射
-- 序列化支持
-
-**文档**: [models/book.md](models/book.md)
-
-#### book_metadata.dart
-书籍元数据模型，用于：
-- 文件解析阶段信息收集
-- 导入预览
-- 简化信息展示
-
-**文档**: [models/book_metadata.md](models/book_metadata.md)
-
-#### chapter.dart
-统一章节模型，支持：
-- EPUB 和 PDF 格式
-- 多级目录结构
-- 位置信息
-- JSON序列化
-
-**文档**: [models/chapter.md](models/chapter.md)
-
-#### chapter_content.dart
-章节内容模型，包含：
-- 纯文本内容
-- HTML 格式内容（可选）
-- 序列化支持
-
-**文档**: [models/chapter_content.md](models/chapter_content.md)
-
-#### chapter_location.dart
-章节位置模型，支持：
-- EPUB href 定位
-- PDF 页码定位
-- 序列化支持
-
-**文档**: [models/chapter_location.md](models/chapter_location.md)
-
-#### chapter_summary.dart
-章节摘要模型，包含：
-- 客观摘要
-- AI 见解
-- 关键要点
-- 时间戳
-
-**文档**: [models/chapter_summary.md](models/chapter_summary.md)
+| 文件 | 模型 | 说明 |
+|------|------|------|
+| `app_settings.dart` | `AiSettings`, `ThemeSettings`, `LanguageSettings`, `AppSettings`, `ThemeMode` | AI/主题/语言/完整设置聚合 |
+| `book.dart` | `Book`, `BookFormat` | 书籍实体，含阅读进度、AI介绍、OPF元数据 |
+| `book_metadata.dart` | `BookMetadata` | 导入预览阶段的元数据 |
+| `chapter.dart` | `Chapter` | 统一章节模型（EPUB/PDF） |
+| `chapter_content.dart` | `ChapterContent` | 章节纯文本+HTML内容 |
+| `chapter_location.dart` | `ChapterLocation` | 章节href/页码定位 |
+| `chapter_summary.dart` | `ChapterSummary` | AI生成的章节摘要 |
+| `opf_metadata.dart` | `OpfMetadata` | Calibre metadata.opf 解析结果 |
 
 ---
 
 ### UI 模块 (screens/)
 
-#### ai_config_screen.dart
-AI 配置页面，提供：
-- 提供商选择（智谱/通义千问/Ollama）
-- API Key输入
-- 模型选择
-- Base URL 配置
-- 连接测试
-
-**文档**: [screens/ai_config_screen.md](screens/ai_config_screen.md)
-
-#### book_screen.dart
-书籍详情页面，显示：
-- 全书摘要
-- 章节列表
-- 阅读入口
-
-**文档**: [screens/book_screen.md](screens/book_screen.md)
-
-#### home_screen.dart
-首页，包含：
-- 底部导航栏
-- 书架标签页
-- 发现标签页
-- 我的标签页
-
-**文档**: [screens/home_screen.md](screens/home_screen.md)
-
-#### language_settings_screen.dart
-语言设置页面，配置：
-- AI 输出语言
-- 界面显示语言
-- 语言模式（跟随/手动）
-
-**文档**: [screens/language_settings_screen.md](screens/language_settings_screen.md)
-
-#### pdf_reader_screen.dart
-PDF 阅读器，提供：
-- 分页阅读
-- 章节导航
-- 摘要生成
-
-**文档**: [screens/pdf_reader_screen.md](screens/pdf_reader_screen.md)
-
-#### settings_screen.dart
-设置主页面，入口：
-- AI 配置
-- 主题设置
-- 语言设置
-- 存储设置
-- 数据管理
-
-**文档**: [screens/settings_screen.md](screens/settings_screen.md)
-
-#### chapter_screen.dart
-摘要显示页面，展示：
-- 章节摘要
-- 原文跳转
-- 摘要生成
-
-**文档**: [screens/chapter_screen.md](screens/chapter_screen.md)
-
-#### theme_settings_screen.dart
-主题设置页面，配置：
-- 主题模式（系统/浅色/深色）
-- 实时预览
-
-**文档**: [screens/theme_settings_screen.md](screens/theme_settings_screen.md)
+| 文件 | 页面 | 功能 |
+|------|------|------|
+| `ai_config_screen.dart` | AI配置页 | 提供商选择/API Key/模型/Base URL/连接测试 |
+| `book_screen.dart` | 书籍详情 | 全书摘要+章节列表+流式摘要显示 |
+| `chapter_screen.dart` | 章节阅读 | 摘要/原文/译文三Tab垂直布局 |
+| `home_screen.dart` | 首页 | 底部导航(书架/发现/我的)+书籍导入 |
+| `language_settings_screen.dart` | 语言设置 | AI输出语言/界面语言(跟随/手动) |
+| `pdf_reader_screen.dart` | PDF阅读器 | 分页阅读+章节导航 |
+| `settings_screen.dart` | 设置主页 | 入口：AI/主题/语言/存储/数据管理 |
+| `theme_settings_screen.dart` | 主题设置 | 系统/浅色/深色三种模式 |
 
 ---
 
 ### 服务模块 (services/)
 
-#### log_service.dart
-日志服务，提供：
-- 分级别日志（verbose/debug/info/warning/error）
-- 控制台输出
-- 文件输出
-- 统一格式化
-
-**文档**: [services/log_service.md](services/log_service.md)
-
-#### settings_service.dart
-设置管理服务，负责：
-- 统一管理所有设置
-- ValueNotifier 响应式更新
-- JSON 文件持久化
-- 导入导出支持
-
-**文档**: [services/settings_service.md](services/settings_service.md)
-
-#### ai_service.dart
-AI服务，封装：
-- API 配置管理
-- 章节摘要生成
-- 全书摘要生成
-- 语言检测
-- HTTP 请求
-
-**文档**: [services/ai_service.md](services/ai_service.md)
-
-#### ai_prompts.dart
-AI 提示词模板，包含：
-- 章节摘要提示词
-- 全书摘要提示词
-- 语言指令
-- 中英文模板
-
-**文档**: [services/ai_prompts.md](services/ai_prompts.md)
-
-#### book_service.dart
-书籍管理服务，提供：
-- 书籍导入（EPUB/PDF）
-- 书籍存储
-- 书籍查询
-- 书籍删除
-- 搜索功能
-
-**文档**: [services/book_service.md](services/book_service.md)
-
-#### summary_service.dart
-摘要管理服务，负责：
-- 摘要生成（并发控制）
-- 摘要存储
-- 摘要读取
-- 全书摘要生成
-- 导出支持
-
-**文档**: [services/summary_service.md](services/summary_service.md)
+| 文件 | 服务 | 核心职责 |
+|------|------|----------|
+| `ai_service.dart` | `AIService` + `AIConfig` | AI API交互：流式摘要生成、翻译、语言检测、连接测试 |
+| `ai_prompts.dart` | `AiPrompts` | 静态提示词模板：章节摘要/全书摘要/翻译 |
+| `book_service.dart` | `BookService` | 书籍CRUD：导入、存储、查询、删除、搜索 |
+| `epub_service.dart` | `EpubService` | EPUB文件解析：元数据/章节/封面提取 |
+| `file_storage_service.dart` | `FileStorageService` | 文件系统操作：JSON/文本读写、文件删除 |
+| `log_service.dart` | `LogService` | 分级别日志：verbose/debug/info/warning/error |
+| `opf_reader_service.dart` | `OpfReaderService` | Calibre OPF文件读取与解析 |
+| `pdf_service.dart` | `PdfService` | PDF文件解析：元数据/章节/封面提取 |
+| `settings_service.dart` | `SettingsService` | 统一设置管理：AI/主题/语言，ValueNotifier响应式 |
+| `storage_config.dart` | `StorageConfig` | 存储路径配置：统一路径管理 |
+| `storage_path_service.dart` | `StoragePathService` | 自定义存储路径管理 |
+| `summary_service.dart` | `SummaryService` + `Semaphore` | 摘要生成/存储/并发控制/流式回调 |
+| `translation_service.dart` | `TranslationService` | 翻译服务：HTML格式保留的流式翻译 |
 
 ---
 
 ### 解析器模块 (services/parsers/)
 
-#### book_format_parser.dart
-解析器接口，定义：
-- `parseFile()`: 解析文件
-- `getChapters()`: 获取章节列表
-- `getChapterContent()`: 获取章节内容
-
-**文档**: [services/parsers/book_format_parser.md](services/parsers/book_format_parser.md)
-
-#### epub_parser.dart
-EPUB解析器，实现：
-- OPF 文件解析
-- NCX/NAV 目录解析
-- 章节内容提取
-- 封面提取
-- ZIP 解压
-- XML 解析
-
-**文档**: [services/parsers/epub_parser.md](services/parsers/epub_parser.md)
-
-#### format_registry.dart
-格式注册表，提供：
-- 解析器注册
-- 按扩展名查找解析器
-- 单例模式
-
-**文档**: [services/parsers/format_registry.md](services/parsers/format_registry.md)
-
-#### pdf_parser.dart
-PDF 解析器，实现：
-- PDF 渲染
-- 章节标题识别
-- 封面页跳过
-- 分页处理
-
-**文档**: [services/parsers/pdf_parser.md](services/parsers/pdf_parser.md)
+| 文件 | 类 | 模式 |
+|------|------|------|
+| `book_format_parser.dart` | `BookFormatParser` | 策略模式抽象接口 |
+| `epub_parser.dart` | `EpubParser` | EPUB解析实现 |
+| `pdf_parser.dart` | `PdfParser` | PDF解析实现 |
+| `format_registry.dart` | `FormatRegistry` | 注册表模式，扩展名→解析器映射 |
 
 ---
 
 ### 工具模块 (utils/)
 
-#### app_theme.dart
-应用主题配置，定义：
-- 颜色方案
-- 亮色主题
-- 暗色主题
-- 组件主题
-
-**文档**: [utils/app_theme.md](utils/app_theme.md)
+| 文件 | 类 | 功能 |
+|------|------|------|
+| `app_theme.dart` | `AppTheme` | Material 3亮色/暗色主题配置 |
 
 ---
 
 ### 国际化模块 (l10n/)
 
-#### app_localizations.dart
-国际化基类，提供：
-- 多语言接口定义
-- 语言环境管理
-- 翻译键常量
-- 参数化消息
-
-**文档**: [l10n/app_localizations.md](l10n/app_localizations.md)
+| 文件 | 说明 |
+|------|------|
+| `app_localizations.dart` | 国际化基类 |
+| `app_localizations_zh.dart` | 简体中文翻译 |
+| `app_localizations_en.dart` | 英文翻译 |
+| `app_localizations_ja.dart` | 日文翻译 |
 
 ---
 
@@ -346,171 +177,183 @@ PDF 解析器，实现：
     ↓
 BookService.importBook()
     ↓
-FormatRegistry.getParser()
+EpubService.parseEpubFile() / PdfService.parsePdfFile()
     ↓
-EpubParser/PdfParser.parseFile()
+OpfReaderService.readFromSameDirectory() → 读取 metadata.opf（Calibre）
     ↓
-提取书籍元数据 → BookMetadata
+合并 OPF 元数据 + 解析结果 → Book 对象
     ↓
-保存书籍 → Book
+保存索引 (books.json) + 元数据 (metadata.json) + 封面
     ↓
 SummaryService.generateSummariesForBook()
     ↓
 ┌─────────────────────────────────────────────────────────┐
 │ EPUB 格式                                                │
-│ 1. 从前言生成全书摘要（流式）                           │
-│    └─ generateBookSummaryFromPrefaceStream()            │
-│       └─ 实时更新到 UI (registerBookStreamingCallback)  │
-│ 2. 生成章节摘要（流式）                                 │
+│ 1. 从前言/目录生成全书摘要（流式）                       │
+│    └─ _generateBookSummaryFromPreface()                 │
+│       └─ AIService.generateBookSummaryFromPrefaceStream()│
+│       └─ 实时更新到 UI (notifyBookStreamingContent)     │
+│ 2. 生成章节摘要（流式，并发控制 max=3）                 │
 │    └─ generateSingleSummary()                           │
-│       └─ 实时更新到 UI (registerStreamingCallback)      │
+│       └─ AIService.generateFullChapterSummaryStream()   │
+│       └─ 实时更新到 UI (notifyStreamingContent)         │
 └─────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────┐
 │ PDF 格式                                                 │
-│ 1. 生成章节摘要（流式）                                 │
+│ 1. 生成章节摘要（流式，并发控制 max=3）                 │
 │    └─ generateSingleSummary()                           │
-│       └─ 实时更新到 UI (registerStreamingCallback)      │
+│       └─ AIService.generateFullChapterSummaryStream()   │
 │ 2. 从章节摘要生成全书摘要（流式）                       │
-│    └─ generateBookSummaryStream()                       │
-│       └─ 实时更新到 UI (registerBookStreamingCallback)  │
+│    └─ _generateBookSummaryFromChapters()                │
+│       └─ AIService.generateBookSummaryStream()          │
+│       └─ 实时更新到 UI (notifyBookStreamingContent)     │
 └─────────────────────────────────────────────────────────┘
     ↓
-AIService.generateXxxSummaryStream()
+翻译功能（可选）
+TranslationService.translateEpubContent()
     ↓
-调用 AI API (SSE 流式响应)
+AIService.translateHtmlStream()
     ↓
-实时累积内容 → 触发流式回调 → UI 实时显示
+SSE 流式响应 → 实时回调 → UI 实时显示
     ↓
-流结束 → 保存摘要到文件
-    ↓
-用户阅读摘要
+保存译文 (chapter-XXX-en.html)
 ```
 
 ---
 
 ## 设计模式
 
-### 单例模式
+### 单例模式 (Singleton)
+
 所有 Service 使用单例模式：
-- `LogService`
-- `SettingsService`
-- `AIService`
-- `BookService`
-- `SummaryService`
-- `FormatRegistry`
+- `LogService` / `SettingsService` / `AIService` / `BookService`
+- `SummaryService` / `EpubService` / `PdfService` / `FileStorageService`
+- `TranslationService` / `FormatRegistry`
 
-### 工厂模式
-- `FormatRegistry` 根据文件扩展名返回对应解析器
+### 工厂模式 / 注册表模式 (Factory + Registry)
 
-### 策略模式
-- `BookFormatParser` 接口定义统一解析策略
-- `EpubParser` 和 `PdfParser` 实现不同策略
+- `FormatRegistry`: 扩展名→解析器映射，支持动态注册
 
-### 响应式编程
-- `ValueNotifier` 实现设置变更的实时响应
+### 策略模式 (Strategy)
+
+- `BookFormatParser` 抽象接口
+- `EpubParser` / `PdfParser` 具体策略
+
+### 响应式编程 (Reactive)
+
+- `ValueNotifier` + `addListener` 实现设置变更的实时响应
 - UI 自动重建以应用新设置
-- **流式回调机制**实现 AI 生成内容的实时更新
+
+### 流式回调（观察者模式）
+
+- 章节流式: `registerStreamingCallback()` / `unregisterStreamingCallback()` / `_notifyStreamingContent()`
+- 全书流式: `registerBookStreamingCallback()` / `unregisterBookStreamingCallback()` / `_notifyBookStreamingContent()`
 
 ### 并发控制
-- `Semaphore` 控制并发 AI 请求数
-- 防止重复生成同一章节摘要
 
-### 观察者模式（流式回调）
-- **章节流式回调**: `registerStreamingCallback()` / `unregisterStreamingCallback()`
-- **全书流式回调**: `registerBookStreamingCallback()` / `unregisterBookStreamingCallback()`
-- UI 层注册回调，实时接收 AI 生成内容更新
+- `Semaphore` 类控制并发 AI 请求数（max=3）
+- `_generatingKeys` + `_generatingFutures` 防止重复生成
+- `Completer` 模式实现异步等待复用
 
 ---
 
 ## 存储架构
 
 ### 文件结构
+
 ```
-Documents/zhidu/
-├── settings.json               # 应用设置
-├── books_index.json           # 书籍索引
+Documents/zhidu/                   (可自定义)
+├── settings.json                  # 应用设置
+├── books.json                     # 书籍索引
 └── books/
     └── {bookId}/
-        ├── metadata.json      # 书籍元数据
-        ├── book-summary.md    # 全书摘要
-        ├── chapter-000.md     # 章节摘要 0
-        ├── chapter-001.md     # 章节摘要 1
-        └── cover.jpg          # 封面图片
+        ├── metadata.json          # 书籍完整元数据
+        ├── summary-zh.md          # 全书摘要（中文）
+        ├── chapter-000-zh.md      # 章节摘要（中文）
+        ├── chapter-000-en.html    # 章节译文（英文）
+        ├── chapter-001-zh.md
+        └── cover.jpg/png          # 封面图片
 ```
 
-### 设置存储
-- `settings.json`: 所有应用设置（AI、主题、语言）
-- JSON 格式，易于备份和恢复
+### 命名规则
 
-### 摘要存储
-- Markdown 格式
-- 便于阅读和导出
-- 按章节索引命名
+- 章节摘要: `chapter-{index:3d}-{lang}.md`（如 `chapter-003-zh.md`）
+- 书籍摘要: `summary-{lang}.md`（如 `summary-zh.md`）
+- 章节译文: `chapter-{index:3d}-{lang}.html`（如 `chapter-003-en.html`）
 
 ---
 
 ## 国际化支持
 
 ### 支持语言
+
 - 简体中文 (zh)
 - 英语 (en)
 - 日语 (ja)
 
 ### 实现方式
+
 - Flutter `flutter_localizations`
 - ARB 文件格式
-- 自动生成本地化代码
+- 自动生成本地化代码 `flutter gen-l10n`
 
 ---
 
 ## AI 集成
 
 ### 支持的 AI 提供商
+
 - **智谱 AI**: glm-4-flash, glm-4, glm-4-plus
 - **通义千问**: qwen-turbo, qwen-plus, qwen-max
 - **Ollama**: 本地部署的开源模型
 
 ### 摘要生成
-- **章节摘要**: 200-300 字，提取核心内容
-- **全书摘要**: 400-600 字，综合各章节
+
+- **章节摘要**: 200-300 字，提取核心内容+关键要点+总结
+- **全书摘要**: 400-600 字，综合各章节或基于前言
+
+### 翻译
+
+- HTML 标签完整保留
+- 流式输出（SSE）
+- 支持代码块保护（占位符机制）
 
 ### 语言检测
-- 自动检测书籍内容语言
-- 支持中、英、日、韩等语言
-- AI 输出语言与书籍语言一致
+
+- 优先使用 Calibre OPF 元数据中的语言
+- 回退到字符比例分析（支持中/英/日/韩/法/德/俄/西）
+- 系统语言检测（Platform.localeName）
 
 ---
 
 ## 开发指南
 
 ### 添加新文件格式
-1. 实现 `BookFormatParser` 接口
-2. 在 `main.dart` 中注册解析器
-3. 更新支持格式列表
+
+1. 实现 `BookFormatParser` 接口（parse/getChapters/getChapterContent/extractCover）
+2. 创建对应的 Service（如 MobiService）
+3. 在 `main.dart` 中注册解析器 `FormatRegistry.register('.mobi', MobiParser())`
 
 ### 添加新语言
-1. 创建 ARB 文件
+
+1. 在 `lib/l10n/` 下创建 ARB 文件
 2. 翻译所有键值
-3. 运行 `flutter gen-l10n`
-4. 更新支持语言列表
+3. 更新 `ZhiduApp._updateLocaleFromSettings()` 中的 switch-case
+4. 运行 `flutter gen-l10n`
 
 ### 添加新 AI 提供商
-1. 在 `AiSettings` 中添加配置
-2. 更新 `AIConfig` 验证逻辑
-3. 在 UI 中添加选项
+
+1. 在 `AIConfig` 注释中记录支持的 provider
+2. 验证 OpenAI 兼容接口格式
+3. 在 `AiConfigScreen` 中添加选项
+4. 确保 `baseUrl` 和 `model` 配置正确
 
 ---
 
 ## 文档维护
 
-### 更新伪代码文档
-当修改代码时，同步更新对应的伪代码文档：
-1. 找到对应的 .md 文件
-2. 更新受影响的函数伪代码
-3. 更新数据流图（如有必要）
-4. 更新设计说明
-
 ### 文档命名规范
+
 - 文件名与源文件一致（.dart → .md）
 - 目录结构与 lib/ 一致
 - 使用小写和下划线
@@ -519,49 +362,32 @@ Documents/zhidu/
 
 ## 版本信息
 
-- **文档更新时间**: 2026-05-05
-- **项目版本**: v1.2
+- **文档更新时间**: 2026-05-11
+- **项目版本**: v1.3
 - **Flutter 版本**: >= 3.0.0
 
 ### 近期更新
 
+#### 2026-05-11: 新增伪代码文档
+
+- **新增模型文档**: `opf_metadata.md`
+- **新增服务文档**: `epub_service.md`, `file_storage_service.md`, `opf_reader_service.md`, `pdf_service.md`, `storage_config.md`, `storage_path_service.md`, `translation_service.md`
+- **新增**: Calibre OPF 元数据集成流程（OpfReaderService → OpfMetadata → Book合并）
+- **新增**: TranslationService 翻译服务（HTML格式保留 + 流式输出）
+- **新增**: 章节译文字段和文件路径规则
+
 #### 2026-05-05: 窗口DPI双重缩放修复
-- **修复**: C++ 层 main.cpp 中 DPI 双重缩放问题
-  - `SystemParametersInfo` 返回物理像素需除以 DPI 缩放因子转换为逻辑像素
-  - 添加 `FlutterDesktopGetDpiForMonitor()` 获取 DPI 缩放因子
-- **新增**: Dart 层窗口管理器初始化
-  - `_initWindowManager()` - 初始化窗口尺寸和位置
-  - 使用 `screen_retriever` 获取屏幕实际可用尺寸
-  - 使用 `window_manager` 精确控制窗口（setSize/center/show）
-  - `waitUntilReadyToShow()` 防止窗口闪烁
+
+- **修复**: C++ 层 `main.cpp` DPI 双重缩放
+- **新增**: Dart 层 `_initWindowManager()`（window_manager + screen_retriever）
 - **新增依赖**: `screen_retriever: ^0.2.0`
 
+#### 2026-04-26: UI垂直Tab布局
+
+- BookScreen / ChapterScreen 引入 TabController 垂直Tab布局
+
 #### 2026-04-24: 流式显示功能
-- **新增**: 章节摘要流式生成
-  - `SummaryService.registerStreamingCallback()` - 注册章节流式回调
-  - `SummaryService.unregisterStreamingCallback()` - 取消章节流式回调
-  - `AIService.generateFullChapterSummaryStream()` - 流式生成章节摘要
-  
-- **新增**: 全书摘要流式生成
-  - `SummaryService.registerBookStreamingCallback()` - 注册全书流式回调
-  - `SummaryService.unregisterBookStreamingCallback()` - 取消全书流式回调
-  - `AIService.generateBookSummaryStream()` - 流式生成全书摘要
-  - `AIService.generateBookSummaryFromPrefaceStream()` - 基于前言的流式生成
 
-- **新增**: SSE 数据解析
-  - `AIService._callAIStream()` - 内部流式 API 调用方法
-  - 支持 Server-Sent Events 数据实时解析
-
-- **更新**: 标题移除逻辑
-  - `SummaryService.removeTitleLineFromSummary()` - 支持更多标题格式
-  - 新增对 `第X章：xxx`、`前言`、`序言` 等格式的识别
-
----
-
-## 贡献指南
-
-欢迎提交文档改进建议：
-1. 检查伪代码是否准确反映代码逻辑
-2. 确保所有公开方法都有文档
-3. 保持伪代码格式一致
-4. 更新数据流图和设计说明
+- SSE 流式响应支持（`_callAIStream`）
+- 章节/全书流式回调机制
+- UI 实时显示生成内容

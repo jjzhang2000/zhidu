@@ -514,3 +514,118 @@ windowManager.show()  // 设置完成后才显示
 - Windows PerMonitorV2 DPI 感知应用中，`SystemParametersInfo` 返回物理像素，需要手动转换
 - `Win32Window::Create()` 内部会做 DPI 缩放，传入的应该是逻辑像素
 - 双层保障（C++ + Dart）比单层更稳健，Dart 层的 `window_manager` 可以覆盖所有桌面平台
+
+#### 2026-05-11: 多显示器 DPI 窗口定位修复
+
+**问题描述**：
+在多个不同分辨率和 DPI 缩放比例的显示器环境中，程序在主显示器上启动位置正确，但在副显示器上启动时出现在屏幕角落，且无法用鼠标拖动窗口。
+
+**根本原因**（三个重叠问题）：
+
+1. **`SystemParametersInfo(SPI_GETWORKAREA)` 只返回主显示器信息**
+   - 该 API 返回的是**主显示器**的工作区，不包括副显示器的位置和尺寸
+   - 多显示器时，窗口所在显示器的实际坐标系统与计算出的坐标不一致
+
+2. **`MonitorFromPoint({0,0})` 定位错误**
+   - 在多显示器布局中，主显示器不一定在虚拟桌面坐标 (0,0) 位置
+   - 使用 (0,0) 点查找显示器 DPI，可能返回错误的显示器（导致 DPI 比例错误）
+
+3. **Dart 层 `getPrimaryDisplay()` 只取主显示器**
+   - `screenRetriever.getPrimaryDisplay()` 永远返回主显示器信息
+   - 在副显示器上打开时，窗口被错误地定位到基于主显示器计算出的坐标
+
+**结果**：窗口出现在屏幕角落（甚至超出可见区域），因为所有坐标计算都基于错误的显示器和错误的 DPI 比例。
+
+**修复方案**（双层修复）：
+
+**1. C++ 层简化 (`windows/runner/main.cpp`)**
+- 移除所有复杂的 DPI/显示器计算代码
+- C++ 层只创建默认大小窗口 (960×720, origin 0,0)
+- 将多显示器定位和尺寸调整全部交给 Dart 层处理
+- 移除 `#include <flutter_windows.h>` 依赖
+
+```cpp
+// 修复后（简化）：
+// C++ 层不再做复杂的显示器/DPI 计算
+// Dart 层的 window_manager + screen_retriever 处理所有定位
+FlutterWindow window(project);
+Win32Window::Point origin(0, 0);
+Win32Window::Size size(960, 720);
+if (!window.Create(L"智读", origin, size)) { ... }
+```
+
+**2. Dart 层修复 (`lib/main.dart`)**
+- 使用 `screenRetriever.getAllDisplays()` 获取**所有**显示器
+- 使用 `windowManager.getBounds()` 获取窗口当前实际位置
+- 通过窗口中心点坐标匹配找到窗口实际所在的显示器
+- 基于找到的**目标显示器**计算窗口尺寸和居中位置
+- 使用 `windowManager.setBounds()` 精确设置窗口位置和尺寸
+
+```dart
+// 核心逻辑：
+final displays = await screenRetriever.getAllDisplays();
+final windowBounds = await windowManager.getBounds();
+
+// 找到窗口中心所在的显示器
+final windowCenterX = windowBounds.x + windowBounds.width / 2;
+final windowCenterY = windowBounds.y + windowBounds.height / 2;
+
+Display targetDisplay = displays.first;
+for (final display in displays) {
+  final displayLeft = display.visiblePosition?.dx ?? 0;
+  final displayTop = display.visiblePosition?.dy ?? 0;
+  final displayRight = displayLeft + display.size.width;
+  final displayBottom = displayTop + display.size.height;
+  if (windowCenterX >= displayLeft && ...) {
+    targetDisplay = display;
+    break;
+  }
+}
+
+// 基于目标显示器计算窗口位置
+final displayPos = targetDisplay.visiblePosition ?? const Offset(0, 0);
+final visibleSize = targetDisplay.visibleSize ?? targetDisplay.size;
+
+double windowHeight = visibleSize.height;
+double windowWidth = windowHeight * 0.75;
+
+final double windowLeft = displayPos.dx + (visibleSize.width - windowWidth) / 2;
+final double windowTop = displayPos.dy + (visibleSize.height - windowHeight) / 2;
+
+await windowManager.setBounds(Rect.fromLTWH(windowLeft, windowTop, windowWidth, windowHeight));
+```
+
+**screen_retriever Display 字段说明**：
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `visiblePosition` | `Offset?` | 工作区在虚拟桌面上的位置 (逻辑像素) |
+| `visibleSize` | `Size?` | 工作区尺寸 (逻辑像素，排除任务栏) |
+| `size` | `Size` | 显示器总分辨率 (逻辑像素) |
+| `scaleFactor` | `num?` | DPI 缩放因子 |
+
+**修复后流程**：
+```
+应用启动
+    ↓
+C++ main.cpp: 创建默认窗口 (960×720, pos 0,0)
+    ↓
+Dart _initWindowManager():
+    ↓
+screenRetriever.getAllDisplays()  → 获取所有显示器信息
+    ↓
+windowManager.getBounds()  → 获取窗口当前实际位置
+    ↓
+通过窗口中心点匹配 → 找到目标显示器
+    ↓
+基于目标显示器的工作区 → 计算窗口尺寸和居中位置
+    ↓
+windowManager.setBounds()  → 精确设置位置和尺寸
+    ↓
+windowManager.setMinimumSize(600, 400) → show()
+```
+
+**关键教训**：
+- `SystemParametersInfo(SPI_GETWORKAREA)` 在多显示器场景下不可靠，只返回主显示器数据
+- 多显示器 DPI 适配应在 Dart 层处理（更灵活、可跨平台）
+- 使用 `getAllDisplays()` + 窗口中心点匹配来定位正确的显示器
+- C++ 层保持简单，将复杂的显示器逻辑交给上层的 `window_manager` + `screen_retriever`

@@ -1,6 +1,5 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
-#include <flutter_windows.h>
 #include <windows.h>
 
 #include "flutter_window.h"
@@ -25,40 +24,24 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
-  // Get screen work area size (excluding taskbar) - returns physical pixels
-  RECT workArea;
-  SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
-
-  // Get DPI for the primary monitor
-  // Win32Window::Create expects logical pixels and applies DPI scaling internally,
-  // so we must convert physical pixels from SystemParametersInfo to logical pixels
-  // to avoid double-scaling
-  HMONITOR primaryMonitor = MonitorFromPoint({0, 0}, MONITOR_DEFAULTTONEAREST);
-  UINT dpi = FlutterDesktopGetDpiForMonitor(primaryMonitor);
-  double scale_factor = dpi / 96.0;
-
-  // Convert physical pixels to logical pixels
-  LONG screenWidth = static_cast<LONG>((workArea.right - workArea.left) / scale_factor);
-  LONG screenHeight = static_cast<LONG>((workArea.bottom - workArea.top) / scale_factor);
-  LONG workAreaLeft = static_cast<LONG>(workArea.left / scale_factor);
-  LONG workAreaTop = static_cast<LONG>(workArea.top / scale_factor);
-
-  // Calculate window size: height=full screen, width=3/4 of height (in logical pixels)
-  LONG windowHeight = screenHeight;
-  LONG windowWidth = static_cast<LONG>(windowHeight * 0.75);
-
-  // Ensure window width does not exceed screen width
-  if (windowWidth > screenWidth) {
-    windowWidth = screenWidth;
-  }
-
-  // Calculate center position (in logical pixels)
-  LONG windowLeft = workAreaLeft + (screenWidth - windowWidth) / 2;
-  LONG windowTop = workAreaTop + (screenHeight - windowHeight) / 2;
+  // === Multi-Monitor DPI Fix ===
+  // Instead of using SystemParametersInfo(SPI_GETWORKAREA) which only returns
+  // the primary monitor's work area (problematic when app opens on a
+  // non-primary monitor with different DPI), we use a reasonable default
+  // window size.
+  //
+  // The Dart layer (window_manager + screen_retriever) handles the actual
+  // multi-monitor positioning and sizing after the window is created.
+  //
+  // Win32Window::Create uses physical pixels internally but accepts logical
+  // pixel coordinates. We use CW_USEDEFAULT for position to let Windows
+  // choose a sensible default, and specify a reasonable default size.
+  // The Dart _initWindowManager() will reposition/resize the window correctly
+  // for whatever monitor it appears on.
 
   FlutterWindow window(project);
-  Win32Window::Point origin(windowLeft, windowTop);
-  Win32Window::Size size(windowWidth, windowHeight);
+  Win32Window::Point origin(0, 0);
+  Win32Window::Size size(960, 720);
   if (!window.Create(L"智读", origin, size)) {
     return EXIT_FAILURE;
   }
