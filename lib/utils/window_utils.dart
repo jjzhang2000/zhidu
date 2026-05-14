@@ -1,0 +1,70 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
+import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
+import 'package:screen_retriever/screen_retriever.dart';
+
+/// 检查是否为桌面平台
+bool isDesktopPlatform() {
+  if (kIsWeb) return false;
+  return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+}
+
+/// 初始化桌面平台窗口
+/// 在移动平台上调用此函数会立即返回，不会执行任何操作
+Future<void> initDesktopWindow() async {
+  // 非桌面平台直接返回，不会调用任何window_manager方法
+  if (!isDesktopPlatform()) {
+    return;
+  }
+
+  await windowManager.ensureInitialized();
+  await windowManager.waitUntilReadyToShow();
+
+  try {
+    final displays = await screenRetriever.getAllDisplays();
+    final windowBounds = await windowManager.getBounds();
+
+    final windowCenterX = windowBounds.left + windowBounds.width / 2;
+    final windowCenterY = windowBounds.top + windowBounds.height / 2;
+
+    var targetDisplay = displays.first;
+    for (final display in displays) {
+      final displayLeft = display.visiblePosition?.dx ?? 0;
+      final displayTop = display.visiblePosition?.dy ?? 0;
+      final displayRight = displayLeft + display.size.width;
+      final displayBottom = displayTop + display.size.height;
+
+      if (windowCenterX >= displayLeft &&
+          windowCenterX <= displayRight &&
+          windowCenterY >= displayTop &&
+          windowCenterY <= displayBottom) {
+        targetDisplay = display;
+        break;
+      }
+    }
+
+    final displayPos = targetDisplay.visiblePosition ?? const Offset(0, 0);
+    final visibleSize = targetDisplay.visibleSize ?? targetDisplay.size;
+    final double screenHeight = visibleSize.height;
+    final double screenWidth = visibleSize.width;
+
+    double windowHeight = screenHeight;
+    double windowWidth = windowHeight * 0.75;
+
+    if (windowWidth > screenWidth) {
+      windowWidth = screenWidth;
+    }
+
+    final double windowLeft = displayPos.dx + (screenWidth - windowWidth) / 2;
+    final double windowTop = displayPos.dy + (screenHeight - windowHeight) / 2;
+
+    await windowManager.setBounds(Rect.fromLTWH(windowLeft, windowTop, windowWidth, windowHeight));
+  } catch (e) {
+    await windowManager.setSize(const Size(960, 720));
+    await windowManager.center();
+  }
+
+  await windowManager.setMinimumSize(const Size(600, 400));
+  await windowManager.show();
+}

@@ -629,3 +629,45 @@ windowManager.setMinimumSize(600, 400) → show()
 - 多显示器 DPI 适配应在 Dart 层处理（更灵活、可跨平台）
 - 使用 `getAllDisplays()` + 窗口中心点匹配来定位正确的显示器
 - C++ 层保持简单，将复杂的显示器逻辑交给上层的 `window_manager` + `screen_retriever`
+
+#### 2026-05-14: 多平台构建与兼容性修复
+
+**问题描述**：
+1. Android构建时Gradle卡在NDK依赖下载，多个插件（`jni`、`pdfrx`）要求不同版本的NDK
+2. 升级到 `pdfrx 2.3.3` 后API变更导致编译错误
+3. `window_manager` 和 `screen_retriever` 在Android模拟器上抛出 `MissingPluginException`
+4. Android日志服务使用 `Directory.current.path` 导致无权限写入
+
+**修复方案**：
+
+**1. NDK版本统一**
+- 升级 `pdfrx`: `^1.3.5` → `^2.3.3`（不再强制要求特定NDK版本）
+- 同步升级 `archive`: `^3.4.10` → `^4.0.9`（pdfrx 2.x的依赖要求）
+- 统一使用已安装的 NDK 30.0.14904198
+
+**2. pdfrx API兼容性修复**
+- `PdfPageRawText?` 可能为null → 使用 `pageText?.fullText ?? ''` 安全访问
+- `backgroundColor` 参数从 `Color` 改为 `int` → `0xFFFFFFFF`
+- `PdfImage.format` getter被移除 → pdfrx 2.x 固定返回 RGBA 格式，移除格式分支判断
+- 修复文件：`lib/services/parsers/pdf_parser.dart`、`lib/services/pdf_service.dart`
+
+**3. 跨平台窗口管理**
+- 创建 `lib/utils/window_utils.dart` 统一处理窗口初始化
+- 使用 `isDesktopPlatform()` 运行时检测（基于 `Platform.isWindows/MacOS/Linux`）
+- 在非桌面平台上直接返回，不调用 `window_manager` 方法
+- 关键：虽然Android会导入 `window_manager` 包，但运行时检查确保不会执行相关代码
+
+**4. 日志路径修复**
+- 使用 `path_provider` 的 `getApplicationDocumentsDirectory()` 替代 `Directory.current.path`
+- 在Android上正确写入应用文档目录，避免权限错误
+
+**依赖变更 (`pubspec.yaml`)**：
+```yaml
+pdfrx: ^2.3.3      # 之前: ^1.3.5
+archive: ^4.0.9    # 之前: ^3.4.10
+```
+
+**关键教训**：
+- 桌面平台专用插件（如 `window_manager`）在移动端编译时会通过，但运行时会崩溃
+- 使用运行时平台检测（`Platform.is*`）比条件导入更简单可靠（`dart.library.io` 在Android上也是true，无法区分桌面和移动）
+- 升级第三方库前先用 `flutter pub outdated` 检查依赖冲突

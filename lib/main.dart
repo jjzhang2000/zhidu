@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:window_manager/window_manager.dart';
-import 'package:screen_retriever/screen_retriever.dart';
 import 'l10n/app_localizations.dart';
 
 import 'screens/home_screen.dart';
@@ -13,13 +11,15 @@ import 'services/parsers/format_registry.dart';
 import 'services/parsers/epub_parser.dart';
 import 'services/parsers/pdf_parser.dart';
 import 'utils/app_theme.dart';
+import 'utils/window_utils.dart';
 import 'services/settings_service.dart';
 import '../models/app_settings.dart' as AppModels;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await _initWindowManager();
+  // 在桌面平台上初始化窗口管理（内部会检查平台）
+  await initDesktopWindow();
 
   await LogService().init(
     minLevel: LogLevel.verbose,
@@ -40,73 +40,6 @@ void main() async {
   runApp(
     const ZhiduApp(),
   );
-}
-
-Future<void> _initWindowManager() async {
-  await windowManager.ensureInitialized();
-
-  await windowManager.waitUntilReadyToShow();
-
-  try {
-    // Get all displays to handle multi-monitor setups with different DPI scales
-    final displays = await screenRetriever.getAllDisplays();
-
-    // Get the window's current bounds (where Windows placed it by default)
-    final windowBounds = await windowManager.getBounds();
-
-    // Find which display the window center falls on
-    final windowCenterX = windowBounds.left + windowBounds.width / 2;
-    final windowCenterY = windowBounds.top + windowBounds.height / 2;
-
-    Display targetDisplay = displays.first;
-    for (final display in displays) {
-      // visiblePosition is the (x,y) of the visible work area on the virtual screen
-      // size is the full monitor resolution (both in logical pixels)
-      final displayLeft = display.visiblePosition?.dx ?? 0;
-      final displayTop = display.visiblePosition?.dy ?? 0;
-      final displayRight = displayLeft + display.size.width;
-      final displayBottom = displayTop + display.size.height;
-
-      if (windowCenterX >= displayLeft &&
-          windowCenterX <= displayRight &&
-          windowCenterY >= displayTop &&
-          windowCenterY <= displayBottom) {
-        targetDisplay = display;
-        break;
-      }
-    }
-
-    // Calculate window size relative to the target display's visible area
-    final displayPos = targetDisplay.visiblePosition ?? const Offset(0, 0);
-    final visibleSize = targetDisplay.visibleSize ?? targetDisplay.size;
-    final double screenHeight = visibleSize.height;
-    final double screenWidth = visibleSize.width;
-
-    double windowHeight = screenHeight;
-    double windowWidth = windowHeight * 0.75;
-
-    if (windowWidth > screenWidth) {
-      windowWidth = screenWidth;
-    }
-
-    // Center on the target display's visible area
-    final double windowLeft = displayPos.dx + (screenWidth - windowWidth) / 2;
-    final double windowTop = displayPos.dy + (screenHeight - windowHeight) / 2;
-
-    await windowManager.setBounds(Rect.fromLTWH(
-      windowLeft,
-      windowTop,
-      windowWidth,
-      windowHeight,
-    ));
-  } catch (e) {
-    LogService().w('Main', '获取屏幕尺寸失败，使用默认窗口大小: $e');
-    await windowManager.setSize(const Size(960, 720));
-    await windowManager.center();
-  }
-
-  await windowManager.setMinimumSize(const Size(600, 400));
-  await windowManager.show();
 }
 
 /// 初始化格式注册表，注册所有支持的解析器
@@ -131,11 +64,9 @@ class _ZhiduAppState extends State<ZhiduApp> {
   void initState() {
     super.initState();
     _settingsService = SettingsService();
-    // 添加监听器，当主题模式和语言设置改变时重建UI
     _settingsService.themeMode.addListener(_onAppSettingsChanged);
     _settingsService.languageSettings.addListener(_onAppSettingsChanged);
 
-    // 初始化语言设置
     _updateLocaleFromSettings();
   }
 
@@ -147,27 +78,21 @@ class _ZhiduAppState extends State<ZhiduApp> {
   }
 
   void _onAppSettingsChanged() {
-    // 当主题模式或语言设置发生变化时，重建UI以应用新设置
     setState(() {
       _updateLocaleFromSettings();
     });
   }
 
-  /// 根据应用设置更新语言环境
   void _updateLocaleFromSettings() {
     final languageSettings = _settingsService.settings.languageSettings;
-    String languageCode = 'zh'; // 默认中文
+    String languageCode = 'zh';
 
     if (languageSettings.uiLanguageMode == 'manual') {
-      // 如果手动选择了界面语言，使用选择的语言
       languageCode = languageSettings.uiLanguage;
     } else {
-      // 如果跟随系统，获取系统语言（这里简化处理）
-      // 实际情况下，可以获取设备的首选语言
       languageCode = WidgetsBinding.instance.window.locale.languageCode;
     }
 
-    // 根据语言代码设置地区
     Locale newLocale;
     switch (languageCode) {
       case 'en':
@@ -189,7 +114,6 @@ class _ZhiduAppState extends State<ZhiduApp> {
 
   @override
   Widget build(BuildContext context) {
-    // 将自定义的ThemeMode枚举转换为Flutter的ThemeMode
     ThemeMode flutterThemeMode =
         _mapToFlutterThemeMode(_settingsService.themeMode.value);
 
@@ -200,9 +124,8 @@ class _ZhiduAppState extends State<ZhiduApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: flutterThemeMode, // 使用转换后的Flutter主题模式
+      themeMode: flutterThemeMode,
       home: const HomeScreen(),
-      // 添加国际化支持
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -210,15 +133,14 @@ class _ZhiduAppState extends State<ZhiduApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('zh', 'CN'), // 中文
-        Locale('en', 'US'), // 英文
-        Locale('ja', 'JP'), // 日文
+        Locale('zh', 'CN'),
+        Locale('en', 'US'),
+        Locale('ja', 'JP'),
       ],
       locale: _currentLocale,
     );
   }
 
-  /// 将自定义的ThemeMode枚举映射到Flutter的ThemeMode
   ThemeMode _mapToFlutterThemeMode(AppModels.ThemeMode appThemeMode) {
     switch (appThemeMode) {
       case AppModels.ThemeMode.light:

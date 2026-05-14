@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// 日志级别枚举
 ///
@@ -87,14 +88,22 @@ class LogService {
     _writeToFile = writeToFile;
 
     if (_writeToFile) {
-      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      _logFilePath = '${Directory.current.path}/logs/app_$timestamp.log';
-      final logDir = Directory('${Directory.current.path}/logs');
-      if (!await logDir.exists()) {
-        await logDir.create(recursive: true);
+      try {
+        final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        // 使用应用文档目录作为日志存储位置
+        final appDir = await getApplicationDocumentsDirectory();
+        final logDir = Directory('${appDir.path}/logs');
+        if (!await logDir.exists()) {
+          await logDir.create(recursive: true);
+        }
+        _logFilePath = '${logDir.path}/app_$timestamp.log';
+        _logSink = File(_logFilePath!).openWrite(mode: FileMode.append);
+        info('LogService', '日志服务初始化完成，日志文件: $_logFilePath');
+      } catch (e) {
+        // 如果无法创建日志文件，禁用文件写入
+        _writeToFile = false;
+        w('LogService', '无法创建日志文件，已禁用文件写入: $e');
       }
-      _logSink = File(_logFilePath!).openWrite(mode: FileMode.append);
-      info('LogService', '日志服务初始化完成，日志文件: $_logFilePath');
     }
   }
 

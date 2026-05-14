@@ -217,7 +217,7 @@ class PdfParser implements BookFormatParser {
       for (int i = 0; i < totalPages; i++) {
         final page = document.pages[i];
         final pageText = await page.loadText();
-        pageContents.add(pageText.fullText);
+        pageContents.add(pageText?.fullText ?? '');
       }
 
       // 释放文档资源
@@ -495,7 +495,7 @@ class PdfParser implements BookFormatParser {
         if (buffer.isNotEmpty) {
           buffer.write('\n\n');
         }
-        buffer.write(pageText.fullText);
+        buffer.write(pageText?.fullText ?? '');
       }
 
       // 释放文档资源

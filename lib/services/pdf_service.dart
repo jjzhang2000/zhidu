@@ -210,7 +210,7 @@ class PdfService {
       final pdfImage = await firstPage.render(
         width: targetWidth,
         height: targetHeight,
-        backgroundColor: Colors.white,
+        backgroundColor: 0xFFFFFFFF,
       );
 
       // 检查渲染结果
@@ -225,29 +225,17 @@ class PdfService {
 
       // 获取像素数据
       final pixels = pdfImage.pixels;
-      final pixelFormat = pdfImage.format;
 
-      // 遍历每个像素，处理不同的像素格式
-      // pdfrx可能返回BGRA8888或RGBA8888格式
+      // 遍历每个像素，pdfrx 2.x 返回 RGBA 格式
       for (int y = 0; y < targetHeight; y++) {
         for (int x = 0; x < targetWidth; x++) {
           final offset = (y * pdfImage.width + x) * 4;
           if (offset + 3 < pixels.length) {
-            int r, g, b, a;
-            // 根据像素格式提取RGBA值
-            if (pixelFormat == ui.PixelFormat.bgra8888) {
-              // BGRA格式：B、G、R、A顺序
-              b = pixels[offset];
-              g = pixels[offset + 1];
-              r = pixels[offset + 2];
-              a = pixels[offset + 3];
-            } else {
-              // RGBA格式：R、G、B、A顺序
-              r = pixels[offset];
-              g = pixels[offset + 1];
-              b = pixels[offset + 2];
-              a = pixels[offset + 3];
-            }
+            // RGBA格式：R、G、B、A顺序
+            final r = pixels[offset];
+            final g = pixels[offset + 1];
+            final b = pixels[offset + 2];
+            final a = pixels[offset + 3];
             // 设置像素颜色
             image.setPixelRgba(x, y, r, g, b, a);
           }
@@ -307,7 +295,7 @@ class PdfService {
     for (int i = 0; i < totalPages; i++) {
       final page = document.pages[i];
       final pageText = await page.loadText();
-      pageContents.add(pageText.fullText);
+      pageContents.add(pageText?.fullText ?? '');
     }
 
     // 章节标题正则表达式模式
@@ -406,7 +394,7 @@ class PdfService {
       final pageText = await page.loadText();
       pages.add(PdfPageContent(
         pageNumber: pageNumber,
-        content: pageText.fullText,
+        content: pageText?.fullText ?? '',
       ));
     }
 
@@ -487,7 +475,7 @@ class PdfService {
     // 返回页面内容对象
     return PdfPageContent(
       pageNumber: pageNumber,
-      content: pageText.fullText,
+      content: pageText?.fullText ?? '',
     );
   }
 }
