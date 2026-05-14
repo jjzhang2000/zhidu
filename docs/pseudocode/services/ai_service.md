@@ -213,7 +213,7 @@ ASYNC METHOD generateFullChapterSummary(
             detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
         ELSE:
             // 从内容检测语言
-            detectedLanguage = _detectLanguageFromMetadataAndContent(content)
+            detectedLanguage = detectLanguageFromContent(content)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
         _log.d('AIService', 
             '检测到书籍语言为: {detectedLanguage}, 使用语言指令: {languageInstruction}')
@@ -302,7 +302,7 @@ STREAM METHOD generateFullChapterSummaryStream(
         IF bookId != null:
             detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
         ELSE:
-            detectedLanguage = _detectLanguageFromMetadataAndContent(content)
+            detectedLanguage = detectLanguageFromContent(content)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
     
     ELSE:
@@ -360,7 +360,7 @@ ASYNC METHOD generateBookSummaryFromPreface(
         IF bookId != null:
             detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent)
         ELSE:
-            detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent)
+            detectedLanguage = detectLanguageFromContent(prefaceContent)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
     
     ELSE:
@@ -419,7 +419,7 @@ STREAM METHOD generateBookSummaryFromPrefaceStream(
         IF bookId != null:
             detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent)
         ELSE:
-            detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent)
+            detectedLanguage = detectLanguageFromContent(prefaceContent)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
     
     ELSE:
@@ -479,7 +479,7 @@ ASYNC METHOD generateBookSummary(
         IF bookId != null:
             detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries)
         ELSE:
-            detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries)
+            detectedLanguage = detectLanguageFromContent(chapterSummaries)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
     
     ELSE:
@@ -538,7 +538,7 @@ STREAM METHOD generateBookSummaryStream(
         IF bookId != null:
             detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries)
         ELSE:
-            detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries)
+            detectedLanguage = detectLanguageFromContent(chapterSummaries)
         languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
     
     ELSE:
@@ -569,10 +569,10 @@ STREAM METHOD generateBookSummaryStream(
 
 ---
 
-### _detectLanguageFromContent() - 从内容检测语言
+### detectLanguageFromContent() - 从内容检测语言
 
 ```pseudocode
-PRIVATE METHOD _detectLanguageFromContent(content: String) -> String:
+METHOD detectLanguageFromContent(content: String) -> String:
     // 空内容返回默认语言
     IF content.isEmpty:
         RETURN 'zh'
@@ -671,7 +671,7 @@ PRIVATE METHOD _detectLanguageFromContent(content: String) -> String:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           _detectLanguageFromContent() 检测流程              │
+│           detectLanguageFromContent() 检测流程                 │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  输入: content (文本内容)                                    │
@@ -741,97 +741,7 @@ PRIVATE ASYNC METHOD _detectLanguageFromMetadataAndContentWithBookId(
     
     // 元数据中没有，从内容中检测
     _log.d('AIService', '元数据中没有语言信息，从内容中检测语言')
-    RETURN _detectLanguageFromMetadataAndContent(content)
-```
-
----
-
-### _detectLanguageFromMetadataAndContent() - 从元数据和内容检测语言
-
-```pseudocode
-PRIVATE METHOD _detectLanguageFromMetadataAndContent(content: String) -> String:
-    IF content.isEmpty:
-        RETURN 'zh'
-    
-    // 计算不同语言的字符数量
-    chineseChars = 0
-    englishChars = 0
-    japaneseChars = 0
-    koreanChars = 0
-    punctuationChars = 0
-    
-    FOR each char IN content:
-        charCode = char.codeUnit
-        
-        // 检测中文字符 (CJK)
-        IF isChineseChar(charCode):
-            chineseChars++
-        
-        // 检测日文字符 (平假名、片假名)
-        ELSE IF isJapaneseChar(charCode):
-            japaneseChars++
-        
-        // 检测韩文字符
-        ELSE IF isKoreanChar(charCode):
-            koreanChars++
-        
-        // 检测英文字符
-        ELSE IF isEnglishChar(charCode):
-            englishChars++
-        
-        // 检测标点符号
-        ELSE IF isPunctuation(charCode):
-            punctuationChars++
-    
-    // 计算总有效字符数
-    totalChars = chineseChars + englishChars + japaneseChars + koreanChars
-    
-    IF totalChars == 0:
-        RETURN 'zh'
-    
-    // 计算比例
-    chineseRatio = chineseChars / totalChars
-    englishRatio = englishChars / totalChars
-    japaneseRatio = japaneseChars / totalChars
-    koreanRatio = koreanChars / totalChars
-    
-    // 中文优先判断（30%阈值）
-    IF chineseRatio >= 0.3:
-        RETURN 'zh'
-    
-    // 其他语言按比例判断
-    ELSE IF japaneseRatio > englishRatio AND japaneseRatio > koreanRatio:
-        RETURN 'ja'
-    
-    ELSE IF koreanRatio > englishRatio:
-        RETURN 'ko'
-    
-    ELSE IF englishRatio > chineseRatio AND 
-            englishRatio > japaneseRatio AND 
-            englishRatio > koreanRatio:
-        RETURN 'en'
-    
-    // 按数量判断
-    maxCount = 0
-    detectedLanguage = 'zh'
-    
-    IF chineseChars > maxCount:
-        maxCount = chineseChars
-        detectedLanguage = 'zh'
-    
-    IF englishChars > maxCount:
-        maxCount = englishChars
-        detectedLanguage = 'en'
-    
-    IF japaneseChars > maxCount:
-        maxCount = japaneseChars
-        detectedLanguage = 'ja'
-    
-    IF koreanChars > maxCount:
-        maxCount = koreanChars
-        detectedLanguage = 'ko'
-    
-    RETURN detectedLanguage
+    RETURN detectLanguageFromContent(content)
 ```
 
 ---

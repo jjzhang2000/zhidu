@@ -335,7 +335,7 @@ void dispose() {
     if (_sourceLang != null && _sourceLang!.isNotEmpty) {
       _sourceLang = _convertLanguageCodeToStandard(_sourceLang!);
     } else {
-      _sourceLang = _detectLanguageFromContent(_content);
+      _sourceLang = _aiService.detectLanguageFromContent(_content);
     }
 
     _log.d('ChapterScreen', '源语言: $_sourceLang');
@@ -377,32 +377,6 @@ void dispose() {
     return languageCode;
   }
 
-  /// 从内容中检测语言
-  String _detectLanguageFromContent(String content) {
-    if (content.isEmpty) return 'zh';
-
-    int chineseChars = 0;
-    int englishChars = 0;
-    int japaneseChars = 0;
-
-    for (int i = 0; i < content.length; i++) {
-      int charCode = content.codeUnitAt(i);
-
-      if ((charCode >= 0x4e00 && charCode <= 0x9fff)) {
-        chineseChars++;
-      } else if ((charCode >= 0x3040 && charCode <= 0x309f) ||
-          (charCode >= 0x30a0 && charCode <= 0x30ff)) {
-        japaneseChars++;
-      } else if ((charCode >= 65 && charCode <= 90) ||
-          (charCode >= 97 && charCode <= 122)) {
-        englishChars++;
-      }
-    }
-
-    if (chineseChars > englishChars && chineseChars > japaneseChars) return 'zh';
-    if (japaneseChars > englishChars) return 'ja';
-    return 'en';
-  }
 
   /// 从文件加载章节内容
   ///

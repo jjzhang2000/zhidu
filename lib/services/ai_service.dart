@@ -313,7 +313,7 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(content);
+      String detectedLanguage = detectLanguageFromContent(content);
       languageInstruction =
           _getLanguageInstructionForLanguage(detectedLanguage);
       _log.d('AIService',
@@ -388,7 +388,7 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(content);
+      String detectedLanguage = detectLanguageFromContent(content);
       languageInstruction =
           _getLanguageInstructionForLanguage(detectedLanguage);
       _log.d('AIService',
@@ -472,7 +472,7 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent);
+      String detectedLanguage = detectLanguageFromContent(prefaceContent);
       languageInstruction =
           _getLanguageInstructionForLanguage(detectedLanguage);
       _log.d('AIService',
@@ -557,7 +557,7 @@ class AIService {
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries);
+      String detectedLanguage = detectLanguageFromContent(chapterSummaries);
       languageInstruction =
           _getLanguageInstructionForLanguage(detectedLanguage);
       _log.d('AIService',
@@ -622,7 +622,7 @@ class AIService {
       String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries);
       languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
     } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(chapterSummaries);
+      String detectedLanguage = detectLanguageFromContent(chapterSummaries);
       languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
     } else {
       languageInstruction = _getLanguageInstructionForModel(
@@ -672,7 +672,7 @@ class AIService {
       String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent);
       languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
     } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = _detectLanguageFromMetadataAndContent(prefaceContent);
+      String detectedLanguage = detectLanguageFromContent(prefaceContent);
       languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
     } else {
       languageInstruction = _getLanguageInstructionForModel(
@@ -723,13 +723,14 @@ class AIService {
     
     // 如果元数据中没有语言信息，则从内容中检测
     _log.d('AIService', '元数据中没有语言信息，从内容中检测语言');
-    return _detectLanguageFromMetadataAndContent(content);
+    return detectLanguageFromContent(content);
   }
 
   /// 从内容中检测语言
   ///
-  /// 通过分析文本内容中的字符特征来判断语言
-  /// 使用更精确的算法，考虑不同语言的字符比例和分布特点
+  /// 通过分析文本内容中的字符特征来判断语言。
+  /// 使用比率分析算法：中文字符占比≥30% → zh，
+  /// 正确处理中文文本中混合英文单词的情况。
   ///
   /// 参数:
   /// - content: 要分析的文本内容
@@ -737,120 +738,7 @@ class AIService {
   /// 返回:
   /// - 检测到的语言代码 ('zh', 'en', 'ja', 'ko'等)
   /// - 如果无法确定则返回 'zh' (默认中文)
-  String _detectLanguageFromMetadataAndContent(String content) {
-    if (content.isEmpty) return 'zh';
-
-    // 计算不同语言的字符数量
-    int chineseChars = 0;
-    int englishChars = 0;
-    int japaneseChars = 0;
-    int koreanChars = 0;
-    int punctuationChars = 0; // 标点符号和特殊字符
-
-    for (int i = 0; i < content.length; i++) {
-      int charCode = content.codeUnitAt(i);
-
-      // 检测中文字符
-      if ((charCode >= 0x4e00 && charCode <= 0x9fff) || // CJK统一汉字
-          (charCode >= 0x3400 && charCode <= 0x4dbf) || // CJK扩展A
-          (charCode >= 0xf900 && charCode <= 0xfaff)) {
-        // CJK兼容汉字
-        chineseChars++;
-      }
-      // 检测日文字符
-      else if ((charCode >= 0x3040 && charCode <= 0x309f) || // 平假名
-          (charCode >= 0x30a0 && charCode <= 0x30ff) || // 片假名
-          (charCode >= 0x31f0 && charCode <= 0x31ff)) {
-        // 日文片假名扩展
-        japaneseChars++;
-      }
-      // 检测韩文字符
-      else if (charCode >= 0xac00 && charCode <= 0xd7af) {
-        // 韩文音节
-        koreanChars++;
-      }
-      // 检测英文字符
-      else if ((charCode >= 65 && charCode <= 90) || // A-Z
-          (charCode >= 97 && charCode <= 122)) {
-        // a-z
-        englishChars++;
-      }
-      // 检测常见标点符号和特殊字符（这些在各种语言中都存在，但需要分开统计）
-      else if ((charCode >= 32 && charCode <= 47) || // 空格和标点
-          (charCode >= 58 && charCode <= 64) || // 标点和特殊符号
-          (charCode >= 91 && charCode <= 96) || // 标点和特殊符号
-          (charCode >= 123 && charCode <= 126) || // 标点和特殊符号
-          (charCode >= 12288 && charCode <= 12543)) {
-        // 中文标点符号
-        punctuationChars++;
-      }
-    }
-
-    // 计算总的有效字符数（不包括空格等空白字符）
-    int totalChars = chineseChars + englishChars + japaneseChars + koreanChars;
-
-    // 如果没有有效字符，返回默认语言
-    if (totalChars == 0) {
-      return 'zh';
-    }
-
-    // 计算各种语言字符的比例
-    double chineseRatio = chineseChars / totalChars;
-    double englishRatio = englishChars / totalChars;
-    double japaneseRatio = japaneseChars / totalChars;
-    double koreanRatio = koreanChars / totalChars;
-
-    // 更加严格的中文判断：如果中文字符比例超过阈值，优先判断为中文
-    // 中文文本中常常混有英文单词和技术术语，所以不能仅凭英文字符数量判断
-    if (chineseRatio >= 0.3) {
-      // 如果中文字符占比超过30%，判断为中文
-      return 'zh';
-    } else if (japaneseRatio > englishRatio && japaneseRatio > koreanRatio) {
-      return 'ja';
-    } else if (koreanRatio > englishRatio) {
-      return 'ko';
-    } else if (englishRatio > chineseRatio &&
-        englishRatio > japaneseRatio &&
-        englishRatio > koreanRatio) {
-      return 'en';
-    }
-
-    // 如果都不满足条件，根据数量判断
-    int maxCount = 0;
-    String detectedLanguage = 'zh'; // 默认中文
-
-    if (chineseChars > maxCount) {
-      maxCount = chineseChars;
-      detectedLanguage = 'zh';
-    }
-    if (englishChars > maxCount) {
-      maxCount = englishChars;
-      detectedLanguage = 'en';
-    }
-    if (japaneseChars > maxCount) {
-      maxCount = japaneseChars;
-      detectedLanguage = 'ja';
-    }
-    if (koreanChars > maxCount) {
-      maxCount = koreanChars;
-      detectedLanguage = 'ko';
-    }
-
-    return detectedLanguage;
-  }
-
-  /// 从内容中检测语言
-  ///
-  /// 通过分析文本内容中的字符特征来判断语言
-  /// 使用更精确的算法，考虑不同语言的字符比例和分布特点
-  ///
-  /// 参数:
-  /// - content: 要分析的文本内容
-  ///
-  /// 返回:
-  /// - 检测到的语言代码 ('zh', 'en', 'ja', 'ko'等)
-  /// - 如果无法确定则返回 'zh' (默认中文)
-  String _detectLanguageFromContent(String content) {
+  String detectLanguageFromContent(String content) {
     if (content.isEmpty) return 'zh';
 
     // 计算不同语言的字符数量
@@ -1434,7 +1322,7 @@ class AIService {
         if (bookLanguage != null && bookLanguage.isNotEmpty) {
           return bookLanguage;
         } else if (content != null && content.isNotEmpty) {
-          return _detectLanguageFromMetadataAndContent(content);
+          return detectLanguageFromContent(content);
         }
         return 'zh';
     }
