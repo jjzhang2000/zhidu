@@ -718,7 +718,7 @@ class AIService {
     if (book != null && book.language != null && book.language!.isNotEmpty) {
       _log.d('AIService', '从元数据获取到语言信息: ${book.language}');
       // 将常见的语言代码转换为标准格式
-      return _convertLanguageCodeToStandard(book.language!);
+      return convertLanguageCodeToStandard(book.language!);
     }
     
     // 如果元数据中没有语言信息，则从内容中检测
@@ -840,28 +840,46 @@ class AIService {
     return detectedLanguage;
   }
 
-  /// 将语言代码转换为标准格式
+  /// 将语言代码转换为标准 ISO 639-1 格式
   ///
-  /// 将常见的语言代码格式转换为内部使用的标准格式
-  /// 如 'zh-CN' -> 'zh', 'en-US' -> 'en' 等
+  /// 处理多种可能的输入格式：
+  /// - BCP 47 区域标签：'zh-CN' → 'zh', 'en-US' → 'en'
+  /// - ISO 639-2/B 3字母码：'zho' → 'zh', 'chi' → 'zh', 'eng' → 'en'
+  /// - 已标准化的2字母码：'zh' → 'zh'
   ///
   /// 参数:
   /// - languageCode: 输入的语言代码
   ///
   /// 返回:
-  /// - 标准化的语言代码
-  String _convertLanguageCodeToStandard(String languageCode) {
-    // 处理常见的语言代码格式
+  /// - ISO 639-1 标准2字母语言代码
+  String convertLanguageCodeToStandard(String languageCode) {
+    // 处理 BCP 47 区域标签 (如 'zh-CN', 'en-US')
+    String baseCode;
     if (languageCode.contains('-')) {
-      // 如 'zh-CN' -> 'zh', 'en-US' -> 'en'
-      return languageCode.split('-')[0];
+      baseCode = languageCode.split('-')[0];
     } else if (languageCode.contains('_')) {
-      // 如 'zh_CN' -> 'zh'
-      return languageCode.split('_')[0];
+      baseCode = languageCode.split('_')[0];
+    } else {
+      baseCode = languageCode;
     }
-    
-    // 如果已经是标准格式，直接返回
-    return languageCode;
+
+    // ISO 639-2/B → ISO 639-1 映射表
+    // 常见3字母语言代码映射到2字母标准代码
+    const iso2To1Map = {
+      'zho': 'zh', 'chi': 'zh',
+      'eng': 'en',
+      'jpn': 'ja',
+      'kor': 'ko',
+      'fra': 'fr', 'fre': 'fr',
+      'deu': 'de', 'ger': 'de',
+      'spa': 'es',
+      'por': 'pt',
+      'ita': 'it',
+      'rus': 'ru',
+      'ara': 'ar',
+    };
+
+    return iso2To1Map[baseCode] ?? baseCode;
   }
 
   /// 为特定语言生成语言指令

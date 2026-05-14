@@ -737,7 +737,7 @@ PRIVATE ASYNC METHOD _detectLanguageFromMetadataAndContentWithBookId(
     IF book != null AND book.language != null AND book.language.isNotEmpty:
         _log.d('AIService', '从元数据获取到语言信息: {book.language}')
         // 转换为标准语言代码
-        RETURN _convertLanguageCodeToStandard(book.language)
+        RETURN convertLanguageCodeToStandard(book.language)
     
     // 元数据中没有，从内容中检测
     _log.d('AIService', '元数据中没有语言信息，从内容中检测语言')
@@ -746,21 +746,34 @@ PRIVATE ASYNC METHOD _detectLanguageFromMetadataAndContentWithBookId(
 
 ---
 
-### _convertLanguageCodeToStandard() - 转换语言代码为标准格式
+### convertLanguageCodeToStandard() - 转换语言代码为标准 ISO 639-1 格式
 
 ```pseudocode
-PRIVATE METHOD _convertLanguageCodeToStandard(languageCode: String) -> String:
-    // 处理带区域代码的语言代码
+METHOD convertLanguageCodeToStandard(languageCode: String) -> String:
+    // 处理 BCP 47 区域标签
     IF languageCode.contains('-'):
-        // 如 'zh-CN' -> 'zh', 'en-US' -> 'en'
-        RETURN languageCode.split('-')[0]
-    
+        baseCode = languageCode.split('-')[0]     // 'zh-CN' → 'zh'
     ELSE IF languageCode.contains('_'):
-        // 如 'zh_CN' -> 'zh'
-        RETURN languageCode.split('_')[0]
+        baseCode = languageCode.split('_')[0]     // 'zh_CN' → 'zh'
+    ELSE:
+        baseCode = languageCode
     
-    // 已经是标准格式
-    RETURN languageCode
+    // ISO 639-2/B → ISO 639-1 映射表
+    iso2To1Map = {
+        'zho': 'zh', 'chi': 'zh',    // 中文
+        'eng': 'en',                  // 英文
+        'jpn': 'ja',                  // 日文
+        'kor': 'ko',                  // 韩文
+        'fra': 'fr', 'fre': 'fr',    // 法文
+        'deu': 'de', 'ger': 'de',    // 德文
+        'spa': 'es',                  // 西班牙文
+        'por': 'pt',                  // 葡萄牙文
+        'ita': 'it',                  // 意大利文
+        'rus': 'ru',                  // 俄文
+        'ara': 'ar',                  // 阿拉伯文
+    }
+    
+    RETURN iso2To1Map[baseCode] ?? baseCode
 ```
 
 ---
@@ -1198,5 +1211,5 @@ Body:
   - 新增流式方法：generateBookSummaryFromPrefaceStream()
   - 新增内部方法：_callAIStream() 支持 SSE 数据解析
   - 新增语言检测方法：_detectLanguageFromMetadataAndContentWithBookId()
-  - 新增语言代码转换方法：_convertLanguageCodeToStandard()
+  - 新增语言代码转换方法：convertLanguageCodeToStandard()
   - 所有生成方法支持 bookId 参数用于元数据语言检测

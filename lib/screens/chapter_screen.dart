@@ -333,7 +333,7 @@ void dispose() {
     _sourceLang = widget.book?.language;
 
     if (_sourceLang != null && _sourceLang!.isNotEmpty) {
-      _sourceLang = _convertLanguageCodeToStandard(_sourceLang!);
+      _sourceLang = _aiService.convertLanguageCodeToStandard(_sourceLang!);
     } else {
       _sourceLang = _aiService.detectLanguageFromContent(_content);
     }
@@ -367,15 +367,6 @@ void dispose() {
     _log.d('ChapterScreen', '译文Tab禁用: $_translationTabDisabled');
   }
 
-  /// 将语言代码转换为标准格式
-  String _convertLanguageCodeToStandard(String languageCode) {
-    if (languageCode.contains('-')) {
-      return languageCode.split('-')[0];
-    } else if (languageCode.contains('_')) {
-      return languageCode.split('_')[0];
-    }
-    return languageCode;
-  }
 
 
   /// 从文件加载章节内容
