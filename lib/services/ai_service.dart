@@ -29,124 +29,7 @@ import 'settings_service.dart';
 import 'book_service.dart';
 import '../models/app_settings.dart';
 
-/// 类名：AIConfig
-/// 功能：AI服务配置数据模型
-///
-/// 主要职责：
-/// - 封装AI API所需的配置参数
-/// - 从JSON配置文件解析配置信息
-/// - 验证配置有效性（API Key是否为有效值）
-///
-/// 使用场景：
-/// - 从ai_config.json加载配置时创建实例
-/// - AIService初始化时使用
-class AIConfig {
-  /// AI服务提供商标识
-  /// 有效值：'zhipu'（智谱）、'qwen'（通义千问）、'ollama'（本地Ollama）、'lmstudio'（本地LM Studio）
-  final String provider;
 
-  /// API密钥
-  /// 用于身份验证，从配置文件中读取
-  final String apiKey;
-
-  /// 使用的模型名称
-  /// 智谱示例：'glm-4-flash', 'glm-4'
-  /// 通义千问示例：'qwen-plus', 'qwen-turbo'
-  final String model;
-
-  /// API基础URL
-  /// 智谱：https://open.bigmodel.cn/api/paas/v4
-  /// 通义千问：https://dashscope.aliyuncs.com/compatible-mode/v1
-  final String baseUrl;
-
-  /// 构造函数：AIConfig
-  /// 功能：创建AI配置实例
-  ///
-  /// 参数：
-  /// - provider: AI服务提供商标识
-  /// - apiKey: API密钥
-  /// - model: 模型名称
-  /// - baseUrl: API基础URL
-  AIConfig({
-    required this.provider,
-    required this.apiKey,
-    required this.model,
-    required this.baseUrl,
-  });
-
-  /// 方法名：fromJson
-  /// 功能：从JSON配置文件内容创建AIConfig实例
-  ///
-  /// 参数：
-  /// - json: 解析后的JSON对象，包含ai_provider和对应提供商的配置
-  ///
-  /// 返回值：AIConfig实例
-  ///
-  /// 算法逻辑：
-  /// 1. 读取ai_provider字段确定使用的提供商（默认zhipu）
-  /// 2. 读取对应提供商的配置块
-  /// 3. 提取api_key、model、base_url字段，使用默认值兜底
-  ///
-  /// 配置文件格式示例：
-  /// ```json
-  /// {
-  ///   "ai_provider": "qwen",
-  ///   "qwen": {
-  ///     "api_key": "sk-xxx",
-  ///     "model": "qwen-plus",
-  ///     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
-  ///   }
-  /// }
-  /// ```
-  factory AIConfig.fromJson(Map<String, dynamic> json) {
-    final provider = json['ai_provider'] ?? 'zhipu';
-    final providerConfig = json[provider] ?? {};
-
-    return AIConfig(
-      provider: provider,
-      apiKey: providerConfig['api_key'] ?? '',
-      model: providerConfig['model'] ?? 'glm-4-flash',
-      baseUrl: providerConfig['base_url'] ?? '',
-    );
-  }
-
-  /// 属性名：isValid
-  /// 功能：检查配置是否有效
-  ///
-  /// 验证规则：
-  /// - 对于需要 API Key 的提供商：apiKey 不能为空且不能为占位符字符串
-  /// - 对于不需要 API Key 的提供商（如 Ollama）：baseUrl 不能为空
-  ///
-  /// 返回值：true表示配置有效，false表示无效
-  bool get isValid {
-    final settings = AiSettings(
-      provider: provider,
-      apiKey: apiKey,
-      model: model,
-      baseUrl: baseUrl,
-    );
-    return settings.isValid;
-  }
-
-  /// 方法名：fromAiSettings
-  /// 功能：从AiSettings创建AIConfig实例
-  ///
-  /// 参数：
-  /// - settings: AiSettings对象
-  ///
-  /// 使用场景：
-  /// - 从SettingsService的AiSettings转换为AIConfig
-  factory AIConfig.fromAiSettings(AiSettings settings) {
-    return AIConfig(
-      provider: settings.provider,
-      apiKey: settings.apiKey,
-      model: settings.model,
-      baseUrl: settings.baseUrl,
-    );
-  }
-}
-
-/// 类名：AIService
 /// 功能：AI服务单例类，封装与大语言模型API的所有交互
 ///
 /// 主要职责：
@@ -171,8 +54,8 @@ class AIService {
   /// 私有构造函数，实现单例模式
   AIService._internal();
 
-  /// AI配置对象，初始化时从配置文件加载
-  AIConfig? _config;
+  /// AI配置对象，初始化时从SettingsService加载
+  AiSettings? _config;
 
   /// HTTP客户端（可被测试替换）
   http.Client? _httpClient;
@@ -234,7 +117,7 @@ class AIService {
   ///
   /// 算法逻辑：
   /// 1. 从SettingsService获取当前AI设置
-  /// 2. 如果配置有效，创建AIConfig实例
+  /// 2. 如果配置有效，直接使用AiSettings实例
   /// 3. 如果配置无效，记录警告日志
   ///
   /// 使用场景：
@@ -245,7 +128,7 @@ class AIService {
       final aiSettings = SettingsService().settings.aiSettings;
 
       if (aiSettings.isValid) {
-        _config = AIConfig.fromAiSettings(aiSettings);
+        _config = aiSettings;
         _log.d(
           'AIService',
           'AI配置加载成功: ${_config?.provider}, model: ${_config?.model}',
@@ -1182,12 +1065,7 @@ class AIService {
   /// 使用场景：
   /// - AI配置页面保存新配置后，立即更新AIService
   void updateConfig(AiSettings settings) {
-    _config = AIConfig(
-      provider: settings.provider,
-      apiKey: settings.apiKey,
-      model: settings.model,
-      baseUrl: settings.baseUrl,
-    );
+    _config = settings;
     _log.d('AIService',
         '配置已更新: provider=${settings.provider}, model=${settings.model}');
   }
