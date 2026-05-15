@@ -749,3 +749,33 @@ archive: ^4.0.9    # 之前: ^3.4.10
 - 随着架构演进，早期预留的"兼容层"方法会变成死代码
 - 严格遵守"外部调用则保留 public，仅内部使用则 private"的原则
 - 单例 Service 的 `dispose()` 需要在应用退出时显式调用
+
+#### 2026-05-15: 存储层清理 - 消除重复目录创建逻辑
+
+**问题描述**：
+- `FileStorageService.exists()` 未被外部调用，各 service 直接使用 `File(path).exists()`
+- `StorageConfig.getCoverPath()` 未被外部调用，封面逻辑使用的是 `getCoverSavePath()`
+- `SettingsService.init()` 和 `StorageConfig.getAppDirectory()` 各自独立创建 `Documents/zhidu/` 目录，存在重复逻辑
+
+**清理内容**：
+
+**1. 删除未使用方法（2 个）**：
+- `FileStorageService.exists()` — 仅是一行 `File(path).exists()` 的包装，调用方直接使用 dart:io
+- `StorageConfig.getCoverPath()` — 被 `getCoverSavePath()` 替代
+
+**2. 消除目录创建重复**：
+- [SettingsService.init()](file:///d:/Projects/zhidu/lib/services/settings_service.dart#L75-L78) 原先独立调用 `getApplicationDocumentsDirectory()` + 创建 `zhidu/` 目录
+- 改为直接调用 `StorageConfig.getAppDirectory()`，统一使用同一份目录创建逻辑
+- 删除 `SettingsService` 中对 `path_provider` 包的直接依赖
+- 新增 `import 'storage_config.dart'`
+
+**重构结果**：
+- `file_storage_service.dart`：406 行 → 384 行
+- `storage_config.dart`：266 行 → 238 行
+- `settings_service.dart` 减少了对 `path_provider` 的直接依赖
+- `Documents/zhidu/` 目录创建逻辑现在只有一份代码
+
+**关键教训**：
+- 工具类之间的重复逻辑要尽早识别和合并，避免出现不一致
+- "仅有一行包装"的 public 方法不值得存在，除非它封装了复杂的业务规则
+- 同层 service 之间可以依赖，但要保持单向依赖（SettingsService → StorageConfig）

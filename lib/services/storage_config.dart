@@ -216,34 +216,6 @@ class StorageConfig {
         bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$targetLang.html');
   }
 
-  /// 获取封面文件路径
-  ///
-  /// 查找书籍的封面图片文件，支持 JPG 和 PNG 格式。
-  /// 优先返回存在的文件路径，若都不存在则返回 null。
-  ///
-  /// 查找顺序：
-  /// 1. `cover.jpg`
-  /// 2. `cover.png`
-  ///
-  /// Parameters:
-  ///   - [bookId]: 书籍唯一标识符
-  ///
-  /// Returns:
-  ///   封面文件路径，若不存在则返回 null
-  static Future<String?> getCoverPath(String bookId) async {
-    final bookDir = await getBookDirectory(bookId);
-    final jpgPath = p.join(bookDir.path, 'cover.jpg');
-    final pngPath = p.join(bookDir.path, 'cover.png');
-
-    if (await File(jpgPath).exists()) {
-      return jpgPath;
-    }
-    if (await File(pngPath).exists()) {
-      return pngPath;
-    }
-    return null;
-  }
-
   /// 获取封面保存路径
   ///
   /// 根据 MIME 类型确定封面文件的扩展名。

@@ -319,31 +319,6 @@ class FileStorageService {
     }
   }
 
-  /// 检查文件是否存在
-  ///
-  /// 检查指定路径的文件是否存在。
-  ///
-  /// 参数:
-  ///   - filePath: 要检查的文件路径
-  ///
-  /// 返回值:
-  ///   - true: 文件存在
-  ///   - false: 文件不存在
-  ///
-  /// 注意事项:
-  ///   - 此方法只能检查文件，不能检查目录
-  ///   - 如果传入目录路径，会返回false
-  ///
-  /// 使用示例:
-  /// ```dart
-  /// if (await fileStorage.exists('config.json')) {
-  ///   print('配置文件存在');
-  /// }
-  /// ```
-  Future<bool> exists(String filePath) async {
-    return await File(filePath).exists();
-  }
-
   /// 列出目录下的文件
   ///
   /// 获取指定目录下所有文件的列表。

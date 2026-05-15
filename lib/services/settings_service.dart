@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/app_settings.dart';
 import 'log_service.dart';
+import 'storage_config.dart';
 
 /// 设置服务 - 管理应用所有配置设置
 ///
@@ -73,11 +73,7 @@ class SettingsService {
 
     try {
       if (_settingsFilePath == null) {
-        final docsDir = await getApplicationDocumentsDirectory();
-        final appDir = Directory(p.join(docsDir.path, 'zhidu'));
-        if (!await appDir.exists()) {
-          await appDir.create(recursive: true);
-        }
+        final appDir = await StorageConfig.getAppDirectory();
         _settingsFilePath = p.join(appDir.path, 'settings.json');
       }
 
