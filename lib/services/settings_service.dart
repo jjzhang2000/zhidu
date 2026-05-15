@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
@@ -105,18 +102,10 @@ class SettingsService {
   /// 从文件加载设置
   Future<void> _loadSettings() async {
     if (_settingsFilePath == null) return;
-
-    final file = File(_settingsFilePath!);
-    if (await file.exists()) {
-      try {
-        final content = await file.readAsString();
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        _settings = AppSettings.fromJson(json);
-        _log.info('SettingsService', '已加载设置文件: $_settingsFilePath');
-      } catch (e) {
-        _log.e('SettingsService', '解析设置文件失败，使用默认设置', e);
-        _settings = AppSettings();
-      }
+    final json = await FileStorageService().readJson(_settingsFilePath!);
+    if (json != null) {
+      _settings = AppSettings.fromJson(json);
+      _log.info('SettingsService', '已加载设置文件: $_settingsFilePath');
     } else {
       _log.info('SettingsService', '设置文件不存在，使用默认设置');
       _settings = AppSettings();
