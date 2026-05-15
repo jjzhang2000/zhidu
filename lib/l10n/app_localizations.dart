@@ -433,6 +433,18 @@ abstract class AppLocalizations {
   /// **'Qwen'**
   String get qwenProvider;
 
+  /// No description provided for @deepseekProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'DeepSeek'**
+  String get deepseekProvider;
+
+  /// No description provided for @minimaxProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'MiniMax'**
+  String get minimaxProvider;
+
   /// No description provided for @ollamaProvider.
   ///
   /// In en, this message translates to:

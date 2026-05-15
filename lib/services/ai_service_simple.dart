@@ -113,14 +113,19 @@ class AIConfig {
   /// 功能：检查配置是否有效
   ///
   /// 验证规则：
-  /// - API Key不能为空
-  /// - API Key不能为占位符字符串（YOUR_ZHIPU_API_KEY_HERE、YOUR_QWEN_API_KEY_HERE）
+  /// - 对于需要 API Key 的提供商：apiKey 不能为空且不能为占位符字符串
+  /// - 对于不需要 API Key 的提供商（如 Ollama）：baseUrl 不能为空
   ///
   /// 返回值：true表示配置有效，false表示无效
-  bool get isValid =>
-      apiKey.isNotEmpty &&
-      apiKey != 'YOUR_ZHIPU_API_KEY_HERE' &&
-      apiKey != 'YOUR_QWEN_API_KEY_HERE';
+  bool get isValid {
+    final settings = AiSettings(
+      provider: provider,
+      apiKey: apiKey,
+      model: model,
+      baseUrl: baseUrl,
+    );
+    return settings.isValid;
+  }
 
   /// 方法名：fromAiSettings
   /// 功能：从AiSettings创建AIConfig实例

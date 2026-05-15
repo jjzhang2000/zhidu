@@ -187,6 +187,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get qwenProvider => '通義千問';
 
   @override
+  String get deepseekProvider => 'DeepSeek';
+
+  @override
+  String get minimaxProvider => 'MiniMax';
+
+  @override
   String get ollamaProvider => 'Ollama（ローカル）';
 
   @override

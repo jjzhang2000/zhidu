@@ -187,6 +187,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get qwenProvider => '通义千问';
 
   @override
+  String get deepseekProvider => 'DeepSeek';
+
+  @override
+  String get minimaxProvider => 'MiniMax';
+
+  @override
   String get ollamaProvider => 'Ollama（本地）';
 
   @override

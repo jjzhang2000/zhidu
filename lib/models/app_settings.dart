@@ -48,6 +48,13 @@ class AiSettings {
   /// API基础URL
   final String baseUrl;
 
+  /// 该提供商是否需要 API Key
+  /// 用于 isValid 验证逻辑
+  bool get requiresApiKey {
+    const localProviders = {'ollama', 'lmstudio'};
+    return !localProviders.contains(provider);
+  }
+
   /// 构造函数
   AiSettings({
     this.provider = 'qwen',
@@ -95,19 +102,19 @@ class AiSettings {
   /// 检查配置是否有效
   ///
   /// 验证规则：
-  /// - 对于Ollama：baseUrl不能为空
-  /// - 对于其他提供商：API Key不能为空且不能为占位符字符串
+  /// - 需要 API Key 的提供商：apiKey 不能为空且不能为占位符字符串
+  /// - 不需要 API Key 的提供商（如 Ollama）：baseUrl 不能为空
   bool get isValid {
-    if (provider == 'ollama') {
-      // Ollama本地模型不需要API密钥，只需要有效的base URL
-      return baseUrl.isNotEmpty;
+    if (requiresApiKey) {
+      return apiKey.isNotEmpty && !_isPlaceholderApiKey(apiKey);
     } else {
-      // 其他提供商仍需要有效的API密钥
-      return apiKey.isNotEmpty &&
-          apiKey != 'YOUR_API_KEY' &&
-          apiKey != 'YOUR_ZHIPU_API_KEY_HERE' &&
-          apiKey != 'YOUR_QWEN_API_KEY_HERE';
+      return baseUrl.isNotEmpty;
     }
+  }
+
+  /// 检查 API Key 是否为占位符字符串
+  bool _isPlaceholderApiKey(String key) {
+    return key.startsWith('YOUR_') && key.endsWith('_HERE');
   }
 }
 
@@ -227,6 +234,11 @@ class AppSettings {
   /// AI设置
   final AiSettings aiSettings;
 
+  /// 已保存的AI配置列表
+  /// 用于保存用户曾经配置过的所有AI提供商配置，方便下次直接使用
+  /// key 为 provider，value 为该提供商的完整AiSettings配置
+  final Map<String, AiSettings> savedAiConfigs;
+
   /// 主题设置
   final ThemeSettings themeSettings;
 
@@ -239,22 +251,26 @@ class AppSettings {
   /// 构造函数
   AppSettings({
     AiSettings? aiSettings,
+    Map<String, AiSettings>? savedAiConfigs,
     ThemeSettings? themeSettings,
     LanguageSettings? languageSettings,
     this.version = 1,
   })  : aiSettings = aiSettings ?? AiSettings(),
+        savedAiConfigs = savedAiConfigs ?? {},
         themeSettings = themeSettings ?? ThemeSettings(),
         languageSettings = languageSettings ?? LanguageSettings();
 
   /// 创建副本
   AppSettings copyWith({
     AiSettings? aiSettings,
+    Map<String, AiSettings>? savedAiConfigs,
     ThemeSettings? themeSettings,
     LanguageSettings? languageSettings,
     int? version,
   }) {
     return AppSettings(
       aiSettings: aiSettings ?? this.aiSettings,
+      savedAiConfigs: savedAiConfigs ?? this.savedAiConfigs,
       themeSettings: themeSettings ?? this.themeSettings,
       languageSettings: languageSettings ?? this.languageSettings,
       version: version ?? this.version,
@@ -265,6 +281,9 @@ class AppSettings {
   Map<String, dynamic> toJson() {
     return {
       'aiSettings': aiSettings.toJson(),
+      'savedAiConfigs': savedAiConfigs.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
       'themeSettings': themeSettings.toJson(),
       'languageSettings': languageSettings.toJson(),
       'version': version,
@@ -273,10 +292,19 @@ class AppSettings {
 
   /// 从JSON反序列化
   factory AppSettings.fromJson(Map<String, dynamic> json) {
+    Map<String, AiSettings> savedAiConfigs = {};
+    if (json['savedAiConfigs'] != null) {
+      final configsMap = json['savedAiConfigs'] as Map<String, dynamic>;
+      configsMap.forEach((key, value) {
+        savedAiConfigs[key] = AiSettings.fromJson(value as Map<String, dynamic>);
+      });
+    }
+
     return AppSettings(
       aiSettings: json['aiSettings'] != null
           ? AiSettings.fromJson(json['aiSettings'])
           : null,
+      savedAiConfigs: savedAiConfigs,
       themeSettings: json['themeSettings'] != null
           ? ThemeSettings.fromJson(json['themeSettings'])
           : null,

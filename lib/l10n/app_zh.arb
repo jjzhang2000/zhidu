@@ -98,6 +98,8 @@
   "remove": "移除",
   "zhipuProvider": "智谱",
   "qwenProvider": "通义千问",
+  "deepseekProvider": "DeepSeek",
+  "minimaxProvider": "MiniMax",
   "ollamaProvider": "Ollama（本地）",
   "lmstudioProvider": "LM Studio（本地）",
   "chineseLanguage": "简体中文",

@@ -48,6 +48,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   static const _providers = [
     MapEntry('zhipu', '智谱'),
     MapEntry('qwen', '通义千问'),
+    MapEntry('deepseek', 'DeepSeek'),
+    MapEntry('minimax', 'MiniMax'),
     MapEntry('ollama', 'Ollama（本地）'),
     MapEntry('lmstudio', 'LM Studio（本地）'),
   ];
@@ -57,6 +59,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     return [
       MapEntry('zhipu', localizations.zhipuProvider),
       MapEntry('qwen', localizations.qwenProvider),
+      MapEntry('deepseek', localizations.deepseekProvider),
+      MapEntry('minimax', localizations.minimaxProvider),
       MapEntry('ollama', localizations.ollamaProvider),
       MapEntry('lmstudio', localizations.lmstudioProvider),
     ];
@@ -78,6 +82,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   static const _modelsByProvider = {
     'zhipu': ['glm-4-flash', 'glm-4', 'glm-4-plus'],
     'qwen': ['qwen-turbo', 'qwen-plus', 'qwen-max'],
+    'deepseek': ['deepseek-chat', 'deepseek-reasoner'],
+    'minimax': ['MiniMax-M1', 'MiniMax-Text-01'],
     'lmstudio': ['local-model', 'Llama-3.2-3B-Instruct', 'phi3', 'gemma2'],
   };
 
@@ -85,6 +91,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   static const _defaultBaseUrls = {
     'zhipu': 'https://open.bigmodel.cn/api/paas/v4',
     'qwen': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    'deepseek': 'https://api.deepseek.com/v1',
+    'minimax': 'https://api.minimaxi.com/v1',
     'ollama': 'http://localhost:11434/v1',
     'lmstudio': 'http://localhost:1234/v1',
   };
@@ -128,20 +136,33 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
         : [];
   }
 
+  /// 当前选中的提供商是否需要 API Key
+  bool get _requiresApiKey {
+    final settings = AiSettings(
+      provider: _selectedProvider,
+      apiKey: '',
+      model: '',
+      baseUrl: '',
+    );
+    return settings.requiresApiKey;
+  }
+
   /// 加载当前AI设置
   ///
   /// 从SettingsService读取当前配置，初始化表单状态
   void _loadCurrentSettings() {
     final aiSettings = _settingsService.settings.aiSettings;
     _selectedProvider = aiSettings.provider;
-    // 确保 provider 在有效范围内
     if (!_providers.any((entry) => entry.key == _selectedProvider)) {
-      _selectedProvider = _providers.first.key; // 默认选择第一个
+      _selectedProvider = _providers.first.key;
     }
     _selectedModel = aiSettings.model;
-    _apiKeyController = TextEditingController(text: aiSettings.apiKey);
+    final needsApiKey = _requiresApiKey;
+    _apiKeyController = TextEditingController(
+      text: needsApiKey ? aiSettings.apiKey : '',
+    );
     _modelController =
-        TextEditingController(text: aiSettings.model); // 添加模型控制器初始化
+        TextEditingController(text: aiSettings.model);
     _baseUrlController = TextEditingController(
       text: aiSettings.baseUrl.isNotEmpty
           ? aiSettings.baseUrl
@@ -167,15 +188,35 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   ///
   /// 当用户选择新的提供商时：
   /// 1. 更新选中的提供商
-  /// 2. 自动切换到该提供商的第一个推荐模型（用于模型输入框的建议）
-  /// 3. 更新Base URL为默认值
+  /// 2. 如果该提供商有已保存的配置，自动填充表单
+  /// 3. 如果该提供商是当前有效的配置，自动填充当前配置
+  /// 4. 如果没有已保存的配置，自动切换到该提供商的默认值
   void _onProviderChanged(String? newProvider) {
     if (newProvider == null || newProvider == _selectedProvider) return;
 
     setState(() {
       _selectedProvider = newProvider;
-      _baseUrlController.text = _defaultBaseUrls[newProvider]!;
       _testResultMessage = null;
+
+      final savedConfig = _settingsService.getSavedAiConfigForProvider(newProvider);
+      final currentAiSettings = _settingsService.settings.aiSettings;
+      final isCurrentConfig = newProvider == currentAiSettings.provider &&
+          currentAiSettings.isValid;
+
+      if (savedConfig != null) {
+        _apiKeyController.text = savedConfig.apiKey;
+        _modelController.text = savedConfig.model;
+        _baseUrlController.text = savedConfig.baseUrl;
+      } else if (isCurrentConfig) {
+        _apiKeyController.text = currentAiSettings.apiKey;
+        _modelController.text = currentAiSettings.model;
+        _baseUrlController.text = currentAiSettings.baseUrl;
+      } else {
+        _baseUrlController.text = _defaultBaseUrls[newProvider]!;
+        if (!_requiresApiKey) {
+          _apiKeyController.clear();
+        }
+      }
     });
   }
 
@@ -314,8 +355,11 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   ///
   /// 包含：
   /// - 标签文字
-  /// - 下拉选择框（智谱/通义千问）
+  /// - 下拉选择框（智谱/通义千问等）
+  /// - 已保存配置的提示图标（书签图标或当前有效配置）
   Widget _buildProviderSection() {
+    final currentAiSettings = _settingsService.settings.aiSettings;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -333,9 +377,23 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
           items: _getCurrentProviders().map((entry) {
-            return DropdownMenuItem(
+            final isSavedConfig = _settingsService.hasSavedAiConfigForProvider(entry.key);
+            final isCurrentValidConfig = entry.key == currentAiSettings.provider &&
+                currentAiSettings.isValid;
+            final hasConfig = isSavedConfig || isCurrentValidConfig;
+
+            final displayText = hasConfig ? '${entry.value} ✓' : entry.value;
+            return DropdownMenuItem<String>(
               value: entry.key,
-              child: Text(entry.value),
+              child: Text(
+                displayText,
+                style: hasConfig
+                    ? TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+              ),
             );
           }).toList(),
           onChanged: _onProviderChanged,
@@ -355,13 +413,60 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// 包含：
   /// - 标签文字
   /// - 文本输入框（支持显示/隐藏切换）
-  /// - 验证：不能为空
+  /// - 对于本地模型（Ollama/LM Studio），显示提示而非输入框
   Widget _buildApiKeySection() {
+    final loc = AppLocalizations.of(context);
+
+    if (!_requiresApiKey) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            loc?.apiKey ?? 'API Key',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.grey.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: Colors.grey[600],
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '本地模型不需要 API Key',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          AppLocalizations.of(context)?.apiKey ?? 'API Key',
+          loc?.apiKey ?? 'API Key',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

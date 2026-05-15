@@ -187,6 +187,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get qwenProvider => 'Qwen';
 
   @override
+  String get deepseekProvider => 'DeepSeek';
+
+  @override
+  String get minimaxProvider => 'MiniMax';
+
+  @override
   String get ollamaProvider => 'Ollama (Local)';
 
   @override

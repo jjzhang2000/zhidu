@@ -57,6 +57,8 @@
   "remove": "Remove",
   "zhipuProvider": "Zhipu",
   "qwenProvider": "Qwen",
+  "deepseekProvider": "DeepSeek",
+  "minimaxProvider": "MiniMax",
   "ollamaProvider": "Ollama (Local)",
   "lmstudioProvider": "LM Studio (Local)",
   "chineseLanguage": "Simplified Chinese",

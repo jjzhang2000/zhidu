@@ -118,6 +118,9 @@ class SettingsService {
       // 加载设置
       await _loadSettings();
 
+      // 迁移：将当前有效的 aiSettings 自动添加到 savedAiConfigs（如果尚未存在）
+      await _migrateCurrentAiSettingsToSaved();
+
       // 初始化ValueNotifiers
       _syncNotifiersWithSettings();
 
@@ -129,6 +132,21 @@ class SettingsService {
       // 使用默认设置继续
       _settings = AppSettings();
       _syncNotifiersWithSettings();
+    }
+  }
+
+  /// 迁移当前AI设置到已保存配置列表
+  ///
+  /// 如果当前 aiSettings 是有效的但不在 savedAiConfigs 中，
+  /// 则自动将其添加到已保存配置中。
+  Future<void> _migrateCurrentAiSettingsToSaved() async {
+    final current = _settings.aiSettings;
+    if (current.isValid && !_settings.savedAiConfigs.containsKey(current.provider)) {
+      final updatedConfigs = Map<String, AiSettings>.from(_settings.savedAiConfigs);
+      updatedConfigs[current.provider] = current;
+      _settings = _settings.copyWith(savedAiConfigs: updatedConfigs);
+      await _saveSettings();
+      _log.d('SettingsService', '自动将当前 AI 配置 (${current.provider}) 添加到已保存列表');
     }
   }
 
@@ -180,6 +198,36 @@ class SettingsService {
   /// 获取当前完整设置
   AppSettings get settings => _settings;
 
+  /// 获取已保存的AI配置列表
+  Map<String, AiSettings> get savedAiConfigs => _settings.savedAiConfigs;
+
+  /// 保存或更新指定提供商的AI配置
+  ///
+  /// 当用户保存AI配置时，自动将该配置添加到已保存列表中。
+  /// 如果该提供商已存在保存的配置，则覆盖。
+  ///
+  /// [provider] 提供商标识
+  /// [aiSettings] 该提供商的完整AI配置
+  Future<void> saveAiConfigForProvider(String provider, AiSettings aiSettings) async {
+    final updatedConfigs = Map<String, AiSettings>.from(_settings.savedAiConfigs);
+    updatedConfigs[provider] = aiSettings;
+    _settings = _settings.copyWith(savedAiConfigs: updatedConfigs);
+    await _saveSettings();
+    _log.d('SettingsService', '已保存 $provider 的AI配置');
+  }
+
+  /// 获取指定提供商的已保存配置
+  ///
+  /// 如果该提供商没有已保存的配置，返回 null。
+  AiSettings? getSavedAiConfigForProvider(String provider) {
+    return _settings.savedAiConfigs[provider];
+  }
+
+  /// 检查指定提供商是否有已保存的配置
+  bool hasSavedAiConfigForProvider(String provider) {
+    return _settings.savedAiConfigs.containsKey(provider);
+  }
+
   /// 更新AI设置
   ///
   /// [newSettings] 新的AI设置
@@ -187,10 +235,11 @@ class SettingsService {
   /// 更新后会：
   /// - 保存到文件
   /// - 更新aiSettings ValueNotifier
+  /// - 同时保存该提供商的配置到 savedAiConfigs
   Future<void> updateAiSettings(AiSettings newSettings) async {
     _settings = _settings.copyWith(aiSettings: newSettings);
     aiSettings.value = newSettings;
-    await _saveSettings();
+    await saveAiConfigForProvider(newSettings.provider, newSettings);
     _log.info('SettingsService', 'AI设置已更新: provider=${newSettings.provider}');
   }
 

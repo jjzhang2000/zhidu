@@ -57,6 +57,8 @@
   "remove": "削除",
   "zhipuProvider": "智譜",
   "qwenProvider": "通義千問",
+  "deepseekProvider": "DeepSeek",
+  "minimaxProvider": "MiniMax",
   "ollamaProvider": "Ollama（ローカル）",
   "lmstudioProvider": "LM Studio（ローカル）",
   "chineseLanguage": "簡体中国語",
