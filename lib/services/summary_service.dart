@@ -348,7 +348,7 @@ class SummaryService {
   ///
   /// 返回：章节摘要列表，按章节索引升序排列
   ///
-  /// 文件匹配规则：`chapter-*.md`（如chapter-000.md, chapter-001.md）
+  /// 文件匹配规则：`Summary-*.md`（如Summary-000-zh.md, Summary-001-en.md）
   Future<List<ChapterSummary>> getSummariesForBook(String bookId) async {
     try {
       final bookDir = await StorageConfig.getBookDirectory(bookId);
@@ -359,9 +359,8 @@ class SummaryService {
 
       for (final file in files) {
         final filename = p.basename(file.path);
-        // 匹配章节摘要文件：chapter-000.md 格式
-        if (filename.startsWith('chapter-') && filename.endsWith('.md')) {
-          final indexStr = filename.substring(8, 11); // chapter-000.md -> 000
+        if (filename.startsWith('Summary-') && filename.endsWith('.md')) {
+          final indexStr = filename.substring(8, 11);
           final index = int.tryParse(indexStr);
           if (index != null) {
             final content = await _fileStorage.readText(file.path);

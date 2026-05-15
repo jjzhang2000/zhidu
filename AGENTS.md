@@ -87,8 +87,8 @@ lib/
   - `settings.json` - 应用设置（AI、主题、语言、存储设置）
   - `books_index.json` - 书籍索引
   - `books/{bookId}/metadata.json` - 书籍元数据
-  - `books/{bookId}/summary.md` - 全书摘要
-  - `books/{bookId}/chapter-{index}.md` - 章节摘要
+  - `books/{bookId}/summary-zh.md` - 全书摘要
+  - `books/{bookId}/Summary-{index}-{lang}.md` - 章节摘要
   - `books/{bookId}/cover.jpg/png` - 封面图片
 - **Service初始化**: 所有Service在`main.dart`中顺序初始化
 - **AI配置**: 通过SettingsService集中管理，兼容旧版`ai_config.json`格式
@@ -849,3 +849,28 @@ Future<void> _saveSettings() async {
 - 同一层 service 之间的 JSON 写入逻辑要复用，不要各写一套
 - `FileStorageService` 是文件 I/O 的唯一入口，其他 service 不应绕过它直接操作文件
 - 格式统一（2 空格缩进）能确保所有 JSON 配置文件可读一致
+
+#### 2026-05-15: 章节摘要文件名模板修改 - 避免与译文重名
+
+**问题描述**：
+- `getChapterSummaryPath` 生成 `chapter-{index}-{lang}.md`
+- `getChapterTranslationPath` 生成 `chapter-{index}-{lang}.html`
+- 两者仅扩展名不同，在同一目录下容易混淆
+
+**修复方案**：
+- `getChapterSummaryPath` 文件名模板改为 `Summary-{index}-{lang}.md`
+- 同步更新 `summary_service.dart` 中 `getSummariesForBook` 的文件扫描匹配规则
+- 修复 `getChapterTranslationPath` 文档注释中的扩展名错误（`.md` → `.html`）
+- 更新 `storage_config.dart` 目录结构图
+
+**文件名变更**：
+```
+修复前：chapter-001-zh.md    chapter-001-en.md
+修复后：Summary-001-zh.md    Summary-001-en.md
+
+译文不变：chapter-001-en.html  chapter-001-ja.html
+```
+
+**关键教训**：
+- 不同类型文件的命名模板应有明确区分（语义前缀 vs 格式后缀）
+- 注释文档应保持与实际代码一致，避免产生误导

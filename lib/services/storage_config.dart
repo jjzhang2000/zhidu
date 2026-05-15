@@ -15,9 +15,10 @@ import 'package:path/path.dart' as p;
 /// └── books/
 ///     └── {bookId}/       # 每本书独立目录
 ///         ├── metadata.json      # 书籍元数据
-///         ├── summary.md        # 书籍摘要
-///         ├── chapter-001.md     # 章节摘要（按章节编号）
-///         ├── chapter-002.md
+///         ├── summary-zh.md       # 书籍摘要
+///         ├── Summary-001-zh.md    # 章节摘要（按章节编号+语言）
+///         ├── Summary-002-zh.md
+///         ├── chapter-001-zh.html  # 章节译文
 ///         └── cover.jpg/png     # 封面图片
 /// ```
 class StorageConfig {
@@ -169,15 +170,14 @@ class StorageConfig {
 
   /// 获取章节摘要文件路径
   ///
-  /// 返回 `Documents/zhidu/books/{bookId}/chapter-{index}-{lang}.md` 文件路径。
+  /// 返回 `Documents/zhidu/books/{bookId}/Summary-{index}-{lang}.md` 文件路径。
   /// 章节索引使用3位数字零填充（如 001, 002, 012, 123）。
   /// 语言代码为2字母代码（如 en, zh, ja）。
-  /// 这确保文件按章节顺序正确排序。
   ///
   /// 示例：
-  /// - 第1章中文: `chapter-001-zh.md`
-  /// - 第12章英文: `chapter-012-en.md`
-  /// - 第123章日文: `chapter-123-ja.md`
+  /// - 第1章中文: `Summary-001-zh.md`
+  /// - 第12章英文: `Summary-012-en.md`
+  /// - 第123章日文: `Summary-123-ja.md`
   ///
   /// Parameters:
   ///   - [bookId]: 书籍唯一标识符
@@ -190,17 +190,17 @@ class StorageConfig {
       String bookId, int chapterIndex, {String language = 'zh'}) async {
     final bookDir = await getBookDirectory(bookId);
     return p.join(
-        bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$language.md');
+        bookDir.path, 'Summary-${chapterIndex.toString().padLeft(3, '0')}-$language.md');
   }
 
   /// 获取章节译文文件路径
   ///
-  /// 返回 `Documents/zhidu/books/{bookId}/chapter-{index}-{lang}.md` 文件路径。
+  /// 返回 `Documents/zhidu/books/{bookId}/chapter-{index}-{lang}.html` 文件路径。
   /// 章节索引使用3位数字零填充，语言代码为2字母代码（如 en, zh, ja）。
   ///
   /// 示例：
-  /// - 第1章英文译文: `chapter-001-en.md`
-  /// - 第5章日文译文: `chapter-005-ja.md`
+  /// - 第1章英文译文: `chapter-001-en.html`
+  /// - 第5章日文译文: `chapter-005-ja.html`
   ///
   /// Parameters:
   ///   - [bookId]: 书籍唯一标识符
