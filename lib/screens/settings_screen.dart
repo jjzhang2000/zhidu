@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide ThemeMode;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/settings_service.dart';
 import '../models/app_settings.dart';
@@ -25,6 +26,23 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _version = info.version;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
@@ -192,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListTile(
           leading: const Icon(Icons.apps),
           title: Text(loc.appTitle),
-          subtitle: Text('${loc.version} 0.1.0'),
+          subtitle: Text('${loc.version} $_version'),
         ),
         ListTile(
           leading: const Icon(Icons.code),

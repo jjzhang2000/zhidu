@@ -779,3 +779,34 @@ archive: ^4.0.9    # 之前: ^3.4.10
 - 工具类之间的重复逻辑要尽早识别和合并，避免出现不一致
 - "仅有一行包装"的 public 方法不值得存在，除非它封装了复杂的业务规则
 - 同层 service 之间可以依赖，但要保持单向依赖（SettingsService → StorageConfig）
+
+#### 2026-05-15: 版本号动态获取 - 消除硬编码
+
+**问题描述**：
+- [settings_screen.dart](file:///d:/Projects/zhidu/lib/screens/settings_screen.dart#L195) 中版本号硬编码为 `'0.1.0'`
+- 修改 `pubspec.yaml` 的 `version` 字段后，设置页面不会同步更新
+
+**修复方案**：
+- 添加 `package_info_plus: ^9.0.1` 依赖
+- 在 `_SettingsScreenState.initState()` 中异步加载版本号
+- 使用 `PackageInfo.fromPlatform()` 获取 `version` 字段（自动读取 `pubspec.yaml`）
+- 同步更新 SDK 约束 `>=3.0.0` → `>=3.6.0`（匹配实际环境 Dart 3.11.5）
+
+**代码变更**：
+```dart
+// 修复前：
+subtitle: Text('${loc.version} 0.1.0'),
+
+// 修复后：
+String _version = '';
+Future<void> _loadVersion() async {
+  final info = await PackageInfo.fromPlatform();
+  if (mounted) setState(() { _version = info.version; });
+}
+subtitle: Text('${loc.version} $_version'),
+```
+
+**关键教训**：
+- 版本号应该从 `pubspec.yaml` 单一来源读取，避免硬编码
+- `package_info_plus` 是 Flutter 标准的版本信息获取方案
+- SDK 约束应与实际安装的 Dart/Flutter 版本保持一致
