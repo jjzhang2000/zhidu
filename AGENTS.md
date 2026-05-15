@@ -108,12 +108,26 @@ lib/
     "api_key": "YOUR_API_KEY",
     "model": "qwen-plus",
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  },
+  "savedAiConfigs": {
+    "qwen": { "provider": "qwen", "apiKey": "...", "model": "qwen-plus", "baseUrl": "..." },
+    "deepseek": { "provider": "deepseek", "apiKey": "...", "model": "deepseek-chat", "baseUrl": "..." }
   }
 }
 ```
-- 支持智谱(zhipu)和通义千问(qwen)
-- API Key有效性检查：不能为占位符字符串
-- 通过SettingsService可动态更新配置
+- **支持的AI提供商**:
+  | 提供商 | 类型 | 需要API Key | 默认Base URL |
+  |--------|------|-------------|--------------|
+  | 智谱 (zhipu) | 云服务 | ✓ | `https://open.bigmodel.cn/api/paas/v4` |
+  | 通义千问 (qwen) | 云服务 | ✓ | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+  | DeepSeek (deepseek) | 云服务 | ✓ | `https://api.deepseek.com/v1` |
+  | MiniMax (minimax) | 云服务 | ✓ | `https://api.minimaxi.com/v1` |
+  | Ollama (ollama) | 本地部署 | ✗ | `http://localhost:11434/v1` |
+  | LM Studio (lmstudio) | 本地部署 | ✗ | `http://localhost:1234/v1` |
+- **API Key有效性检查**: 不能为空，不能为占位符字符串(`YOUR_*_HERE`)
+- **多配置保存**: `savedAiConfigs` 保存所有曾经配置过的提供商配置，按 provider 分组
+- **自动迁移**: 启动时自动将当前有效的 aiSettings 添加到 savedAiConfigs
+- **通过SettingsService可动态更新配置**
 
 ### Format Parser Architecture
 - **设计模式**: 注册表模式（FormatRegistry）
