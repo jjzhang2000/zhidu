@@ -707,3 +707,45 @@ archive: ^4.0.9    # 之前: ^3.4.10
 **关键教训**：
 - 当两个类功能重复时，应尽早合并，避免维护成本翻倍
 - 如果一个类的 isValid 方法需要创建另一个类的实例来验证，说明设计有冗余
+
+#### 2026-05-15: SettingsService 死代码清理
+
+**问题描述**：
+- `SettingsService` 公开 API 共 24 个方法/属性，其中 13 个未被外部调用
+- 7 个方法完全无代码调用（仅文档提及）
+- 2 组方法功能重复
+- `dispose()` 从未被调用，存在 ValueNotifier 内存泄漏风险
+
+**清理内容**：
+
+**1. 删除的未使用方法（7 个）**：
+| 方法 | 说明 |
+|------|------|
+| `resetToDefaults()` | 无任何代码调用 |
+| `exportToJson()` | 无任何代码调用 |
+| `importFromJson()` | 无调用，与 `updateAllSettings()` 功能重叠 |
+| `toAiConfigJson()` | 旧版 ai_config.json 兼容层，AIService 已改用 `settings.aiSettings` |
+| `importFromAiConfigJson()` | 同上，旧版兼容层不再需要 |
+| `updateAllSettings()` | 无调用，功能与 `importFromJson()` 重叠 |
+| `isAiConfigured` getter | AIService 已有独立 `isConfigured` getter |
+
+**2. 删除的未使用 getter（2 个）**：
+- `savedAiConfigs` — 外部通过 `.settings.savedAiConfigs` 访问
+- `settingsFilePath` — 仅内部使用
+
+**3. 改为 private 的方法（2 个）**：
+- `saveAiConfigForProvider` → `_saveAiConfigForProvider`（仅 `updateAiSettings` 内部调用）
+- `updateThemeSettings` → `_updateThemeSettings`（仅 `setThemeMode` 内部调用）
+
+**4. 修复内存泄漏**：
+- 在 [main.dart](file:///d:/Projects/zhidu/lib/main.dart#L78) 的 `ZhiduApp.dispose()` 中添加 `_settingsService.dispose()` 调用
+
+**重构结果**：
+- 代码量：**378 行 → 217 行**（减少 43%）
+- 公开 API：**22 个 → 13 个**
+- `flutter analyze lib/` 无新增错误
+
+**关键教训**：
+- 随着架构演进，早期预留的"兼容层"方法会变成死代码
+- 严格遵守"外部调用则保留 public，仅内部使用则 private"的原则
+- 单例 Service 的 `dispose()` 需要在应用退出时显式调用

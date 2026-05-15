@@ -14,26 +14,6 @@ import 'log_service.dart';
 /// - 统一管理AI、主题、存储、语言等所有设置
 /// - 使用ValueNotifiers实现响应式更新
 /// - JSON文件持久化存储
-/// - 与现有AIService兼容的配置格式
-///
-/// 使用示例：
-/// ```dart
-/// // 初始化（在main.dart中）
-/// await SettingsService().init();
-///
-/// // 监听主题变化
-/// SettingsService().themeMode.addListener(() {
-///   print('主题已切换: ${SettingsService().themeMode.value}');
-/// });
-///
-/// // 更新AI设置
-/// await SettingsService().updateAiSettings(
-///   SettingsService().aiSettings.value.copyWith(apiKey: 'new-key'),
-/// );
-///
-/// // 切换主题
-/// await SettingsService().setThemeMode(ThemeMode.dark);
-/// ```
 class SettingsService {
   static final SettingsService _instance = SettingsService._internal();
 
@@ -52,7 +32,6 @@ class SettingsService {
   /// 当前设置对象
   AppSettings _settings = AppSettings();
 
-  // Private ValueNotifier fields
   ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.system);
   ValueNotifier<AiSettings> _aiSettings = ValueNotifier(AiSettings());
   ValueNotifier<LanguageSettings> _languageSettings =
@@ -67,22 +46,16 @@ class SettingsService {
   /// 语言设置ValueNotifier
   ValueNotifier<LanguageSettings> get languageSettings => _languageSettings;
 
-
-
   /// 测试用：重置服务状态
   @visibleForTesting
   static void resetForTest() {
-    // Dispose old notifiers if they exist (safely)
     _instance._safeDispose(_instance._themeMode);
     _instance._safeDispose(_instance._aiSettings);
     _instance._safeDispose(_instance._languageSettings);
 
-
-    // Create new notifiers
     _instance._themeMode = ValueNotifier(ThemeMode.system);
     _instance._aiSettings = ValueNotifier(AiSettings());
     _instance._languageSettings = ValueNotifier(LanguageSettings());
-
 
     _instance._settings = AppSettings();
     _instance._settingsFilePath = null;
@@ -95,17 +68,10 @@ class SettingsService {
   }
 
   /// 初始化设置服务
-  ///
-  /// 加载保存的设置，如果不存在则使用默认值。
-  /// 同时初始化ValueNotifiers的值。
-  ///
-  /// 调用时机：
-  /// - 在main.dart中应用启动时调用
   Future<void> init() async {
     _log.info('SettingsService', '开始初始化设置服务');
 
     try {
-      // 获取设置文件路径
       if (_settingsFilePath == null) {
         final docsDir = await getApplicationDocumentsDirectory();
         final appDir = Directory(p.join(docsDir.path, 'zhidu'));
@@ -115,30 +81,19 @@ class SettingsService {
         _settingsFilePath = p.join(appDir.path, 'settings.json');
       }
 
-      // 加载设置
       await _loadSettings();
-
-      // 迁移：将当前有效的 aiSettings 自动添加到 savedAiConfigs（如果尚未存在）
       await _migrateCurrentAiSettingsToSaved();
-
-      // 初始化ValueNotifiers
       _syncNotifiersWithSettings();
-
-
 
       _log.info('SettingsService', '设置服务初始化完成');
     } catch (e, stackTrace) {
       _log.e('SettingsService', '初始化设置服务失败', e, stackTrace);
-      // 使用默认设置继续
       _settings = AppSettings();
       _syncNotifiersWithSettings();
     }
   }
 
   /// 迁移当前AI设置到已保存配置列表
-  ///
-  /// 如果当前 aiSettings 是有效的但不在 savedAiConfigs 中，
-  /// 则自动将其添加到已保存配置中。
   Future<void> _migrateCurrentAiSettingsToSaved() async {
     final current = _settings.aiSettings;
     if (current.isValid && !_settings.savedAiConfigs.containsKey(current.provider)) {
@@ -149,8 +104,6 @@ class SettingsService {
       _log.d('SettingsService', '自动将当前 AI 配置 (${current.provider}) 添加到已保存列表');
     }
   }
-
-
 
   /// 从文件加载设置
   Future<void> _loadSettings() async {
@@ -198,17 +151,8 @@ class SettingsService {
   /// 获取当前完整设置
   AppSettings get settings => _settings;
 
-  /// 获取已保存的AI配置列表
-  Map<String, AiSettings> get savedAiConfigs => _settings.savedAiConfigs;
-
   /// 保存或更新指定提供商的AI配置
-  ///
-  /// 当用户保存AI配置时，自动将该配置添加到已保存列表中。
-  /// 如果该提供商已存在保存的配置，则覆盖。
-  ///
-  /// [provider] 提供商标识
-  /// [aiSettings] 该提供商的完整AI配置
-  Future<void> saveAiConfigForProvider(String provider, AiSettings aiSettings) async {
+  Future<void> _saveAiConfigForProvider(String provider, AiSettings aiSettings) async {
     final updatedConfigs = Map<String, AiSettings>.from(_settings.savedAiConfigs);
     updatedConfigs[provider] = aiSettings;
     _settings = _settings.copyWith(savedAiConfigs: updatedConfigs);
@@ -217,8 +161,6 @@ class SettingsService {
   }
 
   /// 获取指定提供商的已保存配置
-  ///
-  /// 如果该提供商没有已保存的配置，返回 null。
   AiSettings? getSavedAiConfigForProvider(String provider) {
     return _settings.savedAiConfigs[provider];
   }
@@ -229,24 +171,15 @@ class SettingsService {
   }
 
   /// 更新AI设置
-  ///
-  /// [newSettings] 新的AI设置
-  ///
-  /// 更新后会：
-  /// - 保存到文件
-  /// - 更新aiSettings ValueNotifier
-  /// - 同时保存该提供商的配置到 savedAiConfigs
   Future<void> updateAiSettings(AiSettings newSettings) async {
     _settings = _settings.copyWith(aiSettings: newSettings);
     aiSettings.value = newSettings;
-    await saveAiConfigForProvider(newSettings.provider, newSettings);
+    await _saveAiConfigForProvider(newSettings.provider, newSettings);
     _log.info('SettingsService', 'AI设置已更新: provider=${newSettings.provider}');
   }
 
   /// 更新主题设置
-  ///
-  /// [newSettings] 新的主题设置
-  Future<void> updateThemeSettings(ThemeSettings newSettings) async {
+  Future<void> _updateThemeSettings(ThemeSettings newSettings) async {
     _settings = _settings.copyWith(themeSettings: newSettings);
     themeMode.value = newSettings.mode;
     await _saveSettings();
@@ -254,17 +187,11 @@ class SettingsService {
   }
 
   /// 设置主题模式（便捷方法）
-  ///
-  /// [mode] 目标主题模式
   Future<void> setThemeMode(ThemeMode mode) async {
-    await updateThemeSettings(_settings.themeSettings.copyWith(mode: mode));
+    await _updateThemeSettings(_settings.themeSettings.copyWith(mode: mode));
   }
 
-
-
   /// 更新语言设置
-  ///
-  /// [newSettings] 新的语言设置
   Future<void> updateLanguageSettings(LanguageSettings newSettings) async {
     _settings = _settings.copyWith(languageSettings: newSettings);
     languageSettings.value = newSettings;
@@ -273,98 +200,11 @@ class SettingsService {
         'SettingsService', '语言设置已更新: aiOutput=${newSettings.aiOutputLanguage}');
   }
 
-  /// 重置所有设置为默认值
-  Future<void> resetToDefaults() async {
-    _settings = AppSettings();
-    _syncNotifiersWithSettings();
-    await _saveSettings();
-    _log.info('SettingsService', '设置已重置为默认值');
-  }
-
-  /// 获取设置文件路径
-  String? get settingsFilePath => _settingsFilePath;
-
-  /// 导出设置为JSON字符串
-  String exportToJson() {
-    return jsonEncode(_settings.toJson());
-  }
-
-  /// 从JSON字符串导入设置
-  ///
-  /// [jsonString] JSON格式的设置字符串
-  Future<void> importFromJson(String jsonString) async {
-    try {
-      final json = jsonDecode(jsonString) as Map<String, dynamic>;
-      _settings = AppSettings.fromJson(json);
-      _syncNotifiersWithSettings();
-      await _saveSettings();
-      _log.info('SettingsService', '设置已从JSON导入');
-    } catch (e, stackTrace) {
-      _log.e('SettingsService', '导入设置失败', e, stackTrace);
-      rethrow;
-    }
-  }
-
-  /// 将设置转换为与旧版ai_config.json兼容的格式
-  ///
-  /// 用于AIService读取配置
-  Map<String, dynamic> toAiConfigJson() {
-    return {
-      'ai_provider': _settings.aiSettings.provider,
-      _settings.aiSettings.provider: {
-        'api_key': _settings.aiSettings.apiKey,
-        'model': _settings.aiSettings.model,
-        'base_url': _settings.aiSettings.baseUrl,
-      },
-    };
-  }
-
-  /// 从旧版ai_config.json格式导入AI设置
-  ///
-  /// [json] 旧版格式的JSON对象
-  Future<void> importFromAiConfigJson(Map<String, dynamic> json) async {
-    final provider = json['ai_provider'] as String? ?? 'qwen';
-    final providerConfig = json[provider] as Map<String, dynamic>? ?? {};
-
-    final newAiSettings = AiSettings(
-      provider: provider,
-      apiKey: providerConfig['api_key'] ?? '',
-      model: providerConfig['model'] ?? 'qwen-plus',
-      baseUrl: providerConfig['base_url'] ??
-          'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    );
-
-    await updateAiSettings(newAiSettings);
-  }
-
-  /// 检查AI配置是否有效
-  bool get isAiConfigured => _settings.aiSettings.isValid;
-
-  /// 更新所有设置
-  ///
-  /// 一次性更新所有设置类别，用于从备份恢复设置。
-  ///
-  /// 参数：
-  /// - [settings] 新的完整设置对象
-  ///
-  /// 使用场景：
-  /// - 从JSON备份导入设置时调用
-  /// - 设置迁移或重置时调用
-  Future<void> updateAllSettings(AppSettings settings) async {
-    _settings = settings;
-    _syncNotifiersWithSettings();
-    await _saveSettings();
-    _log.info('SettingsService', '所有设置已更新');
-  }
-
   /// 释放资源
-  ///
-  /// 在应用退出前调用，清理ValueNotifiers
   void dispose() {
     _safeDispose(_themeMode);
     _safeDispose(_aiSettings);
     _safeDispose(_languageSettings);
-
   }
 
   /// 安全地dispose ValueNotifier，忽略已dispose的错误
@@ -372,7 +212,6 @@ class SettingsService {
     try {
       notifier.dispose();
     } catch (_) {
-      // Already disposed, ignore
     }
   }
 }
