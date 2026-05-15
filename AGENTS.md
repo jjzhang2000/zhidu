@@ -810,3 +810,42 @@ subtitle: Text('${loc.version} $_version'),
 - 版本号应该从 `pubspec.yaml` 单一来源读取，避免硬编码
 - `package_info_plus` 是 Flutter 标准的版本信息获取方案
 - SDK 约束应与实际安装的 Dart/Flutter 版本保持一致
+
+#### 2026-05-15: 统一 JSON 写入逻辑
+
+**问题描述**：
+- `SettingsService._saveSettings()` 自己实现 JSON 序列化+写文件（`jsonEncode` + `File.writeAsString`），输出压缩格式
+- `FileStorageService.writeJson()` 也做同样的事，但使用 2 空格缩进格式化
+- 两处代码功能重复，且 `settings.json` 无法享用格式化输出
+
+**修复方案**：
+- `SettingsService._saveSettings()` 内部改为委托 `FileStorageService().writeJson()`
+- 删除原有 `jsonEncode` + `File.writeAsString` 的手动序列化逻辑
+- 新增 `import 'file_storage_service.dart'`
+
+```dart
+// 修复前（8 行，紧凑格式）：
+Future<void> _saveSettings() async {
+  if (_settingsFilePath == null) return;
+  try {
+    final file = File(_settingsFilePath!);
+    final content = jsonEncode(_settings.toJson());
+    await file.writeAsString(content);
+    _log.d(...);
+  } catch (e, stackTrace) {
+    _log.e(...);
+    rethrow;
+  }
+}
+
+// 修复后（3 行，委托 FileStorageService，2 空格缩进格式化）：
+Future<void> _saveSettings() async {
+  if (_settingsFilePath == null) return;
+  await FileStorageService().writeJson(_settingsFilePath!, _settings.toJson());
+}
+```
+
+**关键教训**：
+- 同一层 service 之间的 JSON 写入逻辑要复用，不要各写一套
+- `FileStorageService` 是文件 I/O 的唯一入口，其他 service 不应绕过它直接操作文件
+- 格式统一（2 空格缩进）能确保所有 JSON 配置文件可读一致

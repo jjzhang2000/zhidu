@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/app_settings.dart';
+import 'file_storage_service.dart';
 import 'log_service.dart';
 import 'storage_config.dart';
 
@@ -125,16 +126,7 @@ class SettingsService {
   /// 保存设置到文件
   Future<void> _saveSettings() async {
     if (_settingsFilePath == null) return;
-
-    try {
-      final file = File(_settingsFilePath!);
-      final content = jsonEncode(_settings.toJson());
-      await file.writeAsString(content);
-      _log.d('SettingsService', '设置已保存到: $_settingsFilePath');
-    } catch (e, stackTrace) {
-      _log.e('SettingsService', '保存设置失败', e, stackTrace);
-      rethrow;
-    }
+    await FileStorageService().writeJson(_settingsFilePath!, _settings.toJson());
   }
 
   /// 同步ValueNotifiers与当前设置
