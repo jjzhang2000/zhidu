@@ -685,3 +685,25 @@ archive: ^4.0.9    # 之前: ^3.4.10
 - 桌面平台专用插件（如 `window_manager`）在移动端编译时会通过，但运行时会崩溃
 - 使用运行时平台检测（`Platform.is*`）比条件导入更简单可靠（`dart.library.io` 在Android上也是true，无法区分桌面和移动）
 - 升级第三方库前先用 `flutter pub outdated` 检查依赖冲突
+
+#### 2026-05-15: AI配置类重构 - 删除重复的AIConfig
+
+**问题描述**：
+- `AIConfig`（ai_service.dart）和 `AiSettings`（app_settings.dart）功能完全重复
+- `AIConfig.isValid` 内部创建 `AiSettings` 实例来验证，属于间接验证
+- 两份代码维护相同字段，增加维护成本
+
+**重构方案**：
+- 删除 `AIConfig` 类（117 行代码）
+- `AIService._config` 从 `AIConfig?` 改为 `AiSettings?`
+- `reloadConfig()` 和 `updateConfig()` 直接使用 `AiSettings` 实例
+- 保留 `AiSettings` 作为唯一的 AI 配置数据模型
+
+**AiSettings 设计优势**：
+- 统一设置管理架构的一部分（与 ThemeSettings、LanguageSettings 并列）
+- 内置 `requiresApiKey` 属性，支持动态扩展本地模型
+- 通用占位符检测：`startsWith('YOUR_') && endsWith('_HERE')`
+
+**关键教训**：
+- 当两个类功能重复时，应尽早合并，避免维护成本翻倍
+- 如果一个类的 isValid 方法需要创建另一个类的实例来验证，说明设计有冗余

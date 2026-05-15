@@ -309,8 +309,7 @@
 | 测试项 | 测试内容 | 优先级 |
 |--------|----------|--------|
 | init测试 | 配置文件加载、文件不存在 | P0 |
-| AIConfig.fromJson测试 | 正常解析、缺失字段默认值 | P0 |
-| AIConfig.isValid测试 | 有效配置、占位符检测 | P0 |
+| AiSettings验证测试 | 有效配置、占位符检测、本地模型 | P0 |
 | isConfigured测试 | 已配置、未配置 | P0 |
 | generateFullChapterSummary测试 | 正常生成、未配置返回null | P0 |
 | generateBookSummaryFromPreface测试 | 正常生成、未配置返回null | P0 |

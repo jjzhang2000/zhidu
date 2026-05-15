@@ -230,14 +230,19 @@ Future<Book?> importBookFromPath(String filePath) async {
 - **API调用**: 封装AI API调用逻辑
 
 #### 配置管理
+
+AI 配置直接使用 `AiSettings`（定义在 `app_settings.dart` 中）：
 ```dart
-class AIConfig {
-  final String provider;  // zhipu 或 qwen
-  final String apiKey;    // API密钥
+class AiSettings {
+  final String provider;  // zhipu, qwen, deepseek, minimax, ollama, lmstudio
+  final String apiKey;    // API密钥（本地模型可为空）
   final String model;     // 模型名称
   final String baseUrl;   // API基础URL
   
-  bool get isValid => apiKey.isNotEmpty && apiKey != 'YOUR_API_KEY';
+  bool get requiresApiKey => !{'ollama', 'lmstudio'}.contains(provider);
+  bool get isValid => requiresApiKey 
+      ? (apiKey.isNotEmpty && !_isPlaceholderApiKey(apiKey))
+      : baseUrl.isNotEmpty;
 }
 ```
 

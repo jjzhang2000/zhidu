@@ -289,7 +289,7 @@ ZhiduApp (MaterialApp)
 BookService         → Book, BookMetadata, Chapter, ChapterSummary
 EpubService         → Book, Chapter, ChapterContent, ChapterLocation
 PdfService          → Book, PdfChapter, PdfPageContent
-AIService           → AiPrompts, AIConfig (uses AppSettings)
+AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 AiSettings)
 SummaryService      → ChapterSummary, Book (aiIntroduction字段)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings
 TranslationService  → ChapterSummary, Book (translation状态)

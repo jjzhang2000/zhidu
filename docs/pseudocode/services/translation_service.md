@@ -142,7 +142,7 @@ BookService 更新书籍翻译状态
 - `LogService`: 日志记录
 - `FileStorageService`: 文件读写
 - `File`: 文件操作
-- `AIConfig`: 翻译语言配置
+- `AiSettings`: 翻译语言配置
 
 ## 译文缓存规则
 

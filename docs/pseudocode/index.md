@@ -123,7 +123,7 @@ docs/pseudocode/
 
 | 文件 | 服务 | 核心职责 |
 |------|------|----------|
-| `ai_service.dart` | `AIService` + `AIConfig` | AI API交互：流式摘要生成、翻译、语言检测、连接测试 |
+| `ai_service.dart` | `AIService` | AI API交互：流式摘要生成、翻译、语言检测、连接测试 |
 | `ai_prompts.dart` | `AiPrompts` | 静态提示词模板：章节摘要/全书摘要/翻译 |
 | `book_service.dart` | `BookService` | 书籍CRUD：导入、存储、查询、删除、搜索 |
 | `epub_service.dart` | `EpubService` | EPUB文件解析：元数据/章节/封面提取 |
@@ -341,7 +341,7 @@ Documents/zhidu/                   (可自定义)
 
 ### 添加新 AI 提供商
 
-1. 在 `AIConfig` 注释中记录支持的 provider
+1. 在 `AiSettings.requiresApiKey` 中添加本地模型 provider
 2. 验证 OpenAI 兼容接口格式
 3. 在 `AiConfigScreen` 中添加选项
 4. 确保 `baseUrl` 和 `model` 配置正确

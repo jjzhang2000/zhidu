@@ -27,62 +27,36 @@ CLASS AIService:
 
 ## 数据结构
 
-### AIConfig 类
+### AiSettings 类
+
+AiSettings 定义在 `app_settings.dart` 中，包含以下核心字段：
 
 ```pseudocode
-CLASS AIConfig:
-    // AI 服务提供商标识
-    provider: String              // 'zhipu' 或 'qwen'
+CLASS AiSettings:
+    provider: String              // 'zhipu', 'qwen', 'deepseek', 'minimax', 'ollama', 'lmstudio'
+    apiKey: String                // API 密钥（本地模型可为空）
+    model: String                 // 模型名称
+    baseUrl: String               // API 基础 URL
     
-    // API 密钥
-    apiKey: String                // 用于身份验证
-    
-    // 模型名称
-    model: String                 // 如 'glm-4-flash', 'qwen-plus'
-    
-    // API 基础 URL
-    baseUrl: String               // API 服务地址
-    
-    // 构造函数
-    CONSTRUCTOR AIConfig(provider, apiKey, model, baseUrl):
-        this.provider = provider
-        this.apiKey = apiKey
-        this.model = model
-        this.baseUrl = baseUrl
-    
-    // 从 JSON 创建
-    STATIC FACTORY fromJson(json: Map<String, dynamic>):
-        provider = json['ai_provider'] ?? 'zhipu'
-        providerConfig = json[provider] ?? {}
+    PROPERTY isValid -> Boolean:  // 检查配置是否有效
+        IF requiresApiKey:
+            RETURN apiKey.isNotEmpty AND NOT _isPlaceholderApiKey(apiKey)
+        ELSE:
+            RETURN baseUrl.isNotEmpty
+            
+    PROPERTY requiresApiKey -> Boolean:
+        CONST localProviders = {'ollama', 'lmstudio'}
+        RETURN NOT localProviders.contains(provider)
         
-        RETURN AIConfig(
-            provider: provider,
-            apiKey: providerConfig['api_key'] ?? '',
-            model: providerConfig['model'] ?? 'glm-4-flash',
-            baseUrl: providerConfig['base_url'] ?? ''
-        )
-    
-    // 从 AiSettings 创建
-    STATIC FACTORY fromAiSettings(settings: AiSettings):
-        RETURN AIConfig(
-            provider: settings.provider,
-            apiKey: settings.apiKey,
-            model: settings.model,
-            baseUrl: settings.baseUrl
-        )
-    
-    // 检查配置有效性
-    PROPERTY isValid -> Boolean:
-        RETURN apiKey.isNotEmpty 
-           AND apiKey != 'YOUR_ZHIPU_API_KEY_HERE'
-           AND apiKey != 'YOUR_QWEN_API_KEY_HERE'
+    METHOD _isPlaceholderApiKey(key: String) -> Boolean:
+        RETURN key.startsWith('YOUR_') AND key.endsWith('_HERE')
 ```
 
 ### AIService 私有属性
 
 ```pseudocode
 PRIVATE PROPERTIES:
-    _config: AIConfig?            // AI 配置对象
+    _config: AiSettings?          // AI 配置对象（直接使用 AiSettings）
     _httpClient: http.Client?     // HTTP 客户端（可被测试替换）
     _log: LogService              // 日志服务实例
 ```
@@ -112,7 +86,7 @@ ASYNC METHOD init():
 │  reloadConfig()                                             │
 │      ├─ 从 SettingsService 获取 AI 设置                     │
 │      ├─ 验证配置有效性                                       │
-│      ├─ 有效 → 创建 AIConfig                                 │
+│      ├─ 有效 → _config = aiSettings                         │
 │      └─ 无效 → _config = null                               │
 │      ↓                                                      │
 │  添加监听器                                                  │
@@ -157,8 +131,8 @@ ASYNC METHOD reloadConfig():
         
         // 检查配置有效性
         IF aiSettings.isValid:
-            // 创建 AIConfig 实例
-            _config = AIConfig.fromAiSettings(aiSettings)
+            // 直接使用 AiSettings 实例
+            _config = aiSettings
             
             _log.d('AIService', 
                 'AI配置加载成功: {_config.provider}, model: {_config.model}')
@@ -1019,13 +993,8 @@ PRIVATE STREAM METHOD _callAIStream(prompt: String, systemMessage: String? = nul
 
 ```pseudocode
 PUBLIC METHOD updateConfig(settings: AiSettings):
-    // 创建新的 AIConfig
-    _config = AIConfig(
-        provider: settings.provider,
-        apiKey: settings.apiKey,
-        model: settings.model,
-        baseUrl: settings.baseUrl
-    )
+    // 直接使用 AiSettings 实例
+    _config = settings
     
     _log.d('AIService', 
         '配置已更新: provider={settings.provider}, model={settings.model}')
