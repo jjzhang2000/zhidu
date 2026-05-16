@@ -18,24 +18,24 @@ class TranslationService {
 
   // ==================== 翻译方法 ====================
 
-  /// 翻译EPUB内容（直接翻译HTML，保留HTML标签）
+  /// 翻译HTML内容（保留HTML标签）
   ///
   /// 参数：
-  /// - [htmlContent]: EPUB章节的HTML内容
+  /// - [htmlContent]: HTML内容
   /// - [sourceLang]: 源语言代码
   /// - [targetLang]: 目标语言代码
   /// - [chapterTitle]: 章节标题（可选）
   /// - [onProgress]: 进度回调（当前译文内容）
   ///
   /// 返回：完整的HTML格式译文
-  Future<String> translateEpubContent(
+  Future<String> translateHtml(
     String htmlContent, {
     required String sourceLang,
     required String targetLang,
     String? chapterTitle,
     Function(String)? onProgress,
   }) async {
-    _log.d('TranslationService', '开始翻译EPUB内容，HTML长度: ${htmlContent.length}');
+    _log.d('TranslationService', '开始翻译HTML，长度: ${htmlContent.length}');
 
     return _translateWithStreaming(
       htmlContent,

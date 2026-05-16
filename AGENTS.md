@@ -914,8 +914,12 @@ Future<void> _saveSettings() async {
 **5. 核心 AI 调用去重**：
 - 提取 `_buildMessages()` 方法，消除 `_callAI` 和 `_callAIStream` 中构建消息列表的重复代码
 
-**6. 简化窗口初始化**：
-- `window_utils.dart` 直接使用 `getPrimaryDisplay()` 获取主显示器
-- 删除 `getAllDisplays()` 和显示器遍历匹配逻辑
-- 使用 `setSize` + `center()` 替代手动计算窗口坐标
-- 窗口始终在主显示器上居中启动
+**7. 重命名 TranslationService 方法**：
+- `translateEpubContent` → `translateHtml`，方法名更贴合实际功能（翻译 HTML 内容，与 EPUB/PDF 无关）
+- 更新文档注释和日志信息
+- 简化 `summary_service.dart` 中 `epub`/`pdf` 分两路但逻辑完全相同的重复代码
+
+**8. 修复多显示器窗口居中问题**：
+- C++ 层：`Win32Window::Create` 使用 `origin(0,0)` + 默认尺寸
+- Dart 层：使用 `setBounds` 一次性设置尺寸和位置，替代 `setSize` + `setPosition`
+- 坐标基于主显示器工作区精确计算，不依赖 `center()`（在多显示器下会选中错误的显示器）

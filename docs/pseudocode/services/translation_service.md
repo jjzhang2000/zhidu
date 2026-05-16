@@ -44,28 +44,25 @@ class TranslationService {
 
 获取当前翻译进度（0.0 ~ 1.0）。
 
-### translateEpubContent({bookId, chapterIndex, chapters, language, isRegenerating}) → Future<bool>
+### translateHtml({htmlContent, sourceLang, targetLang, chapterTitle, onProgress}) → Future<String>
 
-翻译指定章节的 EPUB HTML 内容。
+翻译指定章节的 HTML 内容（保留 HTML 标签）。
 
 ```
 参数:
-  bookId (required):      书籍ID
-  chapterIndex (required): 章节索引
-  chapters (required):    章节列表（获取标题和内容）
-  language (required):    目标语言代码（如 'en', 'ja'）
-  isRegenerating:         是否重新生成
+  htmlContent (required): HTML内容
+  sourceLang (required):  源语言代码
+  targetLang (required):  目标语言代码
+  chapterTitle:           章节标题（可选）
+  onProgress:             进度回调（当前译文内容）
 
 返回:
-  true:  翻译成功
-  false: 翻译失败（正在翻译中、未配置AI、网络错误等）
+  完整的HTML格式译文（String）
 
 处理流程:
-  1. 检查是否正在翻译（防止重复）
-  2. 获取目标语言名称
-  3. 检查是否已有译文缓存文件
-     → 如果存在且非重新生成，直接返回 true
-  4. 获取章节 HTML 内容
+  1. 记录日志（HTML长度）
+  2. 调用 _translateWithStreaming 进行流式翻译
+```
   5. 设置 _isTranslating = true, _progress = 0.0
   6. 调用 AIService.translateHtmlStream()
      → 传入流式回调: _onTranslationChunk()
@@ -123,7 +120,7 @@ class TranslationService {
 ```
 ChapterScreen 用户点击"翻译"
     ↓
-TranslationService.translateEpubContent()
+TranslationService.translateHtml()
     ↓
 AIService.translateHtmlStream()
     ↓ SSE 流式响应

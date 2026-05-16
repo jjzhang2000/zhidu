@@ -1236,38 +1236,19 @@ class SummaryService {
     try {
       _log.d('SummaryService', '开始流式生成译文（格式保留）: $key, format: $bookFormat');
 
-      // 使用TranslationService进行格式保留翻译
+      // 使用TranslationService进行HTML格式翻译
       final translationService = TranslationService();
-      String translatedContent;
-
-      // 根据书籍格式选择对应的解析器
-      if (bookFormat == 'epub') {
-        // EPUB格式：直接翻译HTML
-        translatedContent = await translationService.translateEpubContent(
-          content,
-          sourceLang: sourceLang,
-          targetLang: targetLang,
-          chapterTitle: chapterTitle,
-          onProgress: (currentTranslation) {
-            if (onContentUpdate != null) {
-              onContentUpdate(currentTranslation);
-            }
-          },
-        );
-      } else {
-        // PDF格式：PdfParser将纯文本包裹为<p>...</p>，直接翻译HTML
-        translatedContent = await translationService.translateEpubContent(
-          content,
-          sourceLang: sourceLang,
-          targetLang: targetLang,
-          chapterTitle: chapterTitle,
-          onProgress: (currentTranslation) {
-            if (onContentUpdate != null) {
-              onContentUpdate(currentTranslation);
-            }
-          },
-        );
-      }
+      final translatedContent = await translationService.translateHtml(
+        content,
+        sourceLang: sourceLang,
+        targetLang: targetLang,
+        chapterTitle: chapterTitle,
+        onProgress: (currentTranslation) {
+          if (onContentUpdate != null) {
+            onContentUpdate(currentTranslation);
+          }
+        },
+      );
 
       if (translatedContent.isNotEmpty) {
         await saveTranslation(bookId, chapterIndex, targetLang, translatedContent);
