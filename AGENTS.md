@@ -874,3 +874,32 @@ Future<void> _saveSettings() async {
 **关键教训**：
 - 不同类型文件的命名模板应有明确区分（语义前缀 vs 格式后缀）
 - 注释文档应保持与实际代码一致，避免产生误导
+
+#### 2026-05-16: AIService 代码清理与重构
+
+**改进内容**：
+
+**1. 删除韩语（ko）支持代码**：
+- `_detectSystemLanguage()` 中删除韩语 locale 检测分支
+- `detectLanguageFromContent()` 中删除韩文字符检测（`koreanChars`）及相关逻辑
+- `_getLanguageInstructionForLanguage()` 中删除韩语 case
+- `convertLanguageCodeToStandard()` 中删除 `'kor': 'ko'` 映射
+- `getTargetLanguage()` 返回值注释更新，移除 `'ko'`
+- 项目目前仅支持 `zh`、`en`、`ja` 三种语言
+
+**2. 函数重新排序**：
+将 AIService 中所有函数按功能分为 8 个区域，同类方法聚合：
+| 区域 | 包含方法 |
+|------|---------|
+| 测试辅助方法 | `resetForTest`, `setMockClient` |
+| 生命周期管理 | `init`, `dispose`, `_onAiSettingsChanged`, `reloadConfig` |
+| 配置管理 | `isConfigured`, `updateConfig`, `testConnection` |
+| 核心AI调用 | `_callAI`, `_callAIStream` |
+| 摘要生成-阻塞版 | `generateFullChapterSummary`, `generateBookSummaryFromPreface`, `generateBookSummary` |
+| 摘要生成-流式版 | `generateFullChapterSummaryStream`, `generateBookSummaryStream`, `generateBookSummaryFromPrefaceStream` |
+| 翻译 | `translateHtmlStream` |
+| 语言检测与转换 | `_detectLanguageFromMetadataAndContentWithBookId`, `detectLanguageFromContent`, `convertLanguageCodeToStandard`, `_getLanguageInstructionForLanguage`, `_detectSystemLanguage`, `_getLanguageInstructionForModel`, `getTargetLanguage` |
+
+**3. 统一配置检查**：
+- 将所有 `if (_config == null || !_config!.isValid)` 替换为 `if (!isConfigured)`
+- 涉及 8 个方法，消除重复代码，提升可维护性
