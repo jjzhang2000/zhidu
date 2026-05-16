@@ -61,7 +61,6 @@ docs/pseudocode/
 │   ├── settings_service.md       # 设置管理服务
 │   ├── storage_config.md         # 存储路径配置
 │   ├── summary_service.md        # 摘要管理服务
-│   ├── translation_service.md    # 翻译服务
 │   └── parsers/
 │       ├── book_format_parser.md # 解析器接口
 │       ├── epub_parser.md        # EPUB解析器
@@ -134,7 +133,6 @@ docs/pseudocode/
 | `settings_service.dart` | `SettingsService` | 统一设置管理：AI/主题/语言，ValueNotifier响应式 |
 | `storage_config.dart` | `StorageConfig` | 存储路径配置：统一路径管理 |
 | `summary_service.dart` | `SummaryService` + `Semaphore` | 摘要生成/存储/并发控制/流式回调 |
-| `translation_service.dart` | `TranslationService` | 翻译服务：HTML格式保留的流式翻译 |
 
 ---
 
@@ -208,9 +206,9 @@ SummaryService.generateSummariesForBook()
 └─────────────────────────────────────────────────────────┘
     ↓
 翻译功能（可选）
-TranslationService.translateContent()
+SummaryService.generateTranslationStream()
     ↓
-AIService.translateHtmlStream()
+AIService.translateContent()
     ↓
 SSE 流式响应 → 实时回调 → UI 实时显示
     ↓
@@ -226,7 +224,7 @@ SSE 流式响应 → 实时回调 → UI 实时显示
 所有 Service 使用单例模式：
 - `LogService` / `SettingsService` / `AIService` / `BookService`
 - `SummaryService` / `EpubService` / `PdfService` / `FileStorageService`
-- `TranslationService` / `FormatRegistry`
+- `FormatRegistry`
 
 ### 工厂模式 / 注册表模式 (Factory + Registry)
 
@@ -368,9 +366,8 @@ Documents/zhidu/                   (可自定义)
 #### 2026-05-11: 新增伪代码文档
 
 - **新增模型文档**: `opf_metadata.md`
-- **新增服务文档**: `epub_service.md`, `file_storage_service.md`, `opf_reader_service.md`, `pdf_service.md`, `storage_config.md`, `translation_service.md`
+- **新增服务文档**: `epub_service.md`, `file_storage_service.md`, `opf_reader_service.md`, `pdf_service.md`, `storage_config.md`
 - **新增**: Calibre OPF 元数据集成流程（OpfReaderService → OpfMetadata → Book合并）
-- **新增**: TranslationService 翻译服务（HTML格式保留 + 流式输出）
 - **新增**: 章节译文字段和文件路径规则
 
 #### 2026-05-05: 窗口DPI双重缩放修复

@@ -13,7 +13,7 @@
 │  Service 初始化链:                                                        │
 │    LogService → SettingsService → FileStorageService → StorageConfig     │
 │    → BookService → AIService → AiPrompts → SummaryService                │
-│    → EpubService → PdfService → TranslationService → FormatRegistry     │
+│    → EpubService → PdfService → FormatRegistry     │
 │  FormatRegistry.register('.epub', EpubParser())                          │
 │  FormatRegistry.register('.pdf', PdfParser())                            │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -39,25 +39,24 @@
 
 ## 二、模块间依赖矩阵
 
-| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | EpubSvc | PdfSvc | SetSvc | TrSvc | OpfRdr | LogSvc | FileSvc |
-|-------------------|:-----:|:-----:|:------:|:-------:|:------:|:------:|:-----:|:------:|:------:|:-------:|
-| **main.dart**     |   ✓   |   ✓   |   ✓    |    ✓    |   ✓    |   ✓    |   ✓   |   —    |   ✓    |   ✓    |
-| **HomeScreen**    |   ✓   |   —   |   ✓    |    —    |   —    |   —    |   —   |   —    |   ✓    |   —    |
-| **BookScreen**    |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —   |   —    |   ✓    |   —    |
-| **ChapterScreen** |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   ✓   |   —    |   ✓    |   —    |
-| **PdfReaderScreen**|  ✓   |   —   |   —    |    —    |   ✓    |   —    |   —   |   —    |   —    |   —    |
-| **AiConfigScreen**|  —   |   ✓   |   —    |    —    |   —    |   ✓    |   —   |   —    |   —    |   —    |
-| **BookService**   |  —   |   —   |   ✓    |    ✓    |   ✓    |   —    |   —   |   —    |   ✓    |   ✓    |
-| **AIService**     |  ✓   |   —   |   —    |    —    |   —    |   ✓    |   —   |   —    |   ✓    |   —    |
-| **SummaryService**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —   |   —    |   ✓    |   ✓    |
-| **EpubService**   |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
-| **PdfService**    |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
-| **TranslationSvc**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —   |   —    |   ✓    |   ✓    |
-| **SettingsSvc**   |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   —    |   —    |   ✓    |
-| **EpubParser**    |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
-| **PdfParser**     |  —   |   —   |   —    |    —    |   —    |   —    |   —   |   ✓    |   ✓    |   —    |
+| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | EpubSvc | PdfSvc | SetSvc | OpfRdr | LogSvc | FileSvc |
+|-------------------|:-----:|:-----:|:------:|:-------:|:------:|:------:|:------:|:------:|:-------:|
+| **main.dart**     |   ✓   |   ✓   |   ✓    |    ✓    |   ✓    |   ✓    |   —    |   ✓    |   ✓    |
+| **HomeScreen**    |   ✓   |   —   |   ✓    |    —    |   —    |   —    |   —    |   ✓    |   —    |
+| **BookScreen**    |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —    |   ✓    |   —    |
+| **ChapterScreen** |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —    |   ✓    |   —    |
+| **PdfReaderScreen**|  ✓   |   —   |   —    |    —    |   ✓    |   —    |   —    |   —    |   —    |
+| **AiConfigScreen**|  —   |   ✓   |   —    |    —    |   —    |   ✓    |   —    |   —    |   —    |
+| **BookService**   |  —   |   —   |   ✓    |    ✓    |   ✓    |   —    |   —    |   ✓    |   ✓    |
+| **AIService**     |  ✓   |   —   |   —    |    —    |   —    |   ✓    |   —    |   ✓    |   —    |
+| **SummaryService**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
+| **EpubService**   |  —   |   —   |   —    |    —    |   —    |   —    |   ✓    |   ✓    |   —    |
+| **PdfService**    |  —   |   —   |   —    |    —    |   —    |   —    |   ✓    |   ✓    |   —    |
+| **SettingsSvc**   |  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
+| **EpubParser**    |  —   |   —   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
+| **PdfParser**     |  —   |   —   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
 
-> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, SetSvc=SettingsService, TrSvc=TranslationService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService
+> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, SetSvc=SettingsService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService
 
 ---
 
@@ -166,26 +165,22 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
 ```
 ChapterScreen._translateContent()
     │
-    └── TranslationService().translateEpubContent(
-            bookId, chapterIndex, chapters, targetLang, isRegenerating)
+    └── SummaryService().generateTranslationStream(
+            bookId, chapterIndex, content, targetLang, ...)
             │
-            ├── 检查是否正在翻译 (_isTranslating)
-            ├── 检查缓存 (isTranslated)
-            │       └── 已存在且非重新生成 → 直接返回 true
+            ├── 防止重复生成 (_generatingTranslationKeys)
             │
-            ├── 设置 _isTranslating = true, _progress = 0.0
-            │
-            ├── AIService.translateHtmlStream(htmlContent, targetLang)
+            ├── AIService.translateContent(htmlContent, sourceLang, targetLang, onProgress)
             │       └── _callAIStream(systemPrompt, userPrompt, onChunk)
             │           └── HttpClient.post() → SSE 流式响应
-            │               └── _onTranslationChunk()
-            │                   ├── 更新 _progress
-            │                   └── 通知 UI 回调
+            │               └── onProgress(currentTranslation)
+            │                   ├── 更新进度
+            │                   └── 通知 UI 回调 (onContentUpdate)
             │
-            ├── saveTranslatedContent(bookId, chapterIndex, lang, html)
+            ├── saveTranslation(bookId, chapterIndex, lang, html)
             │       └── FileStorageService().writeText(path, htmlContent)
             │
-            └── 设置 _isTranslating = false
+            └── 清理 _generatingTranslationKeys
 ```
 
 ### 3.4 设置变更流程
@@ -220,11 +215,11 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `generateFullChapterSummaryStream()` | SummaryService.generateSingleSummary() |
 | `generateBookSummaryStream()` | SummaryService._generateBookSummaryFromChapters() |
 | `generateBookSummaryFromPrefaceStream()` | SummaryService._generateBookSummaryFromPreface() |
-| `translateHtmlStream()` | TranslationService.translateEpubContent() |
+| `translateContent()` | SummaryService.generateTranslationStream() |
 | `testConnection()` | AiConfigScreen 测试按钮 |
 | `detectLanguage()` | SummaryService (语言检测) |
 | `_callAIStream()` (内部) | 所有流式方法 |
-| `get config` | SummaryService, TranslationService, SettingsScreen |
+| `get config` | SummaryService, SettingsScreen |
 | `get availableModels` | AiConfigScreen |
 
 ### 4.2 SummaryService → 被调用方
@@ -273,9 +268,9 @@ ZhiduApp (MaterialApp)
     │       └── 返回 → Navigator.pop()
     │
     └── ChapterScreen (接收 bookId + chapterIndex)
-            ├── 垂直Tab: 摘要 | 原文 | 译文
-            ├── 译文Tab → TranslationService.translateEpubContent()
-            └── 返回 → Navigator.pop()
+                    ├── 垂直Tab: 摘要 | 原文 | 译文
+                    ├── 译文Tab → SummaryService.generateTranslationStream()
+                    └── 返回 → Navigator.pop()
 ```
 
 ---
@@ -289,7 +284,6 @@ PdfService          → Book, PdfChapter, PdfPageContent
 AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 AiSettings)
 SummaryService      → ChapterSummary, Book (aiIntroduction字段)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings
-TranslationService  → ChapterSummary, Book (translation状态)
 OpfReaderService    → OpfMetadata
 
 Book 模型包含:
@@ -322,7 +316,7 @@ BookService._saveMetadata()
 SummaryService._saveSummary()
     → FileStorageService().writeText(chapter-XXX-zh.md, markdownContent)
 
-TranslationService.saveTranslatedContent()
+SummaryService.saveTranslation()
     → FileStorageService().writeText(chapter-XXX-en.html, htmlContent)
 
 读操作:
@@ -400,16 +394,16 @@ SummaryService.getBookSummaryContent()
 │  + deleteBook()           + detectLanguage()     + _notifyBookSt..│
 │  + searchBooks()          + _callAIStream()      + Semaphore      │
 │  + _saveBooks()                                  - _generatingKeys│
-│  SettingsService          TranslationService     LogService        │
-│  ───────────────          ──────────────────     ──────────        │
-│  + init()                 + translateEpubContent() + v() / d()    │
-│  + getAiSettings()        + isTranslated()         + info() / w() │
-│  + updateAiSettings()     + saveTranslatedContent() + e()          │
-│  + updateThemeSettings()                           + init()       │
-│  + updateLanguageSettings()                                       │
-│  + themeNotifier                                                │
-│  + localeNotifier            FileStorageService                  │
-│                              ──────────────────                  │
+│  SettingsService     SummaryService       LogService        │
+│  ───────────────     ────────────────     ──────────        │
+│  + init()            + generateTranslationStream() + v() / d() │
+│  + getAiSettings()   + generateSingle..       + info() / w() │
+│  + updateAiSettings()+ getSummary...()         + e()         │
+│  + updateThemeSettings()                     + init()       │
+│  + updateLanguageSettings()                                  │
+│  + themeNotifier                                             │
+│  + localeNotifier         FileStorageService                  │
+│                             ──────────────────                  │
 │  EpubService   PdfService   + writeJson() / readJson()           │
 │  ────────────  ──────────── + writeText() / readText()           │
 │  + parseEpub.. + parsePdf.. + deleteFile() / deleteDirectory()   │
