@@ -24,10 +24,6 @@ Thumbs.db
 .env.local
 .env.*.local
 
-# AI Configuration (contains API keys)
-#
-ai_config.json
-
 # Generated folders
 #
 /logs/
