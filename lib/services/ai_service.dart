@@ -193,29 +193,12 @@ class AIService {
     }
 
     try {
-      final url = Uri.parse('${_config!.baseUrl}/chat/completions');
-      final client = _httpClient ?? http.Client();
-      final response = await client.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${_config!.apiKey}',
-        },
-        body: jsonEncode({
-          'model': _config!.model,
-          'messages': [
-            {'role': 'user', 'content': 'Hello'},
-          ],
-          'temperature': 0.7,
-          'max_tokens': 10,
-        }),
-      );
-
-      if (response.statusCode == 200) {
+      final result = await _callAI('Hello');
+      if (result != null) {
         _log.d('AIService', '测试连接成功');
         return true;
       } else {
-        _log.w('AIService', '测试连接失败: ${response.statusCode}');
+        _log.w('AIService', '测试连接失败：AI返回null');
         return false;
       }
     } catch (e) {
@@ -227,6 +210,18 @@ class AIService {
   // ==========================================================================
   // 区域4：核心AI调用（所有摘要方法的基础）
   // ==========================================================================
+
+  /// 构建 AI 请求消息列表
+  List<Map<String, String>> _buildMessages(String prompt, {String? systemMessage}) {
+    final messages = <Map<String, String>>[];
+
+    if (systemMessage != null && systemMessage.isNotEmpty) {
+      messages.add({'role': 'system', 'content': systemMessage});
+    }
+
+    messages.add({'role': 'user', 'content': prompt});
+    return messages;
+  }
 
   /// 方法名：_callAI
   /// 功能：调用 AI API 发送请求并获取响应
@@ -280,17 +275,6 @@ class AIService {
 
     final client = _httpClient ?? http.Client();
 
-    // 构建消息列表
-    final messages = <Map<String, String>>[];
-
-    // 如果有系统消息，添加为 system role
-    if (systemMessage != null && systemMessage.isNotEmpty) {
-      messages.add({'role': 'system', 'content': systemMessage});
-    }
-
-    // 添加用户提示词
-    messages.add({'role': 'user', 'content': prompt});
-
     final response = await client.post(
       url,
       headers: {
@@ -299,7 +283,7 @@ class AIService {
       },
       body: jsonEncode({
         'model': _config!.model,
-        'messages': messages,
+        'messages': _buildMessages(prompt, systemMessage: systemMessage),
         'temperature': 0.7,
         'max_tokens': 1000,
       }),
@@ -360,21 +344,10 @@ class AIService {
   Stream<String> _callAIStream(String prompt, {String? systemMessage}) async* {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
-    // 构建消息列表
-    final messages = <Map<String, String>>[];
-
-    // 如果有系统消息，添加为 system role
-    if (systemMessage != null && systemMessage.isNotEmpty) {
-      messages.add({'role': 'system', 'content': systemMessage});
-    }
-
-    // 添加用户提示词
-    messages.add({'role': 'user', 'content': prompt});
-
     // 构建请求体
     final requestBody = jsonEncode({
       'model': _config!.model,
-      'messages': messages,
+      'messages': _buildMessages(prompt, systemMessage: systemMessage),
       'temperature': 0.7,
       'max_tokens': 8000,  // 增加 token 限制以支持全文翻译
       'stream': true,  // 启用流式响应
@@ -485,257 +458,7 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域5：摘要生成 - 阻塞版
-  // ==========================================================================
-
-  /// 方法名：generateFullChapterSummary
-  /// 功能：生成章节内容摘要
-  ///
-  /// 参数：
-  /// - content: 章节内容的文本
-  /// - chapterTitle: 章节标题（可选，用于提示词模板）
-  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的章节摘要字符串（Markdown 格式）
-  /// - 失败时返回 null（配置无效或 API 调用失败）
-  ///
-  /// 调用方：
-  /// - summary_service.dart 的 generateSummary 方法
-  ///
-  /// 算法逻辑：
-  /// 1. 记录详细日志（内容长度、章节标题）
-  /// 2. 检查 AI 配置是否有效（无效则返回 null）
-  /// 3. 从 SettingsService 读取语言设置
-  /// 4. 使用 AiPrompts 构建提示词
-  /// 5. 调用_callAI 方法发送请求
-  /// 6. 返回结果或 null
-  Future<String?> generateFullChapterSummary(
-    String content, {
-    String? chapterTitle,
-    String? bookId,
-  }) async {
-    _log.v('AIService',
-        'generateFullChapterSummary 开始执行，content length: ${content.length}, chapterTitle: $chapterTitle, bookId: $bookId');
-    if (!isConfigured) {
-      _log.w('AIService', 'AI 配置未设置或 API Key 无效');
-      return null;
-    }
-
-    // 从 SettingsService 读取语言设置
-    final langSettings = SettingsService().settings.languageSettings;
-    _log.d('AIService',
-        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
-
-    String languageInstruction;
-
-    // 如果是书籍语言模式，优先使用书籍元数据中的语言信息，否则从内容中检测语言
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content);
-      languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = detectLanguageFromContent(content);
-      languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else {
-      languageInstruction = _getLanguageInstructionForModel(
-        aiLanguageMode: langSettings.aiLanguageMode,
-        aiOutputLanguage: langSettings.aiOutputLanguage,
-      );
-    }
-
-    final prompt = AiPrompts.chapterSummary(
-      chapterTitle: chapterTitle,
-      content: content,
-      languageInstruction: languageInstruction,
-    );
-
-    try {
-      return await _callAI(prompt, systemMessage: languageInstruction);
-    } catch (e) {
-      _log.e('AIService', '生成章节摘要失败', e);
-      return null;
-    }
-  }
-
-  /// 方法名：generateBookSummaryFromPreface
-  /// 功能：基于前言/序言内容生成全书摘要
-  ///
-  /// 参数：
-  /// - title: 书籍标题
-  /// - author: 书籍作者
-  /// - prefaceContent: 前言/序言正文内容
-  /// - totalChapters: 总章节数（可选，用于提示词模板）
-  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
-  ///
-  /// 返回值：
-  /// - 成功：返回AI生成的全书摘要字符串（Markdown格式，800-900字）
-  /// - 失败：返回null（配置无效或API调用失败）
-  ///
-  /// 调用方：
-  /// - summary_service.dart的generateBookSummaryFromPreface方法
-  ///
-  /// 使用场景：
-  /// - 书籍首次导入时，基于前言快速生成全书概览
-  /// - 用户手动触发生成全书摘要
-  ///
-  /// 算法逻辑：
-  /// 1. 记录详细日志（书名、作者、前言内容长度）
-  /// 2. 检查AI配置是否有效，无效则返回null
-  /// 3. 如果bookId提供且语言模式为'book'，优先从元数据获取语言信息
-  /// 4. 使用AiPrompts生成提示词
-  /// 5. 调用_callAI发送请求
-  /// 6. 返回生成结果或null
-  Future<String?> generateBookSummaryFromPreface({
-    required String title,
-    required String author,
-    required String prefaceContent,
-    int? totalChapters,
-    String? bookId,
-  }) async {
-    _log.v('AIService',
-        'generateBookSummaryFromPreface 开始执行，title: $title, author: $author, prefaceContent length: ${prefaceContent.length}, bookId: $bookId');
-    if (!isConfigured) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
-      return null;
-    }
-
-    // 从 SettingsService 读取语言设置
-    final langSettings = SettingsService().settings.languageSettings;
-    _log.d('AIService',
-        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
-
-    String languageInstruction;
-
-    // 如果是书籍语言模式，优先使用书籍元数据中的语言信息，否则从内容中检测语言
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent);
-      languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = detectLanguageFromContent(prefaceContent);
-      languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else {
-      languageInstruction = _getLanguageInstructionForModel(
-        aiLanguageMode: langSettings.aiLanguageMode,
-        aiOutputLanguage: langSettings.aiOutputLanguage,
-      );
-    }
-
-    final prompt = AiPrompts.bookSummaryFromPreface(
-      title: title,
-      author: author,
-      prefaceContent: prefaceContent,
-      totalChapters: totalChapters,
-      languageInstruction: languageInstruction,
-    );
-
-    try {
-      return await _callAI(prompt, systemMessage: languageInstruction);
-    } catch (e) {
-      _log.e('AIService', '基于前言生成全书摘要失败', e);
-      return null;
-    }
-  }
-
-  /// 方法名：generateBookSummary
-  /// 功能：基于章节摘要生成全书摘要
-  ///
-  /// 参数：
-  /// - title: 书籍标题
-  /// - author: 书籍作者
-  /// - chapterSummaries: 所有章节摘要的汇总文本（Markdown格式）
-  /// - totalChapters: 总章节数（可选，用于提示词模板）
-  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
-  ///
-  /// 返回值：
-  /// - 成功：返回AI生成的全书摘要字符串（Markdown格式，800-900字）
-  /// - 失败：返回null（配置无效或API调用失败）
-  ///
-  /// 调用方：
-  /// - summary_service.dart的generateBookSummary方法
-  ///
-  /// 使用场景：
-  /// - 所有章节摘要生成完成后，综合生成全书摘要
-  /// - 比基于前言的摘要更准确，因为包含完整章节内容
-  ///
-  /// 算法逻辑：
-  /// 1. 记录详细日志（书名、作者、章节摘要总长度）
-  /// 2. 检查AI配置是否有效，无效则返回null
-  /// 3. 如果bookId提供且语言模式为'book'，优先从元数据获取语言信息
-  /// 4. 使用AiPrompts生成提示词
-  /// 5. 调用_callAI发送请求
-  /// 6. 返回生成结果或null
-  Future<String?> generateBookSummary({
-    required String title,
-    required String author,
-    required String chapterSummaries,
-    int? totalChapters,
-    String? bookId,
-  }) async {
-    _log.v('AIService',
-        'generateBookSummary 开始执行，title: $title, author: $author, chapterSummaries length: ${chapterSummaries.length}, bookId: $bookId');
-    if (!isConfigured) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
-      return null;
-    }
-
-    // 从 SettingsService 读取语言设置
-    final langSettings = SettingsService().settings.languageSettings;
-    _log.d('AIService',
-        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
-
-    String languageInstruction;
-
-    // 如果是书籍语言模式，优先使用书籍元数据中的语言信息，否则从内容中检测语言
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries);
-      languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = detectLanguageFromContent(chapterSummaries);
-      languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else {
-      languageInstruction = _getLanguageInstructionForModel(
-        aiLanguageMode: langSettings.aiLanguageMode,
-        aiOutputLanguage: langSettings.aiOutputLanguage,
-      );
-    }
-
-    final prompt = AiPrompts.bookSummary(
-      title: title,
-      author: author,
-      chapterSummaries: chapterSummaries,
-      totalChapters: totalChapters,
-      languageInstruction: languageInstruction,
-    );
-
-    try {
-      // 将语言指令作为 system message 传递，强化语言要求
-      return await _callAI(prompt, systemMessage: languageInstruction);
-    } catch (e) {
-      _log.e('AIService', '生成全书摘要失败', e);
-      return null;
-    }
-  }
-
-  // ==========================================================================
-  // 区域6：摘要生成 - 流式版
+  // 区域5：摘要生成 - 流式版
   // ==========================================================================
 
   /// 方法名：generateFullChapterSummaryStream

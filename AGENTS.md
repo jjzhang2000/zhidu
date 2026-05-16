@@ -903,3 +903,19 @@ Future<void> _saveSettings() async {
 **3. 统一配置检查**：
 - 将所有 `if (_config == null || !_config!.isValid)` 替换为 `if (!isConfigured)`
 - 涉及 8 个方法，消除重复代码，提升可维护性
+
+**4. 删除阻塞版摘要方法（死代码）**：
+- `generateFullChapterSummary` — 无调用（流式版被调用）
+- `generateBookSummaryFromPreface` — 无调用（流式版被调用）
+- `generateBookSummary` — 无调用（流式版被调用）
+- 所有摘要生成现在统一使用对应的流式版本
+- 减少约 250 行代码
+
+**5. 核心 AI 调用去重**：
+- 提取 `_buildMessages()` 方法，消除 `_callAI` 和 `_callAIStream` 中构建消息列表的重复代码
+
+**6. 简化窗口初始化**：
+- `window_utils.dart` 直接使用 `getPrimaryDisplay()` 获取主显示器
+- 删除 `getAllDisplays()` 和显示器遍历匹配逻辑
+- 使用 `setSize` + `center()` 替代手动计算窗口坐标
+- 窗口始终在主显示器上居中启动

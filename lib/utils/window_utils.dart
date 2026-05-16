@@ -22,30 +22,8 @@ Future<void> initDesktopWindow() async {
   await windowManager.waitUntilReadyToShow();
 
   try {
-    final displays = await screenRetriever.getAllDisplays();
-    final windowBounds = await windowManager.getBounds();
-
-    final windowCenterX = windowBounds.left + windowBounds.width / 2;
-    final windowCenterY = windowBounds.top + windowBounds.height / 2;
-
-    var targetDisplay = displays.first;
-    for (final display in displays) {
-      final displayLeft = display.visiblePosition?.dx ?? 0;
-      final displayTop = display.visiblePosition?.dy ?? 0;
-      final displayRight = displayLeft + display.size.width;
-      final displayBottom = displayTop + display.size.height;
-
-      if (windowCenterX >= displayLeft &&
-          windowCenterX <= displayRight &&
-          windowCenterY >= displayTop &&
-          windowCenterY <= displayBottom) {
-        targetDisplay = display;
-        break;
-      }
-    }
-
-    final displayPos = targetDisplay.visiblePosition ?? const Offset(0, 0);
-    final visibleSize = targetDisplay.visibleSize ?? targetDisplay.size;
+    final display = await screenRetriever.getPrimaryDisplay();
+    final visibleSize = display.visibleSize ?? display.size;
     final double screenHeight = visibleSize.height;
     final double screenWidth = visibleSize.width;
 
@@ -56,15 +34,12 @@ Future<void> initDesktopWindow() async {
       windowWidth = screenWidth;
     }
 
-    final double windowLeft = displayPos.dx + (screenWidth - windowWidth) / 2;
-    final double windowTop = displayPos.dy + (screenHeight - windowHeight) / 2;
-
-    await windowManager.setBounds(Rect.fromLTWH(windowLeft, windowTop, windowWidth, windowHeight));
+    await windowManager.setSize(Size(windowWidth, windowHeight));
   } catch (e) {
     await windowManager.setSize(const Size(960, 720));
-    await windowManager.center();
   }
 
+  await windowManager.center();
   await windowManager.setMinimumSize(const Size(600, 400));
   await windowManager.show();
 }
