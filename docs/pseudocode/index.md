@@ -208,7 +208,7 @@ SummaryService.generateSummariesForBook()
 └─────────────────────────────────────────────────────────┘
     ↓
 翻译功能（可选）
-TranslationService.translateHtml()
+TranslationService.translateContent()
     ↓
 AIService.translateHtmlStream()
     ↓

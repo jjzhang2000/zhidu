@@ -15,9 +15,8 @@
 /// 3. AI生成摘要后，提取章节标题并保存
 ///
 /// ## 并发控制
-/// 使用 [_generatingKeys] 和 [_generatingFutures] 防止同一章节被重复生成：
+/// 使用 [_generatingKeys] 防止同一章节被重复生成：
 /// - [_generatingKeys]：记录正在生成的章节（用于快速检查）
-/// - [_generatingFutures]：存储生成中的Future（用于等待完成）
 
 import 'dart:convert';
 import 'dart:io';
@@ -35,9 +34,9 @@ import 'file_storage_service.dart';
 import 'log_service.dart';
 import 'book_service.dart';
 import 'ai_service.dart';
+import 'settings_service.dart';
 import 'parsers/format_registry.dart';
 import 'storage_config.dart';
-import 'translation_service.dart';
 
 /// 信号量类，用于控制并发数
 class Semaphore {
@@ -98,86 +97,32 @@ class SummaryService {
 
   /// 并发AI请求信号量，限制同时进行的AI请求总数
   /// 防止用户快速切换章节时同时发起过多AI请求导致性能问题
-  /// 最大并发数设置为3，可根据需要调整
-  final _concurrentRequestSemaphore = Semaphore(3);
+  /// 本地模型（ollama/lmstudio）设为1，云端模型设为3
+  late Semaphore _concurrentRequestSemaphore;
 
   /// 流式内容回调映射表
-  /// Key: chapter key (格式: bookId_chapterIndex)
+  /// Key: bookId
   /// Value: 回调函数
   final Map<String, Function(String)> _streamingCallbacks = {};
 
-  /// 全书摘要流式内容回调
-  /// Key: bookId
-  /// Value: 回调函数
-  final Map<String, Function(String)> _bookStreamingCallbacks = {};
-
-  /// 全书摘要生成中标记
-  final Set<String> _generatingBookSummaryKeys = {};
-
-  /// 已完成但尚未处理的章节key集合
-  /// 用于防止重复处理
-  final Set<String> _completedKeys = {};
-
-  /// 注册流式内容回调
-  ///
-  /// 当章节开始生成摘要时，UI 可以调用此方法注册回调，
-  /// 这样流式内容更新时会自动通知 UI
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  /// - [chapterIndex]：章节索引
-  /// - [callback]：内容更新回调函数
-  void registerStreamingCallback(
-    String bookId,
-    int chapterIndex,
-    Function(String) callback,
-  ) {
-    final key = _key(bookId, chapterIndex);
-    _streamingCallbacks[key] = callback;
-    _log.d('SummaryService', '注册章节流式回调: $key');
-  }
-
-  /// 取消流式内容回调
-  void unregisterStreamingCallback(String bookId, int chapterIndex) {
-    final key = _key(bookId, chapterIndex);
-    _streamingCallbacks.remove(key);
-    _log.d('SummaryService', '取消章节流式回调: $key');
-  }
-
-  /// 触发流式内容更新
-  void _notifyStreamingContent(String bookId, int chapterIndex, String content) {
-    final key = _key(bookId, chapterIndex);
-    final callback = _streamingCallbacks[key];
-    if (callback != null) {
-      callback(content);
-    }
-  }
-
   /// 注册全书摘要流式内容回调
   void registerBookStreamingCallback(String bookId, Function(String) callback) {
-    _bookStreamingCallbacks[bookId] = callback;
-    _generatingBookSummaryKeys.add(bookId);
+    _streamingCallbacks[bookId] = callback;
     _log.d('SummaryService', '注册全书摘要流式回调: $bookId');
   }
 
   /// 取消全书摘要流式内容回调
   void unregisterBookStreamingCallback(String bookId) {
-    _bookStreamingCallbacks.remove(bookId);
-    _generatingBookSummaryKeys.remove(bookId);
+    _streamingCallbacks.remove(bookId);
     _log.d('SummaryService', '取消全书摘要流式回调: $bookId');
   }
 
   /// 触发全书摘要流式内容更新
   void _notifyBookStreamingContent(String bookId, String content) {
-    final callback = _bookStreamingCallbacks[bookId];
+    final callback = _streamingCallbacks[bookId];
     if (callback != null) {
       callback(content);
     }
-  }
-
-  /// 检查全书摘要是否正在生成
-  bool isGeneratingBookSummary(String bookId) {
-    return _generatingBookSummaryKeys.contains(bookId);
   }
 
   // ==================== 并发控制相关 ====================
@@ -194,15 +139,6 @@ class SummaryService {
   /// ```
   final Set<String> _generatingKeys = {};
 
-  /// 正在生成摘要的Future映射表
-  ///
-  /// 存储每个章节生成任务的Future对象。
-  /// 当其他地方调用同一个章节的生成时，可以复用这个Future，
-  /// 避免重复调用AI接口。
-  ///
-  /// Key格式：`{bookId}_{chapterIndex}`
-  final Map<String, Future<void>> _generatingFutures = {};
-
   /// 生成章节的唯一标识键
   ///
   /// 将书籍ID和章节索引组合成唯一键，用于并发控制。
@@ -214,40 +150,33 @@ class SummaryService {
   /// 返回：格式为 `{bookId}_{chapterIndex}` 的字符串
   String _key(String bookId, int chapterIndex) => '${bookId}_$chapterIndex';
 
-  /// 检查指定章节是否正在生成摘要
-  ///
-  /// 用于UI层显示加载状态，防止用户重复点击。
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  /// - [chapterIndex]：章节索引
-  ///
-  /// 返回：`true` 表示正在生成，`false` 表示未生成
-  bool isGenerating(String bookId, int chapterIndex) {
-    return _generatingKeys.contains(_key(bookId, chapterIndex));
-  }
-
-  /// 获取正在生成的Future对象
-  ///
-  /// 用于等待正在进行的生成任务完成。
-  /// 当用户点击同一个章节时，可以复用已有的生成任务。
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  /// - [chapterIndex]：章节索引
-  ///
-  /// 返回：正在生成的Future，如果没有则返回null
-  Future<void>? getGeneratingFuture(String bookId, int chapterIndex) {
-    return _generatingFutures[_key(bookId, chapterIndex)];
-  }
-
   // ==================== 初始化 ====================
 
   /// 初始化服务
   ///
   /// 文件存储模式下无需初始化，仅打印日志。
   Future<void> init() async {
-    _log.d('SummaryService', '文件存储模式，无需初始化');
+    _initSemaphore();
+    SettingsService().aiSettings.addListener(_onAiSettingsChanged);
+    _log.d('SummaryService', '初始化完成');
+  }
+
+  void _onAiSettingsChanged() {
+    _initSemaphore();
+  }
+
+  /// 根据AI提供商初始化信号量
+  /// 本地模型（ollama/lmstudio）设为1，云端模型设为3
+  void _initSemaphore() {
+    final provider = _aiService.currentProvider;
+    final isLocal = provider == 'ollama' || provider == 'lmstudio';
+    _concurrentRequestSemaphore = Semaphore(isLocal ? 1 : 3);
+    _log.d('SummaryService', '并发限制初始化：provider=$provider, maxConcurrency=${isLocal ? 1 : 3}');
+  }
+
+  /// 清理资源，移除监听器
+  void dispose() {
+    SettingsService().aiSettings.removeListener(_onAiSettingsChanged);
   }
 
   // ==================== 单章节摘要操作 ====================
@@ -317,79 +246,6 @@ class SummaryService {
     }
   }
 
-  /// 删除指定章节的摘要
-  ///
-  /// 从文件系统删除摘要文件。
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  /// - [chapterIndex]：章节索引
-  /// - [language]：语言代码（如 'zh', 'en', 'ja'），默认为 'zh'
-  Future<void> deleteSummary(String bookId, int chapterIndex, {String language = 'zh'}) async {
-    try {
-      final filePath =
-          await StorageConfig.getChapterSummaryPath(bookId, chapterIndex, language: language);
-      await _fileStorage.deleteFile(filePath);
-      _log.d('SummaryService', '摘要已删除: ${bookId}_${chapterIndex}_$language');
-    } catch (e, stackTrace) {
-      _log.e('SummaryService', 'deleteSummary 失败', e, stackTrace);
-    }
-  }
-
-  // ==================== 批量摘要操作 ====================
-
-  /// 获取指定书籍的所有章节摘要
-  ///
-  /// 遍历书籍目录下的所有章节摘要文件，返回摘要列表。
-  /// 结果按章节索引排序。
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  ///
-  /// 返回：章节摘要列表，按章节索引升序排列
-  ///
-  /// 文件匹配规则：`Summary-*.md`（如Summary-000-zh.md, Summary-001-en.md）
-  Future<List<ChapterSummary>> getSummariesForBook(String bookId) async {
-    try {
-      final bookDir = await StorageConfig.getBookDirectory(bookId);
-      final files =
-          await _fileStorage.listFiles(bookDir.path, extension: '.md');
-
-      final summaries = <ChapterSummary>[];
-
-      for (final file in files) {
-        final filename = p.basename(file.path);
-        if (filename.startsWith('Summary-') && filename.endsWith('.md')) {
-          final indexStr = filename.substring(8, 11);
-          final index = int.tryParse(indexStr);
-          if (index != null) {
-            final content = await _fileStorage.readText(file.path);
-            if (content != null && content.isNotEmpty) {
-              final lastModified = await file.lastModified();
-              summaries.add(ChapterSummary(
-                bookId: bookId,
-                chapterIndex: index,
-                chapterTitle: '',
-                objectiveSummary: content,
-                aiInsight: '',
-                keyPoints: [],
-                createdAt: lastModified,
-              ));
-            }
-          }
-        }
-      }
-
-      // 按章节索引排序
-      summaries.sort((a, b) => a.chapterIndex.compareTo(b.chapterIndex));
-      return summaries;
-    } catch (e, stackTrace) {
-      _log.e(
-          'SummaryService', 'getSummariesForBook 失败: $bookId', e, stackTrace);
-      return [];
-    }
-  }
-
   // ==================== 全书摘要操作 ====================
 
   /// 获取全书摘要
@@ -446,12 +302,11 @@ class SummaryService {
   /// 这是生成章节摘要的核心方法，实现了并发控制机制：
   /// 1. 检查是否正在生成，如果是则返回false（拒绝重复请求）
   /// 2. 将章节标识加入[_generatingKeys]标记为"生成中"
-  /// 3. 创建Completer并存入[_generatingFutures]，允许其他调用者等待
-  /// 4. 调用AI流式生成摘要（内部使用流式方法以支持实时回调）
-  /// 5. 实时更新内容到回调函数（如果提供）
-  /// 6. 提取章节标题并更新书籍元数据
-  /// 7. 保存摘要内容
-  /// 8. 清理并发控制标记
+  /// 3. 调用AI流式生成摘要（内部使用流式方法以支持实时回调）
+  /// 4. 实时更新内容到回调函数（如果提供）
+  /// 5. 提取章节标题并更新书籍元数据
+  /// 6. 保存摘要内容
+  /// 7. 清理并发控制标记
   ///
   /// 参数：
   /// - [bookId]：书籍唯一标识
@@ -470,8 +325,6 @@ class SummaryService {
   ///     ↓ 未生成
   /// 加入_generatingKeys
   ///     ↓
-  /// 创建Completer并加入_generatingFutures
-  ///     ↓
   /// 调用AI流式生成摘要（内部实现）
   ///     ↓
   /// 实时更新内容 → onContentUpdate回调（如果有）
@@ -480,9 +333,7 @@ class SummaryService {
   ///     ↓
   /// 保存摘要文件
   ///     ↓
-  /// complete()完成Completer
-  ///     ↓
-  /// 从_generatingKeys和_generatingFutures移除
+  /// 从_generatingKeys移除
   /// ```
   Future<bool> generateSingleSummary(
     String bookId,
@@ -506,10 +357,6 @@ class SummaryService {
     // 标记为"生成中"
     _generatingKeys.add(key);
 
-    // 创建Completer用于其他调用者等待
-    final completer = Completer<void>();
-    _generatingFutures[key] = completer.future;
-
     try {
       _log.d('SummaryService', '开始生成摘要: $key, language: $language');
 
@@ -525,11 +372,9 @@ class SummaryService {
       await for (final chunk in stream) {
         accumulatedContent += chunk;
 
-        // 触发流式内容更新（同时调用回调和广播）
         if (onContentUpdate != null) {
           onContentUpdate(accumulatedContent);
         }
-        _notifyStreamingContent(bookId, chapterIndex, accumulatedContent);
       }
 
       // 生成完成，处理最终内容
@@ -558,157 +403,17 @@ class SummaryService {
 
         await saveSummary(chapterSummary, language: language);
         _log.info('SummaryService', '摘要生成成功: $key, language: $language');
-        completer.complete();
         return true;
       } else {
         _log.w('SummaryService', 'AI返回空摘要: $key');
-        completer.complete(); // 空摘要时不视为错误
         return false;
       }
     } catch (e, stackTrace) {
       _log.e('SummaryService', '生成摘要失败: $key', e, stackTrace);
-      completer.completeError(e);
       return false;
     } finally {
       // 清理并发控制标记
       _generatingKeys.remove(key);
-      _generatingFutures.remove(key);
-      // 释放并发AI请求许可
-      _concurrentRequestSemaphore.release();
-    }
-  }
-
-  /// 生成单个章节的摘要（流式，带并发控制）
-  ///
-  /// 这是生成章节摘要的流式方法，实现了实时反馈机制：
-  /// 1. 检查是否正在生成，如果是则返回false（拒绝重复请求）
-  /// 2. 将章节标识加入[_generatingKeys]标记为"生成中"
-  /// 3. 创建Completer并存入[_generatingFutures]，允许其他调用者等待
-  /// 4. 调用AI流式生成摘要
-  /// 5. 实时更新内容到回调函数
-  /// 6. 提取章节标题并更新书籍元数据
-  /// 7. 保存摘要内容
-  /// 8. 清理并发控制标记
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  /// - [chapterIndex]：章节索引
-  /// - [chapterTitle]：章节原标题（用于AI提示词）
-  /// - [content]：章节正文内容
-  /// - [onContentUpdate]：内容更新回调函数（实时反馈用）
-  ///
-  /// 返回：`true` 表示生成成功，`false` 表示失败或重复请求
-  ///
-  /// ## 流式生成流程图
-  /// ```
-  /// 用户点击生成
-  ///     ↓
-  /// isGenerating检查 → 正在生成 → 返回false
-  ///     ↓ 未生成
-  /// 加入_generatingKeys
-  ///     ↓
-  /// 创建Completer并加入_generatingFutures
-  ///     ↓
-  /// 调用AI流式生成摘要
-  ///     ↓
-  /// 实时更新内容 → onContentUpdate回调
-  ///     ↓
-  /// 提取标题 → 更新章节标题
-  ///     ↓
-  /// 保存摘要文件
-  ///     ↓
-  /// complete()完成Completer
-  ///     ↓
-  /// 从_generatingKeys和_generatingFutures移除
-  /// ```
-  Future<bool> generateSingleSummaryStream(
-    String bookId,
-    int chapterIndex,
-    String chapterTitle,
-    String content, {
-    Function(String)? onContentUpdate,  // 实时内容更新回调
-    String language = 'zh',  // 语言代码
-  }) async {
-    final key = _key(bookId, chapterIndex);
-
-    // 并发控制：检查是否正在生成
-    if (_generatingKeys.contains(key)) {
-      _log.d('SummaryService', '摘要生成中，跳过重复请求: $key');
-      return false;
-    }
-
-    // 获取并发AI请求许可
-    await _concurrentRequestSemaphore.acquire();
-
-    // 标记为"生成中"
-    _generatingKeys.add(key);
-
-    // 创建Completer用于其他调用者等待
-    final completer = Completer<void>();
-    _generatingFutures[key] = completer.future;
-
-    try {
-      _log.d('SummaryService', '开始流式生成摘要: $key, language: $language');
-
-      // 调用AI流式生成摘要
-      final stream = _aiService.generateFullChapterSummaryStream(
-        content,
-        chapterTitle: chapterTitle,
-        bookId: bookId,
-      );
-
-      String accumulatedContent = '';
-
-      await for (final chunk in stream) {
-        accumulatedContent += chunk;
-
-        // 立即通过回调函数更新内容，让UI层处理频率控制
-        if (onContentUpdate != null) {
-          onContentUpdate(accumulatedContent);
-        }
-      }
-
-      // 生成完成，处理最终内容
-      if (accumulatedContent.isNotEmpty) {
-        // 提取AI返回的章节标题
-        final extractedTitle = extractTitleFromSummary(accumulatedContent);
-        final cleanSummary = removeTitleLineFromSummary(accumulatedContent);
-
-        // 如果提取到有效标题，更新书籍元数据
-        if (extractedTitle != null && extractedTitle.isNotEmpty) {
-          await _bookService.updateChapterTitle(
-              bookId, chapterIndex, extractedTitle);
-          _log.d('SummaryService', '提取并更新章节标题: $extractedTitle');
-        }
-
-        // 构建并保存摘要对象
-        final chapterSummary = ChapterSummary(
-          bookId: bookId,
-          chapterIndex: chapterIndex,
-          chapterTitle: extractedTitle ?? chapterTitle,
-          objectiveSummary: cleanSummary,
-          aiInsight: '',
-          keyPoints: [],
-          createdAt: DateTime.now(),
-        );
-
-        await saveSummary(chapterSummary, language: language);
-        _log.info('SummaryService', '流式摘要生成成功: $key, language: $language');
-        completer.complete();
-        return true;
-      } else {
-        _log.w('SummaryService', 'AI返回空摘要: $key');
-        completer.complete(); // 空摘要时不视为错误
-        return false;
-      }
-    } catch (e, stackTrace) {
-      _log.e('SummaryService', '流式生成摘要失败: $key', e, stackTrace);
-      completer.completeError(e);
-      return false;
-    } finally {
-      // 清理并发控制标记
-      _generatingKeys.remove(key);
-      _generatingFutures.remove(key);
       // 释放并发AI请求许可
       _concurrentRequestSemaphore.release();
     }
@@ -1071,55 +776,6 @@ class SummaryService {
     }
   }
 
-  // ==================== 导出相关 ====================
-
-  /// 获取所有书籍的所有摘要（用于导出）
-  ///
-  /// 遍历应用目录下的所有书籍目录，收集所有章节摘要。
-  ///
-  /// 返回：所有章节摘要的列表
-  Future<List<ChapterSummary>> getAllSummaries() async {
-    final allSummaries = <ChapterSummary>[];
-
-    // 遍历所有书籍目录获取摘要
-    final appDir = await StorageConfig.getAppDirectory();
-    final booksDir = Directory('${appDir.path}/books');
-
-    if (!await booksDir.exists()) {
-      return [];
-    }
-
-    final bookDirs = await booksDir
-        .list()
-        .where((e) => e is Directory)
-        .cast<Directory>()
-        .toList();
-
-    for (final bookDir in bookDirs) {
-      final bookId = p.basename(bookDir.path);
-      final summaries = await getSummariesForBook(bookId);
-      allSummaries.addAll(summaries);
-    }
-
-    return allSummaries;
-  }
-
-  /// 删除书籍的所有摘要
-  ///
-  /// 注意：在文件存储模式下，BookService.deleteBook 已经删除了整个书籍目录，
-  /// 所以这个方法实际上不需要执行任何操作。
-  /// 保留此方法是为了兼容旧代码接口。
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  Future<void> deleteAllSummariesForBook(String bookId) async {
-    _log.d('SummaryService', '删除书籍所有摘要: $bookId');
-    // 文件存储模式下，书籍目录的删除由BookService处理
-    // 这里可以保留为兼容旧代码的接口
-  }
-
-  // ==================== 标题提取工具方法 ====================
-
   // ==================== 译文管理 ====================
 
   /// 获取指定章节的译文
@@ -1169,31 +825,8 @@ class SummaryService {
     }
   }
 
-  /// 删除指定章节的译文
-  ///
-  /// 参数：
-  /// - [bookId]：书籍唯一标识
-  /// - [chapterIndex]：章节索引
-  /// - [targetLang]：目标语言代码
-  Future<void> deleteTranslation(
-      String bookId, int chapterIndex, String targetLang) async {
-    try {
-      final filePath = await StorageConfig.getChapterTranslationPath(
-          bookId, chapterIndex, targetLang);
-      await _fileStorage.deleteFile(filePath);
-      _log.d('SummaryService', '译文已删除: ${bookId}_${chapterIndex}_$targetLang');
-    } catch (e, stackTrace) {
-      _log.e('SummaryService', 'deleteTranslation 失败', e, stackTrace);
-    }
-  }
-
   /// 译文生成中标记集合
   final Set<String> _generatingTranslationKeys = {};
-
-  /// 检查指定译文是否正在生成
-  bool isTranslationGenerating(String bookId, int chapterIndex, String targetLang) {
-    return _generatingTranslationKeys.contains('${bookId}_${chapterIndex}_$targetLang');
-  }
 
   /// 流式生成章节译文（格式保留）
   ///
@@ -1236,9 +869,7 @@ class SummaryService {
     try {
       _log.d('SummaryService', '开始流式生成译文（格式保留）: $key, format: $bookFormat');
 
-      // 使用TranslationService进行HTML格式翻译
-      final translationService = TranslationService();
-      final translatedContent = await translationService.translateHtml(
+      final translatedContent = await _aiService.translateContent(
         content,
         sourceLang: sourceLang,
         targetLang: targetLang,

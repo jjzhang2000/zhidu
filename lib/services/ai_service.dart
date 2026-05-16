@@ -164,6 +164,9 @@ class AIService {
   /// - 生成摘要前检查服务可用性
   bool get isConfigured => _config?.isValid ?? false;
 
+  /// 获取当前AI提供商（如 'zhipu', 'qwen', 'ollama' 等）
+  String get currentProvider => _config?.provider ?? '';
+
   /// 方法名：updateConfig
   /// 功能：从AiSettings更新AI配置
   ///
@@ -695,6 +698,55 @@ class AIService {
     } catch (e) {
       _log.e('AIService', '翻译HTML流失败', e);
     }
+  }
+
+  /// 方法名：translateContent
+  /// 功能：翻译文本内容（收集流式内容，支持进度回调）
+  ///
+  /// 参数：
+  /// - [content]: 待翻译的内容
+  /// - [sourceLang]: 源语言代码
+  /// - [targetLang]: 目标语言代码
+  /// - [chapterTitle]: 章节标题（可选）
+  /// - [onProgress]: 进度回调（当前译文内容）
+  ///
+  /// 返回：完整的译文
+  Future<String> translateContent(
+    String content, {
+    required String sourceLang,
+    required String targetLang,
+    String? chapterTitle,
+    Function(String)? onProgress,
+  }) async {
+    if (!isConfigured) {
+      _log.w('AIService', 'AI服务未配置，无法翻译');
+      return '';
+    }
+
+    final buffer = StringBuffer();
+    int chunkCount = 0;
+
+    await for (final chunk in translateHtmlStream(
+      content,
+      chapterTitle: chapterTitle,
+      sourceLang: sourceLang,
+      targetLang: targetLang,
+    )) {
+      buffer.write(chunk);
+      chunkCount++;
+
+      if (chunkCount <= 3) {
+        _log.d('AIService', 'Chunk $chunkCount: $chunk');
+      }
+
+      if (onProgress != null) {
+        onProgress(buffer.toString());
+      }
+    }
+
+    final result = buffer.toString();
+    _log.d('AIService', '翻译完成，译文长度: ${result.length}, chunk数: $chunkCount');
+    return result;
   }
 
   // ==========================================================================

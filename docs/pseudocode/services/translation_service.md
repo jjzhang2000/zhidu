@@ -44,7 +44,7 @@ class TranslationService {
 
 获取当前翻译进度（0.0 ~ 1.0）。
 
-### translateHtml({htmlContent, sourceLang, targetLang, chapterTitle, onProgress}) → Future<String>
+### translateContent({content, sourceLang, targetLang, chapterTitle, onProgress}) → Future<String>
 
 翻译指定章节的 HTML 内容（保留 HTML 标签）。
 
@@ -120,7 +120,7 @@ class TranslationService {
 ```
 ChapterScreen 用户点击"翻译"
     ↓
-TranslationService.translateHtml()
+TranslationService.translateContent()
     ↓
 AIService.translateHtmlStream()
     ↓ SSE 流式响应

@@ -75,6 +75,7 @@ class _ZhiduAppState extends State<ZhiduApp> {
     _settingsService.themeMode.removeListener(_onAppSettingsChanged);
     _settingsService.languageSettings.removeListener(_onAppSettingsChanged);
     _settingsService.dispose();
+    SummaryService().dispose();
     super.dispose();
   }
 

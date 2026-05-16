@@ -607,9 +607,6 @@ class _BookCardState extends State<BookCard> {
       /// 删除书籍记录
       await _bookService.deleteBook(widget.book.id);
 
-      /// 删除该书籍的所有摘要数据
-      await _summaryService.deleteAllSummariesForBook(widget.book.id);
-
       /// 通知父组件刷新列表
       widget.onDeleted?.call();
 

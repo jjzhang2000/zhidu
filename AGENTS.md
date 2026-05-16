@@ -923,3 +923,46 @@ Future<void> _saveSettings() async {
 - C++ 层：`Win32Window::Create` 使用 `origin(0,0)` + 默认尺寸
 - Dart 层：使用 `setBounds` 一次性设置尺寸和位置，替代 `setSize` + `setPosition`
 - 坐标基于主显示器工作区精确计算，不依赖 `center()`（在多显示器下会选中错误的显示器）
+
+#### 2026-05-16: SummaryService 死代码清理与回调合并
+
+**问题描述**：
+- `_generatingBookSummaryKeys` 仅通过 `isGeneratingBookSummary` 对外暴露，但无任何外部调用方
+- `_generatingFutures` 只写入不读取，是纯粹的死代码
+- `getSummariesForBook` / `deleteTranslation` 无任何外部调用
+- `_streamingCallbacks`（章节级）和 `_bookStreamingCallbacks`（书级）功能重复，且前者无注册方
+- `registerStreamingCallback` / `unregisterStreamingCallback` / `_notifyStreamingContent` 无外部调用方
+
+**清理内容**：
+
+**1. 删除的未使用字段（2 个）**：
+| 字段 | 说明 |
+|------|------|
+| `_generatingBookSummaryKeys` | 仅 `isGeneratingBookSummary` 读取，该方法无调用方 |
+| `_generatingFutures` | 只写入不读取，`Completer` 相关代码一并删除 |
+
+**2. 删除的未使用方法（7 个）**：
+| 方法 | 说明 |
+|------|------|
+| `isGeneratingBookSummary` | 无任何代码调用 |
+| `registerStreamingCallback` | 无任何代码调用（章节级回调） |
+| `unregisterStreamingCallback` | 无任何代码调用 |
+| `_notifyStreamingContent` | 仅 `generateSingleSummary` 内部调用，已改为通过 `onContentUpdate` 回调 |
+| `getSummariesForBook` | 无任何代码调用 |
+| `deleteTranslation` | 无任何代码调用 |
+
+**3. 合并回调映射表**：
+- 删除 `_bookStreamingCallbacks`，与 `_streamingCallbacks` 合并为统一的 Map
+- 全书摘要回调继续使用 `bookId` 作为 key
+- 章节级流式通知通过 `onContentUpdate` 回调直接传递，不再经过 Map
+- 保留 `registerBookStreamingCallback` / `unregisterBookStreamingCallback` / `_notifyBookStreamingContent`
+
+**重构结果**：
+- 代码量减少约 60 行
+- 回调机制统一为单一 Map + 直接回调两种路径
+- `flutter analyze` 无新增错误
+
+**关键教训**：
+- 字段/方法即使有"完整的使用链路"（写入+读取+通知），如果没有外部消费方，也是死代码
+- 回调机制不要过度设计：章节流式内容通过方法参数 `onContentUpdate` 直接传递更简单
+- 两个功能相同的 Map 要尽早合并，避免维护两套 key 构造逻辑

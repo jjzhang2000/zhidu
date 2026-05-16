@@ -474,52 +474,7 @@ void dispose() {
       return;
     }
 
-    final generatingFuture =
-        _summaryService.getGeneratingFuture(widget.bookId, widget.chapterIndex);
-
-    if (generatingFuture != null) {
-      // 后台正在生成（来自BookScreen），等待其完成，不尝试监听流式内容
-      // 因为 addPostFrameCallback 延迟导致回调注册时 chunk 可能已到达，
-      // 直接 await 后台 completion 比 registerStreamingCallback 更可靠
-      _log.d('ChapterScreen', '后台正在生成中，等待完成: $chapterKey');
-
-      _hasLoadedSummary = true;
-      _listeningChapterKey = chapterKey;
-
-      setState(() {
-        _isGenerating = true;
-        _streamingSummary = '';
-        _summary = null;
-      });
-
-      final capturedBookId = widget.bookId;
-      final capturedChapterIndex = widget.chapterIndex;
-
-      try {
-        await generatingFuture;
-      } catch (e) {
-        _log.w('ChapterScreen', '后台生成失败: $e');
-      }
-
-      if (!mounted) return;
-      if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
-
-      // 加载最终摘要
-      final summary = await _summaryService.getSummary(
-          capturedBookId, capturedChapterIndex, language: _summaryLang);
-
-      if (!mounted) return;
-      if (capturedBookId != widget.bookId || capturedChapterIndex != widget.chapterIndex) return;
-
-      setState(() {
-        _summary = summary;
-        _isGenerating = false;
-        _streamingSummary = '';
-      });
-      return;
-    }
-
-    // 没有正在生成，检查是否已有摘要
+    // 检查是否已有摘要
     _hasLoadedSummary = true;
     _listeningChapterKey = chapterKey;
 
@@ -668,7 +623,7 @@ void dispose() {
       final plainText = _extractTextContent(_content);
 
       // 使用流式生成方法，带有实时更新回调
-      final success = await _summaryService.generateSingleSummaryStream(
+      final success = await _summaryService.generateSingleSummary(
         widget.bookId,
         widget.chapterIndex,
         _title,
