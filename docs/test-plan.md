@@ -334,7 +334,6 @@
 | getSummary测试 | 存在的摘要、不存在摘要 | P0 |
 | saveSummary测试 | 正常保存 | P0 |
 | deleteSummary测试 | 正常删除 | P0 |
-| getSummariesForBook测试 | 多章节摘要、空列表 | P0 |
 | getBookSummary测试 | 全书摘要获取 | P0 |
 | saveBookSummary测试 | 全书摘要保存、Book元数据更新 | P0 |
 | generateSingleSummary测试 | 正常生成、并发控制 | P0 |

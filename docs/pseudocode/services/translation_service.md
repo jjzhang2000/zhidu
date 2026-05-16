@@ -107,10 +107,6 @@ class TranslationService {
 
 读取已保存的译文内容。
 
-### deleteTranslation(bookId, chapterIndex, language) → Future<bool>
-
-删除指定章节的译文文件。
-
 ### deleteAllTranslations(bookId) → Future<void>
 
 删除书籍的所有译文文件。

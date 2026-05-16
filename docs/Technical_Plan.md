@@ -115,10 +115,10 @@ UI 实时显示流式内容
 
 2. **摘要服务层** (`summary_service.dart`)
    - 实现流式回调广播机制：
-     - `_streamingCallbacks`：章节摘要回调映射
-     - `_bookStreamingCallbacks`：全书摘要回调映射
+     - `_streamingCallbacks`：全书摘要回调映射
    - 提供注册/取消注册方法
    - 在流式接收过程中触发回调通知UI
+   - 章节级流式通知通过 `onContentUpdate` 方法参数直接传递
 
 3. **UI层** (`chapter_screen.dart`, `book_screen.dart`)
    - 注册流式回调，实时更新 `_streamingSummary` 状态

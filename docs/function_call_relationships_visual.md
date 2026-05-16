@@ -181,7 +181,7 @@ flowchart TD
     AI2 --> SSE
     AI3 --> SSE
 
-    SSE --> |"onChunk"| NOTIFY["_notifyStreamingContent() / _notifyBookStreamingContent()"]
+    SSE --> |"onChunk"| NOTIFY["_notifyBookStreamingContent()"]
     NOTIFY --> UI_UPDATE["UI setState() 实时更新"]
 ```
 
@@ -203,13 +203,12 @@ flowchart TD
     end
 
     subgraph "ChapterScreen 章节阅读页"
-        CS_INIT["initState()"] --> LOAD["_loadSummary()"]
+        CS_INIT --> LOAD["_loadSummary()"]
         LOAD --> LOCAL["_loadFromLocal() → readText(summaryPath)"]
         LOCAL --> |"摘要不存在"| GEN["SummaryService.generateSingleSummary()"]
         GEN --> AI["AIService.generateFullChapterSummaryStream()"]
-        AI --> STREAM["SSE流式 → onChunk → UI实时显示"]
+        AI --> STREAM["SSE流式 → onChunk → onContentUpdate回调 → UI实时显示"]
 
-        CS_INIT --> REG_CB["registerStreamingCallback()"]
         TAB_SUMMARY["Tab 0: 摘要 (Markdown渲染)"]
         TAB_ORIG["Tab 1: 原文 (HTML/纯文本)"]
         TAB_TRANS["Tab 2: 译文"]
@@ -389,25 +388,22 @@ flowchart TD
 
     REQ --> CHECK_GEN{"_generatingKeys<br/>是否已在生成中?"}
 
-    CHECK_GEN --> |"是"| WAIT["_generatingFutures.get()<br/>复用已有的Completer.future"]
+    CHECK_GEN --> |"是"| SKIP["RETURN false<br/>跳过重复请求"]
     CHECK_GEN --> |"否"| SEM["semaphore.acquire()<br/>等待并发槽位 (max=3)"]
 
     SEM --> MARK["标记 _generatingKeys.add(key)"]
-    MARK --> COMPLETER["创建 Completer<String?>()"]
-    COMPLETER --> STORE["存储 _generatingFutures[key] = completer"]
-    STORE --> AI["AIService.generateFullChapterSummaryStream()"]
+    MARK --> AI["AIService.generateFullChapterSummaryStream()"]
 
-    AI --> |"chunk流式"| NOTIFY["_notifyStreamingContent()"]
-    NOTIFY --> UI["UI setState() 实时显示"]
+    AI --> |"chunk流式"| CALLBACK["onContentUpdate(accumulatedContent)"]
+    CALLBACK --> UI["UI setState() 实时显示"]
 
     AI --> DONE["生成完成 → 保存到文件"]
 
-    DONE --> COMPLETE["completer.complete(result)"]
-    COMPLETE --> RELEASE["semaphore.release()"]
-    RELEASE --> CLEANUP["清理 _generatingKeys 和 _generatingFutures"]
+    DONE --> RELEASE["semaphore.release()"]
+    RELEASE --> CLEANUP["清理 _generatingKeys"]
 
-    WAIT --> RESULT["返回已有结果"]
-    COMPLETE --> RESULT
+    SKIP --> RESULT["返回 false"]
+    DONE --> RESULT
 ```
 
 ---

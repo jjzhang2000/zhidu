@@ -498,21 +498,21 @@ class FormatRegistry {
 ```dart
 class SummaryService {
   final Set<String> _generatingKeys = <String>{};
-  final Map<String, Future<void>> _generatingFutures = <String, Future<void>>{};
   
-  Future<void> _generateWithLock(String key, Future<void> Function() generator) async {
+  Future<bool> _generateWithLock(String key, Future<bool> Function() generator) async {
     if (_generatingKeys.contains(key)) {
-      // 等待正在进行的操作完成
-      return _generatingFutures[key];
+      // 正在生成中，跳过重复请求
+      return false;
     }
     
     _generatingKeys.add(key);
-    final future = generator();
-    _generatingFutures[key] = future;
     
-    await future;
-    _generatingKeys.remove(key);
-    _generatingFutures.remove(key);
+    try {
+      final result = await generator();
+      return result;
+    } finally {
+      _generatingKeys.remove(key);
+    }
   }
 }
 ```

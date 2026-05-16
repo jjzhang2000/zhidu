@@ -151,7 +151,7 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
                     │
                     ├── [EPUB/PDF] generateSingleSummary() × N (并发控制: semaphore max=3)
                     │               └── AIService.generateFullChapterSummaryStream()
-                    │                   └── _callAIStream() → SSE → onChunk → _notifyStreamingContent()
+                    │                   └── _callAIStream() → SSE → onChunk → onContentUpdate回调
                     │
                     └── [PDF] _generateBookSummaryFromChapters()
                                 └── AIService.generateBookSummaryStream()
@@ -236,11 +236,8 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `generateSingleSummary()` | ChapterScreen._loadSummary() |
 | `_generateBookSummaryFromPreface()` (内部) | generateSummariesForBook() (EPUB) |
 | `_generateBookSummaryFromChapters()` (内部) | generateSummariesForBook() (PDF) |
-| `registerStreamingCallback()` | ChapterScreen._loadSummary() |
 | `registerBookStreamingCallback()` | BookScreen.initState() |
-| `unregisterStreamingCallback()` | ChapterScreen.dispose() |
 | `unregisterBookStreamingCallback()` | BookScreen.dispose() |
-| `_notifyStreamingContent()` (内部) | 流式回调时 |
 | `_notifyBookStreamingContent()` (内部) | 流式回调时 |
 | `getChapterSummaryContent()` | ChapterScreen._loadFromLocal() |
 | `getBookSummaryContent()` | BookScreen |
@@ -356,8 +353,9 @@ SummaryService.getBookSummaryContent()
 | **策略模式** | `BookFormatParser` 接口 | `EpubParser` / `PdfParser` 实现统一接口 |
 | **观察者模式** | `ValueNotifier` + 流式回调 | 设置变更通知 / 流式内容实时推送 |
 | **并发控制** | `Semaphore` 类 | 限制并发 AI 请求数 (max=3) |
-| **防重复** | `_generatingKeys` + `Completer` | 防止重复生成同一章节 |
-| **回调注册** | `registerStreamingCallback` | UI 注册回调监听流式内容 |
+| **防重复** | `_generatingKeys` | 防止重复生成同一章节 |
+| **回调注册** | `registerBookStreamingCallback` | UI 注册回调监听流式全书摘要 |
+| **章节流式通知** | `onContentUpdate` 参数 | 章节摘要流式内容直接通过方法参数回调 |
 
 ---
 
@@ -398,17 +396,16 @@ SummaryService.getBookSummaryContent()
 │  ─────────────────        ────────────           ───────────────  │
 │  + importBook()           + generate..Stream()   + generateSummaries│
 │  + getBooks()             + translateHtmlStream()+ generateSingle..│
-│  + getBook()              + testConnection()     + registerCallback│
-│  + deleteBook()           + detectLanguage()     + getSummary...()│
-│  + searchBooks()          + _callAIStream()      + _notifyStream..│
-│  + _saveBooks()                                  + Semaphore      │
-│                                                   - _generatingKeys│
+│  + getBook()              + testConnection()     + getSummary...()│
+│  + deleteBook()           + detectLanguage()     + _notifyBookSt..│
+│  + searchBooks()          + _callAIStream()      + Semaphore      │
+│  + _saveBooks()                                  - _generatingKeys│
 │  SettingsService          TranslationService     LogService        │
 │  ───────────────          ──────────────────     ──────────        │
 │  + init()                 + translateEpubContent() + v() / d()    │
 │  + getAiSettings()        + isTranslated()         + info() / w() │
-│  + updateAiSettings()     + saveTranslatedContent()+ e()          │
-│  + updateThemeSettings()  + deleteTranslation()    + init()       │
+│  + updateAiSettings()     + saveTranslatedContent() + e()          │
+│  + updateThemeSettings()                           + init()       │
 │  + updateLanguageSettings()                                       │
 │  + themeNotifier                                                │
 │  + localeNotifier            FileStorageService                  │

@@ -146,7 +146,6 @@ Future<void> init();
 Future<ChapterSummary?> getSummary(String bookId, int chapterIndex);
 Future<void> saveSummary(ChapterSummary summary);
 Future<void> deleteSummary(String bookId, int chapterIndex);
-Future<List<ChapterSummary>> getSummariesForBook(String bookId);
 Future<String?> getBookSummary(String bookId);
 Future<void> saveBookSummary(String bookId, String summary);
 ```

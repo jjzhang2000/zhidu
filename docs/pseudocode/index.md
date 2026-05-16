@@ -244,14 +244,13 @@ SSE 流式响应 → 实时回调 → UI 实时显示
 
 ### 流式回调（观察者模式）
 
-- 章节流式: `registerStreamingCallback()` / `unregisterStreamingCallback()` / `_notifyStreamingContent()`
 - 全书流式: `registerBookStreamingCallback()` / `unregisterBookStreamingCallback()` / `_notifyBookStreamingContent()`
+- 章节流式通知: 通过 `onContentUpdate` 回调参数直接传递
 
 ### 并发控制
 
 - `Semaphore` 类控制并发 AI 请求数（max=3）
-- `_generatingKeys` + `_generatingFutures` 防止重复生成
-- `Completer` 模式实现异步等待复用
+- `_generatingKeys` 防止重复生成
 
 ---
 
