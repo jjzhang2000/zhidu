@@ -29,8 +29,6 @@ import 'dart:convert';
 
 import '../../models/book.dart';
 import '../../models/chapter.dart';
-import '../../models/chapter_content.dart';
-import '../../models/chapter_location.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
 import '../opf_reader_service.dart';
@@ -154,7 +152,6 @@ class EpubParser implements BookFormatParser {
           final chapterIndex = info.level == 0 ? topLevelIndex++ : -1;
 
           chapters.add(Chapter(
-            id: _uuid.v4(),
             index: chapterIndex,
             title: info.title,
             location: ChapterLocation(
@@ -176,7 +173,7 @@ class EpubParser implements BookFormatParser {
   /// - filePath: EPUB文件的绝对路径
   /// - chapter: Chapter对象，包含章节位置信息（href）
   ///
-  /// 返回值：ChapterContent对象，包含HTML内容和纯文本
+  /// 返回值：更新后的Chapter对象（包含htmlContent）
   ///
   /// 调用方：SummaryService.generateSingleSummary()
   ///
@@ -184,9 +181,8 @@ class EpubParser implements BookFormatParser {
   /// 1. 从chapter.location.href获取章节文件路径
   /// 2. 首选方案：使用EpubReader查找对应章节
   /// 3. 回退方案：从archive直接读取HTML文件
-  /// 4. 提取纯文本（移除HTML标签）
   @override
-  Future<ChapterContent> getChapterContent(
+  Future<Chapter> getChapterContent(
       String filePath, Chapter chapter) async {
     _log.v('EpubParser',
         'getChapterContent 开始执行，filePath: $filePath');
@@ -204,7 +200,7 @@ class EpubParser implements BookFormatParser {
 
     if (href == null || href.isEmpty) {
       _log.w('EpubParser', '章节没有 href: ${chapter.title}');
-      return ChapterContent(plainText: '');
+      return chapter;
     }
 
     _log.d('EpubParser', '准备提取章节内容，href: $href');
@@ -217,9 +213,12 @@ class EpubParser implements BookFormatParser {
       if (htmlContent != null && htmlContent.isNotEmpty) {
         _log.d('EpubParser', '✓ 成功从 archive 提取章节内容，href: $href, 内容长度：${htmlContent.length}');
         _log.d('EpubParser', '内容预览：${htmlContent.substring(0, htmlContent.length > 200 ? 200 : htmlContent.length)}');
-        final plainText = _extractTextFromHtml(htmlContent);
-        return ChapterContent(
-          plainText: plainText,
+        return Chapter(
+          bookId: chapter.bookId,
+          index: chapter.index,
+          title: chapter.title,
+          location: chapter.location,
+          level: chapter.level,
           htmlContent: htmlContent,
         );
       } else {
@@ -240,9 +239,12 @@ class EpubParser implements BookFormatParser {
         final htmlContent = epubChapter.htmlContent ?? '';
         if (htmlContent.isNotEmpty) {
           _log.d('EpubParser', '✓ 使用 EpubReader 获取章节内容，索引：${chapter.index}, 内容长度：${htmlContent.length}');
-          final plainText = _extractTextFromHtml(htmlContent);
-          return ChapterContent(
-            plainText: plainText,
+          return Chapter(
+            bookId: chapter.bookId,
+            index: chapter.index,
+            title: chapter.title,
+            location: chapter.location,
+            level: chapter.level,
             htmlContent: htmlContent,
           );
         }
@@ -252,7 +254,7 @@ class EpubParser implements BookFormatParser {
     }
 
     _log.w('EpubParser', '无法获取章节内容：${chapter.title}, href: $href');
-    return ChapterContent(plainText: '');
+    return chapter;
   }
 
   /// 方法名：extractCover

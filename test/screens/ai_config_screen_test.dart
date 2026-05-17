@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zhidu/screens/ai_config_screen.dart';
 import 'package:zhidu/services/settings_service.dart';
 import 'package:zhidu/services/ai_service.dart';
-import 'package:zhidu/models/app_settings.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

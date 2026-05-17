@@ -4,7 +4,6 @@
 /// ============================================================================
 
 import '../../models/chapter.dart';
-import '../../models/chapter_content.dart';
 
 /// 类名：BookFormatParser
 /// 功能：书籍格式解析器抽象接口，定义所有书籍解析器必须实现的通用方法
@@ -34,7 +33,7 @@ abstract class BookFormatParser {
   /// - filePath: 书籍文件的完整本地路径
   ///
   /// 返回值：Future<List<Chapter>> 按顺序排列的章节列表
-  ///   - 每个Chapter包含：id、index、title、location、level
+  ///   - 每个Chapter包含：index、title、location、level
   ///   - EPUB格式：从NCX/Nav导航文件解析章节结构
   ///   - PDF格式：从书签或页面内容提取章节信息
   ///
@@ -60,9 +59,7 @@ abstract class BookFormatParser {
   /// - filePath: 书籍文件的完整本地路径
   /// - chapter: 要获取内容的章节对象（包含位置信息）
   ///
-  /// 返回值：Future<ChapterContent> 章节内容对象
-  ///   - plainText: 纯文本内容（去除HTML标签）
-  ///   - htmlContent: HTML格式内容（保留格式，可能为null）
+  /// 返回值：Future<Chapter> 更新后的章节对象（包含htmlContent）
   ///
   /// 调用方：
   /// - SectionReaderScreen：显示章节内容
@@ -74,10 +71,10 @@ abstract class BookFormatParser {
   ///
   /// 使用示例：
   /// ```dart
-  /// final content = await parser.getChapterContent(filePath, chapter);
-  /// print(content.plainText); // 输出纯文本内容
+  /// final chapter = await parser.getChapterContent(filePath, chapter);
+  /// print(chapter.htmlContent); // 输出HTML格式内容
   /// ```
-  Future<ChapterContent> getChapterContent(String filePath, Chapter chapter);
+  Future<Chapter> getChapterContent(String filePath, Chapter chapter);
 
   /// 方法名：extractCover
   /// 功能：提取书籍封面图片

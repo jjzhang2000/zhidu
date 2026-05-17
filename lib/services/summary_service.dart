@@ -7,9 +7,8 @@ import 'dart:async';
 
 import 'package:path/path.dart' as p;
 
-import '../models/chapter_summary.dart';
-import '../models/book.dart';
 import '../models/chapter.dart';
+import '../models/book.dart';
 import 'file_storage_service.dart';
 import 'log_service.dart';
 import 'book_service.dart';
@@ -147,7 +146,7 @@ class SummaryService {
   // ==================== 单章节摘要操作 ====================
 
   /// 获取指定章节的摘要
-  Future<ChapterSummary?> getSummary(String bookId, int chapterIndex, {String language = 'zh'}) async {
+  Future<Chapter?> getSummary(String bookId, int chapterIndex, {String language = 'zh'}) async {
     _log.v('SummaryService',
         'getSummary 开始执行, bookId: $bookId, chapterIndex: $chapterIndex, language: $language');
 
@@ -161,18 +160,16 @@ class SummaryService {
         return null;
       }
 
-      final summary = ChapterSummary(
+      final chapter = Chapter(
         bookId: bookId,
-        chapterIndex: chapterIndex,
-        chapterTitle: '', // 章节标题在读取时会从章节列表获取
+        index: chapterIndex,
+        title: '',
+        location: ChapterLocation(),
         objectiveSummary: content,
-        aiInsight: '',
-        keyPoints: [],
-        createdAt: DateTime.now(),
       );
 
       _log.v('SummaryService', 'getSummary 加载完成, result: 有内容');
-      return summary;
+      return chapter;
     } catch (e, stackTrace) {
       _log.e('SummaryService', 'getSummary 失败', e, stackTrace);
       return null;
@@ -180,13 +177,16 @@ class SummaryService {
   }
 
   /// 保存章节摘要
-  Future<void> saveSummary(ChapterSummary summary, {String language = 'zh'}) async {
+  Future<void> saveSummary(Chapter chapter, {String language = 'zh'}) async {
     try {
       final filePath = await StorageConfig.getChapterSummaryPath(
-          summary.bookId, summary.chapterIndex, language: language);
-      await _fileStorage.writeText(filePath, summary.objectiveSummary);
+          chapter.bookId, chapter.index, language: language);
+      final content = chapter.objectiveSummary;
+      if (content != null) {
+        await _fileStorage.writeText(filePath, content);
+      }
       _log.d(
-          'SummaryService', '摘要已保存: ${summary.bookId}_${summary.chapterIndex}_$language');
+          'SummaryService', '摘要已保存: ${chapter.bookId}_${chapter.index}_$language');
     } catch (e, stackTrace) {
       _log.e('SummaryService', 'saveSummary 失败', e, stackTrace);
     }
@@ -287,14 +287,12 @@ class SummaryService {
         }
 
         // 构建并保存摘要对象
-        final chapterSummary = ChapterSummary(
+        final chapterSummary = Chapter(
           bookId: bookId,
-          chapterIndex: chapterIndex,
-          chapterTitle: extractedTitle ?? chapterTitle,
+          index: chapterIndex,
+          title: extractedTitle ?? chapterTitle,
+          location: ChapterLocation(),
           objectiveSummary: cleanSummary,
-          aiInsight: '',
-          keyPoints: [],
-          createdAt: DateTime.now(),
         );
 
         await saveSummary(chapterSummary, language: language);
@@ -411,8 +409,8 @@ class SummaryService {
 
     try {
       // 获取章节内容并生成摘要
-      final content = await parser.getChapterContent(book.filePath, chapter);
-      final chapterContent = content.htmlContent;
+      final updatedChapter = await parser.getChapterContent(book.filePath, chapter);
+      final chapterContent = updatedChapter.htmlContent;
 
       if (chapterContent != null && chapterContent.isNotEmpty) {
         await generateSingleSummary(
@@ -530,11 +528,11 @@ class SummaryService {
 
       for (int i = 0; i < chapters.length && i < 10; i++) {
         final summary = await getSummary(book.id, i, language: 'zh');
-        if (summary != null && summary.objectiveSummary.isNotEmpty) {
+        if (summary != null && summary.objectiveSummary != null && summary.objectiveSummary!.isNotEmpty) {
           // 截取前200字避免内容过长
-          final shortSummary = summary.objectiveSummary.length > 200
-              ? summary.objectiveSummary.substring(0, 200)
-              : summary.objectiveSummary;
+          final shortSummary = summary.objectiveSummary!.length > 200
+              ? summary.objectiveSummary!.substring(0, 200)
+              : summary.objectiveSummary!;
           chapterSummaries.add('第${i + 1}章：$shortSummary...');
         }
 

@@ -3,15 +3,14 @@
 /// 功能：统一章节模型定义，用于表示所有书籍格式（EPUB/PDF）的章节信息
 /// ============================================================================
 
-import 'chapter_location.dart';
-
 /// 类名：Chapter
-/// 功能：统一章节模型，用于表示书籍中的一个章节
+/// 功能：统一章节模型，包含元数据、内容和AI摘要
 ///
 /// 主要用途：
 /// - 作为EPUB和PDF书籍章节的统一数据结构
-/// - 存储章节的基本信息（ID、索引、标题、位置、层级）
-/// - 支持JSON序列化/反序列化，用于数据持久化和传输
+/// - 存储章节的基本信息（索引、标题、位置、层级）
+/// - 承载章节的HTML内容
+/// - 存储AI生成的章节摘要
 ///
 /// 调用方：
 /// - EpubParser：解析EPUB文件时创建Chapter对象
@@ -22,10 +21,8 @@ import 'chapter_location.dart';
 /// - ChapterScreen：显示章节摘要时读取章节信息
 /// - PdfReaderScreen：PDF阅读时定位章节
 class Chapter {
-  /// 章节唯一标识符
-  /// 格式：EPUB使用"chapter_序号"，PDF使用"page_页码"
-  /// 用途：数据库主键、章节查找、摘要关联
-  final String id;
+  /// 所属书籍的唯一标识符
+  final String bookId;
 
   /// 章节在目录中的索引位置（从0开始）
   /// 用途：章节排序、前后章节导航
@@ -50,66 +47,61 @@ class Chapter {
   /// 注意：向后兼容字段，旧数据可能无此字段
   final int level;
 
-  /// 构造函数：Chapter
-  /// 功能：创建章节对象
+  /// 章节的HTML格式内容
   ///
-  /// 参数：
-  /// - id: 章节唯一标识符（必填）
-  /// - index: 章节索引位置（必填）
-  /// - title: 章节标题（必填）
-  /// - location: 章节位置信息（必填）
-  /// - level: 章节层级深度（可选，默认0）
+  /// 保留原始HTML格式，包含段落、标题、列表等结构化标签。
+  /// 主要用于：
+  /// - 在阅读界面保留原始格式（如加粗、斜体）
+  /// - 支持富文本展示
+  /// - 作为AI摘要生成的输入数据
+  /// - 保留章节结构信息
+  final String? htmlContent;
+
+  /// AI生成的章节摘要内容
+  ///
+  /// 客观摘要：AI生成的章节内容概述，保持客观中立。
+  final String? objectiveSummary;
+
   Chapter({
-    required this.id,
+    this.bookId = '',
     required this.index,
     required this.title,
     required this.location,
     this.level = 0,
+    this.htmlContent,
+    this.objectiveSummary,
   });
+}
 
-  /// 方法名：toJson
-  /// 功能：将Chapter对象转换为JSON格式的Map
+/// 类名：ChapterLocation
+/// 功能：章节位置模型，用于表示章节在文件中的位置信息
+///
+/// 支持两种定位方式：
+/// - **href定位**：通过章节的相对路径引用（如"chapter1.xhtml"）
+/// - **页面范围定位**：通过起止页码定位（主要用于PDF）
+class ChapterLocation {
+  /// 章节的相对路径引用
   ///
-  /// 返回值：Map<String, dynamic> 包含所有字段的JSON对象
-  ///
-  /// 用途：
-  /// - 数据库存储时序列化
-  /// - 数据传输时格式转换
-  ///
-  /// 调用方：SummaryService、数据库持久化层
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'index': index,
-      'title': title,
-      'location': location.toJson(),
-      'level': level,
-    };
-  }
+  /// 在EPUB文件中，每个章节通常对应一个HTML文件。
+  /// href指向该HTML文件的相对路径。
+  /// 此字段主要用于EPUB格式的书籍定位。
+  final String? href;
 
-  /// 方法名：fromJson
-  /// 功能：从JSON格式的Map创建Chapter对象（工厂构造函数）
+  /// 章节起始页码
   ///
-  /// 参数：
-  /// - json: 包含章节数据的Map对象
+  /// 表示章节在PDF文件中的起始页码（从1开始）。
+  /// 此字段主要用于PDF格式的书籍定位。
+  final int? startPage;
+
+  /// 章节结束页码
   ///
-  /// 返回值：Chapter 新创建的章节对象
-  ///
-  /// 用途：
-  /// - 数据库读取时反序列化
-  /// - API响应解析
-  ///
-  /// 调用方：SummaryService、数据库持久化层
-  ///
-  /// 注意：
-  /// - level字段兼容旧数据，缺失时默认为0
-  factory Chapter.fromJson(Map<String, dynamic> json) {
-    return Chapter(
-      id: json['id'],
-      index: json['index'],
-      title: json['title'],
-      location: ChapterLocation.fromJson(json['location']),
-      level: json['level'] ?? 0,
-    );
-  }
+  /// 表示章节在PDF文件中的结束页码。
+  /// 此字段主要用于PDF格式的书籍定位。
+  final int? endPage;
+
+  ChapterLocation({
+    this.href,
+    this.startPage,
+    this.endPage,
+  });
 }

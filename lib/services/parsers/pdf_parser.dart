@@ -24,8 +24,6 @@ import 'package:path/path.dart' as p;
 
 import '../../models/book.dart';
 import '../../models/chapter.dart';
-import '../../models/chapter_content.dart';
-import '../../models/chapter_location.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
 import '../opf_reader_service.dart';
@@ -249,11 +247,10 @@ class PdfParser implements BookFormatParser {
         _log.d('PdfParser', '未检测到章节结构，将有效文档视为一个章节');
         return [
           Chapter(
-            id: 'pdf_chapter_0',
             index: 0,
             title: '全文',
             location: ChapterLocation(
-              startPage: startOffset + 1, // 转换为1-based页码
+              startPage: startOffset + 1,
               endPage: totalPages,
             ),
             level: 0,
@@ -284,14 +281,13 @@ class PdfParser implements BookFormatParser {
             i < chapterTitles.length ? chapterTitles[i] : '第${i + 1}章';
 
         chapters.add(Chapter(
-          id: 'pdf_chapter_$i',
           index: i,
           title: title,
           location: ChapterLocation(
-            startPage: startIndex + 1, // 转换为1-based
-            endPage: endIndex + 1, // 转换为1-based
+            startPage: startIndex + 1,
+            endPage: endIndex + 1,
           ),
-          level: 0, // PDF不支持层级，统一为0
+          level: 0,
         ));
       }
 
@@ -322,14 +318,13 @@ class PdfParser implements BookFormatParser {
   /// - [chapter] 要提取的章节对象
   ///
   /// 返回：
-  /// - ChapterContent对象，包含plainText和htmlContent
+  /// - 更新后的Chapter对象（包含htmlContent）
   ///
   /// 注意：
   /// - 页码是1-based（用户视角）
   /// - 内部访问时需要转换为0-based索引
-  /// - 空章节返回空的ChapterContent
   @override
-  Future<ChapterContent> getChapterContent(
+  Future<Chapter> getChapterContent(
       String filePath, Chapter chapter) async {
     _log.v('PdfParser',
         'getChapterContent 开始执行, filePath: $filePath, chapter: ${chapter.title}');
@@ -357,11 +352,10 @@ class PdfParser implements BookFormatParser {
       final startPage = chapter.location.startPage;
       final endPage = chapter.location.endPage;
 
-      // 验证页面范围是否存在
       if (startPage == null || endPage == null) {
         await document.dispose();
         _log.w('PdfParser', '章节缺少页面范围信息: ${chapter.title}');
-        return ChapterContent(plainText: '', htmlContent: '');
+        return chapter;
       }
 
       _log.d('PdfParser', '提取页面范围: $startPage - $endPage');
@@ -397,7 +391,7 @@ class PdfParser implements BookFormatParser {
 
       if (plainText.isEmpty) {
         _log.w('PdfParser', '章节内容为空: ${chapter.title}');
-        return ChapterContent(plainText: '', htmlContent: '');
+        return chapter;
       }
 
       // ----------------------------------------------------------
@@ -413,13 +407,17 @@ class PdfParser implements BookFormatParser {
       final htmlContent =
           paragraphs.map((p) => '<p>${p.trim()}</p>').join('\n');
 
-      return ChapterContent(
-        plainText: plainText,
+      return Chapter(
+        bookId: chapter.bookId,
+        index: chapter.index,
+        title: chapter.title,
+        location: chapter.location,
+        level: chapter.level,
         htmlContent: htmlContent,
       );
     } catch (e, stackTrace) {
       _log.e('PdfParser', '获取章节内容失败', e, stackTrace);
-      return ChapterContent(plainText: '', htmlContent: '');
+      return chapter;
     }
   }
 

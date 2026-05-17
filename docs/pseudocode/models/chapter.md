@@ -2,46 +2,42 @@
 
 ## Overview
 
-This file defines the unified Chapter model used to represent chapter information for all book formats (EPUB/PDF). It provides a consistent interface for chapter data regardless of the underlying file format.
+This file defines the unified Chapter model, along with ChapterLocation, used to represent chapter information and content for all book formats (EPUB/PDF). Chapter serves as the single model for chapter metadata, content, and AI-generated summaries.
 
 ---
 
 ## Class: Chapter
 
-Unified chapter model representing a single chapter in a book. Serves as the common data structure for both EPUB and PDF formats.
+Unified chapter model representing a single chapter in a book, combining metadata, HTML content, and AI summary.
 
 ### Purpose
 
 - Provide unified chapter data structure for EPUB and PDF
-- Store chapter basic information (ID, index, title, location, level)
-- Support JSON serialization/deserialization for persistence and transfer
+- Store chapter basic information (index, title, location, level)
+- Carry chapter HTML content for rendering
+- Store AI-generated chapter summary
 
 ### Callers
 
 - EpubParser: Creates Chapter objects when parsing EPUB files
 - PdfParser: Creates Chapter objects when parsing PDF files
-- BookFormatParser: Uses as common return type
+- BookFormatParser: Uses as common return type for getChapterContent
 - SummaryService: Gets chapter info when generating summaries
 - BookScreen: Displays book table of contents
-- ChapterScreen: Displays chapter summary info
+- ChapterScreen: Displays chapter content and summary
 - PdfReaderScreen: Locates chapters during PDF reading
 
 ### Properties
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `id` | `String` | Yes | - | Unique chapter identifier |
+| `bookId` | `String` | No | `''` | Associated book's unique identifier |
 | `index` | `int` | Yes | - | Chapter index in TOC (0-based) |
 | `title` | `String` | Yes | - | Chapter title |
 | `location` | `ChapterLocation` | Yes | - | Chapter location info |
 | `level` | `int` | No | 0 | Chapter hierarchy depth |
-
-### ID Format
-
-| Format | EPUB | PDF |
-|--------|------|-----|
-| Pattern | `chapter_{index}` | `page_{pageNumber}` |
-| Example | `chapter_0`, `chapter_1` | `page_1`, `page_10` |
+| `htmlContent` | `String?` | No | null | Chapter HTML content |
+| `objectiveSummary` | `String?` | No | null | AI-generated chapter summary |
 
 ### Level Hierarchy
 
@@ -55,64 +51,40 @@ Unified chapter model representing a single chapter in a book. Serves as the com
 ### Constructor
 
 ```
-CONSTRUCTOR Chapter(id, index, title, location, level):
-    SET id = id              // Required: unique identifier
-    SET index = index        // Required: position in TOC
-    SET title = title        // Required: chapter title
-    SET location = location  // Required: location info
-    SET level = level OR 0  // Optional: default 0
+CONSTRUCTOR Chapter(bookId, index, title, location, level, htmlContent, objectiveSummary):
+    SET bookId = bookId OR ''        // Optional: associated book ID
+    SET index = index                // Required: position in TOC
+    SET title = title                // Required: chapter title
+    SET location = location          // Required: location info
+    SET level = level OR 0           // Optional: default 0
+    SET htmlContent = htmlContent    // Optional: HTML content
+    SET objectiveSummary = objectiveSummary  // Optional: AI summary
 END CONSTRUCTOR
 ```
 
-### Methods
+---
 
-#### `toJson() -> Map<String, dynamic>`
+## Class: ChapterLocation
 
-**Purpose**: Convert Chapter object to JSON format Map.
+Represents chapter position information within a book file, supporting both EPUB href and PDF page range positioning.
 
-**Use Cases**:
-- Database storage serialization
-- Data transfer format conversion
+### Properties
 
-**Callers**: SummaryService, database persistence layer
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `href` | `String?` | No | Chapter relative path reference (EPUB) |
+| `startPage` | `int?` | No | Chapter start page number (PDF) |
+| `endPage` | `int?` | No | Chapter end page number (PDF) |
 
-**Pseudocode**:
+### Constructor
+
 ```
-FUNCTION toJson():
-    RETURN {
-        'id': this.id,
-        'index': this.index,
-        'title': this.title,
-        'location': this.location.toJson(),  // Delegate to ChapterLocation
-        'level': this.level
-    }
-END FUNCTION
+CONSTRUCTOR ChapterLocation(href, startPage, endPage):
+    SET href = href            // Optional: for EPUB
+    SET startPage = startPage  // Optional: for PDF
+    SET endPage = endPage      // Optional: for PDF
+END CONSTRUCTOR
 ```
-
-#### `fromJson(Map<String, dynamic> json) -> Chapter` (Factory)
-
-**Purpose**: Create Chapter object from JSON format Map.
-
-**Use Cases**:
-- Database read deserialization
-- API response parsing
-
-**Callers**: SummaryService, database persistence layer
-
-**Pseudocode**:
-```
-FUNCTION fromJson(json):
-    RETURN NEW Chapter(
-        id = json['id'],
-        index = json['index'],
-        title = json['title'],
-        location = ChapterLocation.fromJson(json['location']),
-        level = json['level'] OR 0  // Backward compatibility: default 0
-    )
-END FUNCTION
-```
-
-**Note**: The `level` field defaults to 0 for backward compatibility with old data that doesn't have this field.
 
 ---
 
@@ -120,19 +92,19 @@ END FUNCTION
 
 ```
 Chapter
-├── id: String
+├── bookId: String
 ├── index: int
 ├── title: String
 ├── location: ChapterLocation ─────────────────┐
 │   ├── href: String? (EPUB)                    │
 │   ├── startPage: int? (PDF)                   │
 │   └── endPage: int? (PDF)                     │
-└── level: int                                  │
+├── level: int                                  │
+├── htmlContent: String? (chapter text content) │
+└── objectiveSummary: String? (AI summary)      │
                                                 │
 Related Models:                                 │
 ├── Book (contains list of Chapters)            │
-├── ChapterContent (text content)               │
-├── ChapterSummary (AI-generated summary)       │
 └── ChapterLocation (location details) ─────────┘
 ```
 
@@ -159,9 +131,9 @@ Related Models:                                 │
             ▼                                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    List<Chapter>                            │
-│  Chapter(id='chapter_0', index=0, title='第一章',           │
+│  Chapter(index=0, title='第一章',                           │
 │          location=ChapterLocation(href='ch1.xhtml'))      │
-│  Chapter(id='chapter_1', index=1, title='第二章',           │
+│  Chapter(index=1, title='第二章',                           │
 │          location=ChapterLocation(href='ch2.xhtml'))      │
 │  ...                                                        │
 └─────────────────────────────────────────────────────────────┘
@@ -188,7 +160,6 @@ Related Models:                                 │
 // In EpubParser
 FUNCTION parseEpubChapter(navPoint, index):
     // Extract chapter info from NCX/NAV navigation point
-    id = 'chapter_${index}'
     title = navPoint.getLabel()
     href = navPoint.getContentSrc()
     level = navPoint.getDepth()
@@ -197,7 +168,6 @@ FUNCTION parseEpubChapter(navPoint, index):
     location = NEW ChapterLocation(href = href)
     
     RETURN NEW Chapter(
-        id = id,
         index = index,
         title = title,
         location = location,
@@ -212,16 +182,12 @@ END FUNCTION
 // In PdfParser
 FUNCTION parsePdfChapter(startPage, endPage, title, index):
     // Create chapter for PDF page range
-    id = 'page_${startPage}'
-    
-    // Create location with page range
     location = NEW ChapterLocation(
         startPage = startPage,
         endPage = endPage
     )
     
     RETURN NEW Chapter(
-        id = id,
         index = index,
         title = title,
         location = location,
@@ -230,30 +196,16 @@ FUNCTION parsePdfChapter(startPage, endPage, title, index):
 END FUNCTION
 ```
 
-### Serialization
+### Content Retrieval
 
 ```
-// Save to JSON
-chapter = NEW Chapter(
-    id = 'chapter_0',
-    index = 0,
-    title = '第一章 引言',
-    location = NEW ChapterLocation(href = 'chapter1.xhtml'),
-    level = 0
-)
-
-json = chapter.toJson()
-// Result:
-// {
-//   'id': 'chapter_0',
-//   'index': 0,
-//   'title': '第一章 引言',
-//   'location': { 'href': 'chapter1.xhtml', 'startPage': null, 'endPage': null },
-//   'level': 0
-// }
-
-// Load from JSON
-restoredChapter = Chapter.fromJson(json)
+// In SummaryService or ChapterScreen
+FUNCTION loadChapterContent(filePath, chapter):
+    parser = FormatRegistry.getParser(extension)
+    updatedChapter = await parser.getChapterContent(filePath, chapter)
+    
+    RETURN updatedChapter.htmlContent  // HTML content for rendering
+END FUNCTION
 ```
 
 ### Navigation Usage
@@ -287,7 +239,7 @@ END FUNCTION
 FUNCTION navigateToChapter(Chapter chapter):
     IF chapter.location.href IS NOT NULL:
         // EPUB: load HTML file
-        loadChapterContent(chapter.location.href)
+        loadChapterHtml(chapter.location.href)
     END IF
 END FUNCTION
 ```
@@ -306,7 +258,7 @@ FUNCTION generateChapterSummary(Book book, Chapter chapter):
         content = content
     )
     
-    // Save summary
+    // Save summary as markdown file
     saveChapterSummary(
         bookId = book.id,
         chapterIndex = chapter.index,
@@ -325,8 +277,6 @@ END FUNCTION
 
 3. **Level Support**: The `level` field supports hierarchical TOC structures, allowing nested chapters to be displayed with proper indentation.
 
-4. **Backward Compatibility**: When deserializing, missing `level` field defaults to 0, ensuring compatibility with old data.
+4. **Content + Metadata in One**: Chapter now carries both metadata (index/title/location) and runtime content (htmlContent/objectiveSummary), eliminating the need for separate ChapterContent and ChapterSummary models.
 
-5. **ID Uniqueness**: The `id` field should be unique within a book, typically combining format prefix with index or page number.
-
-6. **Index Consistency**: The `index` field should match the chapter's position in the book's chapter list for proper navigation.
+5. **Index Consistency**: The `index` field should match the chapter's position in the book's chapter list for proper navigation.

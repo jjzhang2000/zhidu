@@ -18,9 +18,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:pdfrx/pdfrx.dart';
-import '../models/chapter_summary.dart';
-import '../models/book.dart';
 import '../models/chapter.dart';
+import '../models/book.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import '../services/book_service.dart';
@@ -87,7 +86,7 @@ class _ChapterScreenState extends State<ChapterScreen>
   final _bookService = BookService();
 
   /// 当前章节的摘要数据
-  ChapterSummary? _summary;
+  Chapter? _summaryChapter;
 
   /// 是否正在生成摘要
   bool _isGenerating = false;
@@ -316,7 +315,7 @@ void dispose() {
     _contentTooShort = byteLength < 2000;
 
     // 内容过短且没有摘要时，默认切换到原文视图
-    if (_contentTooShort && _summary == null) {
+    if (_contentTooShort && _summaryChapter == null) {
       _tabController?.animateTo(2);
     }
   }
@@ -484,7 +483,7 @@ void dispose() {
       // 已有摘要，直接显示
       if (!mounted) return;
       setState(() {
-        _summary = summary;
+        _summaryChapter = summary;
       });
     } else {
       // 没有摘要，检查是否满足生成条件
@@ -496,11 +495,11 @@ void dispose() {
         });
         _generateSummaryWithStreaming();
       } else {
-        // 不满足生成条件，仅加载摘要（可能是空的）
-        if (!mounted) return;
-        setState(() {
-          _summary = summary;
-        });
+      // 不满足生成条件，仅加载摘要（可能是空的）
+      if (!mounted) return;
+      setState(() {
+        _summaryChapter = summary;
+      });
       }
     }
   }
@@ -560,14 +559,14 @@ void dispose() {
           // 从chapterTitles映射获取新标题
           final newTitle = updatedBook.chapterTitles?[widget.chapterIndex];
           setState(() {
-            _summary = summary;
+            _summaryChapter = summary;
             _title = newTitle ?? _title; // 使用新标题或保持原标题
             _isGenerating = false;
             _streamingSummary = '';  // 清空流式内容
           });
         } else {
           setState(() {
-            _summary = summary;
+            _summaryChapter = summary;
             _isGenerating = false;
             _streamingSummary = '';  // 清空流式内容
           });
@@ -654,7 +653,7 @@ void dispose() {
           final newTitle = updatedBook.chapterTitles?[widget.chapterIndex];
           if (mounted) {
             setState(() {
-              _summary = summary;
+              _summaryChapter = summary;
               _title = newTitle ?? _title;
               _streamingSummary = '';  // 清空流式内容，显示最终摘要
               _isGenerating = false;
@@ -663,7 +662,7 @@ void dispose() {
         } else {
           if (mounted) {
             setState(() {
-              _summary = summary;
+              _summaryChapter = summary;
               _streamingSummary = '';
               _isGenerating = false;
             });
@@ -987,7 +986,7 @@ void dispose() {
           // 2. 没有正在生成
           // 3. 有内容可用
           // 4. AI服务已配置
-          if (_summary == null && !_isGenerating && _content.isNotEmpty && _aiService.isConfigured)
+          if (_summaryChapter == null && !_isGenerating && _content.isNotEmpty && _aiService.isConfigured)
             TextButton.icon(
               onPressed: _generateSummaryWithStreaming,
               icon: const Icon(Icons.auto_awesome, size: 20),
@@ -1130,7 +1129,7 @@ void dispose() {
 /// - 支持单页PDF查看，配合翻页按钮
 Widget _buildSummaryView() {
   final bool originalViewDisabled =
-      _contentTooShort || (!_aiService.isConfigured && _summary == null);
+      _contentTooShort || (!_aiService.isConfigured && _summaryChapter == null);
 
   final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
   final unselectedColor = Colors.grey.withAlpha(80);
@@ -1209,8 +1208,8 @@ Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor
     }
     
     // 否则显示正常摘要
-    if (_summary != null) {
-      final htmlContent = md.markdownToHtml(_summary!.objectiveSummary);
+    if (_summaryChapter != null && _summaryChapter!.objectiveSummary != null) {
+      final htmlContent = md.markdownToHtml(_summaryChapter!.objectiveSummary!);
       return _buildNormalSummaryView(htmlContent);
     }
     

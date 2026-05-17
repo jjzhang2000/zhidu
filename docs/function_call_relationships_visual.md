@@ -39,8 +39,6 @@ graph TB
     subgraph 模型层["Models"]
         BK["Book"]
         CH["Chapter"]
-        CS["ChapterSummary"]
-        CC["ChapterContent"]
         CL["ChapterLocation"]
         OM["OpfMetadata"]
         AIS["AppSettings/AiSettings"]
@@ -488,7 +486,7 @@ classDiagram
     class BookFormatParser {
         <<interface>>
         +getChapters(filePath) List~Chapter~
-        +getChapterContent(filePath, index) ChapterContent
+        +getChapterContent(filePath, chapter) Chapter
         +extractCover(filePath, bookId) String?
     }
 
@@ -526,10 +524,7 @@ classDiagram
 erDiagram
     Book ||--o{ Chapter : contains
     Book ||--o| OpfMetadata : enriches
-    Book ||--o| ChapterSummary : has-summaries
     Chapter ||--|| ChapterLocation : uses
-    Chapter ||--o| ChapterContent : has
-    Chapter ||--o| ChapterSummary : has
     OpfReaderService ||--o| OpfMetadata : parses
 
     Book {
@@ -539,32 +534,22 @@ erDiagram
         string filePath
         BookFormat format
         int totalChapters
-        string aiIntroduction
     }
 
     Chapter {
+        string bookId
         int index UK
         string title
-        string id UK
-        ChapterLocation location
-        bool isPreface
-    }
-
-    ChapterSummary {
-        int chapterIndex UK
-        string summary
-        string language
-        int wordCount
-    }
-
-    ChapterContent {
+        int level
         string htmlContent
-        string plainText
+        string objectiveSummary
+        ChapterLocation location
     }
 
     ChapterLocation {
         string href
-        int pageNumber
+        int startPage
+        int endPage
     }
 
     OpfMetadata {

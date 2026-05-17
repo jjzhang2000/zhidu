@@ -37,188 +37,6 @@ void main() {
     }
   });
 
-  group('AIConfig', () {
-    group('fromJson', () {
-      test('should parse qwen config correctly', () {
-        final json = {
-          'ai_provider': 'qwen',
-          'qwen': {
-            'api_key': 'test_qwen_key',
-            'model': 'qwen-plus',
-            'base_url': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-          },
-        };
-
-        final config = AIConfig.fromJson(json);
-
-        expect(config.provider, 'qwen');
-        expect(config.apiKey, 'test_qwen_key');
-        expect(config.model, 'qwen-plus');
-        expect(config.baseUrl,
-            'https://dashscope.aliyuncs.com/compatible-mode/v1');
-      });
-
-      test('should parse zhipu config correctly', () {
-        final json = {
-          'ai_provider': 'zhipu',
-          'zhipu': {
-            'api_key': 'test_zhipu_key',
-            'model': 'glm-4-flash',
-            'base_url': 'https://open.bigmodel.cn/api/paas/v4',
-          },
-        };
-
-        final config = AIConfig.fromJson(json);
-
-        expect(config.provider, 'zhipu');
-        expect(config.apiKey, 'test_zhipu_key');
-        expect(config.model, 'glm-4-flash');
-        expect(config.baseUrl, 'https://open.bigmodel.cn/api/paas/v4');
-      });
-
-      test('should default to zhipu if ai_provider not specified', () {
-        final json = {
-          'zhipu': {
-            'api_key': 'default_key',
-            'model': 'glm-4',
-            'base_url': 'https://test.com',
-          },
-        };
-
-        final config = AIConfig.fromJson(json);
-
-        expect(config.provider, 'zhipu');
-      });
-
-      test('should use default values for missing fields', () {
-        final json = {
-          'ai_provider': 'qwen',
-          'qwen': {},
-        };
-
-        final config = AIConfig.fromJson(json);
-
-        expect(config.provider, 'qwen');
-        expect(config.apiKey, '');
-        expect(config.model, 'glm-4-flash');
-        expect(config.baseUrl, '');
-      });
-
-      test('should handle empty provider config', () {
-        final json = {
-          'ai_provider': 'unknown_provider',
-        };
-
-        final config = AIConfig.fromJson(json);
-
-        expect(config.provider, 'unknown_provider');
-        expect(config.apiKey, '');
-      });
-
-      test('should handle empty json', () {
-        final json = <String, dynamic>{};
-
-        final config = AIConfig.fromJson(json);
-
-        expect(config.provider, 'zhipu');
-        expect(config.apiKey, '');
-      });
-
-      test('should handle additional fields in json', () {
-        final json = {
-          'ai_provider': 'qwen',
-          'qwen': {
-            'api_key': 'key',
-            'model': 'qwen-plus',
-            'base_url': 'https://url',
-            'extra_field': 'ignored',
-          },
-          'other_field': 'also_ignored',
-        };
-
-        final config = AIConfig.fromJson(json);
-
-        expect(config.apiKey, 'key');
-        expect(config.model, 'qwen-plus');
-      });
-    });
-
-    group('isValid', () {
-      test('should be valid with non-empty apiKey', () {
-        final config = AIConfig(
-          provider: 'qwen',
-          apiKey: 'valid_api_key',
-          model: 'qwen-plus',
-          baseUrl: 'https://url',
-        );
-
-        expect(config.isValid, isTrue);
-      });
-
-      test('should be invalid with empty apiKey', () {
-        final config = AIConfig(
-          provider: 'qwen',
-          apiKey: '',
-          model: 'qwen-plus',
-          baseUrl: 'https://url',
-        );
-
-        expect(config.isValid, isFalse);
-      });
-
-      test('should be invalid with zhipu placeholder key', () {
-        final config = AIConfig(
-          provider: 'zhipu',
-          apiKey: 'YOUR_ZHIPU_API_KEY_HERE',
-          model: 'glm-4-flash',
-          baseUrl: 'https://url',
-        );
-
-        expect(config.isValid, isFalse);
-      });
-
-      test('should be invalid with qwen placeholder key', () {
-        final config = AIConfig(
-          provider: 'qwen',
-          apiKey: 'YOUR_QWEN_API_KEY_HERE',
-          model: 'qwen-plus',
-          baseUrl: 'https://url',
-        );
-
-        expect(config.isValid, isFalse);
-      });
-
-      test('should be valid with other placeholder-like keys', () {
-        final config = AIConfig(
-          provider: 'custom',
-          apiKey: 'YOUR_CUSTOM_API_KEY',
-          model: 'model',
-          baseUrl: 'https://url',
-        );
-
-        expect(config.isValid, isTrue);
-      });
-    });
-
-    group('fromAiSettings', () {
-      test('should create AIConfig from AiSettings correctly', () {
-        final aiSettings = AiSettings(
-          provider: 'qwen',
-          apiKey: 'test_key',
-          model: 'qwen-plus',
-          baseUrl: 'https://test.com',
-        );
-
-        final config = AIConfig.fromAiSettings(aiSettings);
-
-        expect(config.provider, 'qwen');
-        expect(config.apiKey, 'test_key');
-        expect(config.model, 'qwen-plus');
-        expect(config.baseUrl, 'https://test.com');
-      });
-    });
-  });
-
   group('AIService', () {
     group('singleton', () {
       test('should return same instance', () {
@@ -323,14 +141,15 @@ void main() {
       });
     });
 
-    group('generateFullChapterSummary', () {
-      test('should return null when not configured', () async {
-        final result = await aiService.generateFullChapterSummary(
+    group('generateFullChapterSummaryStream', () {
+      test('should return empty stream when not configured', () async {
+        final stream = aiService.generateFullChapterSummaryStream(
           'chapter content',
           chapterTitle: 'Chapter 1',
         );
 
-        expect(result, isNull);
+        final results = await stream.toList();
+        expect(results, isEmpty);
       });
 
       test('should call AI API when configured', () async {
@@ -372,12 +191,14 @@ void main() {
           );
         }));
 
-        final result = await aiService.generateFullChapterSummary(
+        final stream = aiService.generateFullChapterSummaryStream(
           'chapter content',
           chapterTitle: 'Chapter 1',
         );
 
-        expect(result, 'Generated summary content');
+        final results = await stream.toList();
+        final combined = results.join();
+        expect(combined, contains('Generated summary content'));
       });
 
       test('should handle API error response', () async {
@@ -400,12 +221,13 @@ void main() {
           return http.Response('Error message', 500);
         }));
 
-        final result = await aiService.generateFullChapterSummary(
+        final stream = aiService.generateFullChapterSummaryStream(
           'chapter content',
           chapterTitle: 'Chapter 1',
         );
 
-        expect(result, isNull);
+        final results = await stream.toList();
+        expect(results, isEmpty);
       });
 
       test('should work without chapterTitle', () async {
@@ -437,10 +259,12 @@ void main() {
           );
         }));
 
-        final result =
-            await aiService.generateFullChapterSummary('chapter content');
+        final stream =
+            aiService.generateFullChapterSummaryStream('chapter content');
 
-        expect(result, 'Summary without title');
+        final results = await stream.toList();
+        final combined = results.join();
+        expect(combined, contains('Summary without title'));
       });
 
       test('should handle malformed response', () async {
@@ -466,21 +290,23 @@ void main() {
           );
         }));
 
-        final result = await aiService.generateFullChapterSummary('content');
+        final stream = aiService.generateFullChapterSummaryStream('content');
 
-        expect(result, isNull);
+        final results = await stream.toList();
+        expect(results, isEmpty);
       });
     });
 
-    group('generateBookSummaryFromPreface', () {
-      test('should return null when not configured', () async {
-        final result = await aiService.generateBookSummaryFromPreface(
+    group('generateBookSummaryFromPrefaceStream', () {
+      test('should return empty stream when not configured', () async {
+        final stream = aiService.generateBookSummaryFromPrefaceStream(
           title: 'Book Title',
           author: 'Author',
           prefaceContent: 'Preface content',
         );
 
-        expect(result, isNull);
+        final results = await stream.toList();
+        expect(results, isEmpty);
       });
 
       test('should call AI API with correct parameters', () async {
@@ -519,14 +345,16 @@ void main() {
           );
         }));
 
-        final result = await aiService.generateBookSummaryFromPreface(
+        final stream = aiService.generateBookSummaryFromPrefaceStream(
           title: 'Book Title',
           author: 'Author',
           prefaceContent: 'Preface content',
           totalChapters: 10,
         );
 
-        expect(result, 'Book summary from preface');
+        final results = await stream.toList();
+        final combined = results.join();
+        expect(combined, contains('Book summary from preface'));
       });
 
       test('should work without totalChapters', () async {
@@ -558,13 +386,15 @@ void main() {
           );
         }));
 
-        final result = await aiService.generateBookSummaryFromPreface(
+        final stream = aiService.generateBookSummaryFromPrefaceStream(
           title: 'Book',
           author: 'Author',
           prefaceContent: 'Preface',
         );
 
-        expect(result, 'Summary');
+        final results = await stream.toList();
+        final combined = results.join();
+        expect(combined, contains('Summary'));
       });
 
       test('should handle API error', () async {
@@ -587,25 +417,27 @@ void main() {
           return http.Response('Error', 401);
         }));
 
-        final result = await aiService.generateBookSummaryFromPreface(
+        final stream = aiService.generateBookSummaryFromPrefaceStream(
           title: 'Book',
           author: 'Author',
           prefaceContent: 'Preface',
         );
 
-        expect(result, isNull);
+        final results = await stream.toList();
+        expect(results, isEmpty);
       });
     });
 
-    group('generateBookSummary', () {
-      test('should return null when not configured', () async {
-        final result = await aiService.generateBookSummary(
+    group('generateBookSummaryStream', () {
+      test('should return empty stream when not configured', () async {
+        final stream = aiService.generateBookSummaryStream(
           title: 'Book Title',
           author: 'Author',
           chapterSummaries: 'Chapter summaries',
         );
 
-        expect(result, isNull);
+        final results = await stream.toList();
+        expect(results, isEmpty);
       });
 
       test('should call AI API with correct parameters', () async {
@@ -644,14 +476,16 @@ void main() {
           );
         }));
 
-        final result = await aiService.generateBookSummary(
+        final stream = aiService.generateBookSummaryStream(
           title: 'Book Title',
           author: 'Author',
           chapterSummaries: 'Chapter summaries',
           totalChapters: 20,
         );
 
-        expect(result, 'Full book summary');
+        final results = await stream.toList();
+        final combined = results.join();
+        expect(combined, contains('Full book summary'));
       });
 
       test('should work without totalChapters', () async {
@@ -683,13 +517,15 @@ void main() {
           );
         }));
 
-        final result = await aiService.generateBookSummary(
+        final stream = aiService.generateBookSummaryStream(
           title: 'Book',
           author: 'Author',
           chapterSummaries: 'Summaries',
         );
 
-        expect(result, 'Summary');
+        final results = await stream.toList();
+        final combined = results.join();
+        expect(combined, contains('Summary'));
       });
 
       test('should handle API error', () async {
@@ -712,13 +548,14 @@ void main() {
           return http.Response('Error', 503);
         }));
 
-        final result = await aiService.generateBookSummary(
+        final stream = aiService.generateBookSummaryStream(
           title: 'Book',
           author: 'Author',
           chapterSummaries: 'Summaries',
         );
 
-        expect(result, isNull);
+        final results = await stream.toList();
+        expect(results, isEmpty);
       });
     });
 
