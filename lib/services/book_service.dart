@@ -240,9 +240,6 @@ class BookService {
           title: opfMetadata.title ?? book.title,
           author: opfMetadata.author ?? book.author,
           language: opfMetadata.language ?? book.language, // 使用OPF中的语言信息
-          publisher: opfMetadata.publisher ?? book.publisher,
-          description: opfMetadata.description ?? book.description,
-          subjects: opfMetadata.subjects.isNotEmpty ? opfMetadata.subjects : book.subjects,
           coverPath: finalCoverPath, // 总是使用最终确定的封面路径
         );
 

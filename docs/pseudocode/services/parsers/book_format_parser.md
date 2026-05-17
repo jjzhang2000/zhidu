@@ -32,37 +32,7 @@
 
 ## 接口方法定义
 
-### 1. parse() - 解析书籍元数据
-
-```
-FUNCTION parse(filePath: String) -> Future<BookMetadata>
-    PURPOSE: 解析书籍文件，提取元数据信息
-    
-    PARAMETERS:
-        filePath: 书籍文件的完整本地路径
-    
-    RETURNS:
-        BookMetadata object containing:
-        - title: 书籍标题
-        - author: 作者名称
-        - coverPath: 封面图片路径（可能为null）
-        - totalChapters: 总章节数
-        - format: 书籍格式（EPUB/PDF）
-    
-    CALLERS:
-        BookService.importBook()
-    
-    ASYNC REASON:
-        需要读取文件系统并解析文件内容
-    
-    EXAMPLE USAGE:
-        parser = EpubParser()
-        metadata = await parser.parse('/path/to/book.epub')
-        print(metadata.title)  // 输出书名
-END FUNCTION
-```
-
-### 2. getChapters() - 获取章节列表
+### 1. getChapters() - 获取章节列表
 
 ```
 FUNCTION getChapters(filePath: String) -> Future<List<Chapter>>
@@ -162,19 +132,6 @@ END FUNCTION
 
 ## 数据模型依赖
 
-### BookMetadata
-
-```
-CLASS BookMetadata
-    PROPERTIES:
-        title: String          // 书籍标题
-        author: String         // 作者名称
-        coverPath: String?     // 封面图片路径
-        totalChapters: int     // 总章节数
-        format: BookFormat     // 格式类型（epub/pdf）
-END CLASS
-```
-
 ### Chapter
 
 ```
@@ -239,11 +196,6 @@ END CLASS
 │         │                                                         │
 │         ▼                                                         │
 │  ┌─────────────────┐                                              │
-│  │ parser.parse()  │──────► Extract metadata                      │
-│  └─────────────────┘                                              │
-│         │                                                         │
-│         ▼                                                         │
-│  ┌─────────────────┐                                              │
 │  │ parser          │──────► Extract chapter list                  │
 │  │ .getChapters()  │                                              │
 │  └─────────────────┘                                              │
@@ -265,18 +217,13 @@ END CLASS
 要添加新的书籍格式支持：
 
 1. 创建实现 `BookFormatParser` 接口的新解析器类
-2. 实现所有四个抽象方法
+2. 实现所有三个抽象方法
 3. 在 `FormatRegistry.initialize()` 中注册新解析器
 4. 或在运行时通过 `FormatRegistry.register()` 动态注册
 
 ```
 // 新格式解析器示例
 class MobiParser implements BookFormatParser {
-    @override
-    Future<BookMetadata> parse(String filePath) async {
-        // MOBI格式解析逻辑
-    }
-    
     @override
     Future<List<Chapter>> getChapters(String filePath) async {
         // MOBI章节提取逻辑

@@ -42,94 +42,6 @@
 
 ## 核心解析流程
 
-### parse() - 元数据解析
-
-```
-FUNCTION parse(filePath: String) -> Future<BookMetadata>
-    LOG: 'parse 开始执行, filePath: $filePath'
-    
-    // Step 1: 文件存在性检查
-    file = File(filePath)
-    IF NOT await file.exists():
-        LOG: '文件不存在: $filePath'
-        THROW Exception('EPUB file not found: $filePath')
-    
-    // Step 2: 读取文件字节
-    bytes = await file.readAsBytes()
-    LOG: '文件大小: ${bytes.length} bytes'
-    
-    // Step 3: 初始化变量
-    title = null
-    author = null
-    chapterTitles = []
-    
-    // Step 4: 首选方案 - 使用EpubReader解析
-    TRY:
-        epubBook = await EpubReader.readBook(bytes)
-        LOG: 'EPUB解析成功'
-        
-        // 提取标题
-        title = epubBook.title
-        
-        // 提取作者（多个作者用逗号连接）
-        IF epubBook.authors?.isNotEmpty:
-            author = epubBook.authors!.join(', ')
-        
-        // 提取章节标题
-        IF epubBook.chapters?.isNotEmpty:
-            chapterTitles = _extractChapterTitles(epubBook.chapters!)
-    
-    CATCH e:
-        LOG: '使用EpubReader解析失败'
-        LOG: '尝试使用archive直接解析EPUB...'
-        
-        // Step 5: 回退方案 - 使用archive直接解析ZIP结构
-        archive = ZipDecoder().decodeBytes(bytes)
-        
-        // 解析container.xml获取OPF路径
-        containerInfo = _parseContainerXml(archive)
-        IF containerInfo != null:
-            title = containerInfo['title']
-            author = containerInfo['author']
-        
-        // 解析OPF文件获取元数据
-        opfInfo = _parseOpfFile(archive)
-        IF opfInfo != null:
-            title ??= opfInfo['title']  // 空值合并赋值
-            author ??= opfInfo['author']
-        
-        // 解析导航文件获取章节列表
-        chapterTitles = _parseNavigationFile(archive)
-    
-    // Step 6: 最终回退 - 从文件路径提取书名
-    IF title == null OR title.isEmpty:
-        title = _extractTitleFromPath(filePath)
-    
-    IF author == null OR author.isEmpty:
-        author = '未知作者'
-    
-    // Step 7: 提取封面图片
-    TRY:
-        coverPath = await extractCover(filePath)
-    CATCH e:
-        LOG: '封面提取失败'
-        coverPath = null
-    
-    LOG: '最终书名: $title'
-    LOG: '最终作者: $author'
-    LOG: '章节数: ${chapterTitles.length}'
-    
-    // Step 8: 返回元数据对象
-    RETURN BookMetadata(
-        title: title,
-        author: author,
-        coverPath: coverPath,
-        totalChapters: chapterTitles.length,
-        format: BookFormat.epub
-    )
-END FUNCTION
-```
-
 ### getChapters() - 章节列表提取
 
 ```
@@ -831,16 +743,6 @@ END CLASS
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Fallback Strategy Matrix                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │ parse() Fallback Chain                                    │ │
-│  ├───────────────────────────────────────────────────────────┤ │
-│  │ 1. EpubReader.readBook() → Primary                        │ │
-│  │ 2. _parseContainerXml() → Get OPF path                    │ │
-│  │ 3. _parseOpfFile() → Extract metadata                     │ │
-│  │ 4. _parseNavigationFile() → Get chapter titles            │ │
-│  │ 5. _extractTitleFromPath() → Final fallback               │ │
-│  └───────────────────────────────────────────────────────────┘ │
 │                                                                  │
 │  ┌───────────────────────────────────────────────────────────┐ │
 │  │ getChapters() Fallback Chain                              │ │

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This file defines the book entity model and the book format enumeration. The Book class represents a complete book with all its metadata, reading progress, and AI-generated content.
+This file defines the book entity model and the book format enumeration. The Book class represents a complete book with all its metadata, reading progress, and AI-generated chapter titles.
 
 ---
 
@@ -21,7 +21,7 @@ Defines supported book file formats.
 
 ## Class: Book
 
-Book entity class representing complete book information including metadata, reading progress, and AI-generated content.
+Book entity class representing complete book information including metadata, reading progress, and chapter titles.
 
 ### Properties
 
@@ -38,15 +38,15 @@ Book entity class representing complete book information including metadata, rea
 | `readingProgress` | `double` | No | Reading progress percentage 0.0-1.0 (default: 0.0) |
 | `addedAt` | `DateTime` | Yes | Time added to bookshelf |
 | `lastReadAt` | `DateTime?` | No | Last reading time (nullable) |
-| `aiIntroduction` | `String?` | No | AI-generated book introduction (nullable) |
 | `chapterTitles` | `Map<int, String>?` | No | Chapter index to title mapping (nullable) |
+| `language` | `String?` | No | Book language from OPF metadata (nullable) |
 
 ### Constructor
 
 ```
 CONSTRUCTOR Book(id, title, author, coverPath, filePath, format, 
                  totalChapters, currentChapter, readingProgress, 
-                 addedAt, lastReadAt, aiIntroduction, chapterTitles):
+                 addedAt, lastReadAt, chapterTitles, language):
     SET id = id                              // Required
     SET title = title                        // Required
     SET author = author                      // Required
@@ -58,8 +58,8 @@ CONSTRUCTOR Book(id, title, author, coverPath, filePath, format,
     SET readingProgress = readingProgress OR 0.0  // Default 0.0
     SET addedAt = addedAt                    // Required
     SET lastReadAt = lastReadAt              // Optional, default NULL
-    SET aiIntroduction = aiIntroduction      // Optional, default NULL
     SET chapterTitles = chapterTitles        // Optional, default NULL
+    SET language = language                  // Optional, default NULL
 END CONSTRUCTOR
 ```
 
@@ -75,7 +75,7 @@ END CONSTRUCTOR
 ```
 FUNCTION copyWith(id, title, author, coverPath, filePath, format,
                   totalChapters, currentChapter, readingProgress,
-                  addedAt, lastReadAt, aiIntroduction, chapterTitles):
+                  addedAt, lastReadAt, chapterTitles, language):
     RETURN NEW Book(
         id = id OR this.id,
         title = title OR this.title,
@@ -88,8 +88,8 @@ FUNCTION copyWith(id, title, author, coverPath, filePath, format,
         readingProgress = readingProgress OR this.readingProgress,
         addedAt = addedAt OR this.addedAt,
         lastReadAt = lastReadAt OR this.lastReadAt,
-        aiIntroduction = aiIntroduction OR this.aiIntroduction,
-        chapterTitles = chapterTitles OR this.chapterTitles
+        chapterTitles = chapterTitles OR this.chapterTitles,
+        language = language OR this.language
     )
 END FUNCTION
 ```
@@ -124,13 +124,13 @@ FUNCTION toJson():
         'readingProgress': this.readingProgress,
         'addedAt': this.addedAt.toIso8601String(),  // DateTime to ISO string
         'lastReadAt': this.lastReadAt?.toIso8601String(),  // Nullable
-        'aiIntroduction': this.aiIntroduction,
-        'chapterTitles': chapterTitlesJson
+        'chapterTitles': chapterTitlesJson,
+        'language': this.language
     }
 END FUNCTION
 ```
 
-**Callers**: Database (storage), ExportService (export)
+**Callers**: BookService (storage), ExportService (export)
 
 #### `fromJson(Map<String, dynamic> json) -> Book` (Factory)
 
@@ -175,13 +175,13 @@ FUNCTION fromJson(json):
         readingProgress = json['readingProgress']?.toDouble() OR 0.0,
         addedAt = addedAt,
         lastReadAt = lastReadAt,
-        aiIntroduction = json['aiIntroduction'],
-        chapterTitles = chapterTitles
+        chapterTitles = chapterTitles,
+        language = json['language']
     )
 END FUNCTION
 ```
 
-**Callers**: Database (reading), BookService (loading data)
+**Callers**: BookService (loading data)
 
 ---
 
@@ -200,13 +200,12 @@ Book
 ├── readingProgress: double              │
 ├── addedAt: DateTime                    │
 ├── lastReadAt: DateTime?                │
-├── aiIntroduction: String?              │
-└── chapterTitles: Map<int, String>?     │
+├── chapterTitles: Map<int, String>?     │
+├── language: String?                    │
                                          │
         Related Models:                  │
         ┌────────────────────────────────┘
         │
-        ├── BookMetadata (simplified book info)
         ├── Chapter (chapter details)
         ├── ChapterSummary (AI-generated summary)
         └── ChapterContent (chapter text content)
@@ -225,7 +224,7 @@ Book
 ┌─────────────────────────────────────────────────────────────┐
 │  BookService.importBook()                                    │
 │  1. Parse file (EPUB/PDF)                                    │
-│  2. Extract metadata → BookMetadata                         │
+│  2. Extract metadata (title/author/language from OPF)        │
 │  3. Create Book with metadata                                │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -242,9 +241,10 @@ Book
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Storage Flow                               │
-│  books_index.json ─────────────────────────────────────────┐│
+│  books.json ───────────────────────────────────────────────┐│
 │  books/{bookId}/metadata.json ─────────────────────────────┼┤
 │  books/{bookId}/cover.jpg ────────────────────────────────┘│
+│  books/{bookId}/summary-zh.md (全书摘要，独立文件存储)      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -276,15 +276,6 @@ updatedBook = book.copyWith(
     currentChapter = 10,
     readingProgress = 0.35,
     lastReadAt = DateTime.now()
-)
-```
-
-### Updating AI Introduction
-
-```
-// After AI generates book introduction
-updatedBook = book.copyWith(
-    aiIntroduction = '这是一部科幻小说...'
 )
 ```
 
@@ -331,10 +322,12 @@ restoredBook = Book.fromJson(json)
 
 3. **Chapter Titles Map**: The `chapterTitles` map uses integer keys (chapter index) for efficient lookup.
 
-4. **Nullable Fields**: `coverPath`, `lastReadAt`, `aiIntroduction`, and `chapterTitles` are nullable to handle cases where:
+4. **Nullable Fields**: `coverPath`, `lastReadAt`, `chapterTitles`, and `language` are nullable to handle cases where:
    - Book has no cover image
    - Book has never been read
-   - AI introduction hasn't been generated
    - Chapter titles haven't been parsed
+   - OPF metadata is not available
 
 5. **Format Fallback**: When deserializing, if the format string doesn't match any enum value, it defaults to `BookFormat.epub`.
+
+6. **全书摘要存储**: 全书摘要（summary-zh.md）不再存储在 metadata.json 中，而是以独立的 Markdown 文件存储在 `books/{bookId}/summary-zh.md`。这样避免了重复存储，同时方便用户直接查看和导出。

@@ -34,7 +34,6 @@ docs/pseudocode/
 ├── models/
 │   ├── app_settings.md           # 应用设置模型
 │   ├── book.md                   # 书籍模型
-│   ├── book_metadata.md          # 书籍元数据
 │   ├── chapter.md                # 章节模型
 │   ├── chapter_content.md        # 章节内容模型
 │   ├── chapter_location.md       # 章节位置模型
@@ -94,7 +93,6 @@ docs/pseudocode/
 |------|------|------|
 | `app_settings.dart` | `AiSettings`, `ThemeSettings`, `LanguageSettings`, `AppSettings`, `ThemeMode` | AI/主题/语言/完整设置聚合 |
 | `book.dart` | `Book`, `BookFormat` | 书籍实体，含阅读进度、AI介绍、OPF元数据 |
-| `book_metadata.dart` | `BookMetadata` | 导入预览阶段的元数据 |
 | `chapter.dart` | `Chapter` | 统一章节模型（EPUB/PDF） |
 | `chapter_content.dart` | `ChapterContent` | 章节纯文本+HTML内容 |
 | `chapter_location.dart` | `ChapterLocation` | 章节href/页码定位 |

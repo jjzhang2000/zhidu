@@ -187,9 +187,6 @@ class EpubService {
 
       // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
       String? opfLanguage;
-      String? opfPublisher;
-      String? opfDescription;
-      List<String>? opfSubjects;
       
       try {
         final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
@@ -198,9 +195,6 @@ class EpubService {
           title = opfMetadata.title ?? title;
           author = opfMetadata.author ?? author;
           opfLanguage = opfMetadata.language;
-          opfPublisher = opfMetadata.publisher;
-          opfDescription = opfMetadata.description;
-          opfSubjects = opfMetadata.subjects;
         }
       } catch (e) {
         _log.w('EpubService', '读取外部OPF元数据失败: $e');
@@ -216,9 +210,6 @@ class EpubService {
         totalChapters: chapterTitles.length,
         addedAt: DateTime.now(),
         language: opfLanguage,
-        publisher: opfPublisher,
-        description: opfDescription,
-        subjects: opfSubjects,
       );
     } catch (e, stackTrace) {
       _log.e('EpubService', '解析EPUB文件失败', e);

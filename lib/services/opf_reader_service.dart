@@ -95,27 +95,6 @@ class OpfReaderService {
         _log.d('OpfReaderService', '从OPF获取语言: $language');
       }
 
-      String? publisher;
-      final publisherElements = metadataElement.findAllElements('dc:publisher');
-      if (publisherElements.isNotEmpty) {
-        publisher = publisherElements.first.innerText.trim();
-        _log.d('OpfReaderService', '从OPF获取出版社: $publisher');
-      }
-
-      String? description;
-      final descElements = metadataElement.findAllElements('dc:description');
-      if (descElements.isNotEmpty) {
-        description = descElements.first.innerText.trim();
-        _log.d('OpfReaderService', '从OPF获取描述长度: ${description?.length ?? 0}');
-      }
-
-      List<String> subjects = [];
-      final subjectElements = metadataElement.findAllElements('dc:subject');
-      if (subjectElements.isNotEmpty) {
-        subjects = subjectElements.map((e) => e.innerText.trim()).toList();
-        _log.d('OpfReaderService', '从OPF获取主题数量: ${subjects.length}');
-      }
-
       // 提取封面引用
       String? coverPath;
       final metaElements = metadataElement.findElements('meta');
@@ -147,9 +126,6 @@ class OpfReaderService {
         author: author,
         language: language,
         coverPath: coverPath,
-        publisher: publisher,
-        description: description,
-        subjects: subjects,
       );
     } catch (e) {
       _log.w('OpfReaderService', '解析OPF内容失败, 错误: $e');

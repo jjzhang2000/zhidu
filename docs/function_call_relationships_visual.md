@@ -42,7 +42,6 @@ graph TB
         CS["ChapterSummary"]
         CC["ChapterContent"]
         CL["ChapterLocation"]
-        BM["BookMetadata"]
         OM["OpfMetadata"]
         AIS["AppSettings/AiSettings"]
     end
@@ -488,21 +487,18 @@ flowchart TD
 classDiagram
     class BookFormatParser {
         <<interface>>
-        +parse(filePath) BookMetadata
         +getChapters(filePath) List~Chapter~
         +getChapterContent(filePath, index) ChapterContent
         +extractCover(filePath, bookId) String?
     }
 
     class EpubParser {
-        +parse()
         +getChapters()
         +getChapterContent()
         +extractCover()
     }
 
     class PdfParser {
-        +parse()
         +getChapters()
         +getChapterContent()
         +extractCover()
@@ -529,7 +525,6 @@ classDiagram
 ```mermaid
 erDiagram
     Book ||--o{ Chapter : contains
-    Book ||--o| BookMetadata : during-import
     Book ||--o| OpfMetadata : enriches
     Book ||--o| ChapterSummary : has-summaries
     Chapter ||--|| ChapterLocation : uses

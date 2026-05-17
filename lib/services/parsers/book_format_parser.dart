@@ -3,7 +3,6 @@
 /// 功能：书籍格式解析器抽象接口定义
 /// ============================================================================
 
-import '../../models/book_metadata.dart';
 import '../../models/chapter.dart';
 import '../../models/chapter_content.dart';
 
@@ -28,31 +27,6 @@ import '../../models/chapter_content.dart';
 /// - BookService：书籍导入时调用解析器提取元数据和章节
 /// - SummaryService：生成摘要时调用解析器获取章节内容
 abstract class BookFormatParser {
-  /// 方法名：parse
-  /// 功能：解析书籍文件，提取元数据信息
-  ///
-  /// 参数：
-  /// - filePath: 书籍文件的完整本地路径
-  ///
-  /// 返回值：Future<BookMetadata> 包含书籍元数据的对象
-  ///   - title: 书籍标题
-  ///   - author: 作者名称
-  ///   - coverPath: 封面图片路径（可能为null）
-  ///   - totalChapters: 总章节数
-  ///   - format: 书籍格式（EPUB/PDF）
-  ///
-  /// 调用方：BookService.importBook()
-  ///
-  /// 异步原因：需要读取文件系统并解析文件内容
-  ///
-  /// 使用示例：
-  /// ```dart
-  /// final parser = EpubParser();
-  /// final metadata = await parser.parse('/path/to/book.epub');
-  /// print(metadata.title); // 输出书名
-  /// ```
-  Future<BookMetadata> parse(String filePath);
-
   /// 方法名：getChapters
   /// 功能：获取书籍的所有章节列表
   ///

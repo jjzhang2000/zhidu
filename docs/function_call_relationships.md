@@ -278,11 +278,11 @@ ZhiduApp (MaterialApp)
 ## 六、模型依赖关系
 
 ```
-BookService         → Book, BookMetadata, Chapter, ChapterSummary
+BookService         → Book, Chapter, ChapterSummary
 EpubService         → Book, Chapter, ChapterContent, ChapterLocation
 PdfService          → Book, PdfChapter, PdfPageContent
 AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 AiSettings)
-SummaryService      → ChapterSummary, Book (aiIntroduction字段)
+SummaryService      → ChapterSummary, Book (通过summary-zh.md文件存储全书摘要)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings
 OpfReaderService    → OpfMetadata
 
@@ -290,12 +290,13 @@ Book 模型包含:
   ├── String id, title, author, filePath, coverPath
   ├── BookFormat format (epub/pdf)
   ├── int totalChapters, currentChapterIndex
-  ├── String? aiIntroduction (全书摘要Markdown)
   ├── DateTime addedAt, lastReadAt
   ├── double readingProgress
-  ├── String? language, publisher, description (OPF 元数据字段)
-  ├── List<String> subjects (OPF 元数据字段)
+  ├── String? language (OPF 元数据字段)
+  ├── Map<int, String>? chapterTitles (AI 生成的章节标题)
   └── Map<String, String>? translations (译文状态)
+
+全书摘要独立存储在 books/{bookId}/summary-zh.md，不再使用 aiIntroduction 字段
 ```
 
 ---
@@ -367,19 +368,19 @@ SummaryService.getBookSummaryContent()
 │  - coverPath: String?  - contentType: String                     │
 │  - format: BookFormat                                         │
 │  - totalChapters: int    ChapterLocation      ChapterContent      │
-│  - aiIntroduction:       - href: String?      - htmlContent: String│
-│     String?              - pageNumber: int?   - plainText: String │
+│  - currentChapter: int   - href: String?      - htmlContent: String│
+│  - readingProgress: double- pageNumber: int?   - plainText: String │
 │  - language: String?                                             │
-│  - publisher: String?    OpfMetadata          AppSettings         │
-│  - description: String?  - title: String?     - ai: AiSettings    │
-│  - subjects: List<String>│- author: String?     - theme: ThemeSettings│
-│  - translations: Map?    - language: String?    - language: LangSettings│
+│  - chapterTitles: Map?   OpfMetadata          AppSettings         │
+│  - translations: Map?    - title: String?     - ai: AiSettings    │
+│                          - author: String?     - theme: ThemeSettings│
+│                          - language: String?    - language: LangSettings│
 │                          - coverPath: String?                     │
-│  BookMetadata            - publisher: String?   AiSettings        │
-│  - title: String         - description: String?- provider: String  │
-│  - author: String        - subjects: List<String>- apiKey: String │
-│  - coverPath: String?                      - model: String       │
-│  - chapterCount: int                       - baseUrl: String     │
+│                                              AiSettings           │
+│                                              - provider: String   │
+│                                              - apiKey: String     │
+│                                              - model: String      │
+│                                              - baseUrl: String    │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐

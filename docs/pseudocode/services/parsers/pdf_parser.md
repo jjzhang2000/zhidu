@@ -54,56 +54,6 @@
 
 ## 核心解析流程
 
-### parse() - 元数据解析
-
-```
-FUNCTION parse(filePath: String) -> Future<BookMetadata>
-    LOG: 'parse 开始执行, filePath: $filePath'
-    
-    // Step 1: 文件存在性检查
-    file = File(filePath)
-    IF NOT await file.exists():
-        LOG: '文件不存在: $filePath'
-        THROW Exception('PDF file not found: $filePath')
-    
-    TRY:
-        // Step 2: 打开PDF文档
-        // pdfrx库提供PDF文档的加载和渲染能力
-        document = await PdfDocument.openFile(filePath)
-        
-        // Step 3: 获取总页数
-        totalPages = document.pages.length
-        
-        // Step 4: 释放文档资源（重要！避免内存泄漏）
-        await document.dispose()
-        
-        // Step 5: 标题提取（从文件名）
-        // PDF内部元数据通常不可靠，使用文件名作为标题
-        fileName = p.basenameWithoutExtension(filePath)
-        
-        // Step 6: 文件名美化处理
-        // 移除下划线和连字符，转换为空格
-        // 例如: "my_book-title.pdf" → "my book title"
-        title = fileName.replaceAll('_', ' ').replaceAll('-', ' ')
-        
-        LOG: '书名: $title'
-        LOG: '总页数: $totalPages'
-        
-        // Step 7: 构建元数据对象
-        RETURN BookMetadata(
-            title: title,
-            author: 'Unknown',  // PDF作者信息需要额外提取
-            coverPath: null,    // PDF封面提取复杂，暂不支持
-            totalChapters: totalPages > 0 ? 1 : 0,  // 默认作为单章节处理
-            format: BookFormat.pdf
-        )
-    
-    CATCH e, stackTrace:
-        LOG: '解析PDF失败', e, stackTrace
-        THROW Exception('Failed to parse PDF: $e')
-END FUNCTION
-```
-
 ### getChapters() - 章节列表提取
 
 这是PDF解析器的核心算法，通过分析页面内容来识别章节边界。

@@ -84,6 +84,9 @@ TabController? _tabController;
   /// 流式全书摘要内容（实时显示）
   String _streamingBookSummary = '';
 
+  /// 从文件加载的全书摘要内容
+  String? _bookSummaryFromFile;
+
   /// 定时刷新计时器
   ///
   /// 每3秒检查一次书籍状态，用于：
@@ -100,6 +103,9 @@ TabController? _tabController;
 
     // 加载章节列表
     _loadChapters();
+
+    // 从文件加载全书摘要
+    _loadBookSummary();
 
     // 注册全书摘要流式回调
     _summaryService.registerBookStreamingCallback(_book.id, (content) {
@@ -129,8 +135,8 @@ TabController? _tabController;
     });
   }
 
-@override
-void dispose() {
+  @override
+  void dispose() {
   // 释放Tab控制器
   _tabController?.dispose();
   // 清理定时器，防止内存泄漏
@@ -177,6 +183,22 @@ void dispose() {
           _isLoadingChapters = false;
         });
       }
+    }
+  }
+
+  /// 从文件加载全书摘要
+  ///
+  /// 全书摘要存储在 books/{bookId}/summary-zh.md 文件中。
+  Future<void> _loadBookSummary() async {
+    try {
+      final summary = await _summaryService.getBookSummary(_book.id);
+      if (mounted) {
+        setState(() {
+          _bookSummaryFromFile = summary;
+        });
+      }
+    } catch (e, stackTrace) {
+      _log.e('BookScreen', '加载全书摘要失败', e, stackTrace);
     }
   }
 
@@ -235,33 +257,35 @@ void dispose() {
 
   /// 按需刷新书籍数据
   ///
-  /// 由定时器调用，检测书籍的[aiIntroduction]是否已更新。
+  /// 由定时器调用，检测全书摘要是否已从文件生成。
   /// 如果全书摘要从null变为有内容，则触发setState更新UI。
   ///
   /// 刷新逻辑：
-  /// 1. 从数据库获取最新书籍数据
-  /// 2. 比较[aiIntroduction]是否变化
+  /// 1. 从文件获取最新全书摘要
+  /// 2. 比较摘要是否变化
   /// 3. 变化则setState更新UI，否则静默更新_book引用
-  /// 4. 如果aiIntroduction有值，说明全书摘要生成完成，清空流式状态
+  /// 4. 如果摘要有值，说明全书摘要生成完成，清空流式状态
   ///
   /// 这种设计避免了频繁setState，只在真正需要时更新UI。
-  void _refreshBookIfNeeded() {
-    final refreshedBook = _bookService.getBookById(_book.id);
-    if (refreshedBook != null && mounted) {
-      // 全书摘要发生变化，需要更新UI
-      if (refreshedBook.aiIntroduction != _book.aiIntroduction) {
-        setState(() {
-          _book = refreshedBook;
-          // 如果新值有内容，说明生成完成，清空流式状态
-          if (refreshedBook.aiIntroduction != null &&
-              refreshedBook.aiIntroduction!.isNotEmpty) {
-            _streamingBookSummary = '';
-          }
-        });
-      } else {
-        // 无变化，静默更新引用
-        _book = refreshedBook;
+  void _refreshBookIfNeeded() async {
+    try {
+      final summary = await _summaryService.getBookSummary(_book.id);
+      if (mounted) {
+        final hasNewSummary = summary != null && summary.isNotEmpty;
+        final hadOldSummary = _bookSummaryFromFile != null && _bookSummaryFromFile!.isNotEmpty;
+
+        if (hasNewSummary != hadOldSummary || summary != _bookSummaryFromFile) {
+          setState(() {
+            _bookSummaryFromFile = summary;
+            // 如果新摘要有内容，说明生成完成，清空流式状态
+            if (hasNewSummary) {
+              _streamingBookSummary = '';
+            }
+          });
+        }
       }
+    } catch (e) {
+      _log.w('BookScreen', '刷新书籍摘要失败: $e');
     }
   }
 
@@ -529,7 +553,7 @@ Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor
     }
 
     // 没有全书摘要
-    if (_book.aiIntroduction == null || _book.aiIntroduction!.isEmpty) {
+    if (_bookSummaryFromFile == null || _bookSummaryFromFile!.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -554,7 +578,7 @@ Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor
     }
 
     // 显示全书摘要（Markdown渲染）
-    final htmlContent = md.markdownToHtml(_book.aiIntroduction!);
+    final htmlContent = md.markdownToHtml(_bookSummaryFromFile!);
     return GestureDetector(
       // 点击摘要进入第一章阅读
       onTap: _flatChapters.isNotEmpty

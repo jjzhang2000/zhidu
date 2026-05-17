@@ -15,24 +15,12 @@ class OpfMetadata {
   /// 封面图片路径（相对于OPF文件的路径）
   final String? coverPath;
 
-  /// 出版社
-  final String? publisher;
-
-  /// 书籍描述
-  final String? description;
-
-  /// 主题/标签列表
-  final List<String> subjects;
-
   /// 构造函数
   OpfMetadata({
     this.title,
     this.author,
     this.language,
     this.coverPath,
-    this.publisher,
-    this.description,
-    this.subjects = const [],
   });
 
   /// 创建副本，可以选择性修改部分字段
@@ -41,18 +29,12 @@ class OpfMetadata {
     String? author,
     String? language,
     String? coverPath,
-    String? publisher,
-    String? description,
-    List<String>? subjects,
   }) {
     return OpfMetadata(
       title: title ?? this.title,
       author: author ?? this.author,
       language: language ?? this.language,
       coverPath: coverPath ?? this.coverPath,
-      publisher: publisher ?? this.publisher,
-      description: description ?? this.description,
-      subjects: subjects ?? this.subjects,
     );
   }
 }

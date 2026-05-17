@@ -23,7 +23,6 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
 
 import '../../models/book.dart';
-import '../../models/book_metadata.dart';
 import '../../models/chapter.dart';
 import '../../models/chapter_content.dart';
 import '../../models/chapter_location.dart';
@@ -47,117 +46,6 @@ import '../opf_reader_service.dart';
 class PdfParser implements BookFormatParser {
   /// 日志服务实例
   final LogService _log = LogService();
-
-  // ============================================================
-  // 元数据解析
-  // ============================================================
-
-  /// 解析PDF文件，提取书籍元数据
-  ///
-  /// 解析流程：
-  /// 1. 检查文件是否存在
-  /// 2. 使用pdfrx打开PDF文档
-  /// 3. 获取总页数
-  /// 4. 从文件名提取标题（PDF内部元数据不可靠）
-  /// 5. 释放文档资源
-  ///
-  /// 参数：
-  /// - [filePath] PDF文件路径
-  ///
-  /// 返回：
-  /// - BookMetadata对象，包含标题、页数等信息
-  ///
-  /// 注意：
-  /// - PDF的作者信息需要从文件内部元数据提取，但目前使用"Unknown"
-  /// - 标题从文件名推导，会替换下划线和连字符为空格
-  /// - 总章节数暂时设为1（PDF通常按页处理，不自动分章）
-  @override
-  Future<BookMetadata> parse(String filePath) async {
-    _log.v('PdfParser', 'parse 开始执行, filePath: $filePath');
-
-    // ----------------------------------------------------------
-    // 文件存在性检查
-    // ----------------------------------------------------------
-    final file = File(filePath);
-    if (!await file.exists()) {
-      _log.w('PdfParser', '文件不存在: $filePath');
-      throw Exception('PDF file not found: $filePath');
-    }
-
-    try {
-      // ----------------------------------------------------------
-      // 打开PDF文档并提取基本信息
-      // ----------------------------------------------------------
-      // pdfrx库提供PDF文档的加载和渲染能力
-      // openFile是异步方法，返回PdfDocument对象
-      final document = await PdfDocument.openFile(filePath);
-      final totalPages = document.pages.length;
-
-      // 重要：及时释放文档资源，避免内存泄漏
-      // pdfrx使用原生PDF库，需要显式释放
-      await document.dispose();
-
-      // ----------------------------------------------------------
-      // 标题提取（从文件名）
-      // ----------------------------------------------------------
-      // PDF文件的内部元数据（标题、作者）通常不可靠
-      // 很多PDF没有正确设置元数据，因此使用文件名作为标题
-      final fileName = p.basenameWithoutExtension(filePath);
-
-      // 文件名美化处理：
-      // - 移除下划线，转换为空格
-      // - 移除连字符，转换为空格
-      // 例如: "my_book-title.pdf" → "my book title"
-      var title = fileName.replaceAll('_', ' ').replaceAll('-', ' ');
-
-      _log.d('PdfParser', '初始书名: $title');
-      _log.d('PdfParser', '总页数: $totalPages');
-
-      // 尝试读取同目录下的metadata.opf文件，优先使用OPF中的元数据
-      String? opfTitle;
-      String? opfAuthor;
-      String? opfLanguage;
-      String? opfPublisher;
-      String? opfDescription;
-      List<String>? opfSubjects;
-      
-      try {
-        final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
-        if (opfMetadata != null) {
-          _log.d('PdfParser', '使用外部OPF元数据覆盖解析结果');
-          opfTitle = opfMetadata.title;
-          opfAuthor = opfMetadata.author;
-          opfLanguage = opfMetadata.language;
-          opfPublisher = opfMetadata.publisher;
-          opfDescription = opfMetadata.description;
-          opfSubjects = opfMetadata.subjects;
-          
-          // 使用OPF元数据覆盖默认值
-          title = opfTitle ?? title;
-        }
-      } catch (e) {
-        _log.w('PdfParser', '读取外部OPF元数据失败: $e');
-      }
-
-      // ----------------------------------------------------------
-      // 构建元数据对象
-      // ----------------------------------------------------------
-      return BookMetadata(
-        title: title,
-        author: opfAuthor ?? 'Unknown', // 优先使用OPF中的作者信息
-        coverPath: null, // PDF封面提取复杂，暂不支持
-        totalChapters: totalPages > 0 ? 1 : 0, // 默认作为单章节处理
-        format: BookFormat.pdf,
-        language: opfLanguage,
-        publisher: opfPublisher,
-        description: opfDescription,
-        subjects: opfSubjects,
-      );
-    } catch (e, stackTrace) {
-      _log.e('PdfParser', '解析PDF失败', e, stackTrace);
-      throw Exception('Failed to parse PDF: $e');
-    }
-  }
 
   // ============================================================
   // 章节提取

@@ -28,7 +28,6 @@ import 'package:xml/xml.dart';
 import 'dart:convert';
 
 import '../../models/book.dart';
-import '../../models/book_metadata.dart';
 import '../../models/chapter.dart';
 import '../../models/chapter_content.dart';
 import '../../models/chapter_location.dart';
@@ -51,129 +50,6 @@ class EpubParser implements BookFormatParser {
 
   /// UUID生成器，用于生成章节唯一标识
   final Uuid _uuid = const Uuid();
-
-  /// 方法名：parse
-  /// 功能：解析EPUB文件并提取书籍元数据
-  ///
-  /// 参数：
-  /// - filePath: EPUB文件的绝对路径
-  ///
-  /// 返回值：BookMetadata对象，包含书名、作者、封面路径、章节数等信息
-  ///
-  /// 调用方：BookService.importBook()
-  ///
-  /// 算法逻辑：
-  /// 1. 读取文件字节
-  /// 2. 使用EpubReader解析（首选方案）
-  /// 3. 若失败，使用archive直接解析container.xml和opf文件（回退方案）
-  /// 4. 提取封面图片并保存到本地
-  /// 5. 返回BookMetadata
-  @override
-  Future<BookMetadata> parse(String filePath) async {
-    _log.v('EpubParser', 'parse 开始执行, filePath: $filePath');
-
-    final file = File(filePath);
-    if (!await file.exists()) {
-      _log.w('EpubParser', '文件不存在: $filePath');
-      throw Exception('EPUB file not found: $filePath');
-    }
-
-    final bytes = await file.readAsBytes();
-    _log.d('EpubParser', '文件大小: ${bytes.length} bytes');
-
-    String? title;
-    String? author;
-    List<String> chapterTitles = [];
-
-    try {
-      // 首选方案：使用EpubReader解析EPUB标准结构
-      final epubBook = await EpubReader.readBook(bytes);
-      _log.d('EpubParser', 'EPUB解析成功');
-
-      title = epubBook.title;
-
-      if (epubBook.authors?.isNotEmpty == true) {
-        author = epubBook.authors!.join(', ');
-      }
-
-      if (epubBook.chapters?.isNotEmpty == true) {
-        chapterTitles = _extractChapterTitles(epubBook.chapters!);
-      }
-    } catch (e, stackTrace) {
-      _log.e('EpubParser', '使用EpubReader解析失败', e);
-      _log.d('EpubParser', '尝试使用archive直接解析EPUB...');
-
-      // 回退方案：使用archive直接解析ZIP结构
-      final archive = ZipDecoder().decodeBytes(bytes);
-
-      final containerInfo = _parseContainerXml(archive);
-      if (containerInfo != null) {
-        title = containerInfo['title'];
-        author = containerInfo['author'];
-      }
-
-      final opfInfo = _parseOpfFile(archive);
-      if (opfInfo != null) {
-        title ??= opfInfo['title'];
-        author ??= opfInfo['author'];
-      }
-
-      chapterTitles = _parseNavigationFile(archive);
-    }
-
-    // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
-    String? opfLanguage;
-    String? opfPublisher;
-    String? opfDescription;
-    List<String>? opfSubjects;
-    
-    try {
-      final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
-      if (opfMetadata != null) {
-        _log.d('EpubParser', '使用外部OPF元数据覆盖解析结果');
-        title = opfMetadata.title ?? title;
-        author = opfMetadata.author ?? author;
-        opfLanguage = opfMetadata.language;
-        opfPublisher = opfMetadata.publisher;
-        opfDescription = opfMetadata.description;
-        opfSubjects = opfMetadata.subjects;
-      }
-    } catch (e) {
-      _log.w('EpubParser', '读取外部OPF元数据失败: $e');
-    }
-
-    // 最终回退：从文件路径提取书名
-    if (title == null || title.isEmpty) {
-      title = _extractTitleFromPath(filePath);
-    }
-    if (author == null || author.isEmpty) {
-      author = '未知作者';
-    }
-
-    // 提取封面图片
-    String? coverPath;
-    try {
-      coverPath = await extractCover(filePath);
-    } catch (e) {
-      _log.e('EpubParser', '封面提取失败', e);
-    }
-
-    _log.d('EpubParser', '最终书名: $title');
-    _log.d('EpubParser', '最终作者: $author');
-    _log.d('EpubParser', '章节数: ${chapterTitles.length}');
-
-    return BookMetadata(
-      title: title,
-      author: author,
-      coverPath: coverPath,
-      totalChapters: chapterTitles.length,
-      format: BookFormat.epub,
-      language: opfLanguage,
-      publisher: opfPublisher,
-      description: opfDescription,
-      subjects: opfSubjects,
-    );
-  }
 
   /// 方法名：getChapters
   /// 功能：获取EPUB文件的章节列表

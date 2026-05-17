@@ -294,11 +294,6 @@ END FUNCTION
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │ class MobiParser implements BookFormatParser {          │   │
 │  │     @override                                           │   │
-│  │     Future<BookMetadata> parse(String filePath) async { │   │
-│  │         // MOBI format parsing logic                    │   │
-│  │     }                                                   │   │
-│  │                                                          │   │
-│  │     @override                                           │   │
 │  │     Future<List<Chapter>> getChapters(String fp) async {│   │
 │  │         // MOBI chapter extraction logic                │   │
 │  │     }                                                   │   │

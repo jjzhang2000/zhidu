@@ -118,9 +118,6 @@ class PdfService {
 
       // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
       String? opfLanguage;
-      String? opfPublisher;
-      String? opfDescription;
-      List<String>? opfSubjects;
       var author = 'Unknown'; // PDF通常无法自动提取作者信息
       
       try {
@@ -130,9 +127,6 @@ class PdfService {
           title = opfMetadata.title ?? title;
           author = opfMetadata.author ?? author; // 仅在OPF中提供了作者时才更新
           opfLanguage = opfMetadata.language;
-          opfPublisher = opfMetadata.publisher;
-          opfDescription = opfMetadata.description;
-          opfSubjects = opfMetadata.subjects;
         }
       } catch (e) {
         _log.w('PdfService', '读取外部OPF元数据失败: $e');
@@ -149,9 +143,6 @@ class PdfService {
         totalChapters: chapters.length,
         addedAt: DateTime.now(),
         language: opfLanguage,
-        publisher: opfPublisher,
-        description: opfDescription,
-        subjects: opfSubjects,
       );
     } catch (e, stackTrace) {
       _log.e('PdfService', '解析PDF失败', e, stackTrace);
