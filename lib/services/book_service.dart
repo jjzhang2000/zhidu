@@ -2,13 +2,12 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import '../models/book.dart';
-import '../models/opf_metadata.dart';
+import 'opf_reader_service.dart';
 import 'epub_service.dart';
 import 'pdf_service.dart';
 import 'log_service.dart';
 import 'storage_config.dart';
 import 'file_storage_service.dart';
-import 'opf_reader_service.dart';
 
 /// 书籍管理服务 - 负责书籍的导入、存储、查询和删除
 ///

@@ -6,7 +6,7 @@ Calibre `metadata.opf` 文件的解析结果模型。用于在导入书籍时从
 
 ## 源文件
 
-`lib/models/opf_metadata.dart`
+`lib/models/book.dart`（OpfMetadata 类定义在文件末尾）
 
 ## 类定义
 

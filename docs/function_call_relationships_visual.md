@@ -40,7 +40,7 @@ graph TB
         BK["Book"]
         CH["Chapter"]
         CL["ChapterLocation"]
-        OM["OpfMetadata"]
+        OM["OpfMetadata\n(定义在book.dart)"]
         AIS["AppSettings/AiSettings"]
     end
 

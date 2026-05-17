@@ -374,17 +374,23 @@ SummaryService.getBookSummaryContent()
 │  - title: String       - index: int          - startPage: int?    │
 │  - author: String      - title: String       - endPage: int?      │
 │  - filePath: String    - location: ChapterLoc│
-│  - coverPath: String?  - level: int          OpfMetadata          │
-│  - format: BookFormat  - htmlContent: String? - title: String?    │
-│  - totalChapters: int  - objectiveSummary:     - author: String?  │
-│  - currentChapter: int       String?            - language: String?│
-│  - readingProgress: double                    - coverPath: String?│
+│  - coverPath: String?  - level: int                              │
+│  - format: BookFormat  - htmlContent: String?                    │
+│  - totalChapters: int  - objectiveSummary:                        │
+│  - currentChapter: int       String?                              │
+│  - readingProgress: double                                        │
 │  - language: String?                                              │
 │  - chapterTitles: Map?  AppSettings           AiSettings          │
-│  - translations: Map?  - ai: AiSettings      - provider: String   │
+│                          - ai: AiSettings      - provider: String   │
 │                          - theme: ThemeSettings- apiKey: String    │
 │                          - language: LangSettings- model: String   │
 │                                                - baseUrl: String   │
+│                                                                    │
+│  OpfMetadata (定义在 book.dart 末尾)                              │
+│  - title: String?                                                 │
+│  - author: String?                                                │
+│  - language: String?                                              │
+│  - coverPath: String?                                             │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐

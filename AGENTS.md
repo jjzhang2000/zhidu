@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-17**: OpfMetadata类合并 — OpfMetadata类从opf_metadata.dart移动到book.dart文件末尾，删除独立的opf_metadata.dart文件，更新所有导入引用和文档
 **2026-05-17**: Book模型清理 — 删除aiIntroduction字段（改用summary-zh.md独立文件存储全书摘要），删除publisher/description/subjects僵尸字段（OPF元数据从未被读取使用）
 **2026-05-17**: Chapter类合并 — ChapterContent/ChapterSummary类合并到Chapter类，删除bookId以外所有JSON序列化方法，删除chapter.id字段（改用bookId），删除ChapterSummary的aiInsight/keyPoints/createdAt死字段，删除chapter_content.md/chapter_summary.md/chapter_location.md文档，getChapterContent返回类型改为Chapter
 **2026-05-16**: SummaryService清理与回调合并 — 删除`_generatingBookSummaryKeys`/`_generatingFutures`等6个方法，合并回调Map；删除TranslationService文档引用

@@ -9,7 +9,7 @@
 /// 4. 应用将优先使用 OPF 中的元数据
 
 import 'package:zhidu/services/opf_reader_service.dart';
-import 'package:zhidu/models/opf_metadata.dart';
+import 'package:zhidu/models/book.dart';
 
 /// 这是一个示例 OPF 文件内容，展示了 Calibre 生成的典型格式
 const String sampleCalibreOpf = '''<?xml version="1.0" encoding="utf-8"?>

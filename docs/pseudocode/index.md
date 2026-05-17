@@ -33,9 +33,8 @@ docs/pseudocode/
 │   └── app_localizations.md      # 国际化
 ├── models/
 │   ├── app_settings.md           # 应用设置模型
-│   ├── book.md                   # 书籍模型
-│   ├── chapter.md                # 章节模型（含ChapterLocation）
-│   └── opf_metadata.md           # OPF元数据模型
+│   ├── book.md                   # 书籍模型（含OpfMetadata）
+│   └── chapter.md                # 章节模型（含ChapterLocation）
 ├── screens/
 │   ├── ai_config_screen.md       # AI 配置页面
 │   ├── book_screen.md            # 书籍详情页面
@@ -89,9 +88,8 @@ docs/pseudocode/
 | 文件 | 模型 | 说明 |
 |------|------|------|
 | `app_settings.dart` | `AiSettings`, `ThemeSettings`, `LanguageSettings`, `AppSettings`, `ThemeMode` | AI/主题/语言/完整设置聚合 |
-| `book.dart` | `Book`, `BookFormat` | 书籍实体，含阅读进度、AI介绍、OPF元数据 |
+| `book.dart` | `Book`, `BookFormat`, `OpfMetadata` | 书籍实体 + OPF元数据，含阅读进度 |
 | `chapter.dart` | `Chapter`, `ChapterLocation` | 统一章节模型（元数据+内容+摘要），含定位信息 |
-| `opf_metadata.dart` | `OpfMetadata` | Calibre metadata.opf 解析结果 |
 
 ---
 

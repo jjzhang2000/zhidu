@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
-import '../models/opf_metadata.dart';
+import '../models/book.dart';
 import 'log_service.dart';
 
 /// OPF读取服务
