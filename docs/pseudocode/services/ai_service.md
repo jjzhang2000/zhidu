@@ -1174,6 +1174,9 @@ Body:
 
 ## 版本历史
 
+- **2026-05-17**: 新增 `fetchAvailableModels()` 方法
+  - 调用 `/v1/models` 端点获取提供商可用模型列表
+  - 返回模型 ID 列表，按字母排序
 - **2026-04-24**: 添加流式显示功能
   - 新增流式方法：generateFullChapterSummaryStream()
   - 新增流式方法：generateBookSummaryStream()

@@ -446,3 +446,13 @@ Return to SettingsScreen
     ↓
 ListenableBuilder updates AI status display
 ```
+
+---
+
+## Version History
+
+- **2026-05-17**: Model selection improvement
+  - Changed to dropdown-only selection (no manual input)
+  - Models fetched dynamically via `AIService.fetchAvailableModels()`
+  - Model names sorted alphabetically
+  - Removed `cachedModels` caching mechanism

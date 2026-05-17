@@ -17,6 +17,7 @@ import 'package:zhidu/l10n/app_localizations.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 import '../services/ai_service.dart';
+import '../services/log_service.dart';
 
 /// AI配置页面组件
 ///
@@ -41,8 +42,12 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// AI服务单例
   final _aiService = AIService();
 
+  /// 日志服务实例
+  final _log = LogService();
+
   /// 表单Key，用于验证
   final _formKey = GlobalKey<FormState>();
+  final _modelBoxKey = GlobalKey();
 
   /// 提供商选项
   static const _providers = [
@@ -77,16 +82,6 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     }
   }
 
-  /// 模型映射表
-  /// 每个提供商对应不同的推荐模型选项
-  static const _modelsByProvider = {
-    'zhipu': ['glm-4-flash', 'glm-4', 'glm-4-plus'],
-    'qwen': ['qwen-turbo', 'qwen-plus', 'qwen-max'],
-    'deepseek': ['deepseek-chat', 'deepseek-reasoner'],
-    'minimax': ['MiniMax-M1', 'MiniMax-Text-01'],
-    'lmstudio': ['local-model', 'Llama-3.2-3B-Instruct', 'phi3', 'gemma2'],
-  };
-
   /// 默认Base URL映射
   static const _defaultBaseUrls = {
     'zhipu': 'https://open.bigmodel.cn/api/paas/v4',
@@ -99,9 +94,6 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
 
   /// 当前选中的提供商
   String _selectedProvider = '';
-
-  /// 当前选中的模型
-  String _selectedModel = '';
 
   /// API Key控制器
   late TextEditingController _apiKeyController;
@@ -127,13 +119,15 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// 测试连接是否成功
   bool? _testResultSuccess;
 
+  /// 当前可用的模型列表
+  List<String> _availableModels = [];
+
   /// 获取当前可用模型列表
-  ///
-  /// 根据选中的提供商返回对应的推荐模型选项
   List<String> get _recommendedModels {
-    return _selectedProvider.isNotEmpty
-        ? (_modelsByProvider[_selectedProvider] ?? [])
-        : [];
+    if (_availableModels.isNotEmpty) {
+      return _availableModels;
+    }
+    return [];
   }
 
   /// 当前选中的提供商是否需要 API Key
@@ -156,7 +150,6 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     if (!_providers.any((entry) => entry.key == _selectedProvider)) {
       _selectedProvider = _providers.first.key;
     }
-    _selectedModel = aiSettings.model;
     final needsApiKey = _requiresApiKey;
     _apiKeyController = TextEditingController(
       text: needsApiKey ? aiSettings.apiKey : '',
@@ -174,6 +167,9 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   void initState() {
     super.initState();
     _loadCurrentSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchModelsForCurrentProvider();
+    });
   }
 
   @override
@@ -213,20 +209,40 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
         _baseUrlController.text = currentAiSettings.baseUrl;
       } else {
         _baseUrlController.text = _defaultBaseUrls[newProvider]!;
-        if (!_requiresApiKey) {
-          _apiKeyController.clear();
-        }
+        _apiKeyController.clear();
+        _modelController.clear();
+        _availableModels.clear();
       }
     });
+
+    _fetchModelsForCurrentProvider();
   }
 
-  /// 更新模型值
-  ///
-  /// 当模型文本输入框内容变化时更新
-  void _onModelChanged() {
+  /// 获取当前提供商的可用模型列表
+  Future<void> _fetchModelsForCurrentProvider() async {
+    final provider = _selectedProvider;
+    if (provider.isEmpty) return;
+
+    final baseUrl = _baseUrlController.text.trim();
+
     setState(() {
-      _selectedModel = _modelController.text.trim();
+      _availableModels.clear();
     });
+
+    try {
+      final models = await _aiService.fetchAvailableModels(
+        baseUrl: baseUrl,
+        apiKey: _apiKeyController.text.trim(),
+      );
+
+      if (models.isNotEmpty && mounted) {
+        setState(() {
+          _availableModels = models;
+        });
+      }
+    } catch (e) {
+      _log.w('AiConfigScreen', '获取模型列表失败: $e');
+    }
   }
 
   /// 保存配置
@@ -506,8 +522,15 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   ///
   /// 包含：
   /// - 标签文字
-  /// - 文本输入框（允许用户直接输入模型名称）
+  /// - 有推荐模型时：下拉框 + 自定义输入框
+  /// - 有推荐模型时：下拉框
+  /// - 无推荐模型时：仍显示下拉框，点击时尝试获取模型
   Widget _buildModelSection() {
+    final models = _recommendedModels;
+    final hasSelectedModel = models.isNotEmpty &&
+        _modelController.text.isNotEmpty &&
+        models.contains(_modelController.text);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -518,40 +541,100 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
               ),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: _modelController,
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            hintText: '请输入模型名称，例如：qwen-plus、glm-4等',
-            suffixIcon: PopupMenuButton<String>(
-              icon: const Icon(Icons.info_outline),
-              tooltip: '推荐模型',
-              itemBuilder: (context) {
-                return _recommendedModels.map((model) {
-                  return PopupMenuItem(
-                    value: model,
-                    child: Text(model),
-                  );
-                }).toList();
-              },
-              onSelected: (model) {
-                _modelController.text = model;
-                _onModelChanged();
-              },
+        InkWell(
+          onTap: () async {
+            if (models.isEmpty) {
+              await _tryFetchModels();
+              return;
+            }
+            await _showModelMenu();
+          },
+          child: Container(
+            key: _modelBoxKey,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline,
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    hasSelectedModel
+                        ? _modelController.text
+                        : '请选择模型',
+                    style: TextStyle(
+                      color: hasSelectedModel
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(context).colorScheme.onSurface
+                              .withOpacity(0.6),
+                    ),
+                  ),
+                ),
+                const Icon(Icons.arrow_drop_down),
+              ],
             ),
           ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return '请输入模型名称';
-            }
-            return null;
-          },
-          onChanged: (value) => _onModelChanged(),
         ),
       ],
     );
+  }
+
+  Future<RelativeRect> _getMenuPosition() async {
+    final RenderBox? renderBox = _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) {
+      return RelativeRect.fromLTRB(0, 0, 0, 0);
+    }
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    final screenHeight = MediaQuery.of(_modelBoxKey.currentContext!).size.height;
+    
+    return RelativeRect.fromLTRB(
+      position.dx,
+      position.dy + size.height,
+      position.dx + size.width,
+      screenHeight - position.dy,
+    );
+  }
+
+  Future<void> _showModelMenu() async {
+    final position = await _getMenuPosition();
+    final renderBox = _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
+    final width = renderBox?.size.width ?? 200;
+    
+    final selected = await showMenu<String>(
+      context: context,
+      position: position,
+      constraints: BoxConstraints(
+        minWidth: width,
+        maxWidth: width,
+      ),
+      items: (_availableModels.toList()..sort((a, b) => a.compareTo(b))).map((model) {
+        return PopupMenuItem<String>(
+          value: model,
+          child: Text(model),
+        );
+      }).toList(),
+    );
+    if (selected != null) {
+      _modelController.text = selected;
+      setState(() {});
+    }
+  }
+
+  /// 尝试获取模型列表
+  Future<void> _tryFetchModels() async {
+    final apiKey = _apiKeyController.text.trim();
+    if (apiKey.isNotEmpty) {
+      await _fetchModelsForCurrentProvider();
+      if (mounted && _availableModels.isNotEmpty) {
+        await _showModelMenu();
+      }
+    }
   }
 
   /// 构建Base URL输入区块

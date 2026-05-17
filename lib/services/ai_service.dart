@@ -210,6 +210,61 @@ class AIService {
     }
   }
 
+  /// 方法名：fetchAvailableModels
+  /// 功能：从 AI 提供商获取可用模型列表
+  ///
+  /// 调用 OpenAI 兼容的 /v1/models 端点获取模型列表
+  ///
+  /// 参数：
+  /// - baseUrl: API 基础 URL
+  /// - apiKey: API 密钥
+  ///
+  /// 返回值：
+  /// - 成功时返回模型 ID 列表
+  /// - 失败时返回空列表
+  Future<List<String>> fetchAvailableModels({
+    required String baseUrl,
+    required String apiKey,
+  }) async {
+    try {
+      final url = Uri.parse('$baseUrl/models');
+      final client = _httpClient ?? http.Client();
+
+      final headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (apiKey.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $apiKey';
+      }
+
+      final response = await client.get(url, headers: headers);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['data'] != null && json['data'] is List) {
+          final models = (json['data'] as List)
+              .map((m) => m['id']?.toString())
+              .where((id) => id != null && id.isNotEmpty)
+              .cast<String>()
+              .toList();
+
+          _log.d('AIService', '获取到 ${models.length} 个可用模型');
+          return models;
+        }
+      } else {
+        _log.w(
+          'AIService',
+          '获取模型列表失败：${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      _log.e('AIService', '获取模型列表异常', e);
+    }
+
+    return [];
+  }
+
   // ==========================================================================
   // 区域4：核心AI调用（所有摘要方法的基础）
   // ==========================================================================

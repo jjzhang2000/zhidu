@@ -35,27 +35,19 @@ enum ThemeMode {
 /// - 管理API Key、模型、Base URL等参数
 /// - 提供配置有效性验证
 class AiSettings {
-  /// AI服务提供商标识
-  /// 有效值：'zhipu'（智谱）、'qwen'（通义千问）或 'ollama'（本地Ollama）
   final String provider;
 
-  /// API密钥
   final String apiKey;
 
-  /// 使用的模型名称
   final String model;
 
-  /// API基础URL
   final String baseUrl;
 
-  /// 该提供商是否需要 API Key
-  /// 用于 isValid 验证逻辑
   bool get requiresApiKey {
     const localProviders = {'ollama', 'lmstudio'};
     return !localProviders.contains(provider);
   }
 
-  /// 构造函数
   AiSettings({
     this.provider = 'qwen',
     this.apiKey = '',
@@ -63,7 +55,6 @@ class AiSettings {
     this.baseUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   });
 
-  /// 创建副本，可选择性地修改部分字段
   AiSettings copyWith({
     String? provider,
     String? apiKey,
@@ -78,7 +69,6 @@ class AiSettings {
     );
   }
 
-  /// 序列化为JSON
   Map<String, dynamic> toJson() {
     return {
       'provider': provider,
@@ -88,7 +78,6 @@ class AiSettings {
     };
   }
 
-  /// 从JSON反序列化
   factory AiSettings.fromJson(Map<String, dynamic> json) {
     return AiSettings(
       provider: json['provider'] ?? 'qwen',
@@ -99,11 +88,6 @@ class AiSettings {
     );
   }
 
-  /// 检查配置是否有效
-  ///
-  /// 验证规则：
-  /// - 需要 API Key 的提供商：apiKey 不能为空且不能为占位符字符串
-  /// - 不需要 API Key 的提供商（如 Ollama）：baseUrl 不能为空
   bool get isValid {
     if (requiresApiKey) {
       return apiKey.isNotEmpty && !_isPlaceholderApiKey(apiKey);
@@ -112,7 +96,6 @@ class AiSettings {
     }
   }
 
-  /// 检查 API Key 是否为占位符字符串
   bool _isPlaceholderApiKey(String key) {
     return key.startsWith('YOUR_') && key.endsWith('_HERE');
   }
