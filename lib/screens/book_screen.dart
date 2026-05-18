@@ -45,8 +45,7 @@ class BookScreen extends StatefulWidget {
   State<BookScreen> createState() => _BookScreenState();
 }
 
-class _BookScreenState extends State<BookScreen>
-    with TickerProviderStateMixin {
+class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 书籍管理服务（单例）
   final _bookService = BookService();
 
@@ -73,8 +72,8 @@ class _BookScreenState extends State<BookScreen>
   /// 是否正在加载章节列表
   bool _isLoadingChapters = false;
 
-/// Tab控制器（用于垂直Tab布局）
-TabController? _tabController;
+  /// Tab控制器（用于垂直Tab布局）
+  TabController? _tabController;
 
   /// 是否正在后台预生成摘要
   ///
@@ -137,14 +136,14 @@ TabController? _tabController;
 
   @override
   void dispose() {
-  // 释放Tab控制器
-  _tabController?.dispose();
-  // 清理定时器，防止内存泄漏
-  _refreshTimer?.cancel();
-  // 取消全书摘要流式回调
-  _summaryService.unregisterBookStreamingCallback(_book.id);
-  super.dispose();
-}
+    // 释放Tab控制器
+    _tabController?.dispose();
+    // 清理定时器，防止内存泄漏
+    _refreshTimer?.cancel();
+    // 取消全书摘要流式回调
+    _summaryService.unregisterBookStreamingCallback(_book.id);
+    super.dispose();
+  }
 
   /// 加载书籍章节列表
   ///
@@ -272,7 +271,8 @@ TabController? _tabController;
       final summary = await _summaryService.getBookSummary(_book.id);
       if (mounted) {
         final hasNewSummary = summary != null && summary.isNotEmpty;
-        final hadOldSummary = _bookSummaryFromFile != null && _bookSummaryFromFile!.isNotEmpty;
+        final hadOldSummary =
+            _bookSummaryFromFile != null && _bookSummaryFromFile!.isNotEmpty;
 
         if (hasNewSummary != hadOldSummary || summary != _bookSummaryFromFile) {
           setState(() {
@@ -314,8 +314,6 @@ TabController? _tabController;
     // 回退到原始标题
     return chapter.title;
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -466,69 +464,71 @@ TabController? _tabController;
     );
   }
 
-/// 构建主内容区域（垂直Tab布局）
-///
-/// 布局：左侧垂直Tab栏 + 右侧TabBarView内容区
-///
-/// 颜色层级（三层区分）：
-/// - 页面背景：Scaffold默认（白色/浅色）
-/// - 未选中Tab：灰色背景（较明显）
-/// - 选中Tab + 右侧内容框：主题色背景（最明显）
-Widget _buildAIIntroduction() {
-  final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
-  final unselectedColor = Colors.grey.withAlpha(80);
-  
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      // 左侧垂直Tab栏（无整体背景，每个Tab独立背景色）
-      Column(
-        children: [
-          _buildVerticalTab(0, Icons.auto_awesome, selectedColor: selectedColor, unselectedColor: unselectedColor),
-          Container(height: 1, width: 60, color: Colors.grey.withAlpha(100)),
-          _buildVerticalTab(1, Icons.format_list_numbered, selectedColor: selectedColor, unselectedColor: unselectedColor),
-        ],
-      ),
-      // 右侧Tab内容区（与选中Tab同色）
-      Expanded(
-        child: Container(
-          color: selectedColor,
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildAIIntroductionContent(),
-              _buildChapterStructureContent(),
-            ],
+  /// 构建主内容区域（垂直Tab布局）
+  ///
+  /// 布局：左侧垂直Tab栏 + 右侧TabBarView内容区
+  ///
+  /// 颜色层级（三层区分）：
+  /// - 页面背景：Scaffold默认（白色/浅色）
+  /// - 未选中Tab：灰色背景（较明显）
+  /// - 选中Tab + 右侧内容框：主题色背景（最明显）
+  Widget _buildAIIntroduction() {
+    final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
+    final unselectedColor = Colors.grey.withAlpha(80);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 左侧垂直Tab栏（无整体背景，每个Tab独立背景色）
+        Column(
+          children: [
+            _buildVerticalTab(0, Icons.auto_awesome,
+                selectedColor: selectedColor, unselectedColor: unselectedColor),
+            Container(height: 1, width: 60, color: Colors.grey.withAlpha(100)),
+            _buildVerticalTab(1, Icons.format_list_numbered,
+                selectedColor: selectedColor, unselectedColor: unselectedColor),
+          ],
+        ),
+        // 右侧Tab内容区（与选中Tab同色）
+        Expanded(
+          child: Container(
+            color: selectedColor,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildAIIntroductionContent(),
+                _buildChapterStructureContent(),
+              ],
+            ),
           ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
-/// 构建垂直Tab按钮（仅图标）
-///
-/// 颜色层级：
-/// - 未选中：灰色背景（与页面有明显区分）
-/// - 选中：主题色背景（与右侧内容框同色）
-Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor, required Color unselectedColor}) {
-  final isSelected = _tabController?.index == index;
-  return InkWell(
-    onTap: () => _tabController?.animateTo(index),
-    child: Container(
-      width: 60,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      color: isSelected ? selectedColor : unselectedColor,
-      child: Icon(
-        icon,
-        size: 24,
-        color: isSelected
-            ? Theme.of(context).colorScheme.primary
-            : Colors.grey,
+  /// 构建垂直Tab按钮（仅图标）
+  ///
+  /// 颜色层级：
+  /// - 未选中：灰色背景（与页面有明显区分）
+  /// - 选中：主题色背景（与右侧内容框同色）
+  Widget _buildVerticalTab(int index, IconData icon,
+      {required Color selectedColor, required Color unselectedColor}) {
+    final isSelected = _tabController?.index == index;
+    return InkWell(
+      onTap: () => _tabController?.animateTo(index),
+      child: Container(
+        width: 60,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        color: isSelected ? selectedColor : unselectedColor,
+        child: Icon(
+          icon,
+          size: 24,
+          color:
+              isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   /// 构建全书摘要内容
   ///
@@ -644,71 +644,71 @@ Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor
     );
   }
 
-/// 构建流式全书摘要视图
-Widget _buildStreamingBookSummary() {
-  final htmlContent = md.markdownToHtml(_streamingBookSummary);
-  return GestureDetector(
-    onTap: _flatChapters.isNotEmpty
-        ? () {
-            final firstChapter = _flatChapters.first;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChapterScreen(
-                  bookId: _book.id,
-                  chapterIndex: firstChapter.index,
-                  chapterTitle: firstChapter.title,
-                  filePath: _book.filePath,
-                  chapters: _flatChapters,
-                  book: _book,
+  /// 构建流式全书摘要视图
+  Widget _buildStreamingBookSummary() {
+    final htmlContent = md.markdownToHtml(_streamingBookSummary);
+    return GestureDetector(
+      onTap: _flatChapters.isNotEmpty
+          ? () {
+              final firstChapter = _flatChapters.first;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChapterScreen(
+                    bookId: _book.id,
+                    chapterIndex: firstChapter.index,
+                    chapterTitle: firstChapter.title,
+                    filePath: _book.filePath,
+                    chapters: _flatChapters,
+                    book: _book,
+                  ),
                 ),
+              );
+            }
+          : null,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Html(
+            data: htmlContent,
+            style: {
+              'body': Style(
+                fontSize: FontSize(14),
+                lineHeight: const LineHeight(1.6),
+                margin: Margins.zero,
+                padding: HtmlPaddings.zero,
               ),
-            );
-          }
-        : null,
-    child: SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Html(
-          data: htmlContent,
-          style: {
-            'body': Style(
-              fontSize: FontSize(14),
-              lineHeight: const LineHeight(1.6),
-              margin: Margins.zero,
-              padding: HtmlPaddings.zero,
-            ),
-            'h2': Style(
-              fontSize: FontSize(16),
-              fontWeight: FontWeight.bold,
-              margin: Margins.only(bottom: 8, top: 16),
-            ),
-            'h3': Style(
-              fontSize: FontSize(15),
-              fontWeight: FontWeight.bold,
-              margin: Margins.only(bottom: 6, top: 12),
-            ),
-            'p': Style(
-              fontSize: FontSize(14),
-              lineHeight: const LineHeight(1.6),
-              margin: Margins.only(bottom: 8),
-            ),
-            'ul': Style(
-              margin: Margins.only(bottom: 8),
-            ),
-            'li': Style(
-              fontSize: FontSize(14),
-              lineHeight: const LineHeight(1.5),
-            ),
-            'strong': Style(
-              fontWeight: FontWeight.bold,
-            ),
-          },
+              'h2': Style(
+                fontSize: FontSize(16),
+                fontWeight: FontWeight.bold,
+                margin: Margins.only(bottom: 8, top: 16),
+              ),
+              'h3': Style(
+                fontSize: FontSize(15),
+                fontWeight: FontWeight.bold,
+                margin: Margins.only(bottom: 6, top: 12),
+              ),
+              'p': Style(
+                fontSize: FontSize(14),
+                lineHeight: const LineHeight(1.6),
+                margin: Margins.only(bottom: 8),
+              ),
+              'ul': Style(
+                margin: Margins.only(bottom: 8),
+              ),
+              'li': Style(
+                fontSize: FontSize(14),
+                lineHeight: const LineHeight(1.5),
+              ),
+              'strong': Style(
+                fontWeight: FontWeight.bold,
+              ),
+            },
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   /// 构建章节目录内容
   ///

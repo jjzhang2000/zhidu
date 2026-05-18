@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.0 | **更新日期**: 2026-05-11 | **基于代码版本**: v1.3
+> **文档版本**: v2.1 | **更新日期**: 2026-05-18 | **基于代码版本**: v1.3
 
 ---
 
@@ -46,7 +46,7 @@
 | **BookScreen**    |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —    |   ✓    |   —    |
 | **ChapterScreen** |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —    |   ✓    |   —    |
 | **PdfReaderScreen**|  ✓   |   —   |   —    |    —    |   ✓    |   —    |   —    |   —    |   —    |
-| **AiConfigScreen**|  —   |   ✓   |   —    |    —    |   —    |   ✓    |   —    |   —    |   —    |
+| **AiConfigScreen**|  —   |   ✓   |   —    |    —    |   —    |   ✓    |   —    |   ✓    |   —    |
 | **BookService**   |  —   |   —   |   ✓    |    ✓    |   ✓    |   —    |   —    |   ✓    |   ✓    |
 | **AIService**     |  ✓   |   —   |   —    |    —    |   —    |   ✓    |   —    |   ✓    |   —    |
 | **SummaryService**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
@@ -470,7 +470,9 @@ SummaryService.getBookSummaryContent()
 │  ──────────────           ──────────────        ─────────────── │
 │  - SettingsService        - SettingsService     - BookService    │
 │  + 导航到各设置页         - AIService           - PdfService     │
+│                           - LogService                           │
 │                           + _testConnection()                    │
+│                           + _fetchModelsForCurrentProvider()     │
 │                                                                  │
 │  ThemeSettingsScreen      LanguageSettingsScreen                 │
 │  ──────────────────       ────────────────────                   │
@@ -484,4 +486,5 @@ SummaryService.getBookSummaryContent()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-05-18 | AiConfigScreen: 新增 LogService 依赖、_fetchModelsForCurrentProvider 方法；依赖矩阵更新 LogSvc ✓ |
 | 2026-05-11 | 初始版本：完整类/函数调用关系图，含新服务(TranslationService, OpfReaderService)、新模型(OpfMetadata)、OPF元数据集成流程 |

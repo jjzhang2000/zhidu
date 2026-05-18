@@ -47,6 +47,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
 
   /// 表单Key，用于验证
   final _formKey = GlobalKey<FormState>();
+
+  /// 模型下拉菜单定位锚点Key
   final _modelBoxKey = GlobalKey();
 
   /// 提供商选项
@@ -59,27 +61,20 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     MapEntry('lmstudio', 'LM Studio（本地）'),
   ];
 
-  /// 获取国际化提供商选项
-  List<MapEntry<String, String>> _getLocalizedProviders(AppLocalizations localizations) {
-    return [
-      MapEntry('zhipu', localizations.zhipuProvider),
-      MapEntry('qwen', localizations.qwenProvider),
-      MapEntry('deepseek', localizations.deepseekProvider),
-      MapEntry('minimax', localizations.minimaxProvider),
-      MapEntry('ollama', localizations.ollamaProvider),
-      MapEntry('lmstudio', localizations.lmstudioProvider),
-    ];
-  }
-
-  /// 获取当前提供商选项（根据上下文国际化）
+  /// 获取当前上下文的提供商选项（国际化优先，回退默认中文列表）
   List<MapEntry<String, String>> _getCurrentProviders() {
     final localizations = AppLocalizations.of(context);
     if (localizations != null) {
-      return _getLocalizedProviders(localizations);
-    } else {
-      // 如果无法获取国际化，则返回默认提供商列表
-      return _providers;
+      return [
+        MapEntry('zhipu', localizations.zhipuProvider),
+        MapEntry('qwen', localizations.qwenProvider),
+        MapEntry('deepseek', localizations.deepseekProvider),
+        MapEntry('minimax', localizations.minimaxProvider),
+        MapEntry('ollama', localizations.ollamaProvider),
+        MapEntry('lmstudio', localizations.lmstudioProvider),
+      ];
     }
+    return _providers;
   }
 
   /// 默认Base URL映射
@@ -121,14 +116,6 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
 
   /// 当前可用的模型列表
   List<String> _availableModels = [];
-
-  /// 获取当前可用模型列表
-  List<String> get _recommendedModels {
-    if (_availableModels.isNotEmpty) {
-      return _availableModels;
-    }
-    return [];
-  }
 
   /// 当前选中的提供商是否需要 API Key
   bool get _requiresApiKey {
@@ -176,7 +163,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   void dispose() {
     _apiKeyController.dispose();
     _baseUrlController.dispose();
-    _modelController.dispose(); // 添加模型控制器销毁
+    _modelController.dispose();
     super.dispose();
   }
 
@@ -219,6 +206,11 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   }
 
   /// 获取当前提供商的可用模型列表
+  ///
+  /// 执行流程：
+  /// 1. 清空现有 _availableModels
+  /// 2. 调用 AIService.fetchAvailableModels 联网获取
+  /// 3. 成功则更新 _availableModels，失败静默记录日志
   Future<void> _fetchModelsForCurrentProvider() async {
     final provider = _selectedProvider;
     if (provider.isEmpty) return;
@@ -522,11 +514,10 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   ///
   /// 包含：
   /// - 标签文字
-  /// - 有推荐模型时：下拉框 + 自定义输入框
-  /// - 有推荐模型时：下拉框
-  /// - 无推荐模型时：仍显示下拉框，点击时尝试获取模型
+  /// - 有模型列表时：下拉菜单选择
+  /// - 无模型列表时：点击触发获取模型列表
   Widget _buildModelSection() {
-    final models = _recommendedModels;
+    final models = _availableModels;
     final hasSelectedModel = models.isNotEmpty &&
         _modelController.text.isNotEmpty &&
         models.contains(_modelController.text);
@@ -584,6 +575,10 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
+  /// 计算下拉菜单的弹出位置
+  ///
+  /// 根据 _modelBoxKey 对应 Widget 的实际位置和尺寸，
+  /// 返回菜单应显示的 RelativeRect（紧贴其下方、等宽）。
   Future<RelativeRect> _getMenuPosition() async {
     final RenderBox? renderBox = _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) {
@@ -601,6 +596,10 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
+  /// 弹出模型下拉菜单供选择
+  ///
+  /// 先通过 _getMenuPosition 计算位置，再调用 showMenu 弹出已排序的模型列表，
+  /// 选中后将模型名写入 _modelController。
   Future<void> _showModelMenu() async {
     final position = await _getMenuPosition();
     final renderBox = _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;

@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-18**: AiConfigScreen 注释规范化与死代码清理 — 删除`_recommendedModels`（冗余getter）和内联`_getLocalizedProviders`；修正`_buildModelSection`过时注释；所有字段/方法doc注释格式统一；更新伪代码文档新增5个方法
 **2026-05-17**: AI配置页面模型选择改进 — 改为联网动态获取模型列表，纯下拉框选择，模型名称按字母排序；新增`fetchAvailableModels`方法；删除`cachedModels`缓存机制
 **2026-05-17**: OpfMetadata类合并 — OpfMetadata类从opf_metadata.dart移动到book.dart文件末尾，删除独立的opf_metadata.dart文件，更新所有导入引用和文档
 **2026-05-17**: Book模型清理 — 删除aiIntroduction字段（改用summary-zh.md独立文件存储全书摘要），删除publisher/description/subjects僵尸字段（OPF元数据从未被读取使用）

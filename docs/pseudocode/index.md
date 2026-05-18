@@ -290,7 +290,10 @@ Documents/zhidu/                   (可自定义)
 
 - **智谱 AI**: glm-4-flash, glm-4, glm-4-plus
 - **通义千问**: qwen-turbo, qwen-plus, qwen-max
+- **DeepSeek**: deepseek-chat, deepseek-reasoner
+- **MiniMax**: abab6.5s-chat
 - **Ollama**: 本地部署的开源模型
+- **LM Studio**: 本地部署的开源模型
 
 ### 摘要生成
 
@@ -347,11 +350,18 @@ Documents/zhidu/                   (可自定义)
 
 ## 版本信息
 
-- **文档更新时间**: 2026-05-11
+- **文档更新时间**: 2026-05-18
 - **项目版本**: v1.3
 - **Flutter 版本**: >= 3.0.0
 
 ### 近期更新
+
+#### 2026-05-18: AiConfigScreen 注释规范化与死代码清理
+
+- **删除**: `_recommendedModels` getter（冗余包装）、`_getLocalizedProviders` 方法（内联到 `_getCurrentProviders`）
+- **修复**: `_buildModelSection` 注释与实际代码不一致（已禁止手动输入模型名）
+- **规范化**: 所有方法/字段 doc 注释补全（字段→单行、逻辑方法→编号流程、构建方法→内容列表）
+- **更新文档**: `ai_config_screen.md` 新增 `_getCurrentProviders`、`_fetchModelsForCurrentProvider`、`_getMenuPosition`、`_showModelMenu`、`_tryFetchModels` 伪代码
 
 #### 2026-05-11: 新增伪代码文档
 
