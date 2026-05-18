@@ -96,6 +96,41 @@ class SummaryService {
     _log.d('SummaryService', '取消全书摘要流式回调: $bookId');
   }
 
+  /// 章节摘要流式回调映射表
+  /// Key: {bookId}_{chapterIndex}
+  final Map<String, Function(String)> _chapterCallbacks = {};
+
+  /// 注册章节摘要流式回调
+  void registerChapterCallback(String bookId, int chapterIndex, Function(String) callback) {
+    _chapterCallbacks['${bookId}_$chapterIndex'] = callback;
+  }
+
+  /// 取消章节摘要流式回调
+  void unregisterChapterCallback(String bookId, int chapterIndex) {
+    _chapterCallbacks.remove('${bookId}_$chapterIndex');
+  }
+
+  void _notifyChapterContent(String bookId, int chapterIndex, String content) {
+    _chapterCallbacks['${bookId}_$chapterIndex']?.call(content);
+  }
+
+  /// 章节译文流式回调映射表
+  final Map<String, Function(String)> _translationCallbacks = {};
+
+  /// 注册章节译文流式回调
+  void registerTranslationCallback(String bookId, int chapterIndex, Function(String) callback) {
+    _translationCallbacks['${bookId}_$chapterIndex'] = callback;
+  }
+
+  /// 取消章节译文流式回调
+  void unregisterTranslationCallback(String bookId, int chapterIndex) {
+    _translationCallbacks.remove('${bookId}_$chapterIndex');
+  }
+
+  void _notifyTranslationContent(String bookId, int chapterIndex, String content) {
+    _translationCallbacks['${bookId}_$chapterIndex']?.call(content);
+  }
+
   /// 触发全书摘要流式内容更新
   void _notifyBookStreamingContent(String bookId, String content) {
     final callback = _streamingCallbacks[bookId];
@@ -264,6 +299,7 @@ class SummaryService {
         if (onContentUpdate != null) {
           onContentUpdate(accumulatedContent);
         }
+        _notifyChapterContent(bookId, chapterIndex, accumulatedContent);
       }
 
       // 生成完成，处理最终内容
@@ -303,6 +339,29 @@ class SummaryService {
       // 释放并发AI请求许可
       _concurrentRequestSemaphore.release();
     }
+  }
+
+  /// 确保章节摘要存在（加载已有或触发生成）
+  ///
+  /// 先检查已缓存的摘要，存在则直接返回。
+  /// 否则通过 [generateSingleSummary] 流式生成，
+  /// 期间通过注册的章节回调实时推送内容。
+  Future<Chapter?> ensureChapterSummary(
+    String bookId,
+    int chapterIndex,
+    String content,
+    String chapterTitle, {
+    String language = 'zh',
+  }) async {
+    final existing = await getSummary(bookId, chapterIndex, language: language);
+    if (existing != null) return existing;
+
+    await generateSingleSummary(
+      bookId, chapterIndex, chapterTitle, content,
+      language: language,
+    );
+
+    return await getSummary(bookId, chapterIndex, language: language);
   }
 
   /// 为整本书生成摘要（主入口）
@@ -646,6 +705,7 @@ class SummaryService {
           if (onContentUpdate != null) {
             onContentUpdate(currentTranslation);
           }
+          _notifyTranslationContent(bookId, chapterIndex, currentTranslation);
         },
       );
 
@@ -663,6 +723,32 @@ class SummaryService {
     } finally {
       _generatingTranslationKeys.remove(key);
     }
+  }
+
+  /// 确保章节译文存在（加载缓存或触发生成）
+  Future<String?> ensureChapterTranslation({
+    required String bookId,
+    required int chapterIndex,
+    required String content,
+    String? chapterTitle,
+    required String sourceLang,
+    required String targetLang,
+    String? bookFormat,
+  }) async {
+    final existing = await getTranslation(bookId, chapterIndex, targetLang);
+    if (existing != null && existing.isNotEmpty) return existing;
+
+    await generateTranslationStream(
+      bookId: bookId,
+      chapterIndex: chapterIndex,
+      content: content,
+      chapterTitle: chapterTitle,
+      sourceLang: sourceLang,
+      targetLang: targetLang,
+      bookFormat: bookFormat,
+    );
+
+    return await getTranslation(bookId, chapterIndex, targetLang);
   }
 
   // ==================== 标题提取工具方法 ====================

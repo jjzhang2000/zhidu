@@ -219,7 +219,7 @@ class _ChapterScreenState extends State<ChapterScreen>
           });
 
           if (_tabController!.index == 2) {
-            _loadTranslation();
+            _ensureTranslation();
           }
         } else {
           _captureScrollAnchor(_tabController!.previousIndex);
@@ -229,17 +229,17 @@ class _ChapterScreenState extends State<ChapterScreen>
 
     _initializeLanguageSettings();
 
-    // 初始化章节内容，在首次build完成后加载摘要
-    // 这样垂直Tab框架已就绪，流式摘要可显示在正确的页面布局中
     _initializeContent().then((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadSummary();
+        _ensureSummary();
       });
     });
   }
 
   @override
   void dispose() {
+    _summaryService.unregisterChapterCallback(widget.bookId, widget.chapterIndex);
+    _summaryService.unregisterTranslationCallback(widget.bookId, widget.chapterIndex);
     _translationScrollController?.dispose();
     _originalScrollController?.dispose();
     _tabController?.dispose();
@@ -390,156 +390,34 @@ class _ChapterScreenState extends State<ChapterScreen>
     }
   }
 
-  /// 是否已加载过摘要（防止重复加载）
-  bool _hasLoadedSummary = false;
+  /// 确保章节摘要存在（加载已有或触发流式生成）
+  Future<void> _ensureSummary() async {
+    if (_content.isEmpty || !_aiService.isConfigured) return;
 
-  /// 当前监听的章节key（用于防止重复监听）
-  String? _listeningChapterKey;
+    _summaryService.registerChapterCallback(widget.bookId, widget.chapterIndex, (content) {
+      if (mounted) setState(() => _streamingSummary = content);
+    });
 
-  /// 加载章节摘要
-  ///
-  /// 核心逻辑：
-  /// - 如果有正在后台生成的摘要（来自BookScreen），等待其完成，然后加载最终结果
-  /// - 如果没有正在生成但没有摘要，自动启动AI生成摘要并进入流式显示
-  /// - 如果没有正在生成且有摘要，直接加载已有摘要
-  /// - 防止重复加载：同一个章节只处理一次
-  Future<void> _loadSummary() async {
-    final chapterKey = '${widget.bookId}_${widget.chapterIndex}';
+    setState(() {
+      _isGenerating = true;
+      _streamingSummary = '';
+      _error = null;
+    });
 
-    // 防止重复加载同一个章节
-    if (_hasLoadedSummary && _listeningChapterKey == chapterKey) {
-      return;
-    }
+    final plainText = _extractTextContent(_content);
+    final summary = await _summaryService.ensureChapterSummary(
+      widget.bookId, widget.chapterIndex, plainText, _title,
+      language: _summaryLang,
+    );
 
-    // 检查是否已有摘要
-    _hasLoadedSummary = true;
-    _listeningChapterKey = chapterKey;
-
-    final summary = await _summaryService
-        .getSummary(widget.bookId, widget.chapterIndex, language: _summaryLang);
-
-    if (summary != null) {
-      // 已有摘要，直接显示
-      if (!mounted) return;
-      setState(() {
-        _summaryChapter = summary;
-      });
-    } else {
-      // 没有摘要，检查是否满足生成条件
-      if (_content.isNotEmpty && _aiService.isConfigured) {
-        _log.d('ChapterScreen', '没有现有摘要，自动启动AI生成: $chapterKey');
-        setState(() {
-          _isGenerating = true;
-          _streamingSummary = '';
-        });
-        _generateSummaryWithStreaming();
-      } else {
-        // 不满足生成条件，仅加载摘要（可能是空的）
-        if (!mounted) return;
-        setState(() {
-          _summaryChapter = summary;
-        });
-      }
-    }
-  }
-
-  /// 生成章节摘要（流式）
-  ///
-  /// 流程：
-  /// 1. 提取纯文本内容（去除HTML标签）
-  /// 2. 调用SummaryService流式生成摘要
-  /// 3. 实时更新内容（1-2秒更新一次）
-  /// 4. 生成成功后，刷新标题（AI可能更新了章节标题）
-  ///
-  /// 实时更新逻辑：
-  /// - 通过onContentUpdate回调接收AI生成的内容片段
-  /// - 使用Timer控制更新频率，避免UI过度频繁更新
-  /// - 在生成完成后加载最终摘要并更新状态
-  Future<void> _generateSummaryWithStreaming() async {
-    if (_content.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _error = '无法生成摘要：章节内容为空';
-        });
-      }
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isGenerating = true;
-        _error = null;
-        _streamingSummary = ''; // 初始化流式摘要
-      });
-    }
-
-    try {
-      final plainText = _extractTextContent(_content);
-
-      // 使用流式生成方法，带有实时更新回调
-      final success = await _summaryService.generateSingleSummary(
-        widget.bookId,
-        widget.chapterIndex,
-        _title,
-        plainText,
-        language: _summaryLang,
-        onContentUpdate: (content) {
-          // 立即更新UI状态，不使用延迟
-          if (mounted) {
-            setState(() {
-              _streamingSummary = content; // 更新流式内容
-            });
-          }
-        },
-      );
-
-      if (!mounted) return;
-
-      if (success) {
-        // 生成完成，加载最终摘要
-        final summary = await _summaryService.getSummary(
-          widget.bookId,
-          widget.chapterIndex,
-          language: _summaryLang,
-        );
-
-        final updatedBook = _bookService.getBookById(widget.bookId);
-        if (updatedBook != null) {
-          final newTitle = updatedBook.chapterTitles?[widget.chapterIndex];
-          if (mounted) {
-            setState(() {
-              _summaryChapter = summary;
-              _title = newTitle ?? _title;
-              _streamingSummary = ''; // 清空流式内容，显示最终摘要
-              _isGenerating = false;
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _summaryChapter = summary;
-              _streamingSummary = '';
-              _isGenerating = false;
-            });
-          }
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _error = '生成摘要失败';
-            _streamingSummary = '';
-            _isGenerating = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = '生成摘要失败: $e';
-        _streamingSummary = '';
-        _isGenerating = false;
-      });
-    }
+    if (!mounted) return;
+    final book = _bookService.getBookById(widget.bookId);
+    setState(() {
+      _summaryChapter = summary;
+      _isGenerating = false;
+      _streamingSummary = '';
+      _title = book?.chapterTitles?[widget.chapterIndex] ?? _title;
+    });
   }
 
   /// 从HTML中提取纯文本
@@ -670,85 +548,37 @@ class _ChapterScreenState extends State<ChapterScreen>
     });
   }
 
-  /// 加载译文
-  ///
-  /// 检查是否已有译文缓存，有则直接显示，无则自动生成
-  Future<void> _loadTranslation() async {
+  /// 确保章节译文存在（加载缓存或触发流式生成）
+  Future<void> _ensureTranslation() async {
     if (_translationTabDisabled) return;
     if (_targetLang == null || _content.isEmpty) return;
 
+    if (!_aiService.isConfigured) return;
+
     try {
-      // 检查是否已有译文缓存（使用当前目标语言）
-      final cachedTranslation = await _summaryService.getTranslation(
-          widget.bookId, widget.chapterIndex, _targetLang!);
-
-      if (cachedTranslation != null && cachedTranslation.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            String processedTranslation =
-                _cleanCodeBackslashes(cachedTranslation);
-            if (processedTranslation.contains('%%ZHIDU_CODE_BLOCK_')) {
-              final extractedResult =
-                  _extractCodeBlocksToPlaceholders(_content);
-              final codeBlocks = extractedResult[1] as List<String>;
-              processedTranslation = _restorePlaceholdersToCodeBlocks(
-                  processedTranslation, codeBlocks);
-            }
-            _translationContent = processedTranslation;
-            _isTranslating = false;
-            _streamingTranslation = '';
-          });
-        }
-      } else if (_aiService.isConfigured && _content.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            _translationContent = null;
-            _isTranslating = true;
-            _streamingTranslation = '';
-          });
-        }
-        _generateTranslationWithStreaming();
-      } else {
-        if (mounted) {
-          setState(() {
-            _translationContent = null;
-            _isTranslating = false;
-            _streamingTranslation = '';
-          });
-        }
-      }
-    } catch (e) {
-      _log.e('ChapterScreen', '加载译文失败', e);
-    }
-  }
-
-  /// 流式生成译文
-  Future<void> _generateTranslationWithStreaming() async {
-    if (_content.isEmpty) {
-      _log.w('ChapterScreen', '章节内容为空，无法生成译文');
-      return;
-    }
-
-    if (_targetLang == null) {
-      _log.w('ChapterScreen', '目标语言为空，无法生成译文');
-      return;
-    }
-
-    if (mounted) {
       setState(() {
         _isTranslating = true;
         _streamingTranslation = '';
       });
-    }
 
-    try {
       final bookFormat = widget.book?.format.name ?? 'epub';
-
       final extractedResult = _extractCodeBlocksToPlaceholders(_content);
       final contentWithPlaceholders = extractedResult[0] as String;
       final codeBlocks = List<String>.from(extractedResult[1]);
 
-      final success = await _summaryService.generateTranslationStream(
+      _summaryService.registerTranslationCallback(widget.bookId, widget.chapterIndex, (content) {
+        if (mounted) {
+          _captureScrollAnchor(2);
+          setState(() {
+            _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks);
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _syncScrollToTab(2);
+          });
+        }
+      });
+
+      final translation = await _summaryService.ensureChapterTranslation(
         bookId: widget.bookId,
         chapterIndex: widget.chapterIndex,
         content: contentWithPlaceholders,
@@ -756,42 +586,16 @@ class _ChapterScreenState extends State<ChapterScreen>
         sourceLang: _sourceLang ?? 'zh',
         targetLang: _targetLang!,
         bookFormat: bookFormat,
-        onContentUpdate: (content) {
-          if (mounted) {
-            _captureScrollAnchor(2);
-
-            setState(() {
-              _streamingTranslation =
-                  _restorePlaceholdersToCodeBlocks(content, codeBlocks);
-            });
-
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _syncScrollToTab(2);
-            });
-          }
-        },
       );
 
       if (!mounted) return;
-
-      if (success) {
-        final translation = await _summaryService.getTranslation(
-            widget.bookId, widget.chapterIndex, _targetLang!);
-        setState(() {
-          _translationContent = translation != null
-              ? _restorePlaceholdersToCodeBlocks(
-                  _cleanCodeBackslashes(translation), codeBlocks)
-              : null;
-          _isTranslating = false;
-          _streamingTranslation = '';
-        });
-      } else {
-        _log.w('ChapterScreen', 'AI返回空译文');
-        setState(() {
-          _isTranslating = false;
-          _streamingTranslation = '';
-        });
-      }
+      setState(() {
+        _translationContent = translation != null
+            ? _restorePlaceholdersToCodeBlocks(_cleanCodeBackslashes(translation), codeBlocks)
+            : null;
+        _isTranslating = false;
+        _streamingTranslation = '';
+      });
     } catch (e, stackTrace) {
       _log.e('ChapterScreen', '翻译失败', e, stackTrace);
       if (mounted) {
@@ -852,7 +656,7 @@ class _ChapterScreenState extends State<ChapterScreen>
               _content.isNotEmpty &&
               _aiService.isConfigured)
             TextButton.icon(
-              onPressed: _generateSummaryWithStreaming,
+              onPressed: _ensureSummary,
               icon: const Icon(Icons.auto_awesome, size: 20),
               label: const Text('生成摘要'),
               style: TextButton.styleFrom(
@@ -972,7 +776,7 @@ class _ChapterScreenState extends State<ChapterScreen>
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _generateSummaryWithStreaming,
+              onPressed: _ensureSummary,
               icon: const Icon(Icons.refresh),
               label: const Text('重试'),
             ),
