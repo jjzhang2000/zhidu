@@ -128,9 +128,9 @@ PROCEDURE initState():
         // Tab switch completed — sync scroll
         addPostFrameCallback: _syncScrollToTab(_tabController.index)
 
-        IF _tabController.index == 1:
-          // Switched to translation tab — update lang then load
-          _updateTargetLanguage().then(): _loadTranslation()
+        IF _tabController.index == 2:
+          // Switched to translation tab — load translation
+          _loadTranslation()
       ELSE:
         // Tab switch in progress — capture current scroll position
         _captureScrollAnchor(_tabController.previousIndex)
@@ -193,7 +193,7 @@ PROCEDURE _checkContentLength():
 
   // Auto-switch to original view if content too short and no summary
   IF _contentTooShort AND _summaryChapter == null:
-    _tabController?.animateTo(2)  // Tab 2 = original text
+    _tabController?.animateTo(1)  // Tab 1 = original text
 END PROCEDURE
 ```
 
@@ -228,7 +228,7 @@ PROCEDURE _resolveTargetLang():
 
   SWITCH lang.aiLanguageMode:
     CASE 'system':
-      _targetLang = _detectSystemLanguage()
+      _targetLang = _aiService.detectSystemLanguage()
     CASE 'manual':
       _targetLang = lang.aiOutputLanguage
     CASE 'book' / DEFAULT:
@@ -239,32 +239,11 @@ PROCEDURE _resolveTargetLang():
 END PROCEDURE
 ```
 
-Used by: `_updateTargetLanguage()`, `_initializeLanguageSettings()`
-
-### `_updateTargetLanguage()`
-
-```
-ASYNC PROCEDURE _updateTargetLanguage():
-  _resolveTargetLang()
-  _translationTabDisabled = _sourceLang == _targetLang
-END PROCEDURE
-```
+Used by: `_initializeLanguageSettings()`
 
 ### `_detectSystemLanguage()`
 
-```
-PROCEDURE _detectSystemLanguage():
-  TRY:
-    locale = Platform.localeName
-    IF locale matches zh pattern:    RETURN 'zh'
-    IF locale matches ja pattern:    RETURN 'ja'
-    IF locale matches en pattern:    RETURN 'en'
-    IF locale matches ko pattern:    RETURN 'ko'
-    RETURN 'zh'
-  CATCH e:
-    RETURN 'zh'
-END PROCEDURE
-```
+已合并到 `AIService.detectSystemLanguage()`（public），ChapterScreen 通过 `_aiService.detectSystemLanguage()` 调用。
 
 ### `_loadChapterContent()`
 
@@ -475,8 +454,8 @@ END PROCEDURE
 ```
 PROCEDURE _captureScrollAnchor(tabIndex):
   controller = switch(tabIndex):
-    1 → _translationScrollController
-    2 → _originalScrollController
+    1 → _originalScrollController
+    2 → _translationScrollController
     default → return
 
   IF controller == null OR NOT hasClients: RETURN
@@ -496,8 +475,8 @@ PROCEDURE _syncScrollToTab(tabIndex):
   IF tabIndex == 0: RETURN
 
   controller = switch(tabIndex):
-    1 → _translationScrollController
-    2 → _originalScrollController
+    1 → _originalScrollController
+    2 → _translationScrollController
     default → return
 
   IF controller == null OR NOT hasClients: RETURN
@@ -564,9 +543,9 @@ ASYNC PROCEDURE _generateTranslationWithStreaming():
       bookFormat: bookFormat,
       onContentUpdate: (content):
         IF mounted:
-          _captureScrollAnchor(1)
+          _captureScrollAnchor(2)
           setState(): _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks)
-          addPostFrameCallback: _syncScrollToTab(1)
+          addPostFrameCallback: _syncScrollToTab(2)
     )
 
     IF NOT mounted: RETURN
@@ -666,14 +645,14 @@ WIDGET _buildSummaryView():
         ├── Column (Vertical Tab Bar)
         │   ├── _buildVerticalTab(0, Icons.auto_awesome)    // Summary
         │   ├── Divider(height: 1, width: 60)
-        │   ├── _buildVerticalTab(1, Icons.translate, disabled: _translationTabDisabled) // Translation
+        │   ├── _buildVerticalTab(1, Icons.menu_book, disabled: contentTooShort) // Original
         │   ├── Divider(height: 1, width: 60)
-        │   └── _buildVerticalTab(2, Icons.menu_book, disabled: contentTooShort) // Original
+        │   └── _buildVerticalTab(2, Icons.translate, disabled: _translationTabDisabled) // Translation
         └── Expanded: Container(selectedColor)
             └── TabBarView(controller: _tabController)
                 ├── Tab 0: _buildSummaryContent()
-                ├── Tab 1: _buildTranslationView()
-                └── Tab 2: _buildOriginalTextView()
+                ├── Tab 1: _buildOriginalTextView()
+                └── Tab 2: _buildTranslationView()
 ```
 
 ### `_buildSummaryContent()`
@@ -864,16 +843,14 @@ _tabController.animateTo(newIndex)
     ↓
 indexIsChanging=false: _syncScrollToTab(newIndex)
     ↓
-IF newIndex == 1 (Translation):
-    _updateTargetLanguage() → _loadTranslation()
+IF newIndex == 2 (Translation):
+    _loadTranslation()
 ```
 
 ### Flow 4: Translation View
 
 ```
-User switches to Translation tab (Tab 1)
-    ↓
-_updateTargetLanguage() → _resolveTargetLang()
+User switches to Translation tab (Tab 2)
     ↓
 _loadTranslation()
     ├── Has cache → Display translation HTML (_buildTranslationHtmlView)
@@ -961,7 +938,7 @@ _tabController.addListener():
     IF mounted: setState()
     ├── IF indexIsChanging → _captureScrollAnchor(previousIndex)
     └── ELSE → _syncScrollToTab(currentIndex)
-                └── IF tab==1 → _updateTargetLanguage → _loadTranslation
+                └── IF tab==2 → _loadTranslation
 
 dispose():
     ↓

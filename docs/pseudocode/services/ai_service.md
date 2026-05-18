@@ -698,6 +698,63 @@ PRIVATE METHOD _getLanguageInstructionForLanguage(languageCode: String) -> Strin
 
 ---
 
+### detectSystemLanguage() - 检测系统语言
+
+通过 `Platform.localeName` 获取操作系统语言设置，返回语言代码。
+
+```pseudocode
+PUBLIC METHOD detectSystemLanguage() -> String:
+    TRY:
+        locale = Platform.localeName
+        _log.d('AIService', '系统 locale: {locale}')
+        
+        IF locale.startsWith('zh') OR locale.contains('_CN')
+                                      OR locale.contains('_TW')
+                                      OR locale.contains('_HK'):
+            RETURN 'zh'
+        ELSE IF locale.startsWith('ja') OR locale.contains('_JP'):
+            RETURN 'ja'
+        ELSE IF locale.startsWith('en') OR locale.contains('_US')
+                                        OR locale.contains('_GB'):
+            RETURN 'en'
+        
+        _log.d('AIService', '无法识别的系统 locale，默认使用中文')
+        RETURN 'zh'
+    CATCH e:
+        _log.w('AIService', '检测系统语言失败: {e}，使用默认中文')
+        RETURN 'zh'
+```
+
+被调用方: `ChapterScreen._resolveTargetLang()`, `_getLanguageInstructionForModel()`, `getTargetLanguage()`
+
+---
+
+### getTargetLanguage() - 获取当前目标语言代码
+
+根据 AI 语言模式动态确定目标语言。
+
+```pseudocode
+PUBLIC METHOD getTargetLanguage({
+    required aiLanguageMode: String,
+    aiOutputLanguage?: String,
+    bookLanguage?: String,
+    content?: String,
+}) -> String:
+    SWITCH aiLanguageMode:
+        CASE 'system':
+            RETURN detectSystemLanguage()
+        CASE 'manual':
+            RETURN aiOutputLanguage ?? 'zh'
+        CASE 'book' / DEFAULT:
+            IF bookLanguage != null AND not empty:
+                RETURN bookLanguage
+            ELSE IF content != null AND not empty:
+                RETURN detectLanguageFromContent(content)
+            RETURN 'zh'
+```
+
+---
+
 ### _detectLanguageFromMetadataAndContentWithBookId() - 从书籍元数据和内容检测语言
 
 ```pseudocode
@@ -1174,6 +1231,9 @@ Body:
 
 ## 版本历史
 
+- **2026-05-18**: `detectSystemLanguage()` 改为 public，ChapterScreen 合并自身副本到 AIService
+  - 原 `_detectSystemLanguage()` 去下划线变为 `detectSystemLanguage()`
+  - 新增 `getTargetLanguage()` 文档
 - **2026-05-17**: 新增 `fetchAvailableModels()` 方法
   - 调用 `/v1/models` 端点获取提供商可用模型列表
   - 返回模型 ID 列表，按字母排序

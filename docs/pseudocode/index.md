@@ -356,6 +356,13 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-18: ChapterScreen `detectSystemLanguage` 合并到 AIService + Tab 顺序调整
+
+- **合并**: `_detectSystemLanguage()` 从 ChapterScreen 合并到 `AIService.detectSystemLanguage()`（public），删除 ChapterScreen 副本（含残留韩语分支），删除 `import 'dart:io'`
+- **删除**: `_updateTargetLanguage()` — 用户进入 ChapterScreen 后不可能变更 AI 语言设置，Tab 切换时直接调 `_loadTranslation()`
+- **Tab 顺序**: 调整为 0=章节摘要 / 1=原文 / 2=译文（原为 0/1=译文/2=原文）
+- **更新文档**: `ai_service.md` 新增 `detectSystemLanguage()`、`getTargetLanguage()` 伪代码；`chapter_screen.md` 同步所有变更
+
 #### 2026-05-18: ChapterScreen 僵尸代码清理与重复代码提取
 
 - **删除僵尸代码**: `_generateSummary()`（阻塞版，已被流式版替代）、`_uiRefreshTimer`（从未赋值）、`_getCurrentSummaryLanguage()`（从未调用）— 共约87行

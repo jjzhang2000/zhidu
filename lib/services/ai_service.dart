@@ -998,7 +998,7 @@ class AIService {
   ///
   /// 通过 Platform.localeName 获取系统语言设置
   /// 返回语言代码：'zh'（中文）、'en'（英文）、'ja'（日文）等
-  String _detectSystemLanguage() {
+  String detectSystemLanguage() {
     try {
       final locale = Platform.localeName;
       _log.d('AIService', '系统 locale: $locale');
@@ -1027,7 +1027,7 @@ class AIService {
     required String aiLanguageMode,
     String? aiOutputLanguage,
   }) {
-    String systemLanguage = _detectSystemLanguage();
+    String systemLanguage = detectSystemLanguage();
     
     return AiPrompts.getLanguageInstruction(
       aiLanguageMode,
@@ -1058,7 +1058,7 @@ class AIService {
   }) {
     switch (aiLanguageMode) {
       case 'system':
-        return _detectSystemLanguage();
+        return detectSystemLanguage();
       case 'manual':
         return aiOutputLanguage ?? 'zh';
       case 'book':

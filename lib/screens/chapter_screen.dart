@@ -13,7 +13,6 @@
 /// - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -31,7 +30,7 @@ import '../services/settings_service.dart';
 class ScrollAnchor {
   /// 滚动比例（0.0 = 顶部, 1.0 = 底部）
   final double scrollRatio;
-  
+
   const ScrollAnchor({
     this.scrollRatio = 0.0,
   });
@@ -100,11 +99,11 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 章节内容（HTML格式）
   String _content = '';
 
-/// 章节标题（动态更新，可能被AI生成的标题覆盖）
-String _title = '';
+  /// 章节标题（动态更新，可能被AI生成的标题覆盖）
+  String _title = '';
 
-/// Tab控制器（用于垂直Tab布局）
-TabController? _tabController;
+  /// Tab控制器（用于垂直Tab布局）
+  TabController? _tabController;
 
   /// 内容是否过短（少于2000字节）
   /// 内容过短时，默认显示原文视图，且摘要按钮禁用
@@ -155,64 +154,55 @@ TabController? _tabController;
 
   /// 摘要/译文通用的 HTML 渲染样式
   Map<String, Style> get _htmlStyle => {
-    'body': Style(
-      fontSize: FontSize(14),
-      lineHeight: const LineHeight(1.6),
-      margin: Margins.zero,
-      padding: HtmlPaddings.zero,
-    ),
-    'h2': Style(
-      fontSize: FontSize(15),
-      fontWeight: FontWeight.bold,
-      margin: Margins.only(bottom: 8, top: 16),
-    ),
-    'h3': Style(
-      fontSize: FontSize(14),
-      fontWeight: FontWeight.bold,
-      margin: Margins.only(bottom: 6, top: 12),
-    ),
-    'p': Style(
-      fontSize: FontSize(14),
-      lineHeight: const LineHeight(1.6),
-      margin: Margins.only(bottom: 8),
-    ),
-    'ul': Style(
-      margin: Margins.only(bottom: 8),
-    ),
-    'li': Style(
-      fontSize: FontSize(14),
-      lineHeight: const LineHeight(1.5),
-    ),
-    'strong': Style(
-      fontWeight: FontWeight.bold,
-    ),
-    'code': Style(
-      fontFamily: 'Consolas',
-      fontSize: FontSize(13),
-    ),
-    'pre': Style(
-      fontFamily: 'Consolas',
-      fontSize: FontSize(13),
-      padding: HtmlPaddings.all(8),
-      margin: Margins.only(bottom: 12),
-    ),
-  };
-
-  /// 更新目标语言设置
-  ///
-  /// 每次切换到译文Tab时调用，确保使用最新的AI输出语言设置
-  Future<void> _updateTargetLanguage() async {
-    _resolveTargetLang();
-    _translationTabDisabled = _sourceLang == _targetLang;
-    _log.d('ChapterScreen', '更新目标语言: $_targetLang, 源语言: $_sourceLang, 禁用: $_translationTabDisabled');
-  }
+        'body': Style(
+          fontSize: FontSize(14),
+          lineHeight: const LineHeight(1.6),
+          margin: Margins.zero,
+          padding: HtmlPaddings.zero,
+        ),
+        'h2': Style(
+          fontSize: FontSize(15),
+          fontWeight: FontWeight.bold,
+          margin: Margins.only(bottom: 8, top: 16),
+        ),
+        'h3': Style(
+          fontSize: FontSize(14),
+          fontWeight: FontWeight.bold,
+          margin: Margins.only(bottom: 6, top: 12),
+        ),
+        'p': Style(
+          fontSize: FontSize(14),
+          lineHeight: const LineHeight(1.6),
+          margin: Margins.only(bottom: 8),
+        ),
+        'ul': Style(
+          margin: Margins.only(bottom: 8),
+        ),
+        'li': Style(
+          fontSize: FontSize(14),
+          lineHeight: const LineHeight(1.5),
+        ),
+        'strong': Style(
+          fontWeight: FontWeight.bold,
+        ),
+        'code': Style(
+          fontFamily: 'Consolas',
+          fontSize: FontSize(13),
+        ),
+        'pre': Style(
+          fontFamily: 'Consolas',
+          fontSize: FontSize(13),
+          padding: HtmlPaddings.all(8),
+          margin: Margins.only(bottom: 12),
+        ),
+      };
 
   /// 根据AI语言模式解析目标语言
   void _resolveTargetLang() {
     final lang = SettingsService().settings.languageSettings;
     switch (lang.aiLanguageMode) {
       case 'system':
-        _targetLang = _detectSystemLanguage();
+        _targetLang = _aiService.detectSystemLanguage();
         break;
       case 'manual':
         _targetLang = lang.aiOutputLanguage;
@@ -223,29 +213,6 @@ TabController? _tabController;
         break;
     }
     _log.d('ChapterScreen', '目标语言: $_targetLang (模式: ${lang.aiLanguageMode})');
-  }
-
-  /// 检测系统语言
-  String _detectSystemLanguage() {
-    try {
-      final locale = Platform.localeName;
-      _log.d('ChapterScreen', '系统 locale: $locale');
-      
-      if (locale.startsWith('zh') || locale.contains('_CN') || locale.contains('_TW') || locale.contains('_HK')) {
-        return 'zh';
-      } else if (locale.startsWith('ja') || locale.contains('_JP')) {
-        return 'ja';
-      } else if (locale.startsWith('en') || locale.contains('_US') || locale.contains('_GB')) {
-        return 'en';
-      } else if (locale.startsWith('ko') || locale.contains('_KR')) {
-        return 'ko';
-      }
-      
-      return 'zh';
-    } catch (e) {
-      _log.w('ChapterScreen', '检测系统语言失败: $e，使用默认中文');
-      return 'zh';
-    }
   }
 
   @override
@@ -263,16 +230,14 @@ TabController? _tabController;
     _tabController!.addListener(() {
       if (mounted) {
         setState(() {});
-        
+
         if (!_tabController!.indexIsChanging) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _syncScrollToTab(_tabController!.index);
           });
-          
-          if (_tabController!.index == 1) {
-            _updateTargetLanguage().then((_) {
-              _loadTranslation();
-            });
+
+          if (_tabController!.index == 2) {
+            _loadTranslation();
           }
         } else {
           _captureScrollAnchor(_tabController!.previousIndex);
@@ -291,13 +256,13 @@ TabController? _tabController;
     });
   }
 
-@override
-void dispose() {
-  _translationScrollController?.dispose();
-  _originalScrollController?.dispose();
-  _tabController?.dispose();
-  super.dispose();
-}
+  @override
+  void dispose() {
+    _translationScrollController?.dispose();
+    _originalScrollController?.dispose();
+    _tabController?.dispose();
+    super.dispose();
+  }
 
   /// 初始化章节内容
   ///
@@ -330,11 +295,11 @@ void dispose() {
     });
   }
 
-/// 检查内容长度
+  /// 检查内容长度
   ///
   /// 内容少于2000字节时：
   /// 1. 标记为过短，禁用摘要生成按钮
-  /// 2. 如果没有摘要，自动切换到原文视图（Tab 2）
+  /// 2. 如果没有摘要，自动切换到原文视图（Tab 1）
   void _checkContentLength() {
     final textContent = _extractTextContent(_content);
     final byteLength = utf8.encode(textContent).length;
@@ -342,7 +307,7 @@ void dispose() {
 
     // 内容过短且没有摘要时，默认切换到原文视图
     if (_contentTooShort && _summaryChapter == null) {
-      _tabController?.animateTo(2);
+      _tabController?.animateTo(1);
     }
   }
 
@@ -350,11 +315,13 @@ void dispose() {
   ///
   /// 确定源语言和目标语言，判断译文Tab是否禁用
   Future<void> _initializeLanguageSettings() async {
-    _log.d('ChapterScreen', '开始初始化语言设置，book: ${widget.book?.title}, book.language: ${widget.book?.language}');
-    
+    _log.d('ChapterScreen',
+        '开始初始化语言设置，book: ${widget.book?.title}, book.language: ${widget.book?.language}');
+
     final langSettings = SettingsService().settings.languageSettings;
-    _log.d('ChapterScreen', '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
-    
+    _log.d('ChapterScreen',
+        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
+
     _sourceLang = widget.book?.language;
 
     if (_sourceLang != null && _sourceLang!.isNotEmpty) {
@@ -376,8 +343,6 @@ void dispose() {
 
     _log.d('ChapterScreen', '译文Tab禁用: $_translationTabDisabled');
   }
-
-
 
   /// 从文件加载章节内容
   ///
@@ -488,8 +453,9 @@ void dispose() {
     _hasLoadedSummary = true;
     _listeningChapterKey = chapterKey;
 
-    final summary = await _summaryService.getSummary(widget.bookId, widget.chapterIndex, language: _summaryLang);
-    
+    final summary = await _summaryService
+        .getSummary(widget.bookId, widget.chapterIndex, language: _summaryLang);
+
     if (summary != null) {
       // 已有摘要，直接显示
       if (!mounted) return;
@@ -506,11 +472,11 @@ void dispose() {
         });
         _generateSummaryWithStreaming();
       } else {
-      // 不满足生成条件，仅加载摘要（可能是空的）
-      if (!mounted) return;
-      setState(() {
-        _summaryChapter = summary;
-      });
+        // 不满足生成条件，仅加载摘要（可能是空的）
+        if (!mounted) return;
+        setState(() {
+          _summaryChapter = summary;
+        });
       }
     }
   }
@@ -541,7 +507,7 @@ void dispose() {
       setState(() {
         _isGenerating = true;
         _error = null;
-        _streamingSummary = '';  // 初始化流式摘要
+        _streamingSummary = ''; // 初始化流式摘要
       });
     }
 
@@ -559,7 +525,7 @@ void dispose() {
           // 立即更新UI状态，不使用延迟
           if (mounted) {
             setState(() {
-              _streamingSummary = content;  // 更新流式内容
+              _streamingSummary = content; // 更新流式内容
             });
           }
         },
@@ -582,7 +548,7 @@ void dispose() {
             setState(() {
               _summaryChapter = summary;
               _title = newTitle ?? _title;
-              _streamingSummary = '';  // 清空流式内容，显示最终摘要
+              _streamingSummary = ''; // 清空流式内容，显示最终摘要
               _isGenerating = false;
             });
           }
@@ -642,22 +608,22 @@ void dispose() {
   /// 捕获指定Tab的滚动锚点到共享变量
   void _captureScrollAnchor(int tabIndex) {
     ScrollController? controller;
-    
+
     switch (tabIndex) {
       case 1:
-        controller = _translationScrollController;
+        controller = _originalScrollController;
         break;
       case 2:
-        controller = _originalScrollController;
+        controller = _translationScrollController;
         break;
       default:
         return;
     }
-    
+
     if (controller == null || !controller.hasClients) {
       return;
     }
-    
+
     final maxScroll = controller.position.maxScrollExtent;
     if (maxScroll > 0) {
       _currentScrollAnchor = ScrollAnchor(
@@ -669,24 +635,24 @@ void dispose() {
   /// 将共享的滚动锚点恢复到指定Tab
   void _syncScrollToTab(int tabIndex) {
     if (tabIndex == 0) return;
-    
+
     ScrollController? controller;
-    
+
     switch (tabIndex) {
       case 1:
-        controller = _translationScrollController;
+        controller = _originalScrollController;
         break;
       case 2:
-        controller = _originalScrollController;
+        controller = _translationScrollController;
         break;
       default:
         return;
     }
-    
+
     if (controller == null || !controller.hasClients) {
       return;
     }
-    
+
     final maxScroll = controller.position.maxScrollExtent;
     final targetOffset = _currentScrollAnchor.scrollRatio * maxScroll;
     controller.jumpTo(targetOffset.clamp(0.0, maxScroll));
@@ -695,9 +661,11 @@ void dispose() {
   /// 清理 <code> 和 <pre> 标签中多余的反斜杠
   String _cleanCodeBackslashes(String html) {
     return html.replaceAllMapped(
-      RegExp(r'(<code[^>]*>)([\s\S]*?)(</code>)|(<pre[^>]*>)([\s\S]*?)(</pre>)', caseSensitive: false),
+      RegExp(r'(<code[^>]*>)([\s\S]*?)(</code>)|(<pre[^>]*>)([\s\S]*?)(</pre>)',
+          caseSensitive: false),
       (match) {
-        if (match.group(0)!.startsWith('<code') || match.group(0)!.startsWith('<CODE')) {
+        if (match.group(0)!.startsWith('<code') ||
+            match.group(0)!.startsWith('<CODE')) {
           final content = match.group(2)!;
           return '${match.group(1)}${content.replaceAll(r'\\', r'\')}${match.group(3)}';
         } else {
@@ -713,7 +681,10 @@ void dispose() {
   /// 返回包含两个元素的列表：[处理后的HTML, 原始代码块列表]
   List<dynamic> _extractCodeBlocksToPlaceholders(String html) {
     final codeBlocks = <String>[];
-    final codeRegex = RegExp(r'(<code[^>]*>[\s\S]*?</code>)|(<pre[^>]*>[\s\S]*?</pre>)', caseSensitive: false, dotAll: true);
+    final codeRegex = RegExp(
+        r'(<code[^>]*>[\s\S]*?</code>)|(<pre[^>]*>[\s\S]*?</pre>)',
+        caseSensitive: false,
+        dotAll: true);
 
     int index = 0;
     final result = html.replaceAllMapped(codeRegex, (match) {
@@ -725,7 +696,8 @@ void dispose() {
   }
 
   /// 将占位符替换回原始代码块
-  String _restorePlaceholdersToCodeBlocks(String html, List<String> codeBlocks) {
+  String _restorePlaceholdersToCodeBlocks(
+      String html, List<String> codeBlocks) {
     final placeholderRegex = RegExp(r'%%ZHIDU_CODE_BLOCK_(\d+)%%');
     return html.replaceAllMapped(placeholderRegex, (match) {
       final index = int.tryParse(match.group(1)!) ?? -1;
@@ -751,11 +723,14 @@ void dispose() {
       if (cachedTranslation != null && cachedTranslation.isNotEmpty) {
         if (mounted) {
           setState(() {
-            String processedTranslation = _cleanCodeBackslashes(cachedTranslation);
+            String processedTranslation =
+                _cleanCodeBackslashes(cachedTranslation);
             if (processedTranslation.contains('%%ZHIDU_CODE_BLOCK_')) {
-              final extractedResult = _extractCodeBlocksToPlaceholders(_content);
+              final extractedResult =
+                  _extractCodeBlocksToPlaceholders(_content);
               final codeBlocks = extractedResult[1] as List<String>;
-              processedTranslation = _restorePlaceholdersToCodeBlocks(processedTranslation, codeBlocks);
+              processedTranslation = _restorePlaceholdersToCodeBlocks(
+                  processedTranslation, codeBlocks);
             }
             _translationContent = processedTranslation;
             _isTranslating = false;
@@ -788,8 +763,9 @@ void dispose() {
 
   /// 流式生成译文
   Future<void> _generateTranslationWithStreaming() async {
-    _log.d('ChapterScreen', '开始生成译文，_content.isEmpty: ${_content.isEmpty}, _sourceLang: $_sourceLang, _targetLang: $_targetLang, isConfigured: ${_aiService.isConfigured}');
-    
+    _log.d('ChapterScreen',
+        '开始生成译文，_content.isEmpty: ${_content.isEmpty}, _sourceLang: $_sourceLang, _targetLang: $_targetLang, isConfigured: ${_aiService.isConfigured}');
+
     if (_content.isEmpty) {
       _log.w('ChapterScreen', '章节内容为空，无法生成译文');
       return;
@@ -826,14 +802,15 @@ void dispose() {
         bookFormat: bookFormat,
         onContentUpdate: (content) {
           if (mounted) {
-            _captureScrollAnchor(1);
-            
+            _captureScrollAnchor(2);
+
             setState(() {
-              _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks);
+              _streamingTranslation =
+                  _restorePlaceholdersToCodeBlocks(content, codeBlocks);
             });
-            
+
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _syncScrollToTab(1);
+              _syncScrollToTab(2);
             });
           }
         },
@@ -847,7 +824,10 @@ void dispose() {
         final translation = await _summaryService.getTranslation(
             widget.bookId, widget.chapterIndex, _targetLang!);
         setState(() {
-          _translationContent = translation != null ? _restorePlaceholdersToCodeBlocks(_cleanCodeBackslashes(translation), codeBlocks) : null;
+          _translationContent = translation != null
+              ? _restorePlaceholdersToCodeBlocks(
+                  _cleanCodeBackslashes(translation), codeBlocks)
+              : null;
           _isTranslating = false;
           _streamingTranslation = '';
         });
@@ -913,7 +893,10 @@ void dispose() {
           // 2. 没有正在生成
           // 3. 有内容可用
           // 4. AI服务已配置
-          if (_summaryChapter == null && !_isGenerating && _content.isNotEmpty && _aiService.isConfigured)
+          if (_summaryChapter == null &&
+              !_isGenerating &&
+              _content.isNotEmpty &&
+              _aiService.isConfigured)
             TextButton.icon(
               onPressed: _generateSummaryWithStreaming,
               icon: const Icon(Icons.auto_awesome, size: 20),
@@ -940,7 +923,7 @@ void dispose() {
   /// 根据状态显示不同视图：
   /// 1. 加载中 -> 加载视图
   /// 2. 有错误且无内容 -> 错误视图
-  /// 3. 其他 -> 带Tab布局的摘要/原文/译文视图（生成中状态在Tab 0内显示）
+  /// 3. 其他 -> 带Tab布局的摘要/原文/译文视图（生成中状态在Tab 0内处理）0内显示）
   Widget _buildBody() {
     if (_isLoadingContent) {
       return _buildLoadingView();
@@ -1045,79 +1028,92 @@ void dispose() {
     );
   }
 
-/// 构建摘要/原文视图（垂直Tab布局）
-///
-/// 布局说明：
-/// - 左侧：垂直Tab栏（摘要/原文切换）
-/// - 右侧：TabBarView内容区
-///
-/// PDF原文阅读功能：
-/// - PDF格式的书籍在原文模式下使用PdfDocumentViewBuilder
-/// - 支持单页PDF查看，配合翻页按钮
-Widget _buildSummaryView() {
-  final bool originalViewDisabled =
-      _contentTooShort || (!_aiService.isConfigured && _summaryChapter == null);
+  /// 构建摘要/原文视图（垂直Tab布局）
+  ///
+  /// 布局说明：
+  /// - 左侧：垂直Tab栏（摘要/原文切换）
+  /// - 右侧：TabBarView内容区
+  ///
+  /// PDF原文阅读功能：
+  /// - PDF格式的书籍在原文模式下使用PdfDocumentViewBuilder
+  /// - 支持单页PDF查看，配合翻页按钮
+  Widget _buildSummaryView() {
+    final bool originalViewDisabled = _contentTooShort ||
+        (!_aiService.isConfigured && _summaryChapter == null);
 
-  final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
-  final unselectedColor = Colors.grey.withAlpha(80);
+    final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
+    final unselectedColor = Colors.grey.withAlpha(80);
 
-  return Padding(
-    padding: const EdgeInsets.all(16),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            _buildVerticalTab(0, Icons.auto_awesome, selectedColor: selectedColor, unselectedColor: unselectedColor),
-            Container(height: 1, width: 60, color: Colors.grey.withAlpha(100)),
-            _buildVerticalTab(1, Icons.translate, selectedColor: selectedColor, unselectedColor: unselectedColor, disabled: _translationTabDisabled),
-            Container(height: 1, width: 60, color: Colors.grey.withAlpha(100)),
-            _buildVerticalTab(2, Icons.menu_book, selectedColor: selectedColor, unselectedColor: unselectedColor, disabled: originalViewDisabled),
-          ],
-        ),
-        Expanded(
-          child: Container(
-            color: selectedColor,
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildSummaryContent(),
-                _buildTranslationView(),
-                _buildOriginalTextView(),
-              ],
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              _buildVerticalTab(0, Icons.auto_awesome,
+                  selectedColor: selectedColor,
+                  unselectedColor: unselectedColor),
+              Container(
+                  height: 1, width: 60, color: Colors.grey.withAlpha(100)),
+              _buildVerticalTab(1, Icons.menu_book,
+                  selectedColor: selectedColor,
+                  unselectedColor: unselectedColor,
+                  disabled: originalViewDisabled),
+              Container(
+                  height: 1, width: 60, color: Colors.grey.withAlpha(100)),
+              _buildVerticalTab(2, Icons.translate,
+                  selectedColor: selectedColor,
+                  unselectedColor: unselectedColor,
+                  disabled: _translationTabDisabled),
+            ],
+          ),
+          Expanded(
+            child: Container(
+              color: selectedColor,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildSummaryContent(),
+                  _buildOriginalTextView(),
+                  _buildTranslationView(),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
-
-/// 构建垂直Tab按钮（仅图标）
-///
-/// 颜色层级：
-/// - 未选中：灰色背景（与页面有明显区分）
-/// - 选中：主题色背景（与右侧内容框同色）
-Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor, required Color unselectedColor, bool disabled = false}) {
-  final isSelected = _tabController?.index == index;
-  return InkWell(
-    onTap: disabled ? null : () => _tabController?.animateTo(index),
-    child: Container(
-      width: 60,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      color: isSelected ? selectedColor : unselectedColor,
-      child: Icon(
-        icon,
-        size: 24,
-        color: disabled
-            ? Colors.grey.withAlpha(100)
-            : isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey,
+        ],
       ),
-    ),
-  );
-}
+    );
+  }
+
+  /// 构建垂直Tab按钮（仅图标）
+  ///
+  /// 颜色层级：
+  /// - 未选中：灰色背景（与页面有明显区分）
+  /// - 选中：主题色背景（与右侧内容框同色）
+  Widget _buildVerticalTab(int index, IconData icon,
+      {required Color selectedColor,
+      required Color unselectedColor,
+      bool disabled = false}) {
+    final isSelected = _tabController?.index == index;
+    return InkWell(
+      onTap: disabled ? null : () => _tabController?.animateTo(index),
+      child: Container(
+        width: 60,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        color: isSelected ? selectedColor : unselectedColor,
+        child: Icon(
+          icon,
+          size: 24,
+          color: disabled
+              ? Colors.grey.withAlpha(100)
+              : isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.grey,
+        ),
+      ),
+    );
+  }
 
   /// 构建摘要内容视图
   ///
@@ -1133,101 +1129,101 @@ Widget _buildVerticalTab(int index, IconData icon, {required Color selectedColor
     if (_isGenerating && _streamingSummary.isEmpty) {
       return _buildGeneratingView();
     }
-    
+
     // 否则显示正常摘要
     if (_summaryChapter != null && _summaryChapter!.objectiveSummary != null) {
       final htmlContent = md.markdownToHtml(_summaryChapter!.objectiveSummary!);
       return _buildNormalSummaryView(htmlContent);
     }
-    
+
     // 如果都没有，显示空状态
     return _buildEmptySummaryView();
   }
 
-/// 流式摘要视图
-///
-/// 显示AI正在生成摘要的过程，实时展示AI生成的内容
-Widget _buildStreamingSummaryView() {
-  final htmlContent = md.markdownToHtml(_streamingSummary);
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      return SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: constraints.maxHeight,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Html(
-                  data: htmlContent,
-                  style: _htmlStyle,
-                ),
-                const SizedBox(height: 16),
-                _buildTypingIndicator(),
-              ],
+  /// 流式摘要视图
+  ///
+  /// 显示AI正在生成摘要的过程，实时展示AI生成的内容
+  Widget _buildStreamingSummaryView() {
+    final htmlContent = md.markdownToHtml(_streamingSummary);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Html(
+                    data: htmlContent,
+                    style: _htmlStyle,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTypingIndicator(),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
-/// 打字动画指示器
-Widget _buildTypingIndicator() {
-  return Row(
-    children: [
-      _typingDot(),
-      const SizedBox(width: 4),
-      _typingDot(),
-      const SizedBox(width: 4),
-      _typingDot(),
-    ],
-  );
-}
+  /// 打字动画指示器
+  Widget _buildTypingIndicator() {
+    return Row(
+      children: [
+        _typingDot(),
+        const SizedBox(width: 4),
+        _typingDot(),
+        const SizedBox(width: 4),
+        _typingDot(),
+      ],
+    );
+  }
 
-Widget _typingDot() {
-  return Container(
-    width: 8,
-    height: 8,
-    decoration: const BoxDecoration(
-      color: Colors.blue,
-      shape: BoxShape.circle,
-    ),
-  );
-}
+  Widget _typingDot() {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: const BoxDecoration(
+        color: Colors.blue,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
 
-/// 正常摘要视图
-///
-/// 显示已生成的完整摘要内容
-Widget _buildNormalSummaryView(String htmlContent) {
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      return SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: constraints.maxHeight,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Html(
-                  data: htmlContent,
-                  style: _htmlStyle,
-                ),
-              ],
+  /// 正常摘要视图
+  ///
+  /// 显示已生成的完整摘要内容
+  Widget _buildNormalSummaryView(String htmlContent) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Html(
+                    data: htmlContent,
+                    style: _htmlStyle,
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   /// 空摘要视图
   ///
@@ -1415,21 +1411,21 @@ Widget _buildNormalSummaryView(String htmlContent) {
       }
 
 // 使用pdfrx库的PdfDocumentViewBuilder加载PDF
-    return PdfDocumentViewBuilder.file(
-      widget.filePath!,
-      builder: (context, document) {
-        if (document == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        _pdfTotalPages = document.pages.length;
-        return PdfPageView(
-          document: document,
-          // 页码限制在有效范围内
-          pageNumber: _pdfCurrentPage.clamp(1, _pdfTotalPages),
-        );
-      },
-    );
-  }
+      return PdfDocumentViewBuilder.file(
+        widget.filePath!,
+        builder: (context, document) {
+          if (document == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          _pdfTotalPages = document.pages.length;
+          return PdfPageView(
+            document: document,
+            // 页码限制在有效范围内
+            pageNumber: _pdfCurrentPage.clamp(1, _pdfTotalPages),
+          );
+        },
+      );
+    }
 
 // EPUB/其他格式：显示HTML内容（背景由父Container提供）
     return LayoutBuilder(
@@ -1534,8 +1530,8 @@ Widget _buildNormalSummaryView(String htmlContent) {
     final isLast = widget.chapterIndex >= _chapters.length - 1;
 
 // 判断是否为PDF原文模式
-final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
-final isPdfOriginalView = isPdf && (_tabController?.index == 2);
+    final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
+    final isPdfOriginalView = isPdf && (_tabController?.index == 1);
 
     // 计算PDF页码翻页范围（仅PDF原文阅读时有效）
     final currentChapter =

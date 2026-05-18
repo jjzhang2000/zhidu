@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.2 | **更新日期**: 2026-05-18 | **基于代码版本**: v1.3
+> **文档版本**: v2.3 | **更新日期**: 2026-05-18 | **基于代码版本**: v1.3
 
 ---
 
@@ -217,10 +217,14 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `generateBookSummaryFromPrefaceStream()` | SummaryService._generateBookSummaryFromPreface() |
 | `translateContent()` | SummaryService.generateTranslationStream() |
 | `testConnection()` | AiConfigScreen 测试按钮 |
-| `detectLanguage()` | SummaryService (语言检测) |
+| `detectLanguageFromContent()` | SummaryService (语言检测), ChapterScreen._initializeLanguageSettings() |
+| `detectSystemLanguage()` | `_getLanguageInstructionForModel()`, `getTargetLanguage()`, ChapterScreen._resolveTargetLang() |
+| `getTargetLanguage()` | SummaryService (目标语言确定) |
+| `convertLanguageCodeToStandard()` | ChapterScreen._initializeLanguageSettings() |
 | `_callAIStream()` (内部) | 所有流式方法 |
 | `get config` | SummaryService, SettingsScreen |
 | `get availableModels` | AiConfigScreen |
+| `get isConfigured` | BookScreen, ChapterScreen |
 
 ### 4.2 SummaryService → 被调用方
 
