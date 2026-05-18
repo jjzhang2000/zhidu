@@ -356,6 +356,12 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-18: BookScreen 日志修正与重复代码提取
+
+- **修正**: `_startPreGeneration` 内日志/注释从"章节摘要"改为"摘要"（实际同时生成全书+章节摘要）
+- **提取**: `_htmlStyle` getter + `_buildSummaryWithMarkdown()` 公共方法，消除 `_buildAIIntroductionContent` 与 `_buildStreamingBookSummary` 之间约120行重复代码
+- **更新文档**: `book_screen.md` 新增 `_loadBookSummary`、`_htmlStyle`、`_buildSummaryWithMarkdown` 伪代码，修正 `_refreshBookIfNeeded` 逻辑描述
+
 #### 2026-05-18: AiConfigScreen 注释规范化与死代码清理
 
 - **删除**: `_recommendedModels` getter（冗余包装）、`_getLocalizedProviders` 方法（内联到 `_getCurrentProviders`）

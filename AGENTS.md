@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-18**: BookScreen 日志修正与重复代码提取 — 修正`_startPreGeneration`日志（"章节摘要"→"摘要"）；提取`_htmlStyle` getter和`_buildSummaryWithMarkdown()`，消除约120行重复代码；更新`book_screen.md`伪代码文档
 **2026-05-18**: AiConfigScreen 注释规范化与死代码清理 — 删除`_recommendedModels`（冗余getter）和内联`_getLocalizedProviders`；修正`_buildModelSection`过时注释；所有字段/方法doc注释格式统一；更新伪代码文档新增5个方法
 **2026-05-17**: AI配置页面模型选择改进 — 改为联网动态获取模型列表，纯下拉框选择，模型名称按字母排序；新增`fetchAvailableModels`方法；删除`cachedModels`缓存机制
 **2026-05-17**: OpfMetadata类合并 — OpfMetadata类从opf_metadata.dart移动到book.dart文件末尾，删除独立的opf_metadata.dart文件，更新所有导入引用和文档

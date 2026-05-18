@@ -4,7 +4,7 @@
 
 **File**: `lib/screens/book_screen.dart`
 **Purpose**: Display book details, AI-generated summary, and chapter list
-**Pattern**: StatefulWidget with timer-based refresh and background pre-generation
+**Pattern**: StatefulWidget with timer-based refresh, streaming callbacks, background pre-generation
 
 ---
 
@@ -13,11 +13,12 @@
 ```
 BookScreen (StatefulWidget)
 ├── Parameter: Book book
-└── _BookScreenState (State)
+└── _BookScreenState (State) with TickerProviderStateMixin
     ├── Services: BookService, AIService, SummaryService, LogService
     ├── State: Book _book, List<Chapter> _flatChapters
     ├── Flags: _isLoadingChapters, _isPreGenerating
-├── Controllers: _tabController
+    ├── Streaming: _streamingBookSummary, _bookSummaryFromFile
+    ├── Controllers: _tabController
     └── Timer: _refreshTimer (3-second interval)
 ```
 
@@ -29,14 +30,16 @@ BookScreen (StatefulWidget)
 |----------|------|---------|
 | `_bookService` | BookService | Book management singleton |
 | `_aiService` | AIService | AI configuration check |
-| `_summaryService` | SummaryService | Summary generation |
+| `_summaryService` | SummaryService | Summary generation and streaming callbacks |
 | `_log` | LogService | Debug logging |
 | `_book` | Book | Current book (may be refreshed) |
-| `_flatChapters` | List<Chapter> | Flattened chapter list |
+| `_flatChapters` | List\<Chapter\> | Flattened chapter list |
 | `_isLoadingChapters` | bool | Chapter loading state |
 | `_isPreGenerating` | bool | Background generation flag |
 | `_tabController` | TabController? | Controller for vertical tab navigation |
 | `_refreshTimer` | Timer? | Periodic refresh timer (3s) |
+| `_streamingBookSummary` | String | Streaming book summary content (real-time) |
+| `_bookSummaryFromFile` | String? | Book summary loaded from file |
 
 ---
 
@@ -48,20 +51,29 @@ BookScreen (StatefulWidget)
 PROCEDURE initState():
   // Get latest book data (may have been updated elsewhere)
   _book = _bookService.getBookById(widget.book.id) OR widget.book
-  
+
   // Load chapter structure
   _loadChapters()
-  
-  // Start background summary pre-generation
-  _startPreGeneration()
-  
+
+  // Load book summary from file
+  _loadBookSummary()
+
+  // Register streaming callback for real-time book summary updates
+  _summaryService.registerBookStreamingCallback(_book.id, (content):
+    IF mounted:
+      setState(): _streamingBookSummary = content
+  )
+
   // Initialize tab controller for vertical tab layout
   _tabController = TabController(length: 2, vsync: this)
   _tabController.addListener():
     IF mounted: setState()
-  
+
   // Start periodic refresh timer (checks for summary completion)
   _refreshTimer = Timer.periodic(3 seconds, _refreshBookIfNeeded)
+
+  // Start background pre-generation after first build completes
+  WidgetsBinding.instance.addPostFrameCallback(_startPreGeneration)
 END PROCEDURE
 ```
 
@@ -73,6 +85,8 @@ PROCEDURE dispose():
   _tabController?.dispose()
   // Cancel timer to prevent memory leak
   _refreshTimer?.cancel()
+  // Unregister streaming callback
+  _summaryService.unregisterBookStreamingCallback(_book.id)
   super.dispose()
 END PROCEDURE
 ```
@@ -83,28 +97,41 @@ END PROCEDURE
 ASYNC PROCEDURE _loadChapters():
   _log.v('BookScreen', '_loadChapters 开始执行')
   setState(): _isLoadingChapters = true
-  
+
   TRY:
     // Get parser based on book format
     parser = FormatRegistry.getParser('.' + _book.format.name)
-    
+
     IF parser == null:
       _log.e('BookScreen', '不支持的格式')
       setState(): _isLoadingChapters = false
       RETURN
-    
+
     // Parse chapter structure
     chapters = AWAIT parser.getChapters(_book.filePath)
-    
+
     setState():
       _flatChapters = chapters
       _isLoadingChapters = false
-    
+
     _log.d('BookScreen', '章节加载完成: ${chapters.length} 个章节')
   CATCH e, stackTrace:
     _log.e('BookScreen', '加载章节列表失败', e, stackTrace)
     IF mounted:
       setState(): _isLoadingChapters = false
+END PROCEDURE
+```
+
+### `_loadBookSummary()`
+
+```
+ASYNC PROCEDURE _loadBookSummary():
+  TRY:
+    summary = AWAIT _summaryService.getBookSummary(_book.id)
+    IF mounted:
+      setState(): _bookSummaryFromFile = summary
+  CATCH e, stackTrace:
+    _log.e('BookScreen', '加载全书摘要失败', e, stackTrace)
 END PROCEDURE
 ```
 
@@ -116,30 +143,30 @@ PROCEDURE _startPreGeneration():
   IF NOT _aiService.isConfigured:
     _log.d('BookScreen', 'AI服务未配置，跳过预生成')
     RETURN
-  
+
   // Prevent duplicate pre-generation tasks
   IF _isPreGenerating:
     _log.d('BookScreen', '已在预生成中，跳过')
     RETURN
-  
+
   _isPreGenerating = true
-  
+
   // Execute asynchronously (non-blocking)
   Future():
     TRY:
-      _log.d('BookScreen', '开始后台预生成章节摘要')
-      
+      _log.d('BookScreen', '开始后台预生成摘要')
+
       // Refresh first to avoid duplicate generation
       _refreshBookIfNeeded()
-      
-      // Generate summaries for all chapters
+
+      // Generate book summary + all chapter summaries
       AWAIT _summaryService.generateSummariesForBook(_book)
-      _log.d('BookScreen', '后台预生成章节摘要完成')
-      
+      _log.d('BookScreen', '后台预生成摘要完成')
+
       // Refresh again after completion
       _refreshBookIfNeeded()
     CATCH e, stackTrace:
-      _log.e('BookScreen', '后台预生成章节摘要失败', e, stackTrace)
+      _log.e('BookScreen', '后台预生成摘要失败', e, stackTrace)
     FINALLY:
       _isPreGenerating = false
 END PROCEDURE
@@ -148,18 +175,21 @@ END PROCEDURE
 ### `_refreshBookIfNeeded()`
 
 ```
-PROCEDURE _refreshBookIfNeeded():
-  refreshedBook = _bookService.getBookById(_book.id)
-  
-  IF refreshedBook != null AND mounted:
-    // Check if AI introduction changed
-    IF refreshedBook.aiIntroduction != _book.aiIntroduction:
-      // Summary changed, update UI
-      setState():
-        _book = refreshedBook
-    ELSE:
-      // No change, silent update
-      _book = refreshedBook
+ASYNC PROCEDURE _refreshBookIfNeeded():
+  TRY:
+    summary = AWAIT _summaryService.getBookSummary(_book.id)
+    IF mounted:
+      hasNewSummary = summary != null AND summary.isNotEmpty
+      hadOldSummary = _bookSummaryFromFile != null AND _bookSummaryFromFile.isNotEmpty
+
+      IF hasNewSummary != hadOldSummary OR summary != _bookSummaryFromFile:
+        setState():
+          _bookSummaryFromFile = summary
+          // If summary has content, generation is complete; clear streaming state
+          IF hasNewSummary:
+            _streamingBookSummary = ''
+  CATCH e:
+    _log.w('BookScreen', '刷新书籍摘要失败: $e')
 END PROCEDURE
 ```
 
@@ -171,13 +201,45 @@ PROCEDURE _getChapterTitle(index, chapter):
   titles = _book.chapterTitles
   IF titles != null AND titles.containsKey(index):
     RETURN titles[index]
-  
+
   // Priority 2: Original chapter title from EPUB/PDF
   RETURN chapter.title
 END PROCEDURE
 ```
 
-// Removed _toggleView() method as it's no longer used with vertical tab layout
+### `_htmlStyle` getter
+
+```
+PROPERTY _htmlStyle (Map<String, Style>):
+  RETURN {
+    'body': Style(fontSize: 14, lineHeight: 1.6, margin: 0, padding: 0),
+    'h2': Style(fontSize: 16, fontWeight: bold, margin: bottom(8) top(16)),
+    'h3': Style(fontSize: 15, fontWeight: bold, margin: bottom(6) top(12)),
+    'p': Style(fontSize: 14, lineHeight: 1.6, margin: bottom(8)),
+    'ul': Style(margin: bottom(8)),
+    'li': Style(fontSize: 14, lineHeight: 1.5),
+    'strong': Style(fontWeight: bold),
+  }
+```
+
+### `_buildSummaryWithMarkdown(markdownContent, {onBeforeNavigate?})`
+
+```
+WIDGET _buildSummaryWithMarkdown(markdownContent, {onBeforeNavigate}):
+  htmlContent = md.markdownToHtml(markdownContent)
+  RETURN GestureDetector(
+    onTap: IF _flatChapters.isNotEmpty:
+      onBeforeNavigate?.call()
+      Navigator.push(ChapterScreen(firstChapter))
+    ELSE: null,
+
+    child: SingleChildScrollView(
+      child: Padding(all: 8,
+        child: Html(data: htmlContent, style: _htmlStyle)
+      )
+    )
+  )
+END WIDGET
 ```
 
 ---
@@ -202,7 +264,7 @@ Scaffold
 
 ```
 Row
-├── _buildCover() (width: 84, height: 120)
+├── _buildCover() (width: 100, height: 150)
 ├── SizedBox(width: 16)
 └── Expanded: Column
     ├── Text: _book.title (titleLarge, bold, maxLines: 2)
@@ -210,7 +272,7 @@ Row
     ├── Text: _book.author (bodyMedium, grey)
     ├── SizedBox(height: 12)
     └── Wrap
-        ├── _buildInfoChip(Icons.menu_book, "${chapters.length} 章")
+        ├── _buildInfoChip(Icons.menu_book, chapter count / "加载中...")
         └── _buildInfoChip(Icons.calendar_today, formattedDate)
 ```
 
@@ -218,12 +280,12 @@ Row
 
 ```
 IF _book.coverPath exists AND file exists:
-  ClipRRect(borderRadius: 8)
+  Card(clipBehavior: antiAlias)
     └── Image.file(coverPath, fit: cover)
         └── errorBuilder: _buildDefaultCover()
 ELSE:
   _buildDefaultCover()
-    └── Container(blueGrey[100], borderRadius: 8)
+    └── Card → Container(blueGrey[100])
         └── Icon(Icons.book, size: 40)
 ```
 
@@ -233,35 +295,37 @@ ELSE:
 Row
 ├── Column (Vertical Tab Bar)
 │   ├── _buildVerticalTab(0, Icons.auto_awesome)
-│   ├── Container(height: 1, width: 60, color: grey.withAlpha(100)) (divider)
+│   ├── Container(height: 1, width: 60, divider)
 │   └── _buildVerticalTab(1, Icons.format_list_numbered)
 └── Expanded: Container(selectedColor)
     └── TabBarView(controller: _tabController)
-        ├── _buildAIIntroductionContent() (tab 0 - summary view)
-        └── _buildChapterStructureContent() (tab 1 - chapter view)
+        ├── _buildAIIntroductionContent() (tab 0 - book summary)
+        └── _buildChapterStructureContent() (tab 1 - chapters)
 
 _buildVerticalTab(index, icon):
-    InkWell
-        Container(width: 60, padding: vertical(12), color: selected/unselected)
-        └── Icon(icon, size: 24, color: selected/unselected)
+    InkWell(onTap: animateTo(index))
+        Container(width: 60, padding: vertical(12))
+        └── Icon(icon, size: 24)
 ```
 
 ### AI Introduction Content Widget Tree
 
 ```
-IF _book.aiIntroduction == null OR empty:
+IF _streamingBookSummary.isNotEmpty:
+  _buildStreamingBookSummary()
+    → _buildSummaryWithMarkdown(_streamingBookSummary)
+
+ELSE IF _bookSummaryFromFile is null/empty:
   Center: Column
     ├── Icon(Icons.article_outlined, size: 48, grey)
     ├── SizedBox(height: 12)
-    └── Text: 
+    └── Text:
         IF _aiService.isConfigured: "全书摘要生成中，请稍候..."
         ELSE: "AI服务未配置，无法生成全书摘要"
+
 ELSE:
-  GestureDetector(onTap: navigate to first chapter)
-    └── SingleChildScrollView
-        └── Padding(8)
-            └── Html(data: markdownToHtml(aiIntroduction))
-                └── Styles: body, h2, h3, p, ul, li, strong
+  _buildSummaryWithMarkdown(_bookSummaryFromFile,
+    onBeforeNavigate: _log.d(...))
 ```
 
 ### Chapter Structure Content Widget Tree
@@ -282,7 +346,7 @@ ELSE:
                     │   ├── fontSize: 13 - level
                     │   ├── color: grey IF level > 0
                     │   └── maxLines: 1, ellipsis
-                    └── onTap: 
+                    └── onTap:
                         IF level == 0: navigate to ChapterScreen
                         ELSE: null (sub-chapters not clickable)
 ```
@@ -301,22 +365,23 @@ Navigator.push(BookScreen(book: book))
 initState():
     ├── Get latest book data
     ├── Load chapters from file
-    ├── Start background pre-generation
-    └── Start refresh timer
+    ├── Load book summary from file
+    ├── Register streaming callback
+    ├── Init tab controller
+    ├── Start refresh timer
+    └── addPostFrameCallback → start pre-generation
     ↓
-Display book header + summary/chapters
+Display book header + summary/chapters (streaming if in progress)
 ```
 
 ### Flow 2: View Chapter List
 
 ```
-User taps toggle button (left side)
+User taps chapter list tab (right side vertical tab)
     ↓
-_toggleView()
+TabController switches to tab 1
     ↓
-setState(): _showChapterStructure = true
-    ↓
-Display chapter list with hierarchy
+_buildChapterStructureContent() displayed
     ↓
 User taps top-level chapter
     ↓
@@ -331,6 +396,7 @@ User views AI-generated summary
 User taps summary content area
     ↓
 IF chapters exist:
+    _log.d('BookScreen', '点击全书摘要，进入第一章: ...')
     Navigator.push(ChapterScreen(firstChapter))
     ↓
 Enter chapter reading mode
@@ -341,7 +407,7 @@ Enter chapter reading mode
 ```
 BookScreen opens
     ↓
-_startPreGeneration() called
+addPostFrameCallback → _startPreGeneration() called
     ↓
 Check AI configured → YES
     ↓
@@ -352,7 +418,7 @@ Set _isPreGenerating = true
 Async execution:
     ├── Refresh book state
     ├── Call SummaryService.generateSummariesForBook()
-    ├── Generate all chapter summaries
+    ├── Generate book summary + all chapter summaries
     └── Refresh book state again
     ↓
 Set _isPreGenerating = false
@@ -369,12 +435,12 @@ Timer fires every 3 seconds
     ↓
 _refreshBookIfNeeded()
     ↓
-Get latest book from BookService
+Get book summary from file
     ↓
-Compare aiIntroduction with current
+Compare with _bookSummaryFromFile
     ↓
 IF changed:
-    setState(): update _book
+    setState(): update _bookSummaryFromFile, clear streaming state
     ↓
 UI shows new summary
 ```
@@ -387,13 +453,13 @@ UI shows new summary
 HomeScreen (BookCard)
     ↓ (tap book card)
 BookScreen
-    ├── Shows book info + AI summary
-    ├── Shows chapter list (toggle)
-    ↓ (tap chapter OR summary)
+    ├── Shows book info + streaming/final summary
+    ├── Shows chapter list (vertical tab)
+    ↓ (tap top-level chapter OR summary)
 ChapterScreen
     ├── Chapter summary display
     ├── Original text view
-    └── Chapter navigation
+    └── Translation view
 ```
 
 ---
@@ -425,28 +491,34 @@ _startPreGeneration():
     ↓
 SummaryService.generateSummariesForBook(book)
     ↓
-FOR each chapter:
-    ├── Get chapter content
-    ├── Call AIService for summary
-    ├── Save summary to file
-    └── Update book metadata
+EPUB: _generateBookSummaryFromPreface() → book summary
+      + generateSingleSummary() × N → chapter summaries
+PDF:  generateSingleSummary() × N → chapter summaries
+      + _generateBookSummaryFromChapters() → book summary
     ↓
-All summaries ready for reading
+Streaming callbacks → real-time UI updates
+    ↓
+All summaries saved to files, ready for reading
 ```
 
 ---
 
 ## Conditional Rendering Logic
 
-### View Mode Toggle
+### Summary Display (3 states)
 
 ```
-_showChapterStructure = false → Show AI Introduction
-_showChapterStructure = true → Show Chapter List
+State 1: Streaming (AI generating now)
+  → _streamingBookSummary.isNotEmpty
+  → _buildSummaryWithMarkdown(streaming content, no log)
 
-Toggle button icon:
-    IF showing chapters → auto_awesome (hint: click for summary)
-    IF showing summary → format_list_numbered (hint: click for chapters)
+State 2: No summary yet
+  → _bookSummaryFromFile is null/empty
+  → Placeholder message (generating / not configured)
+
+State 3: Summary ready
+  → _bookSummaryFromFile exists and not empty
+  → _buildSummaryWithMarkdown(file content, with log callback)
 ```
 
 ### Chapter Clickability
@@ -459,14 +531,6 @@ Reason: Only navigate between top-level chapters
 Sub-chapters are part of parent chapter content
 ```
 
-### Summary Display
-
-```
-IF aiIntroduction exists → Show Markdown-rendered summary
-IF aiIntroduction null AND AI configured → Show "generating" message
-IF aiIntroduction null AND AI not configured → Show "not configured" message
-```
-
 ---
 
 ## Timer-based State Management
@@ -476,11 +540,11 @@ Timer (3-second interval)
     ↓
 _refreshBookIfNeeded()
     ↓
-Poll BookService for latest data
+Poll SummaryService.getBookSummary()
     ↓
-Compare aiIntroduction
+Compare _bookSummaryFromFile
     ↓
-IF changed → setState()
+IF changed → setState() and clear _streamingBookSummary
     ↓
 UI reflects new summary
 
@@ -497,19 +561,24 @@ Benefit: User sees summary appear without manual refresh
 ```
 READ: _bookService.getBookById(id)
   - Returns latest Book object
-  - Includes aiIntroduction, chapterTitles
-
-READ: _bookService.books (list)
-  - All books in library
+  - Includes chapterTitles, reading progress
 ```
 
 ### SummaryService
 
 ```
 GENERATE: _summaryService.generateSummariesForBook(book)
-  - Generates all chapter summaries
-  - Updates book metadata
+  - Generates book summary + all chapter summaries
+  - Streaming callbacks for real-time UI updates
   - Async, non-blocking
+
+STREAM: _summaryService.registerBookStreamingCallback(bookId, callback)
+  - Registers callback for real-time book summary content
+  - Unregistered in dispose()
+
+READ: _summaryService.getBookSummary(bookId)
+  - Returns book summary from file (summary-zh.md)
+  - Used by _loadBookSummary() and _refreshBookIfNeeded()
 ```
 
 ### FormatRegistry
@@ -521,5 +590,6 @@ GET PARSER: FormatRegistry.getParser(extension)
 
 USE PARSER:
   - parser.getChapters(filePath) → List<Chapter>
-  - parser.getChapterContent(filePath, chapter) → ChapterContent
 ```
+
+---

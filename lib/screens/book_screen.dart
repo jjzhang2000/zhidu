@@ -201,7 +201,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// 后台静默预生成章节摘要
+  /// 后台预生成摘要（全书 + 章节）
   ///
   /// 在首次 build() 完成后通过 addPostFrameCallback 调用，
   /// 确保垂直Tab框架已就绪，流式摘要内容可显示在正确的页面布局中。
@@ -210,7 +210,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 1. 检查AI服务是否已配置
   /// 2. 防止重复启动（通过[_isPreGenerating]标志）
   /// 3. 异步执行，不阻塞UI
-  /// 4. 调用[SummaryService.generateSummariesForBook]生成所有章节摘要
+  /// 4. 调用[SummaryService.generateSummariesForBook]生成全书摘要和所有章节摘要
   ///
   /// 优点：
   /// - 用户无需等待，摘要提前准备好
@@ -234,7 +234,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     // 异步执行，不阻塞UI
     Future(() async {
       try {
-        _log.d('BookScreen', '开始后台预生成章节摘要');
+        _log.d('BookScreen', '开始后台预生成摘要');
 
         // 先刷新一次，因为 generateSummariesForBook 可能在前台已完成前言摘要
         // 避免重复生成或状态不一致
@@ -242,12 +242,12 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
 
         // 执行摘要生成
         await _summaryService.generateSummariesForBook(_book);
-        _log.d('BookScreen', '后台预生成章节摘要完成');
+        _log.d('BookScreen', '后台预生成摘要完成');
 
         // 生成完成后再次刷新书籍状态
         _refreshBookIfNeeded();
       } catch (e, stackTrace) {
-        _log.e('BookScreen', '后台预生成章节摘要失败', e, stackTrace);
+        _log.e('BookScreen', '后台预生成摘要失败', e, stackTrace);
       } finally {
         _isPreGenerating = false;
       }
@@ -530,6 +530,79 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// Markdown HTML 渲染样式
+  Map<String, Style> get _htmlStyle => {
+        'body': Style(
+          fontSize: FontSize(14),
+          lineHeight: const LineHeight(1.6),
+          margin: Margins.zero,
+          padding: HtmlPaddings.zero,
+        ),
+        'h2': Style(
+          fontSize: FontSize(16),
+          fontWeight: FontWeight.bold,
+          margin: Margins.only(bottom: 8, top: 16),
+        ),
+        'h3': Style(
+          fontSize: FontSize(15),
+          fontWeight: FontWeight.bold,
+          margin: Margins.only(bottom: 6, top: 12),
+        ),
+        'p': Style(
+          fontSize: FontSize(14),
+          lineHeight: const LineHeight(1.6),
+          margin: Margins.only(bottom: 8),
+        ),
+        'ul': Style(
+          margin: Margins.only(bottom: 8),
+        ),
+        'li': Style(
+          fontSize: FontSize(14),
+          lineHeight: const LineHeight(1.5),
+        ),
+        'strong': Style(
+          fontWeight: FontWeight.bold,
+        ),
+      };
+
+  /// 将 Markdown 内容渲染为可点击的摘要视图
+  ///
+  /// 点击时导航到第一章，[onBeforeNavigate] 在跳转前执行（如打日志）。
+  Widget _buildSummaryWithMarkdown(String markdownContent,
+      {VoidCallback? onBeforeNavigate}) {
+    final htmlContent = md.markdownToHtml(markdownContent);
+    return GestureDetector(
+      onTap: _flatChapters.isNotEmpty
+          ? () {
+              onBeforeNavigate?.call();
+              final firstChapter = _flatChapters.first;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChapterScreen(
+                    bookId: _book.id,
+                    chapterIndex: firstChapter.index,
+                    chapterTitle: firstChapter.title,
+                    filePath: _book.filePath,
+                    chapters: _flatChapters,
+                    book: _book,
+                  ),
+                ),
+              );
+            }
+          : null,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Html(
+            data: htmlContent,
+            style: _htmlStyle,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 构建全书摘要内容
   ///
   /// 显示逻辑：
@@ -578,136 +651,14 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     }
 
     // 显示全书摘要（Markdown渲染）
-    final htmlContent = md.markdownToHtml(_bookSummaryFromFile!);
-    return GestureDetector(
-      // 点击摘要进入第一章阅读
-      onTap: _flatChapters.isNotEmpty
-          ? () {
-              final firstChapter = _flatChapters.first;
-              _log.d('BookScreen', '点击全书摘要，进入第一章: ${firstChapter.title}');
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChapterScreen(
-                    bookId: _book.id,
-                    chapterIndex: firstChapter.index,
-                    chapterTitle: firstChapter.title,
-                    filePath: _book.filePath,
-                    chapters: _flatChapters,
-                    book: _book,
-                  ),
-                ),
-              );
-            }
-          : null,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Html(
-            data: htmlContent,
-            style: {
-              'body': Style(
-                fontSize: FontSize(14),
-                lineHeight: const LineHeight(1.6),
-                margin: Margins.zero,
-                padding: HtmlPaddings.zero,
-              ),
-              'h2': Style(
-                fontSize: FontSize(16),
-                fontWeight: FontWeight.bold,
-                margin: Margins.only(bottom: 8, top: 16),
-              ),
-              'h3': Style(
-                fontSize: FontSize(15),
-                fontWeight: FontWeight.bold,
-                margin: Margins.only(bottom: 6, top: 12),
-              ),
-              'p': Style(
-                fontSize: FontSize(14),
-                lineHeight: const LineHeight(1.6),
-                margin: Margins.only(bottom: 8),
-              ),
-              'ul': Style(
-                margin: Margins.only(bottom: 8),
-              ),
-              'li': Style(
-                fontSize: FontSize(14),
-                lineHeight: const LineHeight(1.5),
-              ),
-              'strong': Style(
-                fontWeight: FontWeight.bold,
-              ),
-            },
-          ),
-        ),
-      ),
-    );
+    return _buildSummaryWithMarkdown(_bookSummaryFromFile!,
+        onBeforeNavigate: () =>
+            _log.d('BookScreen', '点击全书摘要，进入第一章: ${_flatChapters.first.title}'));
   }
 
   /// 构建流式全书摘要视图
   Widget _buildStreamingBookSummary() {
-    final htmlContent = md.markdownToHtml(_streamingBookSummary);
-    return GestureDetector(
-      onTap: _flatChapters.isNotEmpty
-          ? () {
-              final firstChapter = _flatChapters.first;
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChapterScreen(
-                    bookId: _book.id,
-                    chapterIndex: firstChapter.index,
-                    chapterTitle: firstChapter.title,
-                    filePath: _book.filePath,
-                    chapters: _flatChapters,
-                    book: _book,
-                  ),
-                ),
-              );
-            }
-          : null,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Html(
-            data: htmlContent,
-            style: {
-              'body': Style(
-                fontSize: FontSize(14),
-                lineHeight: const LineHeight(1.6),
-                margin: Margins.zero,
-                padding: HtmlPaddings.zero,
-              ),
-              'h2': Style(
-                fontSize: FontSize(16),
-                fontWeight: FontWeight.bold,
-                margin: Margins.only(bottom: 8, top: 16),
-              ),
-              'h3': Style(
-                fontSize: FontSize(15),
-                fontWeight: FontWeight.bold,
-                margin: Margins.only(bottom: 6, top: 12),
-              ),
-              'p': Style(
-                fontSize: FontSize(14),
-                lineHeight: const LineHeight(1.6),
-                margin: Margins.only(bottom: 8),
-              ),
-              'ul': Style(
-                margin: Margins.only(bottom: 8),
-              ),
-              'li': Style(
-                fontSize: FontSize(14),
-                lineHeight: const LineHeight(1.5),
-              ),
-              'strong': Style(
-                fontWeight: FontWeight.bold,
-              ),
-            },
-          ),
-        ),
-      ),
-    );
+    return _buildSummaryWithMarkdown(_streamingBookSummary);
   }
 
   /// 构建章节目录内容
