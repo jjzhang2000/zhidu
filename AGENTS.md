@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-18**: ChapterScreen 僵尸代码清理与重复代码提取 — 删除 `_generateSummary()`（阻塞版）、`_uiRefreshTimer`、`_getCurrentSummaryLanguage()` 三处僵尸代码(~87行)；提取 `_htmlStyle` getter、`_buildTypingIndicator()`+`_typingDot()`、`_resolveTargetLang()` 三处重复代码(~118行)；更新 `chapter_screen.md` 伪代码文档
 **2026-05-18**: BookScreen 日志修正与重复代码提取 — 修正`_startPreGeneration`日志（"章节摘要"→"摘要"）；提取`_htmlStyle` getter和`_buildSummaryWithMarkdown()`，消除约120行重复代码；更新`book_screen.md`伪代码文档
 **2026-05-18**: AiConfigScreen 注释规范化与死代码清理 — 删除`_recommendedModels`（冗余getter）和内联`_getLocalizedProviders`；修正`_buildModelSection`过时注释；所有字段/方法doc注释格式统一；更新伪代码文档新增5个方法
 **2026-05-17**: AI配置页面模型选择改进 — 改为联网动态获取模型列表，纯下拉框选择，模型名称按字母排序；新增`fetchAvailableModels`方法；删除`cachedModels`缓存机制

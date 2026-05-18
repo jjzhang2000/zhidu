@@ -356,6 +356,12 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-18: ChapterScreen 僵尸代码清理与重复代码提取
+
+- **删除僵尸代码**: `_generateSummary()`（阻塞版，已被流式版替代）、`_uiRefreshTimer`（从未赋值）、`_getCurrentSummaryLanguage()`（从未调用）— 共约87行
+- **提取重复代码**: `_htmlStyle` getter（消除3处~86行重复HTML样式Map）、`_buildTypingIndicator()`+`_typingDot()`（消除2处~20行重复圆点动画）、`_resolveTargetLang()`（消除2处~12行重复语言解析switch）— 共省约118行
+- **更新文档**: `chapter_screen.md` 全面重写，新增 `_resolveTargetLang`、`_buildTypingIndicator`、`_htmlStyle`、`_generateSummaryWithStreaming`、`_loadTranslation`、`_generateTranslationWithStreaming`、`_captureScrollAnchor`、`_syncScrollToTab` 等伪代码
+
 #### 2026-05-18: BookScreen 日志修正与重复代码提取
 
 - **修正**: `_startPreGeneration` 内日志/注释从"章节摘要"改为"摘要"（实际同时生成全书+章节摘要）

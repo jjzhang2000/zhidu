@@ -1,10 +1,10 @@
-# Summary Screen - Pseudocode Documentation
+# 章节阅读页面 - 伪代码文档
 
 ## Overview
 
 **File**: `lib/screens/chapter_screen.dart`
-**Purpose**: Core reading interface for chapter summaries and original text
-**Pattern**: Complex StatefulWidget with dual view modes and PDF/EPUB handling
+**Purpose**: Core reading interface for chapter summaries, translations, and original text
+**Pattern**: Complex StatefulWidget with vertical 3-tab layout and PDF/EPUB handling
 
 ---
 
@@ -23,10 +23,12 @@ ChapterScreen (StatefulWidget)
 │
 └── _ChapterScreenState (State)
     ├── Services: AIService, LogService, SummaryService, BookService
-├── State Variables: summary, content, title, flags
-├── PDF State: _pdfCurrentPage, _pdfTotalPages
-├── Navigation: _chapters (filtered top-level)
-└── Controllers: _tabController
+    ├── State Variables: summary, content, title, flags
+    ├── PDF State: _pdfCurrentPage, _pdfTotalPages
+    ├── Translation State: _translationContent, _isTranslating, _streamingTranslation
+    ├── Language State: _targetLang, _sourceLang, _summaryLang
+    ├── Navigation: _chapters (filtered top-level)
+    └── Controllers: _tabController (3 tabs), _translationScrollController, _originalScrollController
 ```
 
 ---
@@ -53,18 +55,53 @@ ChapterScreen (StatefulWidget)
 | `_log` | LogService | Debug logging |
 | `_summaryService` | SummaryService | Load/generate summaries |
 | `_bookService` | BookService | Get updated book info |
-| `_summary` | ChapterSummary? | Current chapter summary |
-| `_isGenerating` | bool | Summary generation state |
+| `_summaryChapter` | Chapter? | Current chapter summary data |
+| `_isGenerating` | bool | Summary generation in progress |
 | `_error` | String? | Error message |
 | `_isLoadingContent` | bool | Content loading state |
 | `_content` | String | Chapter HTML content |
 | `_title` | String | Dynamic chapter title |
-// Removed `_showOriginalText` as it's now managed by tab controller
-| `_contentTooShort` | bool | Content length flag |
-| `_chapters` | List<Chapter> | Top-level chapters only |
+| `_contentTooShort` | bool | Content < 2000 bytes flag |
+| `_chapters` | List\<Chapter\> | Top-level chapters only |
 | `_pdfCurrentPage` | int | PDF current page |
 | `_pdfTotalPages` | int | PDF total pages |
-| `_tabController` | TabController? | Controller for vertical tab navigation |
+| `_tabController` | TabController? | Vertical tab (3 tabs: summary/translation/original) |
+| `_streamingSummary` | String | Real-time streaming summary content |
+| `_translationContent` | String? | Cached translation HTML |
+| `_isTranslating` | bool | Translation generation in progress |
+| `_streamingTranslation` | String | Real-time streaming translation |
+| `_targetLang` | String? | Target language for translation |
+| `_sourceLang` | String? | Source language from book metadata |
+| `_summaryLang` | String | Current summary language (default: zh) |
+| `_translationTabDisabled` | bool | Disable translation tab when source==target lang |
+| `_translationScrollController` | ScrollController? | Translation view scroll sync |
+| `_originalScrollController` | ScrollController? | Original text view scroll sync |
+| `_currentScrollAnchor` | ScrollAnchor | Shared scroll position for tab sync |
+| `_hasLoadedSummary` | bool | Prevent duplicate summary loading |
+| `_listeningChapterKey` | String? | Current chapter key for dedup |
+
+---
+
+## Extracted Public Properties
+
+### `_htmlStyle` getter
+
+```
+GETTER _htmlStyle → Map<String, Style>:
+  RETURN {
+    'body':   Style(fontSize: 14, lineHeight: 1.6, margin: 0, padding: 0),
+    'h2':     Style(fontSize: 15, fontWeight: bold, margin: bottom 8 top 16),
+    'h3':     Style(fontSize: 14, fontWeight: bold, margin: bottom 6 top 12),
+    'p':      Style(fontSize: 14, lineHeight: 1.6, margin: bottom 8),
+    'ul':     Style(margin: bottom 8),
+    'li':     Style(fontSize: 14, lineHeight: 1.5),
+    'strong': Style(fontWeight: bold),
+    'code':   Style(fontFamily: Consolas, fontSize: 13),
+    'pre':    Style(fontFamily: Consolas, fontSize: 13, padding: 8, margin: bottom 12),
+  }
+```
+
+Used by: `_buildStreamingSummaryView()`, `_buildNormalSummaryView()`, `_buildTranslationHtmlView()`
 
 ---
 
@@ -77,15 +114,44 @@ PROCEDURE initState():
   // Filter chapters to top-level only (level == 0)
   IF widget.chapters != null:
     _chapters = widget.chapters.where(c => c.level == 0).toList()
-  
-  // Initialize content then load summary
-  _initializeContent().then():
-    _loadSummary()
-  
-  // Initialize tab controller for vertical tab layout
-  _tabController = TabController(length: 2, vsync: this)
+
+  // Initialize scroll controllers for tab sync
+  _translationScrollController = ScrollController()
+  _originalScrollController = ScrollController()
+
+  // Initialize 3-tab vertical layout (0=summary, 1=translation, 2=original)
+  _tabController = TabController(length: 3, vsync: this)
   _tabController.addListener():
-    IF mounted: setState()
+    IF mounted:
+      setState()
+      IF NOT indexIsChanging:
+        // Tab switch completed — sync scroll
+        addPostFrameCallback: _syncScrollToTab(_tabController.index)
+
+        IF _tabController.index == 1:
+          // Switched to translation tab — update lang then load
+          _updateTargetLanguage().then(): _loadTranslation()
+      ELSE:
+        // Tab switch in progress — capture current scroll position
+        _captureScrollAnchor(_tabController.previousIndex)
+
+  // Initialize language settings (source/target lang)
+  _initializeLanguageSettings()
+
+  // Load chapter content first, then summary on first frame
+  _initializeContent().then():
+    addPostFrameCallback: _loadSummary()
+END PROCEDURE
+```
+
+### `dispose()`
+
+```
+PROCEDURE dispose():
+  _translationScrollController?.dispose()
+  _originalScrollController?.dispose()
+  _tabController?.dispose()
+  super.dispose()
 END PROCEDURE
 ```
 
@@ -98,16 +164,19 @@ ASYNC PROCEDURE _initializeContent():
     _content = widget.chapterContent
     _title = widget.chapterTitle
     _checkContentLength()
+    IF NOT mounted: RETURN
     setState(): _isLoadingContent = false
     RETURN
-  
+
   // Priority 2: Load from file
   IF widget.filePath != null:
+    IF NOT mounted: RETURN
     setState(): _isLoadingContent = true
     AWAIT _loadChapterContent()
     RETURN
-  
+
   // No content available
+  IF NOT mounted: RETURN
   setState():
     _error = '未提供章节内容或文件路径'
     _isLoadingContent = false
@@ -118,10 +187,82 @@ END PROCEDURE
 
 ```
 PROCEDURE _checkContentLength():
+  textContent = _extractTextContent(_content)
+  byteLength = utf8.encode(textContent).length
+  _contentTooShort = byteLength < 2000
 
   // Auto-switch to original view if content too short and no summary
-  IF _contentTooShort AND _summary == null:
-    _tabController.animateTo(1)  // Switch to original text tab (index 1)
+  IF _contentTooShort AND _summaryChapter == null:
+    _tabController?.animateTo(2)  // Tab 2 = original text
+END PROCEDURE
+```
+
+### `_initializeLanguageSettings()`
+
+```
+ASYNC PROCEDURE _initializeLanguageSettings():
+  // Determine source language from book metadata or content
+  _sourceLang = widget.book?.language
+
+  IF _sourceLang != null AND not empty:
+    _sourceLang = _aiService.convertLanguageCodeToStandard(_sourceLang)
+  ELSE:
+    _sourceLang = _aiService.detectLanguageFromContent(_content)
+
+  // Resolve target language via shared method
+  _resolveTargetLang()
+
+  // Sync summary language with target language
+  _summaryLang = _targetLang ?? 'zh'
+
+  // Disable translation tab when source == target
+  _translationTabDisabled = _sourceLang == _targetLang
+END PROCEDURE
+```
+
+### `_resolveTargetLang()` (extracted shared method)
+
+```
+PROCEDURE _resolveTargetLang():
+  lang = SettingsService().settings.languageSettings
+
+  SWITCH lang.aiLanguageMode:
+    CASE 'system':
+      _targetLang = _detectSystemLanguage()
+    CASE 'manual':
+      _targetLang = lang.aiOutputLanguage
+    CASE 'book' / DEFAULT:
+      _targetLang = _sourceLang
+  END SWITCH
+
+  _log.d: '目标语言: $_targetLang (模式: ${lang.aiLanguageMode})'
+END PROCEDURE
+```
+
+Used by: `_updateTargetLanguage()`, `_initializeLanguageSettings()`
+
+### `_updateTargetLanguage()`
+
+```
+ASYNC PROCEDURE _updateTargetLanguage():
+  _resolveTargetLang()
+  _translationTabDisabled = _sourceLang == _targetLang
+END PROCEDURE
+```
+
+### `_detectSystemLanguage()`
+
+```
+PROCEDURE _detectSystemLanguage():
+  TRY:
+    locale = Platform.localeName
+    IF locale matches zh pattern:    RETURN 'zh'
+    IF locale matches ja pattern:    RETURN 'ja'
+    IF locale matches en pattern:    RETURN 'en'
+    IF locale matches ko pattern:    RETURN 'ko'
+    RETURN 'zh'
+  CATCH e:
+    RETURN 'zh'
 END PROCEDURE
 ```
 
@@ -131,48 +272,46 @@ END PROCEDURE
 ASYNC PROCEDURE _loadChapterContent():
   TRY:
     chapters = widget.chapters OR []
-    
+
     // Parse chapters if not provided
     IF chapters.isEmpty AND widget.filePath != null:
       extension = _getFileExtension(widget.filePath)
       parser = FormatRegistry.getParser(extension)
-      
       IF parser != null:
         chapters = AWAIT parser.getChapters(widget.filePath)
-    
+
     // Filter to top-level
     topLevelChapters = chapters.where(c => c.level == 0).toList()
     _chapters = topLevelChapters
-    
+
     // Validate index
     IF chapterIndex out of range:
       setState():
         _error = '章节索引超出范围'
         _isLoadingContent = false
       RETURN
-    
+
     chapter = topLevelChapters[widget.chapterIndex]
     _title = chapter.title
-    
+
     // Get chapter content via parser
     IF widget.filePath != null:
       extension = _getFileExtension(widget.filePath)
       parser = FormatRegistry.getParser(extension)
-      
       IF parser != null:
         chapterContent = AWAIT parser.getChapterContent(filePath, chapter)
         content = chapterContent.htmlContent
-    
+
     IF content == null OR empty:
       setState():
         _error = '章节内容为空'
         _isLoadingContent = false
       RETURN
-    
+
     setState():
       _content = content
       _isLoadingContent = false
-    
+
     _checkContentLength()
   CATCH e:
     setState():
@@ -185,80 +324,86 @@ END PROCEDURE
 
 ```
 ASYNC PROCEDURE _loadSummary():
-  // Check if generation in progress
-  generatingFuture = _summaryService.getGeneratingFuture(bookId, chapterIndex)
-  
-  IF generatingFuture != null:
-    // Wait for background generation
-    setState(): _isGenerating = true
-    
-    TRY:
-      AWAIT generatingFuture
-      
-      // Load completed summary
-      summary = AWAIT _summaryService.getSummary(bookId, chapterIndex)
-      setState():
-        _summary = summary
-        _isGenerating = false
-    CATCH e:
-      setState():
-        _error = '生成摘要失败: $e'
-        _isGenerating = false
+  chapterKey = '${widget.bookId}_${widget.chapterIndex}'
+
+  // Prevent duplicate loading
+  IF _hasLoadedSummary AND _listeningChapterKey == chapterKey:
     RETURN
-  
-  // Load existing summary
-  summary = AWAIT _summaryService.getSummary(bookId, chapterIndex)
-  setState(): _summary = summary
+
+  _hasLoadedSummary = true
+  _listeningChapterKey = chapterKey
+
+  summary = AWAIT _summaryService.getSummary(bookId, chapterIndex, language: _summaryLang)
+
+  IF summary != null:
+    // Have existing summary — display directly
+    IF NOT mounted: RETURN
+    setState(): _summaryChapter = summary
+  ELSE:
+    // No summary — auto-generate if conditions met
+    IF _content.isNotEmpty AND _aiService.isConfigured:
+      setState():
+        _isGenerating = true
+        _streamingSummary = ''
+      _generateSummaryWithStreaming()
+    ELSE:
+      IF NOT mounted: RETURN
+      setState(): _summaryChapter = summary
 END PROCEDURE
 ```
 
-### `_generateSummary()`
+### `_generateSummaryWithStreaming()`
 
 ```
-ASYNC PROCEDURE _generateSummary():
+ASYNC PROCEDURE _generateSummaryWithStreaming():
   IF _content.isEmpty:
     setState(): _error = '无法生成摘要：章节内容为空'
     RETURN
-  
+
   setState():
     _isGenerating = true
     _error = null
-  
+    _streamingSummary = ''
+
   TRY:
-    // Extract plain text for AI
     plainText = _extractTextContent(_content)
-    
-    // Generate summary
+
     success = AWAIT _summaryService.generateSingleSummary(
-      bookId, chapterIndex, _title, plainText
+      bookId, chapterIndex, _title, plainText,
+      language: _summaryLang,
+      onContentUpdate: (content):
+        IF mounted: setState(): _streamingSummary = content
     )
-    
+
     IF NOT mounted: RETURN
-    
+
     IF success:
-      // Load new summary
-      summary = AWAIT _summaryService.getSummary(bookId, chapterIndex)
-      
-      // Check for updated chapter title
+      // Load final summary
+      summary = AWAIT _summaryService.getSummary(bookId, chapterIndex, language: _summaryLang)
       updatedBook = _bookService.getBookById(bookId)
-      
+
       IF updatedBook != null:
         newTitle = updatedBook.chapterTitles?[chapterIndex]
         setState():
-          _summary = summary
-          _title = newTitle OR _title
+          _summaryChapter = summary
+          _title = newTitle ?? _title
+          _streamingSummary = ''
           _isGenerating = false
       ELSE:
         setState():
-          _summary = summary
+          _summaryChapter = summary
+          _streamingSummary = ''
           _isGenerating = false
     ELSE:
       setState():
         _error = '生成摘要失败'
+        _streamingSummary = ''
         _isGenerating = false
   CATCH e:
+    IF NOT mounted: RETURN
     setState():
       _error = '生成摘要失败: $e'
+      _streamingSummary = ''
       _isGenerating = false
 END PROCEDURE
 ```
@@ -269,7 +414,7 @@ END PROCEDURE
 PROCEDURE _extractTextContent(html):
   // Remove HTML tags
   text = html.replaceAll(RegExp(r'<[^>]+>'), '')
-  
+
   // Decode HTML entities
   text = text
     .replaceAll('&nbsp;', ' ')
@@ -278,7 +423,7 @@ PROCEDURE _extractTextContent(html):
     .replaceAll('&amp;', '&')
     .replaceAll('&quot;', '"')
     .trim()
-  
+
   RETURN text
 END PROCEDURE
 ```
@@ -288,10 +433,7 @@ END PROCEDURE
 ```
 PROCEDURE _getFileExtension(filePath):
   lastDot = filePath.lastIndexOf('.')
-  
-  IF lastDot == -1:
-    RETURN ''
-  
+  IF lastDot == -1: RETURN ''
   RETURN filePath.substring(lastDot).toLowerCase()
 END PROCEDURE
 ```
@@ -300,12 +442,10 @@ END PROCEDURE
 
 ```
 PROCEDURE _getChapterTitle(index, defaultTitle):
-  // Priority: AI-updated title from book.chapterTitles
   IF widget.book != null:
     titles = widget.book!.chapterTitles
     IF titles != null AND titles.containsKey(index):
       RETURN titles[index]
-  
   RETURN defaultTitle
 END PROCEDURE
 ```
@@ -314,11 +454,9 @@ END PROCEDURE
 
 ```
 PROCEDURE _navigateToChapter(index):
-  IF index < 0 OR index >= _chapters.length:
-    RETURN
-  
+  IF index < 0 OR index >= _chapters.length: RETURN
+
   chapter = _chapters[index]
-  
   Navigator.pushReplacement(
     ChapterScreen(
       bookId: widget.bookId,
@@ -332,146 +470,333 @@ PROCEDURE _navigateToChapter(index):
 END PROCEDURE
 ```
 
+### `_captureScrollAnchor(tabIndex)`
+
+```
+PROCEDURE _captureScrollAnchor(tabIndex):
+  controller = switch(tabIndex):
+    1 → _translationScrollController
+    2 → _originalScrollController
+    default → return
+
+  IF controller == null OR NOT hasClients: RETURN
+
+  maxScroll = controller.position.maxScrollExtent
+  IF maxScroll > 0:
+    _currentScrollAnchor = ScrollAnchor(
+      scrollRatio: controller.offset / maxScroll
+    )
+END PROCEDURE
+```
+
+### `_syncScrollToTab(tabIndex)`
+
+```
+PROCEDURE _syncScrollToTab(tabIndex):
+  IF tabIndex == 0: RETURN
+
+  controller = switch(tabIndex):
+    1 → _translationScrollController
+    2 → _originalScrollController
+    default → return
+
+  IF controller == null OR NOT hasClients: RETURN
+
+  maxScroll = controller.position.maxScrollExtent
+  targetOffset = _currentScrollAnchor.scrollRatio * maxScroll
+  controller.jumpTo(targetOffset.clamp(0.0, maxScroll))
+END PROCEDURE
+```
+
+### `_loadTranslation()`
+
+```
+ASYNC PROCEDURE _loadTranslation():
+  IF _translationTabDisabled OR _targetLang == null OR _content.isEmpty: RETURN
+
+  TRY:
+    cached = AWAIT _summaryService.getTranslation(bookId, chapterIndex, _targetLang)
+
+    IF cached != null AND not empty:
+      // Have cached translation — restore code blocks and display
+      IF mounted: setState():
+        _translationContent = _restoreCodeBlocks(_cleanBackslashes(cached))
+        _isTranslating = false
+        _streamingTranslation = ''
+    ELSEIF _aiService.isConfigured AND _content.isNotEmpty:
+      // No cache — auto-generate translation
+      IF mounted: setState():
+        _translationContent = null
+        _isTranslating = true
+        _streamingTranslation = ''
+      _generateTranslationWithStreaming()
+    ELSE:
+      IF mounted: setState():
+        _translationContent = null
+        _isTranslating = false
+        _streamingTranslation = ''
+  CATCH e:
+    _log.e('加载译文失败', e)
+END PROCEDURE
+```
+
+### `_generateTranslationWithStreaming()`
+
+```
+ASYNC PROCEDURE _generateTranslationWithStreaming():
+  IF _content.isEmpty OR _targetLang == null: RETURN
+
+  setState():
+    _isTranslating = true
+    _streamingTranslation = ''
+
+  TRY:
+    // Extract code blocks to placeholders for protection
+    (contentWithPlaceholders, codeBlocks) = _extractCodeBlocksToPlaceholders(_content)
+
+    bookFormat = widget.book?.format.name ?? 'epub'
+
+    success = AWAIT _summaryService.generateTranslationStream(
+      bookId, chapterIndex, contentWithPlaceholders,
+      chapterTitle: _title,
+      sourceLang: _sourceLang ?? 'zh',
+      targetLang: _targetLang,
+      bookFormat: bookFormat,
+      onContentUpdate: (content):
+        IF mounted:
+          _captureScrollAnchor(1)
+          setState(): _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks)
+          addPostFrameCallback: _syncScrollToTab(1)
+    )
+
+    IF NOT mounted: RETURN
+
+    IF success:
+      translation = AWAIT _summaryService.getTranslation(bookId, chapterIndex, _targetLang)
+      setState():
+        _translationContent = _restorePlaceholdersToCodeBlocks(_cleanCodeBackslashes(translation), codeBlocks)
+        _isTranslating = false
+        _streamingTranslation = ''
+    ELSE:
+      setState():
+        _isTranslating = false
+        _streamingTranslation = ''
+  CATCH e:
+    IF mounted: setState():
+      _isTranslating = false
+      _streamingTranslation = ''
+END PROCEDURE
+```
+
+### `_cleanCodeBackslashes(html)`
+
+```
+PROCEDURE _cleanCodeBackslashes(html):
+  RETURN html.replaceAllMapped(
+    RegExp <code> or <pre> tags,
+    match → replace \\ with \ inside code/pre
+  )
+END PROCEDURE
+```
+
+### `_extractCodeBlocksToPlaceholders(html)`
+
+```
+PROCEDURE _extractCodeBlocksToPlaceholders(html):
+  codeBlocks = []
+  result = html.replaceAllMapped(
+    RegExp <code> or <pre> blocks,
+    match:
+      codeBlocks.add(match)
+      RETURN '%%ZHIDU_CODE_BLOCK_{n}%%'
+  )
+  RETURN [result, codeBlocks]
+END PROCEDURE
+```
+
+### `_restorePlaceholdersToCodeBlocks(html, codeBlocks)`
+
+```
+PROCEDURE _restorePlaceholdersToCodeBlocks(html, codeBlocks):
+  RETURN html.replaceAllMapped(
+    RegExp '%%ZHIDU_CODE_BLOCK_(\d+)%%',
+    match: RETURN codeBlocks[index] OR placeholder
+  )
+END PROCEDURE
+```
+
 ---
 
-## Widget Tree Structure
+## Widget Methods
+
+### `build(context)`
 
 ```
-Scaffold
-├── AppBar
-│   ├── Title: Text(_getChapterTitle(...))
-│   ├── centerTitle: true
-│   ├── elevation: 0
-│   └── actions: [
-│       IF _summary == null AND NOT _isGenerating AND _content.isNotEmpty:
-│         TextButton.icon
-│         ├── icon: Icon(Icons.auto_awesome)
-│         ├── label: Text("生成摘要")
-│         └── onPressed: _generateSummary
-│     ]
-│
-└── Body: Stack
-    ├── _buildBody()
-    └── IF _chapters.length > 1: _buildNavigationButtons()
+WIDGET build(context):
+  RETURN Scaffold
+    ├── AppBar
+    │   ├── Title: Text(_getChapterTitle(...))
+    │   ├── actions:
+    │   │   IF _summaryChapter == null AND NOT _isGenerating AND _content.isNotEmpty AND aiConfigured:
+    │   │     TextButton.icon('生成摘要', onPressed: _generateSummaryWithStreaming)
+    │
+    └── Body: Stack
+        ├── _buildBody()
+        └── IF _chapters.length > 1: _buildNavigationButtons()
 ```
 
-### Body Widget Tree (_buildBody)
+### `_buildBody()`
 
 ```
-IF _isLoadingContent:
-  _buildLoadingView()
-    └── Center: Column
-        ├── CircularProgressIndicator()
+WIDGET _buildBody():
+  IF _isLoadingContent:  RETURN _buildLoadingView()
+  IF _error != null AND _content.isEmpty: RETURN _buildErrorView()
+  RETURN _buildSummaryView()  // Always use tab layout
+```
+
+### `_buildSummaryView()` (Vertical Tab Layout)
+
+```
+WIDGET _buildSummaryView():
+  selectedColor = theme.primary.withAlpha(40)
+  unselectedColor = grey.withAlpha(80)
+
+  RETURN Padding(16)
+    └── Row
+        ├── Column (Vertical Tab Bar)
+        │   ├── _buildVerticalTab(0, Icons.auto_awesome)    // Summary
+        │   ├── Divider(height: 1, width: 60)
+        │   ├── _buildVerticalTab(1, Icons.translate, disabled: _translationTabDisabled) // Translation
+        │   ├── Divider(height: 1, width: 60)
+        │   └── _buildVerticalTab(2, Icons.menu_book, disabled: contentTooShort) // Original
+        └── Expanded: Container(selectedColor)
+            └── TabBarView(controller: _tabController)
+                ├── Tab 0: _buildSummaryContent()
+                ├── Tab 1: _buildTranslationView()
+                └── Tab 2: _buildOriginalTextView()
+```
+
+### `_buildSummaryContent()`
+
+```
+WIDGET _buildSummaryContent():
+  IF _isGenerating AND _streamingSummary.isNotEmpty:
+    RETURN _buildStreamingSummaryView()
+  IF _isGenerating AND _streamingSummary.isEmpty:
+    RETURN _buildGeneratingView()
+  IF _summaryChapter != null AND has objectiveSummary:
+    htmlContent = md.markdownToHtml(_summaryChapter.objectiveSummary)
+    RETURN _buildNormalSummaryView(htmlContent)
+  RETURN _buildEmptySummaryView()
+```
+
+### `_buildStreamingSummaryView()`
+
+```
+WIDGET _buildStreamingSummaryView():
+  htmlContent = md.markdownToHtml(_streamingSummary)
+  RETURN LayoutBuilder → SingleChildScrollView → Padding
+    └── Column
+        ├── Html(data: htmlContent, style: _htmlStyle)
         ├── SizedBox(height: 16)
-        └── Text("正在加载章节内容...")
-
-ELSE IF _error != null AND _content.isEmpty:
-  _buildErrorView()
-    └── Center: Column
-        ├── Icon(Icons.error_outline, size: 64)
-        ├── Text("出错了")
-        ├── Text(_error)
-        └── ElevatedButton.icon("重试")
-
-ELSE IF _isGenerating:
-  _buildGeneratingView()
-    └── Center: Column
-        ├── CircularProgressIndicator()
-        ├── Text("AI 正在生成摘要...")
-        └── Text("这可能需要几秒钟")
-
-ELSE:
-  _buildSummaryView()
+        └── _buildTypingIndicator()
 ```
 
-### Summary View Widget Tree
+### `_buildNormalSummaryView(htmlContent)`
 
 ```
-Padding(16)
-└── Row
-    ├── Column (Vertical Tab Bar)
-    │   ├── _buildVerticalTab(0, Icons.auto_awesome)
-    │   ├── Container(height: 1, width: 60, color: grey.withAlpha(100)) (divider)
-    │   └── _buildVerticalTab(1, Icons.menu_book, disabled: if content too short)
-    └── Expanded: Container(selectedColor)
-        └── TabBarView(controller: _tabController)
-            ├── _buildSummaryContent() (tab 0 - summary view)
-            └── _buildOriginalTextView() (tab 1 - original text view)
-
-_buildVerticalTab(index, icon, {disabled = false}):
-    InkWell (if not disabled)
-        Container(width: 60, padding: vertical(12), color: selected/unselected)
-        └── Icon(icon, size: 24, color: selected/disabled/unselected)
+WIDGET _buildNormalSummaryView(htmlContent):
+  RETURN LayoutBuilder → SingleChildScrollView → Padding
+    └── Html(data: htmlContent, style: _htmlStyle)
 ```
 
-### Summary Content Widget Tree
+### `_buildEmptySummaryView()`
 
 ```
-LayoutBuilder
-└── SingleChildScrollView
-    └── Card
-        └── Padding(16)
-            └── Column
-                ├── Row: Icon(auto_awesome) + Text("本章摘要")
-                ├── Divider(height: 24)
-                └── Html(markdownToHtml(summary.objectiveSummary))
-                    └── Styles: body, h2, h3, p, ul, li, strong
+WIDGET _buildEmptySummaryView():
+  RETURN Center: Text('暂无摘要', color: grey)
 ```
 
-### Original Text View Widget Tree (EPUB)
+### `_buildTypingIndicator()` (extracted shared widget)
 
 ```
-LayoutBuilder
-└── SingleChildScrollView
-    └── Container(grey.withAlpha(30), borderRadius: 12)
-        └── Padding(16)
-            └── Html(data: _content)
-                └── Styles: body, p, h1, h2, h3, code, pre
+WIDGET _buildTypingIndicator():
+  RETURN Row
+    ├── _typingDot()
+    ├── SizedBox(width: 4)
+    ├── _typingDot()
+    ├── SizedBox(width: 4)
+    └── _typingDot()
+
+WIDGET _typingDot():
+  RETURN Container(width: 8, height: 8,
+    decoration: BoxDecoration(color: blue, shape: circle))
 ```
 
-### Original Text View Widget Tree (PDF)
+Used by: `_buildStreamingSummaryView()`, `_buildStreamingTranslationView()`
+
+### `_buildTranslationView()`
 
 ```
-PdfDocumentViewBuilder.file(filePath)
-└── builder(context, document)
-    ├── IF document == null: CircularProgressIndicator()
-    └── ELSE:
+WIDGET _buildTranslationView():
+  IF _translationTabDisabled:
+    RETURN Center: '书籍语言与译文语言相同，无需翻译'
+
+  IF _isTranslating OR _streamingTranslation.isNotEmpty:
+    RETURN _buildStreamingTranslationView()
+
+  IF _translationContent != null AND not empty:
+    RETURN _buildTranslationHtmlView(_translationContent)
+
+  RETURN Center: CircularProgressIndicator + '翻译中...'
+```
+
+### `_buildStreamingTranslationView()`
+
+```
+WIDGET _buildStreamingTranslationView():
+  htmlContent = _cleanCodeBackslashes(_streamingTranslation)
+  RETURN LayoutBuilder → SingleChildScrollView(controller: _translationScrollController) → Padding
+    └── Column
+        ├── Html(data: htmlContent, style: translationHtmlStyle)
+        ├── SizedBox(height: 16)
+        └── _buildTypingIndicator()
+```
+
+### `_buildTranslationHtmlView(htmlContent)`
+
+```
+WIDGET _buildTranslationHtmlView(htmlContent):
+  RETURN LayoutBuilder → SingleChildScrollView(controller: _translationScrollController) → Padding
+    └── Html(data: htmlContent, style: _htmlStyle)
+```
+
+### `_buildOriginalTextView()`
+
+```
+WIDGET _buildOriginalTextView():
+  IF isPdf AND filePath != null:
+    RETURN PdfDocumentViewBuilder.file(filePath)
+      builder: (context, document):
+        IF document == null: RETURN CircularProgressIndicator()
         _pdfTotalPages = document.pages.length
-        ClipRRect(borderRadius: 8)
-            └── Container(grey.withAlpha(30))
-                └── PdfPageView
-                    ├── document: document
-                    └── pageNumber: _pdfCurrentPage.clamp(1, totalPages)
+        RETURN PdfPageView(document: document, pageNumber: _pdfCurrentPage.clamp(1, _pdfTotalPages))
+
+  // EPUB/Other
+  RETURN LayoutBuilder → SingleChildScrollView(controller: _originalScrollController) → Padding
+    └── Html(data: _content, style: originalStyle)
 ```
 
-### Navigation Buttons Widget Tree
+### `_buildNavigationButtons()`
 
 ```
-Positioned(left: 16, right: 16, bottom: 16)
-└── Row
-    ├── << Previous Chapter Button
-    │   └── Container(black.withAlpha(76), circle)
-    │       └── IconButton(Icons.keyboard_double_arrow_left)
-    │           └── onPressed: _navigateToChapter(chapterIndex - 1)
-    │
-    ├── IF isPdfOriginalView: < Previous Page Button
-    │   └── Container(black.withAlpha(76), circle)
-    │       └── IconButton(Icons.chevron_left)
-    │           └── onPressed: setState(_pdfCurrentPage--)
-    │
-    ├── IF NOT isPdfOriginalView: SizedBox(width: 48) (spacer)
-    │
-    ├── IF isPdfOriginalView: > Next Page Button
-    │   └── Container(black.withAlpha(76), circle)
-    │       └── IconButton(Icons.chevron_right)
-    │           └── onPressed: setState(_pdfCurrentPage++)
-    │
-    ├── IF NOT isPdfOriginalView: SizedBox(width: 48) (spacer)
-    │
-    └── >> Next Chapter Button
-        └── Container(black.withAlpha(76), circle)
-            └── IconButton(Icons.keyboard_double_arrow_right)
-                └── onPressed: _navigateToChapter(chapterIndex + 1)
+WIDGET _buildNavigationButtons():
+  // Same as before — 4 navigation buttons with PDF page support
+  RETURN Positioned → Row
+    ├── << Previous Chapter
+    ├── < Previous Page (PDF only)
+    ├── > Next Page (PDF only)
+    └── >> Next Chapter
 ```
 
 ---
@@ -487,225 +812,76 @@ Navigator.push(ChapterScreen)
     ↓
 initState():
     ├── Filter chapters to top-level
+    ├── Initialize scroll controllers
+    ├── TabController(length: 3)
+    ├── _initializeLanguageSettings()
     └── _initializeContent()
     ↓
 Load chapter content (EPUB/PDF)
     ↓
 _checkContentLength()
     ↓
-_loadSummary()
+addPostFrameCallback → _loadSummary()
     ↓
-IF summary exists: Show summary view
-IF no summary: Show original text view
+IF summary exists: Show summary (Tab 0)
+IF no summary and content available: Auto-generate stream
+IF no content: Show error
 ```
 
-### Flow 2: Generate Summary
+### Flow 2: Generate Summary (Streaming)
 
 ```
-User views original text (no summary)
+User taps "生成摘要" button (or auto-triggered)
     ↓
-AppBar shows "生成摘要" button
-    ↓
-User taps button
-    ↓
-_generateSummary()
-    ↓
-Set _isGenerating = true
+_generateSummaryWithStreaming()
     ↓
 Extract plain text from HTML
     ↓
-SummaryService.generateSingleSummary()
+SummaryService.generateSingleSummary() with onContentUpdate callback
     ↓
-AI generates summary
+setState: _streamingSummary = content  (real-time UI update)
     ↓
-Summary saved to file
+_buildStreamingSummaryView() renders Markdown→HTML live
     ↓
-Load new summary
+Generation complete → load final summary
     ↓
 Check for updated chapter title
     ↓
-Set _isGenerating = false
+setState: _summaryChapter = summary, _isGenerating = false
     ↓
-Display summary view
+_buildNormalSummaryView() renders final summary
 ```
 
-### Flow 3: Toggle View
+### Flow 3: Tab Switching (with Scroll Sync)
 
 ```
-User views summary
+User taps left tab icon
     ↓
-Tap left toggle button (menu_book icon)
+_tabController.addListener:
+    indexIsChanging=true: _captureScrollAnchor(previousIndex)
     ↓
-setState(): _showOriginalText = true
+_tabController.animateTo(newIndex)
     ↓
-Display original text view
+indexIsChanging=false: _syncScrollToTab(newIndex)
     ↓
-User views original
+IF newIndex == 1 (Translation):
+    _updateTargetLanguage() → _loadTranslation()
+```
+
+### Flow 4: Translation View
+
+```
+User switches to Translation tab (Tab 1)
     ↓
-Tap left toggle button (auto_awesome icon)
+_updateTargetLanguage() → _resolveTargetLang()
     ↓
-setState(): _showOriginalText = false
-    ↓
-Display summary view
-```
-
-### Flow 4: Navigate Chapters
-
-```
-User views chapter
-    ↓
-Tap << button (previous chapter)
-    ↓
-_navigateToChapter(chapterIndex - 1)
-    ↓
-Navigator.pushReplacement(new ChapterScreen)
-    ↓
-New chapter loads
-    ↓
-Display new chapter summary/original
-```
-
-### Flow 5: PDF Page Navigation
-
-```
-User views PDF original text
-    ↓
-isPdfOriginalView = true
-    ↓
-Page navigation buttons visible
-    ↓
-Tap < button (previous page)
-    ↓
-IF _pdfCurrentPage > startPage:
-    setState(): _pdfCurrentPage--
-    ↓
-PdfPageView updates to new page
-    ↓
-Tap > button (next page)
-    ↓
-IF _pdfCurrentPage < endPage:
-    setState(): _pdfCurrentPage++
-    ↓
-PdfPageView updates to new page
-```
-
----
-
-## Conditional Rendering Logic
-
-### Vertical Tab Navigation
-
-```
-_tabController.index = 0 AND _summary != null:
-    → Show summary content (Markdown rendered)
-
-_tabController.index = 1 OR _summary == null:
-    → Show original text (HTML or PDF)
-
-Original text tab disabled conditions:
-    ├── _contentTooShort (content too short)
-    └── NOT _aiService.isConfigured AND _summary == null
-```
-
-### Generate Button Visibility
-
-```
-Show "生成摘要" button when:
-    ├── _summary == null (no existing summary)
-    ├── NOT _isGenerating (not currently generating)
-    └── _content.isNotEmpty (content available)
-
-Hide button when:
-    ├── Summary exists
-    ├── Currently generating
-    └── No content available
-```
-
-### PDF Page Navigation
-
-```
-Show page buttons (< and >) when:
-    ├── book.format == BookFormat.pdf
-    └── _showOriginalText = true (original view mode)
-
-Page navigation limits:
-    ├── startPage = chapter.location.startPage
-    ├── endPage = chapter.location.endPage
-    ├── canPrevPage = _pdfCurrentPage > startPage
-    └── canNextPage = _pdfCurrentPage < endPage
-```
-
-### Chapter Navigation
-
-```
-Show navigation buttons when:
-    _chapters.length > 1 (multiple chapters)
-
-Button states:
-    ├── isFirst = chapterIndex <= 0 → << disabled
-    └── isLast = chapterIndex >= chapters.length - 1 → >> disabled
-```
-
----
-
-## State Management
-
-### Content Loading State
-
-```
-_isLoadingContent = true → Show loading spinner
-_isLoadingContent = false → Show content/error
-
-Transitions:
-    ├── Start: true (loading)
-    ├── Content loaded: false
-    └── Error: false (with _error set)
-```
-
-### Summary Generation State
-
-```
-_isGenerating = true → Show "AI正在生成摘要..."
-_isGenerating = false → Show summary or original
-
-Transitions:
-    ├── Start generation: true
-    ├── Generation success: false, _summary set
-    └── Generation failure: false, _error set
-```
-
-### Vertical Tab State
-
-```
-_tabController.index = 0 → Summary view
-_tabController.index = 1 → Original text view
-
-Auto-switch conditions:
-    ├── _contentTooShort AND _summary == null → animateTo(1) (switch to original text)
-    └── User tab selection → animateTo(target index)
-```
-
----
-
-## PDF vs EPUB Handling
-
-### EPUB Original Text
-
-```
-Content: HTML string
-Rendering: flutter_html Html component
-Navigation: Chapter-level only
-Features: Styled text, images, links
-```
-
-### PDF Original Text
-
-```
-Content: PDF file
-Rendering: pdfrx PdfPageView component
-Navigation: Chapter-level + Page-level
-Features: Fixed layout, zoom support
-Page range: chapter.location.startPage to endPage
+_loadTranslation()
+    ├── Has cache → Display translation HTML (_buildTranslationHtmlView)
+    ├── No cache & AI configured → _generateTranslationWithStreaming()
+    │       ├── Extract code blocks to placeholders
+    │       ├── SummaryService.generateTranslationStream()
+    │       └── onContentUpdate → setState _streamingTranslation
+    └── Not configured → Empty state
 ```
 
 ---
@@ -715,18 +891,22 @@ Page range: chapter.location.startPage to endPage
 ### SummaryService
 
 ```
-READ: getSummary(bookId, chapterIndex) → ChapterSummary?
+READ: getSummary(bookId, chapterIndex, language) → Chapter?
   - Load existing summary from file
 
-GENERATE: generateSingleSummary(bookId, chapterIndex, title, content)
-  - Call AIService for summary generation
+GENERATE: generateSingleSummary(bookId, chapterIndex, title, content, {language, onContentUpdate})
+  - Call AIService for streaming summary generation
+  - onContentUpdate: real-time content callback for UI streaming
   - Save summary to file
-  - Update book metadata
   - RETURN success bool
 
-CHECK: getGeneratingFuture(bookId, chapterIndex) → Future?
-  - Check if generation in progress
-  - Used to wait for background generation
+TRANSLATE: generateTranslationStream(bookId, chapterIndex, content, ...)
+  - Code block placeholder protection
+  - onContentUpdate: real-time translation callback
+  - RETURN success bool
+
+READ TR: getTranslation(bookId, chapterIndex, targetLang) → String?
+  - Load existing translation from file
 ```
 
 ### BookService
@@ -741,51 +921,7 @@ READ: getBookById(bookId) → Book?
 
 ```
 GET PARSER: FormatRegistry.getParser(extension)
-  - Returns EpubParser or PdfParser
-
-USE PARSER:
-  - getChapters(filePath) → List<Chapter>
-  - getChapterContent(filePath, chapter) → ChapterContent
-```
-
----
-
-## Navigation Flow
-
-```
-BookScreen
-    ↓ (tap chapter or summary)
-ChapterScreen
-    ├── View summary
-    ├── View original text
-    ├── Generate summary
-    ├── Navigate chapters (<< >>)
-    └── PDF page navigation (< >)
-    ↓ (back button)
-Navigator.pop()
-    ↓
-Return to BookScreen
-```
-
----
-
-## Background Generation Handling
-
-```
-SummaryService maintains generation futures:
-    ↓
-User opens chapter while generation in progress
-    ↓
-_loadSummary() checks getGeneratingFuture()
-    ↓
-IF future exists:
-    ├── Set _isGenerating = true
-    ├── AWAIT future
-    └── Load completed summary
-    ↓
-User sees "AI正在生成摘要..." briefly
-    ↓
-Summary appears when complete
+USE PARSER: getChapters(filePath) | getChapterContent(filePath, chapter)
 ```
 
 ---
@@ -793,7 +929,7 @@ Summary appears when complete
 ## Title Update Mechanism
 
 ```
-AI generates summary
+AI generates summary via _generateSummaryWithStreaming()
     ↓
 May also generate better chapter title
     ↓
@@ -801,13 +937,13 @@ SummaryService updates book.chapterTitles
     ↓
 BookService saves updated book
     ↓
-_generateSummary() checks for new title
+_generateSummaryWithStreaming() checks for new title
     ↓
 updatedBook = _bookService.getBookById(bookId)
     ↓
 newTitle = updatedBook.chapterTitles?[chapterIndex]
     ↓
-setState(): _title = newTitle OR _title
+setState(): _title = newTitle ?? _title
     ↓
 AppBar shows updated title
 ```
@@ -817,18 +953,21 @@ AppBar shows updated title
 ## Vertical Tab Controller Management
 
 ```
-_initState():
+initState():
     ↓
-_tabController = TabController(length: 2, vsync: this)
+_tabController = TabController(length: 3, vsync: this)
     ↓
 _tabController.addListener():
     IF mounted: setState()
+    ├── IF indexIsChanging → _captureScrollAnchor(previousIndex)
+    └── ELSE → _syncScrollToTab(currentIndex)
+                └── IF tab==1 → _updateTargetLanguage → _loadTranslation
 
 dispose():
     ↓
+_translationScrollController?.dispose()
+_originalScrollController?.dispose()
 _tabController?.dispose()
-    ↓
-_uiRefreshTimer?.cancel()
     ↓
 super.dispose()
 ```

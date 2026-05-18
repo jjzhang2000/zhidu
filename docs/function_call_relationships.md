@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.1 | **更新日期**: 2026-05-18 | **基于代码版本**: v1.3
+> **文档版本**: v2.2 | **更新日期**: 2026-05-18 | **基于代码版本**: v1.3
 
 ---
 
@@ -163,7 +163,7 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
 ### 3.3 翻译流程
 
 ```
-ChapterScreen._translateContent()
+ChapterScreen._generateTranslationWithStreaming()
     │
     └── SummaryService().generateTranslationStream(
             bookId, chapterIndex, content, targetLang, ...)
@@ -228,14 +228,14 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 |---|---|
 | `SummaryService()` (构造) | main.dart, BookScreen, ChapterScreen |
 | `generateSummariesForBook()` | BookService.importBook(), BookScreen._startPreGeneration() |
-| `generateSingleSummary()` | ChapterScreen._loadSummary() |
+| `generateSingleSummary()` | ChapterScreen._loadSummary(), ChapterScreen._generateSummaryWithStreaming() |
 | `_generateBookSummaryFromPreface()` (内部) | generateSummariesForBook() (EPUB) |
 | `_generateBookSummaryFromChapters()` (内部) | generateSummariesForBook() (PDF) |
 | `registerBookStreamingCallback()` | BookScreen.initState() |
 | `unregisterBookStreamingCallback()` | BookScreen.dispose() |
 | `_notifyBookStreamingContent()` (内部) | 流式回调时 |
-| `getChapterSummaryContent()` | ChapterScreen._loadFromLocal() |
-| `getBookSummaryContent()` | BookScreen |
+| `getTranslation()` | ChapterScreen._loadTranslation(), ChapterScreen._generateTranslationWithStreaming() |
+| `generateTranslationStream()` | ChapterScreen._generateTranslationWithStreaming() |
 
 ### 4.3 SettingsService → 被调用方
 

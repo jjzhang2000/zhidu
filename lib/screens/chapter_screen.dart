@@ -123,9 +123,6 @@ TabController? _tabController;
   /// 流式摘要内容（实时显示AI生成的内容）
   String _streamingSummary = '';
 
-  /// UI刷新定时器（控制UI更新频率，避免过于频繁的更新）
-  Timer? _uiRefreshTimer;
-
   /// 译文内容（已缓存的译文）
   String? _translationContent;
 
@@ -156,46 +153,76 @@ TabController? _tabController;
   /// 当前共享的滚动锚点（用于Tab间同步）
   ScrollAnchor _currentScrollAnchor = const ScrollAnchor();
 
-  /// 获取当前摘要语言
-  String _getCurrentSummaryLanguage() {
-    final langSettings = SettingsService().settings.languageSettings;
-    switch (langSettings.aiLanguageMode) {
-      case 'system':
-        return _detectSystemLanguage();
-      case 'manual':
-        return langSettings.aiOutputLanguage;
-      case 'book':
-      default:
-        return widget.book?.language ?? 'zh';
-    }
-  }
+  /// 摘要/译文通用的 HTML 渲染样式
+  Map<String, Style> get _htmlStyle => {
+    'body': Style(
+      fontSize: FontSize(14),
+      lineHeight: const LineHeight(1.6),
+      margin: Margins.zero,
+      padding: HtmlPaddings.zero,
+    ),
+    'h2': Style(
+      fontSize: FontSize(15),
+      fontWeight: FontWeight.bold,
+      margin: Margins.only(bottom: 8, top: 16),
+    ),
+    'h3': Style(
+      fontSize: FontSize(14),
+      fontWeight: FontWeight.bold,
+      margin: Margins.only(bottom: 6, top: 12),
+    ),
+    'p': Style(
+      fontSize: FontSize(14),
+      lineHeight: const LineHeight(1.6),
+      margin: Margins.only(bottom: 8),
+    ),
+    'ul': Style(
+      margin: Margins.only(bottom: 8),
+    ),
+    'li': Style(
+      fontSize: FontSize(14),
+      lineHeight: const LineHeight(1.5),
+    ),
+    'strong': Style(
+      fontWeight: FontWeight.bold,
+    ),
+    'code': Style(
+      fontFamily: 'Consolas',
+      fontSize: FontSize(13),
+    ),
+    'pre': Style(
+      fontFamily: 'Consolas',
+      fontSize: FontSize(13),
+      padding: HtmlPaddings.all(8),
+      margin: Margins.only(bottom: 12),
+    ),
+  };
 
   /// 更新目标语言设置
   ///
   /// 每次切换到译文Tab时调用，确保使用最新的AI输出语言设置
   Future<void> _updateTargetLanguage() async {
-    final langSettings = SettingsService().settings.languageSettings;
-    
-    // 根据AI语言模式确定目标语言
-    switch (langSettings.aiLanguageMode) {
+    _resolveTargetLang();
+    _translationTabDisabled = _sourceLang == _targetLang;
+    _log.d('ChapterScreen', '更新目标语言: $_targetLang, 源语言: $_sourceLang, 禁用: $_translationTabDisabled');
+  }
+
+  /// 根据AI语言模式解析目标语言
+  void _resolveTargetLang() {
+    final lang = SettingsService().settings.languageSettings;
+    switch (lang.aiLanguageMode) {
       case 'system':
         _targetLang = _detectSystemLanguage();
-        _log.d('ChapterScreen', '跟随系统语言，目标语言: $_targetLang');
         break;
       case 'manual':
-        _targetLang = langSettings.aiOutputLanguage;
-        _log.d('ChapterScreen', '用户自选语言，目标语言: $_targetLang');
+        _targetLang = lang.aiOutputLanguage;
         break;
       case 'book':
       default:
-        // 跟随书籍语言时，不需要翻译（保持原文语言）
         _targetLang = _sourceLang;
-        _log.d('ChapterScreen', '跟随书籍语言，目标语言: $_targetLang');
         break;
     }
-
-    _translationTabDisabled = _sourceLang == _targetLang;
-    _log.d('ChapterScreen', '更新目标语言: $_targetLang, 源语言: $_sourceLang, 禁用: $_translationTabDisabled');
+    _log.d('ChapterScreen', '目标语言: $_targetLang (模式: ${lang.aiLanguageMode})');
   }
 
   /// 检测系统语言
@@ -269,7 +296,6 @@ void dispose() {
   _translationScrollController?.dispose();
   _originalScrollController?.dispose();
   _tabController?.dispose();
-  _uiRefreshTimer?.cancel();
   super.dispose();
 }
 
@@ -340,22 +366,7 @@ void dispose() {
     _log.d('ChapterScreen', '源语言: $_sourceLang');
 
     // 根据AI语言模式确定目标语言
-    switch (langSettings.aiLanguageMode) {
-      case 'system':
-        _targetLang = _detectSystemLanguage();
-        _log.d('ChapterScreen', '跟随系统语言，目标语言: $_targetLang');
-        break;
-      case 'manual':
-        _targetLang = langSettings.aiOutputLanguage;
-        _log.d('ChapterScreen', '用户自选语言，目标语言: $_targetLang');
-        break;
-      case 'book':
-      default:
-        // 跟随书籍语言时，目标语言=源语言，翻译自动禁用
-        _targetLang = _sourceLang;
-        _log.d('ChapterScreen', '跟随书籍语言，目标语言(同源语言): $_targetLang');
-        break;
-    }
+    _resolveTargetLang();
 
     // 同步更新摘要语言（摘要语言和翻译目标语言保持一致）
     _summaryLang = _targetLang ?? 'zh';
@@ -501,90 +512,6 @@ void dispose() {
         _summaryChapter = summary;
       });
       }
-    }
-  }
-
-  /// 生成章节摘要
-  ///
-  /// 流程：
-  /// 1. 提取纯文本内容（去除HTML标签）
-  /// 2. 调用SummaryService生成摘要
-  /// 3. 生成成功后，刷新标题（AI可能更新了章节标题）
-  ///
-  /// 标题刷新逻辑：
-  /// - AI生成摘要时可能同时更新章节标题（更准确的标题）
-  /// - 从BookService获取更新后的Book对象
-  /// - 读取chapterTitles映射中的新标题
-  Future<void> _generateSummary() async {
-    if (_content.isEmpty) {
-      setState(() {
-        _error = '无法生成摘要：章节内容为空';
-      });
-      return;
-    }
-
-    setState(() {
-      _isGenerating = true;
-      _error = null;
-      _streamingSummary = '';  // 初始化流式摘要
-    });
-
-    try {
-      // 提取纯文本内容用于AI处理
-      final plainText = _extractTextContent(_content);
-
-      // 调用摘要服务生成摘要
-      final success = await _summaryService.generateSingleSummary(
-        widget.bookId,
-        widget.chapterIndex,
-        _title,
-        plainText,
-        language: _summaryLang,
-      );
-
-      if (!mounted) return;
-
-      if (success) {
-        // 加载新生成的摘要
-        final summary = await _summaryService.getSummary(
-          widget.bookId,
-          widget.chapterIndex,
-          language: _summaryLang,
-        );
-
-        // 检查AI是否更新了章节标题
-        // AI生成摘要时可能同时生成更准确的章节标题
-        final updatedBook = _bookService.getBookById(widget.bookId);
-        if (updatedBook != null) {
-          // 从chapterTitles映射获取新标题
-          final newTitle = updatedBook.chapterTitles?[widget.chapterIndex];
-          setState(() {
-            _summaryChapter = summary;
-            _title = newTitle ?? _title; // 使用新标题或保持原标题
-            _isGenerating = false;
-            _streamingSummary = '';  // 清空流式内容
-          });
-        } else {
-          setState(() {
-            _summaryChapter = summary;
-            _isGenerating = false;
-            _streamingSummary = '';  // 清空流式内容
-          });
-        }
-      } else {
-        setState(() {
-          _error = '生成摘要失败';
-          _isGenerating = false;
-          _streamingSummary = '';  // 清空流式内容
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = '生成摘要失败: $e';
-        _isGenerating = false;
-        _streamingSummary = '';  // 清空流式内容
-      });
     }
   }
 
@@ -1236,88 +1163,40 @@ Widget _buildStreamingSummaryView() {
               children: [
                 Html(
                   data: htmlContent,
-                  style: {
-                    'body': Style(
-                      fontSize: FontSize(14),
-                      lineHeight: const LineHeight(1.6),
-                      margin: Margins.zero,
-                      padding: HtmlPaddings.zero,
-                    ),
-                    'h2': Style(
-                      fontSize: FontSize(15),
-                      fontWeight: FontWeight.bold,
-                      margin: Margins.only(bottom: 8, top: 16),
-                    ),
-                    'h3': Style(
-                      fontSize: FontSize(14),
-                      fontWeight: FontWeight.bold,
-                      margin: Margins.only(bottom: 6, top: 12),
-                    ),
-                    'p': Style(
-                      fontSize: FontSize(14),
-                      lineHeight: const LineHeight(1.6),
-                      margin: Margins.only(bottom: 8),
-                    ),
-                    'ul': Style(
-                      margin: Margins.only(bottom: 8),
-                    ),
-                    'li': Style(
-                      fontSize: FontSize(14),
-                      lineHeight: const LineHeight(1.5),
-                    ),
-                    'strong': Style(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    'code': Style(
-                      fontFamily: 'Consolas',
-                      fontSize: FontSize(13),
-                    ),
-                    'pre': Style(
-                      fontFamily: 'Consolas',
-                      fontSize: FontSize(13),
-                      padding: HtmlPaddings.all(8),
-                      margin: Margins.only(bottom: 12),
-                    ),
-                  },
+                  style: _htmlStyle,
                 ),
                 const SizedBox(height: 16),
-                // 显示"正在打字"动画效果
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                ),
+                _buildTypingIndicator(),
               ],
             ),
           ),
         ),
       );
     },
+  );
+}
+
+/// 打字动画指示器
+Widget _buildTypingIndicator() {
+  return Row(
+    children: [
+      _typingDot(),
+      const SizedBox(width: 4),
+      _typingDot(),
+      const SizedBox(width: 4),
+      _typingDot(),
+    ],
+  );
+}
+
+Widget _typingDot() {
+  return Container(
+    width: 8,
+    height: 8,
+    decoration: const BoxDecoration(
+      color: Colors.blue,
+      shape: BoxShape.circle,
+    ),
   );
 }
 
@@ -1339,49 +1218,7 @@ Widget _buildNormalSummaryView(String htmlContent) {
               children: [
                 Html(
                   data: htmlContent,
-                  style: {
-                    'body': Style(
-                      fontSize: FontSize(14),
-                      lineHeight: const LineHeight(1.6),
-                      margin: Margins.zero,
-                      padding: HtmlPaddings.zero,
-                    ),
-                    'h2': Style(
-                      fontSize: FontSize(15),
-                      fontWeight: FontWeight.bold,
-                      margin: Margins.only(bottom: 8, top: 16),
-                    ),
-                    'h3': Style(
-                      fontSize: FontSize(14),
-                      fontWeight: FontWeight.bold,
-                      margin: Margins.only(bottom: 6, top: 12),
-                    ),
-                    'p': Style(
-                      fontSize: FontSize(14),
-                      lineHeight: const LineHeight(1.6),
-                      margin: Margins.only(bottom: 8),
-                    ),
-                    'ul': Style(
-                      margin: Margins.only(bottom: 8),
-                    ),
-                    'li': Style(
-                      fontSize: FontSize(14),
-                      lineHeight: const LineHeight(1.5),
-                    ),
-                    'strong': Style(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    'code': Style(
-                      fontFamily: 'Consolas',
-                      fontSize: FontSize(13),
-                    ),
-                    'pre': Style(
-                      fontFamily: 'Consolas',
-                      fontSize: FontSize(13),
-                      padding: HtmlPaddings.all(8),
-                      margin: Margins.only(bottom: 12),
-                    ),
-                  },
+                  style: _htmlStyle,
                 ),
               ],
             ),
@@ -1519,36 +1356,7 @@ Widget _buildNormalSummaryView(String htmlContent) {
                     },
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildTypingIndicator(),
                 ],
               ),
             ),
@@ -1575,49 +1383,7 @@ Widget _buildNormalSummaryView(String htmlContent) {
                 children: [
                   Html(
                     data: htmlContent,
-                    style: {
-                      'body': Style(
-                        fontSize: FontSize(14),
-                        lineHeight: const LineHeight(1.6),
-                        margin: Margins.zero,
-                        padding: HtmlPaddings.zero,
-                      ),
-                      'h2': Style(
-                        fontSize: FontSize(15),
-                        fontWeight: FontWeight.bold,
-                        margin: Margins.only(bottom: 8, top: 16),
-                      ),
-                      'h3': Style(
-                        fontSize: FontSize(14),
-                        fontWeight: FontWeight.bold,
-                        margin: Margins.only(bottom: 6, top: 12),
-                      ),
-                      'p': Style(
-                        fontSize: FontSize(14),
-                        lineHeight: const LineHeight(1.6),
-                        margin: Margins.only(bottom: 8),
-                      ),
-                      'ul': Style(
-                        margin: Margins.only(bottom: 8),
-                      ),
-                      'li': Style(
-                        fontSize: FontSize(14),
-                        lineHeight: const LineHeight(1.5),
-                      ),
-                      'strong': Style(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      'code': Style(
-                        fontFamily: 'Consolas',
-                        fontSize: FontSize(13),
-                      ),
-                      'pre': Style(
-                        fontFamily: 'Consolas',
-                        fontSize: FontSize(13),
-                        padding: HtmlPaddings.all(8),
-                        margin: Margins.only(bottom: 12),
-                      ),
-                    },
+                    style: _htmlStyle,
                   ),
                 ],
               ),
