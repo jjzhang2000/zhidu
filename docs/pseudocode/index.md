@@ -356,6 +356,12 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-18: AIService 新增 `detectSourceLanguage()` 统一源语言检测
+
+- **提取**: 新增 `detectSourceLanguage()` public 方法，合并 ChapterScreen 和 `_detectLanguageFromMetadataAndContentWithBookId` 两处重复的「元数据→convert / 内容→detect」模式
+- **简化**: `_detectLanguageFromMetadataAndContentWithBookId` 从 15 行简化为 3 行委托调用；ChapterScreen `_initializeLanguageSettings` 省 7 行
+- **更新文档**: `ai_service.md` 新增 `detectSourceLanguage()` 伪代码，更新 `_detectLanguageFromMetadataAndContentWithBookId`
+
 #### 2026-05-18: ChapterScreen `detectSystemLanguage` 合并到 AIService + Tab 顺序调整
 
 - **合并**: `_detectSystemLanguage()` 从 ChapterScreen 合并到 `AIService.detectSystemLanguage()`（public），删除 ChapterScreen 副本（含残留韩语分支），删除 `import 'dart:io'`

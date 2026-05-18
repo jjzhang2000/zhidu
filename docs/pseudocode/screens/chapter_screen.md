@@ -201,13 +201,11 @@ END PROCEDURE
 
 ```
 ASYNC PROCEDURE _initializeLanguageSettings():
-  // Determine source language from book metadata or content
-  _sourceLang = widget.book?.language
-
-  IF _sourceLang != null AND not empty:
-    _sourceLang = _aiService.convertLanguageCodeToStandard(_sourceLang)
-  ELSE:
-    _sourceLang = _aiService.detectLanguageFromContent(_content)
+  // Determine source language via AIService
+  _sourceLang = _aiService.detectSourceLanguage(
+    bookLanguage: widget.book?.language,
+    content: _content
+  )
 
   // Resolve target language via shared method
   _resolveTargetLang()

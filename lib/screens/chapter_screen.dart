@@ -322,14 +322,7 @@ class _ChapterScreenState extends State<ChapterScreen>
     _log.d('ChapterScreen',
         '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
 
-    _sourceLang = widget.book?.language;
-
-    if (_sourceLang != null && _sourceLang!.isNotEmpty) {
-      _sourceLang = _aiService.convertLanguageCodeToStandard(_sourceLang!);
-    } else {
-      _sourceLang = _aiService.detectLanguageFromContent(_content);
-    }
-
+    _sourceLang = _aiService.detectSourceLanguage(bookLanguage: widget.book?.language, content: _content);
     _log.d('ChapterScreen', '源语言: $_sourceLang');
 
     // 根据AI语言模式确定目标语言

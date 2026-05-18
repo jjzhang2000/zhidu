@@ -729,6 +729,26 @@ PUBLIC METHOD detectSystemLanguage() -> String:
 
 ---
 
+### detectSourceLanguage() - 检测源语言
+
+优先从书籍元数据获取语言并标准化，否则从内容中检测。统一入口供所有调用方。
+
+```pseudocode
+PUBLIC METHOD detectSourceLanguage({bookLanguage?: String, content?: String}) -> String:
+    IF bookLanguage != null AND not empty:
+        _log.d('从元数据获取语言: {bookLanguage}')
+        RETURN convertLanguageCodeToStandard(bookLanguage)
+    IF content != null AND not empty:
+        _log.d('元数据无语言信息，从内容中检测')
+        RETURN detectLanguageFromContent(content)
+    _log.d('无源语言信息，默认中文')
+    RETURN 'zh'
+```
+
+被调用方: `ChapterScreen._initializeLanguageSettings()`, `_detectLanguageFromMetadataAndContentWithBookId()`
+
+---
+
 ### getTargetLanguage() - 获取当前目标语言代码
 
 根据 AI 语言模式动态确定目标语言。
@@ -762,17 +782,8 @@ PRIVATE ASYNC METHOD _detectLanguageFromMetadataAndContentWithBookId(
     bookId: String,
     content: String
 ) -> String:
-    // 从书籍元数据获取语言信息
     book = BookService().getBookById(bookId)
-    
-    IF book != null AND book.language != null AND book.language.isNotEmpty:
-        _log.d('AIService', '从元数据获取到语言信息: {book.language}')
-        // 转换为标准语言代码
-        RETURN convertLanguageCodeToStandard(book.language)
-    
-    // 元数据中没有，从内容中检测
-    _log.d('AIService', '元数据中没有语言信息，从内容中检测语言')
-    RETURN detectLanguageFromContent(content)
+    RETURN detectSourceLanguage(bookLanguage: book?.language, content: content)
 ```
 
 ---
@@ -1231,9 +1242,10 @@ Body:
 
 ## 版本历史
 
-- **2026-05-18**: `detectSystemLanguage()` 改为 public，ChapterScreen 合并自身副本到 AIService
-  - 原 `_detectSystemLanguage()` 去下划线变为 `detectSystemLanguage()`
-  - 新增 `getTargetLanguage()` 文档
+- **2026-05-18**: 新增 `detectSourceLanguage()` public 方法，统一源语言检测逻辑
+  - 合并 ChapterScreen 和 AIService 内部两处重复的「元数据→内容」源语言检测模式
+  - `_detectLanguageFromMetadataAndContentWithBookId` 简化为委托调用
+- **2026-05-18**: `detectSystemLanguage()` 改为 public
 - **2026-05-17**: 新增 `fetchAvailableModels()` 方法
   - 调用 `/v1/models` 端点获取提供商可用模型列表
   - 返回模型 ID 列表，按字母排序

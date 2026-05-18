@@ -218,6 +218,7 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `translateContent()` | SummaryService.generateTranslationStream() |
 | `testConnection()` | AiConfigScreen 测试按钮 |
 | `detectLanguageFromContent()` | SummaryService (语言检测), ChapterScreen._initializeLanguageSettings() |
+| `detectSourceLanguage()` | `_detectLanguageFromMetadataAndContentWithBookId()`, ChapterScreen._initializeLanguageSettings() |
 | `detectSystemLanguage()` | `_getLanguageInstructionForModel()`, `getTargetLanguage()`, ChapterScreen._resolveTargetLang() |
 | `getTargetLanguage()` | SummaryService (目标语言确定) |
 | `convertLanguageCodeToStandard()` | ChapterScreen._initializeLanguageSettings() |

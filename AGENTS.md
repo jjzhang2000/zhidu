@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-18**: AIService 新增 `detectSourceLanguage()` 统一源语言检测 — 合并 ChapterScreen 和 `_detectLanguageFromMetadataAndContentWithBookId` 两处重复的「元数据→convert/内容→detect」模式(~22行)；`_detectLanguageFromMetadataAndContentWithBookId` 简化为 3 行委托；ChapterScreen `_initializeLanguageSettings` 省 7 行；更新 `ai_service.md`、`chapter_screen.md`
 **2026-05-18**: ChapterScreen detectSystemLanguage 合并与 Tab 顺序调整 — `_detectSystemLanguage()` 合并到 `AIService.detectSystemLanguage()`（public），删除 ChapterScreen 副本(~27行)及 `import 'dart:io'`；删除 `_updateTargetLanguage()`（用户进入 ChapterScreen 后不可能变语言）；Tab 顺序调整为 0=摘要/1=原文/2=译文；更新 `ai_service.md`、`chapter_screen.md`
 **2026-05-18**: ChapterScreen 僵尸代码清理与重复代码提取 — 删除 `_generateSummary()`（阻塞版）、`_uiRefreshTimer`、`_getCurrentSummaryLanguage()` 三处僵尸代码(~87行)；提取 `_htmlStyle` getter、`_buildTypingIndicator()`+`_typingDot()`、`_resolveTargetLang()` 三处重复代码(~118行)；更新 `chapter_screen.md` 伪代码文档
 **2026-05-18**: BookScreen 日志修正与重复代码提取 — 修正`_startPreGeneration`日志（"章节摘要"→"摘要"）；提取`_htmlStyle` getter和`_buildSummaryWithMarkdown()`，消除约120行重复代码；更新`book_screen.md`伪代码文档

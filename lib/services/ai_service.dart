@@ -821,19 +821,9 @@ class AIService {
   /// - 检测到的语言代码 ('zh', 'en', 'ja'等)
   /// - 如果无法确定则返回 'zh' (默认中文)
   Future<String> _detectLanguageFromMetadataAndContentWithBookId(String bookId, String content) async {
-    // 从元数据获取语言信息
     final bookService = BookService();
     final book = bookService.getBookById(bookId);
-    
-    if (book != null && book.language != null && book.language!.isNotEmpty) {
-      _log.d('AIService', '从元数据获取到语言信息: ${book.language}');
-      // 将常见的语言代码转换为标准格式
-      return convertLanguageCodeToStandard(book.language!);
-    }
-    
-    // 如果元数据中没有语言信息，则从内容中检测
-    _log.d('AIService', '元数据中没有语言信息，从内容中检测语言');
-    return detectLanguageFromContent(content);
+    return detectSourceLanguage(bookLanguage: book?.language, content: content);
   }
 
   /// 从内容中检测语言
@@ -1018,6 +1008,25 @@ class AIService {
       _log.w('AIService', '检测系统语言失败: $e，使用默认中文');
       return 'zh';
     }
+  }
+
+  /// 检测源语言
+  ///
+  /// 优先从书籍元数据获取语言并标准化，否则从内容中检测。
+  /// - [bookLanguage]: 书籍元数据中的语言字段（可为 null）
+  /// - [content]: 用于回退检测的内容文本
+  /// 返回语言代码：'zh'、'en'、'ja' 等
+  String detectSourceLanguage({String? bookLanguage, String? content}) {
+    if (bookLanguage != null && bookLanguage.isNotEmpty) {
+      _log.d('AIService', '从元数据获取语言: $bookLanguage');
+      return convertLanguageCodeToStandard(bookLanguage);
+    }
+    if (content != null && content.isNotEmpty) {
+      _log.d('AIService', '元数据无语言信息，从内容中检测');
+      return detectLanguageFromContent(content);
+    }
+    _log.d('AIService', '无源语言信息，默认中文');
+    return 'zh';
   }
 
   /// 获取语言指令（包含系统语言检测）
