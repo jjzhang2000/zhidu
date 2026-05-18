@@ -356,6 +356,12 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-18: AIService 新增 `needsTranslation()` + ChapterScreen 语言归口
+
+- **新增**: `AIService.needsTranslation(sourceLang)` — 统一判断是否需要翻译，供所有 Screen 使用
+- **删除**: `_resolveTargetLang()`（16行）— ChapterScreen 改为 `_aiService.getTargetLanguage()` + `_aiService.needsTranslation()`
+- **原则**: 所有语言判断逻辑统一归口到 AIService，Screen 层不再重复
+
 #### 2026-05-18: 全项目日志精简 — 397→212条 (-47%)
 
 - **删除**: 所有 `_log.v` 追踪日志、chunk级流式日志（SSE数据块）、逐步骤进度/确认冗余日志

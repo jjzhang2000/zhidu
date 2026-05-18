@@ -197,23 +197,6 @@ class _ChapterScreenState extends State<ChapterScreen>
         ),
       };
 
-  /// 根据AI语言模式解析目标语言
-  void _resolveTargetLang() {
-    final lang = SettingsService().settings.languageSettings;
-    switch (lang.aiLanguageMode) {
-      case 'system':
-        _targetLang = _aiService.detectSystemLanguage();
-        break;
-      case 'manual':
-        _targetLang = lang.aiOutputLanguage;
-        break;
-      case 'book':
-      default:
-        _targetLang = _sourceLang;
-        break;
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -316,10 +299,15 @@ class _ChapterScreenState extends State<ChapterScreen>
   Future<void> _initializeLanguageSettings() async {
     _sourceLang = _aiService.detectSourceLanguage(bookLanguage: widget.book?.language, content: _content);
 
-    _resolveTargetLang();
+    final lang = SettingsService().settings.languageSettings;
+    _targetLang = _aiService.getTargetLanguage(
+      aiLanguageMode: lang.aiLanguageMode,
+      aiOutputLanguage: lang.aiOutputLanguage,
+      bookLanguage: _sourceLang,
+    );
 
     _summaryLang = _targetLang ?? 'zh';
-    _translationTabDisabled = _sourceLang == _targetLang;
+    _translationTabDisabled = !_aiService.needsTranslation(_sourceLang!);
 
     _log.d('ChapterScreen', '源语言=$_sourceLang, 目标语言=$_targetLang, 译文Tab禁用=$_translationTabDisabled');
   }

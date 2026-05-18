@@ -201,43 +201,22 @@ END PROCEDURE
 
 ```
 ASYNC PROCEDURE _initializeLanguageSettings():
-  // Determine source language via AIService
   _sourceLang = _aiService.detectSourceLanguage(
     bookLanguage: widget.book?.language,
     content: _content
   )
 
-  // Resolve target language via shared method
-  _resolveTargetLang()
-
-  // Sync summary language with target language
+  // All language decisions delegated to AIService
+  final lang = SettingsService().settings.languageSettings
+  _targetLang = _aiService.getTargetLanguage(
+    aiLanguageMode: lang.aiLanguageMode,
+    aiOutputLanguage: lang.aiOutputLanguage,
+    bookLanguage: _sourceLang,
+  )
   _summaryLang = _targetLang ?? 'zh'
-
-  // Disable translation tab when source == target
-  _translationTabDisabled = _sourceLang == _targetLang
+  _translationTabDisabled = !_aiService.needsTranslation(_sourceLang!)
 END PROCEDURE
 ```
-
-### `_resolveTargetLang()` (extracted shared method)
-
-```
-PROCEDURE _resolveTargetLang():
-  lang = SettingsService().settings.languageSettings
-
-  SWITCH lang.aiLanguageMode:
-    CASE 'system':
-      _targetLang = _aiService.detectSystemLanguage()
-    CASE 'manual':
-      _targetLang = lang.aiOutputLanguage
-    CASE 'book' / DEFAULT:
-      _targetLang = _sourceLang
-  END SWITCH
-
-  _log.d: '目标语言: $_targetLang (模式: ${lang.aiLanguageMode})'
-END PROCEDURE
-```
-
-Used by: `_initializeLanguageSettings()`
 
 ### `_detectSystemLanguage()`
 

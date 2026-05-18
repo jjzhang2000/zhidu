@@ -775,6 +775,25 @@ PUBLIC METHOD getTargetLanguage({
 
 ---
 
+### needsTranslation() - 判断是否需要翻译
+
+根据 AI 语言设置确定目标语言，与源语言比较，相同时无需翻译。
+
+```pseudocode
+PUBLIC METHOD needsTranslation(sourceLang: String) -> Boolean:
+    lang = SettingsService().settings.languageSettings
+    targetLang = getTargetLanguage(
+        aiLanguageMode: lang.aiLanguageMode,
+        aiOutputLanguage: lang.aiOutputLanguage,
+        bookLanguage: sourceLang
+    )
+    RETURN sourceLang != targetLang
+```
+
+被调用方: `ChapterScreen._initializeLanguageSettings()`
+
+---
+
 ### _detectLanguageFromMetadataAndContentWithBookId() - 从书籍元数据和内容检测语言
 
 ```pseudocode

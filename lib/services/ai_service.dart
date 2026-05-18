@@ -1050,4 +1050,18 @@ class AIService {
         return 'zh';
     }
   }
+
+  /// 判断是否需要翻译
+  ///
+  /// 根据 AI 语言设置确定目标语言，与源语言比较。
+  /// 当源语言与目标语言相同时无需翻译。
+  bool needsTranslation(String sourceLang) {
+    final lang = SettingsService().settings.languageSettings;
+    final targetLang = getTargetLanguage(
+      aiLanguageMode: lang.aiLanguageMode,
+      aiOutputLanguage: lang.aiOutputLanguage,
+      bookLanguage: sourceLang,
+    );
+    return sourceLang != targetLang;
+  }
 }

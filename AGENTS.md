@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-18**: AIService 新增 `needsTranslation()` + 删除 `_resolveTargetLang()` — 所有语言判断统一归口到 AIService；`needsTranslation(sourceLang)` 判断源/目标语言是否需要翻译；ChapterScreen 删除 `_resolveTargetLang()`（16行），改为 `_aiService.getTargetLanguage()` + `_aiService.needsTranslation()`
 **2026-05-18**: 全项目日志精简 — 397→212条(-47%)：删除 `_log.v` 追踪日志、chunk级流式日志、冗余入口/进度/确认日志；合并相邻重复日志；保留所有 error/warning；epub_service(107→42)、summary_service(51→37)、ai_service(42→27)、chapter_screen(20→9) 等全面清理
 **2026-05-18**: AIService 新增 `detectSourceLanguage()` 统一源语言检测 — 合并 ChapterScreen 和 `_detectLanguageFromMetadataAndContentWithBookId` 两处重复的「元数据→convert/内容→detect」模式(~22行)；`_detectLanguageFromMetadataAndContentWithBookId` 简化为 3 行委托；ChapterScreen `_initializeLanguageSettings` 省 7 行；更新 `ai_service.md`、`chapter_screen.md`
 **2026-05-18**: ChapterScreen detectSystemLanguage 合并与 Tab 顺序调整 — `_detectSystemLanguage()` 合并到 `AIService.detectSystemLanguage()`（public），删除 ChapterScreen 副本(~27行)及 `import 'dart:io'`；删除 `_updateTargetLanguage()`（用户进入 ChapterScreen 后不可能变语言）；Tab 顺序调整为 0=摘要/1=原文/2=译文；更新 `ai_service.md`、`chapter_screen.md`
