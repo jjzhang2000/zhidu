@@ -74,11 +74,6 @@ class PdfParser implements BookFormatParser {
   /// - 跳过封面后无有效页面时，返回空列表
   @override
   Future<List<Chapter>> getChapters(String filePath) async {
-    _log.v('PdfParser', 'getChapters 开始执行, filePath: $filePath');
-
-    // ----------------------------------------------------------
-    // 文件存在性检查
-    // ----------------------------------------------------------
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('PdfParser', '文件不存在: $filePath');
@@ -124,8 +119,7 @@ class PdfParser implements BookFormatParser {
 
       if (pageContents.isNotEmpty &&
           pageContents[0].trim().length < coverThreshold) {
-        startOffset = 1; // 跳过第一页
-        _log.d('PdfParser', '首页文字少于${coverThreshold}字符，识别为封面，跳过');
+        startOffset = 1;
       }
 
       // ----------------------------------------------------------
@@ -229,7 +223,6 @@ class PdfParser implements BookFormatParser {
                   chapterBoundaries.add(i);
                   chapterTitles.add(title);
                   lastChapterNum = int.tryParse(chapterNum) ?? -1;
-                  _log.d('PdfParser', '检测到章节边界: 页$i, 标题: $title');
                 }
               }
               break; // 匹配成功，跳出模式循环
@@ -326,12 +319,6 @@ class PdfParser implements BookFormatParser {
   @override
   Future<Chapter> getChapterContent(
       String filePath, Chapter chapter) async {
-    _log.v('PdfParser',
-        'getChapterContent 开始执行, filePath: $filePath, chapter: ${chapter.title}');
-
-    // ----------------------------------------------------------
-    // 文件存在性检查
-    // ----------------------------------------------------------
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('PdfParser', '文件不存在: $filePath');
@@ -358,13 +345,6 @@ class PdfParser implements BookFormatParser {
         return chapter;
       }
 
-      _log.d('PdfParser', '提取页面范围: $startPage - $endPage');
-
-      // ----------------------------------------------------------
-      // 提取页面范围内的所有文本
-      // ----------------------------------------------------------
-      // 遍历从startPage到endPage的所有页面
-      // 注意：document.pages使用0-based索引，需要减1
       final buffer = StringBuffer();
       for (int pageNum = startPage;
           pageNum <= endPage && pageNum <= document.pages.length;
@@ -387,7 +367,6 @@ class PdfParser implements BookFormatParser {
       // 处理提取结果
       // ----------------------------------------------------------
       final plainText = buffer.toString().trim();
-      _log.d('PdfParser', '章节内容提取成功，长度: ${plainText.length}');
 
       if (plainText.isEmpty) {
         _log.w('PdfParser', '章节内容为空: ${chapter.title}');
@@ -448,29 +427,12 @@ class PdfParser implements BookFormatParser {
   /// - 始终返回null（不支持封面提取）
   @override
   Future<String?> extractCover(String filePath) async {
-    _log.v('PdfParser', 'extractCover 开始执行, filePath: $filePath');
-
-    // ----------------------------------------------------------
-    // 文件存在性检查
-    // ----------------------------------------------------------
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('PdfParser', '文件不存在: $filePath');
       return null;
     }
 
-    // ----------------------------------------------------------
-    // PDF封面提取说明
-    // ----------------------------------------------------------
-    // PDF文件通常没有像EPUB那样的独立封面图片
-    // 第一页通常包含内容而非专门的封面设计
-    // 因此返回null，让UI层使用默认封面占位图
-    //
-    // 可能的增强方案：
-    // 1. 渲染第一页为图片并保存为封面
-    // 2. 使用PDF内嵌的缩略图（如果有）
-    // 3. 使用AI识别封面页并渲染
-    _log.d('PdfParser', 'PDF不支持封面提取，返回null');
     return null;
   }
 }

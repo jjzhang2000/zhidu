@@ -147,16 +147,12 @@ class SummaryService {
 
   /// 获取指定章节的摘要
   Future<Chapter?> getSummary(String bookId, int chapterIndex, {String language = 'zh'}) async {
-    _log.v('SummaryService',
-        'getSummary 开始执行, bookId: $bookId, chapterIndex: $chapterIndex, language: $language');
-
     try {
       final filePath =
           await StorageConfig.getChapterSummaryPath(bookId, chapterIndex, language: language);
       final content = await _fileStorage.readText(filePath);
 
       if (content == null || content.isEmpty) {
-        _log.v('SummaryService', 'getSummary 加载完成, result: 空');
         return null;
       }
 
@@ -168,7 +164,6 @@ class SummaryService {
         objectiveSummary: content,
       );
 
-      _log.v('SummaryService', 'getSummary 加载完成, result: 有内容');
       return chapter;
     } catch (e, stackTrace) {
       _log.e('SummaryService', 'getSummary 失败', e, stackTrace);
@@ -254,8 +249,6 @@ class SummaryService {
     _generatingKeys.add(key);
 
     try {
-      _log.d('SummaryService', '开始生成摘要: $key, language: $language');
-
       // 调用AI流式生成摘要（内部使用流式方法）
       final stream = _aiService.generateFullChapterSummaryStream(
         content,
@@ -296,7 +289,6 @@ class SummaryService {
         );
 
         await saveSummary(chapterSummary, language: language);
-        _log.info('SummaryService', '摘要生成成功: $key, language: $language');
         return true;
       } else {
         _log.w('SummaryService', 'AI返回空摘要: $key');
@@ -315,8 +307,6 @@ class SummaryService {
 
   /// 为整本书生成摘要（主入口）
   Future<void> generateSummariesForBook(Book book) async {
-    _log.d('SummaryService', '开始为书籍生成摘要: ${book.title}');
-
     try {
       // 使用FormatRegistry获取解析器
       final extension = book.format == BookFormat.epub ? '.epub' : '.pdf';
@@ -333,14 +323,12 @@ class SummaryService {
 
       if (book.format == BookFormat.epub) {
         // EPUB文件：先生成全书摘要，再生成章节摘要
-        _log.d('SummaryService', 'EPUB格式：先生成全书摘要');
         await _generateBookSummaryFromPreface(book, chapters, parser);
 
         // 再生成章节摘要
         await _generateChapterSummaries(book, chapters, parser);
       } else {
         // PDF文件：先生成章节摘要，再用章节摘要生成全书摘要
-        _log.d('SummaryService', 'PDF格式：先生成章节摘要');
         await _generateChapterSummaries(book, chapters, parser);
 
         // 最后用章节摘要生成全书摘要
@@ -361,7 +349,6 @@ class SummaryService {
   ) async {
     // 只为顶层章节（level==0）生成摘要
     final topLevelChapters = chapters.where((c) => c.level == 0).toList();
-    _log.d('SummaryService', '开始生成章节摘要: 顶层章节 ${topLevelChapters.length} 章');
 
     // 创建一个队列来管理并发任务
     final futures = <Future<void>>[];
@@ -375,7 +362,6 @@ class SummaryService {
       // 跳过已有摘要的章节
       final existingSummary = await getSummary(book.id, chapterIndex, language: 'zh');
       if (existingSummary != null) {
-        _log.d('SummaryService', '章节 $chapterIndex 已有摘要，跳过');
         continue;
       }
 
@@ -393,7 +379,6 @@ class SummaryService {
 
     // 等待所有任务完成
     await Future.wait(futures);
-    _log.d('SummaryService', '所有章节摘要生成完成');
   }
 
   /// 并发处理单个章节摘要生成
@@ -435,8 +420,6 @@ class SummaryService {
     List<Chapter> chapters,
     dynamic parser,
   ) async {
-    _log.d('SummaryService', '从前言/目录生成全书摘要: ${book.title}');
-
     try {
       // 检查是否已有全书摘要
       final existingSummary = await getBookSummary(book.id);
@@ -512,8 +495,6 @@ class SummaryService {
     Book book,
     List<Chapter> chapters,
   ) async {
-    _log.d('SummaryService', '从章节摘要生成全书摘要: ${book.title}');
-
     try {
       // 检查是否已有全书摘要
       final existingSummary = await getBookSummary(book.id);
@@ -656,8 +637,6 @@ class SummaryService {
     _generatingTranslationKeys.add(key);
 
     try {
-      _log.d('SummaryService', '开始流式生成译文（格式保留）: $key, format: $bookFormat');
-
       final translatedContent = await _aiService.translateContent(
         content,
         sourceLang: sourceLang,

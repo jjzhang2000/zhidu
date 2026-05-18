@@ -69,8 +69,6 @@ class EpubParser implements BookFormatParser {
   /// 4. 转换为Chapter模型，保留层级结构
   @override
   Future<List<Chapter>> getChapters(String filePath) async {
-    _log.v('EpubParser', 'getChapters 开始执行, filePath: $filePath');
-
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('EpubParser', '文件不存在: $filePath');
@@ -96,7 +94,6 @@ class EpubParser implements BookFormatParser {
 
       // 从chapters提取 - epub_plus库解析的章节列表
       if (epubBook.chapters.isNotEmpty) {
-        _log.d('EpubParser', '从epubBook.chapters提取章节列表');
         chapterInfos.addAll(_extractChapterInfos(epubBook.chapters));
         if (chapterInfos.isNotEmpty) {
           return _convertToChapters(chapterInfos);
@@ -105,7 +102,6 @@ class EpubParser implements BookFormatParser {
 
       // 从content.html提取 - 按spine顺序排列的HTML文件
       if (epubBook.content?.html?.isNotEmpty == true) {
-        _log.d('EpubParser', '从content.html提取章节列表');
         chapterInfos.addAll(_extractChapterInfosFromContent(
             epubBook.content!.html!, epubBook.schema?.package?.spine?.items));
         if (chapterInfos.isNotEmpty) {
@@ -184,11 +180,6 @@ class EpubParser implements BookFormatParser {
   @override
   Future<Chapter> getChapterContent(
       String filePath, Chapter chapter) async {
-    _log.v('EpubParser',
-        'getChapterContent 开始执行，filePath: $filePath');
-    _log.v('EpubParser',
-        '章节信息：title=${chapter.title}, index=${chapter.index}, level=${chapter.level}, href=${chapter.location.href}');
-
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('EpubParser', '文件不存在：$filePath');
@@ -208,11 +199,9 @@ class EpubParser implements BookFormatParser {
     // 首选方案：直接从 archive 根据 href 提取章节 HTML文件内容
     // 这样可以确保只获取特定章节的内容，而不是整本书
     try {
-      _log.d('EpubParser', '尝试从 archive 提取章节内容...');
       final htmlContent = await _getChapterHtmlFromArchive(bytes, href);
       if (htmlContent != null && htmlContent.isNotEmpty) {
-        _log.d('EpubParser', '✓ 成功从 archive 提取章节内容，href: $href, 内容长度：${htmlContent.length}');
-        _log.d('EpubParser', '内容预览：${htmlContent.substring(0, htmlContent.length > 200 ? 200 : htmlContent.length)}');
+        _log.d('EpubParser', '✓ 从 archive 提取章节内容，href: $href, len=${htmlContent.length}');
         return Chapter(
           bookId: chapter.bookId,
           index: chapter.index,
@@ -230,7 +219,6 @@ class EpubParser implements BookFormatParser {
 
     // 回退方案：使用 EpubReader 查找章节内容
     try {
-      _log.d('EpubParser', '尝试使用 EpubReader 提取章节内容...');
       final epubBook = await EpubReader.readBook(bytes);
       
       // 尝试通过章节索引查找（可能不准确，作为备选方案）
@@ -274,8 +262,6 @@ class EpubParser implements BookFormatParser {
   /// 4. 保存到本地covers目录
   @override
   Future<String?> extractCover(String filePath) async {
-    _log.v('EpubParser', 'extractCover 开始执行, filePath: $filePath');
-
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('EpubParser', '文件不存在: $filePath');
@@ -304,7 +290,6 @@ class EpubParser implements BookFormatParser {
         // 若未找到，使用第一张图片
         if (coverImage == null) {
           coverImage = epubBook.content!.images!.values.first;
-          _log.d('EpubParser', '使用第一张图片作为封面');
         }
 
         if (coverImage != null && coverImage.content != null) {
@@ -1014,7 +999,6 @@ class EpubParser implements BookFormatParser {
           
           // 如果没有锚点，返回整个文件内容
           if (anchor == null || anchor.isEmpty) {
-            _log.d('EpubParser', '无锚点，返回整个文件内容');
             return fullHtml;
           }
           
@@ -1054,19 +1038,14 @@ class EpubParser implements BookFormatParser {
   /// 2. 提取该元素及其后续内容，直到下一个同级标题元素或文件结束
   String? _extractChapterByAnchor(String fullHtml, String anchor) {
     try {
-      _log.d('EpubParser', '开始提取锚点内容：anchor=$anchor, HTML 长度=${fullHtml.length}');
-      
-      // 策略 1：查找包含 id="anchor" 或 name="anchor" 的元素
-      // 使用字符串插值构建正则表达式
       final anchorPattern = RegExp('(id|name)\\s*=\\s*["\']?$anchor["\']?', caseSensitive: false);
       final anchorMatch = anchorPattern.firstMatch(fullHtml);
-      
+
       if (anchorMatch == null) {
         _log.w('EpubParser', '未找到锚点：$anchor');
         return null;
       }
 
-      _log.d('EpubParser', '找到锚点位置：${anchorMatch.start}');
       final startPos = anchorMatch.start;
       
       // 从锚点位置向前查找，找到包含该锚点的完整元素
@@ -1100,13 +1079,10 @@ class EpubParser implements BookFormatParser {
       
       // 判断是否是自闭合标签
       final tagContent = fullHtml.substring(elementStart, elementEnd);
-      _log.d('EpubParser', '提取到的标签：$tagContent');
       
       final isSelfClosing = tagContent.endsWith('/>');
       
       if (isSelfClosing) {
-        // 自闭合标签，直接返回该标签
-        _log.d('EpubParser', '自闭合标签，返回该标签');
         return tagContent;
       }
       
@@ -1117,16 +1093,13 @@ class EpubParser implements BookFormatParser {
         return null;
       }
       final tagName = tagNameMatch.group(1);
-      _log.d('EpubParser', '标签名：$tagName');
       
       // 查找对应的结束标签，如 </h1>, </div>, </section>
       final endTagPattern = RegExp('</$tagName\\s*>', caseSensitive: false);
       final endTagMatch = endTagPattern.firstMatch(fullHtml.substring(elementEnd));
       
       if (endTagMatch != null) {
-        // 找到结束标签，返回整个元素
         final chapterContent = fullHtml.substring(elementStart, elementEnd + endTagMatch.end);
-        _log.d('EpubParser', '成功提取章节内容，长度：${chapterContent.length}');
         return chapterContent;
       } else {
         // 没有找到结束标签，返回从锚点元素到文件末尾的内容

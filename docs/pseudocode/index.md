@@ -356,6 +356,14 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-18: 全项目日志精简 — 397→212条 (-47%)
+
+- **删除**: 所有 `_log.v` 追踪日志、chunk级流式日志（SSE数据块）、逐步骤进度/确认冗余日志
+- **合并**: 相邻重复信息日志合并为一条
+- **保留**: 全部 `_log.e`/`_log.w` 错误和警告
+- **原则**: 每函数最多1-2条log；内外层调用不重复log同一信息
+- **明细**: epub_service 107→42, summary_service 51→37, ai_service 42→27, epub_parser 50→33, book_service 38→18, chapter_screen 20→9 等
+
 #### 2026-05-18: AIService 新增 `detectSourceLanguage()` 统一源语言检测
 
 - **提取**: 新增 `detectSourceLanguage()` public 方法，合并 ChapterScreen 和 `_detectLanguageFromMetadataAndContentWithBookId` 两处重复的「元数据→convert / 内容→detect」模式

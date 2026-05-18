@@ -67,8 +67,6 @@ class SettingsService {
 
   /// 初始化设置服务
   Future<void> init() async {
-    _log.info('SettingsService', '开始初始化设置服务');
-
     try {
       if (_settingsFilePath == null) {
         final appDir = await StorageConfig.getAppDirectory();
@@ -78,8 +76,6 @@ class SettingsService {
       await _loadSettings();
       await _migrateCurrentAiSettingsToSaved();
       _syncNotifiersWithSettings();
-
-      _log.info('SettingsService', '设置服务初始化完成');
     } catch (e, stackTrace) {
       _log.e('SettingsService', '初始化设置服务失败', e, stackTrace);
       _settings = AppSettings();
@@ -105,9 +101,7 @@ class SettingsService {
     final json = await FileStorageService().readJson(_settingsFilePath!);
     if (json != null) {
       _settings = AppSettings.fromJson(json);
-      _log.info('SettingsService', '已加载设置文件: $_settingsFilePath');
     } else {
-      _log.info('SettingsService', '设置文件不存在，使用默认设置');
       _settings = AppSettings();
     }
   }
@@ -134,7 +128,6 @@ class SettingsService {
     updatedConfigs[provider] = aiSettings;
     _settings = _settings.copyWith(savedAiConfigs: updatedConfigs);
     await _saveSettings();
-    _log.d('SettingsService', '已保存 $provider 的AI配置');
   }
 
   /// 获取指定提供商的已保存配置

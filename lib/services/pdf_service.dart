@@ -87,31 +87,17 @@ class PdfService {
   /// - 捕获所有异常，记录日志后返回null
   Future<Book?> parsePdfFile(String filePath) async {
     try {
-      _log.d('PdfService', '开始解析PDF: $filePath');
-
-      // 使用pdfrx打开PDF文档
       final document = await PdfDocument.openFile(filePath);
 
-      // 获取PDF总页数
-      final totalPages = document.pages.length;
-      _log.d('PdfService', 'PDF总页数: $totalPages');
-
-      // 从文件路径提取文件名，去除扩展名作为标题
-      // 处理跨平台路径分隔符（Windows用\，其他用/）
       final fileName = filePath.split('/').last.split('\\').last;
       var title = fileName.substring(0, fileName.lastIndexOf('.'));
-      _log.d('PdfService', '书名: $title');
 
-      // 生成唯一的书籍ID
       final bookId = _uuid.v4();
 
-      // 检测PDF中的章节结构
       final chapters = await _detectChapters(document);
       _log.d('PdfService', '检测到 ${chapters.length} 个章节');
 
-      // 渲染第一页为封面图片
       final String? coverPath = await _extractCover(document, bookId);
-      _log.d('PdfService', '封面路径: $coverPath');
 
       // 释放PDF文档资源
       await document.dispose();
@@ -123,9 +109,8 @@ class PdfService {
       try {
         final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
         if (opfMetadata != null) {
-          _log.d('PdfService', '使用外部OPF元数据覆盖解析结果');
           title = opfMetadata.title ?? title;
-          author = opfMetadata.author ?? author; // 仅在OPF中提供了作者时才更新
+          author = opfMetadata.author ?? author;
           opfLanguage = opfMetadata.language;
         }
       } catch (e) {
@@ -175,29 +160,18 @@ class PdfService {
   /// - 需要处理BGRA8888和RGBA8888两种像素格式
   Future<String?> _extractCover(PdfDocument document, String bookId) async {
     try {
-      _log.d('PdfService', '开始渲染PDF第一页为封面');
-
-      // 检查PDF是否有页面
       if (document.pages.isEmpty) {
         _log.w('PdfService', 'PDF没有页面');
         return null;
       }
 
-      // 获取第一页
       final firstPage = document.pages[0];
 
-      // 计算渲染尺寸
-      // 宽度固定为600像素，高度按原比例缩放
       final pageWidth = firstPage.width;
       final pageHeight = firstPage.height;
       final targetWidth = 600;
       final targetHeight = (pageHeight * targetWidth / pageWidth).round();
 
-      _log.d('PdfService',
-          '页面尺寸: $pageWidth x $pageHeight -> $targetWidth x $targetHeight');
-
-      // 渲染页面为图片
-      // backgroundColor设置为白色，避免透明背景问题
       final pdfImage = await firstPage.render(
         width: targetWidth,
         height: targetHeight,
@@ -235,9 +209,7 @@ class PdfService {
 
       // 编码为PNG格式
       final pngBytes = Uint8List.fromList(img.encodePng(image));
-      _log.d('PdfService', '封面图片大小: ${pngBytes.length} bytes');
 
-      // 获取封面保存路径
       final coverPath =
           await StorageConfig.getCoverSavePath(bookId, 'image/png');
       final coverFile = File(coverPath);

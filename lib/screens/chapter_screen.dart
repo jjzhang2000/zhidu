@@ -212,7 +212,6 @@ class _ChapterScreenState extends State<ChapterScreen>
         _targetLang = _sourceLang;
         break;
     }
-    _log.d('ChapterScreen', '目标语言: $_targetLang (模式: ${lang.aiLanguageMode})');
   }
 
   @override
@@ -315,26 +314,14 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 确定源语言和目标语言，判断译文Tab是否禁用
   Future<void> _initializeLanguageSettings() async {
-    _log.d('ChapterScreen',
-        '开始初始化语言设置，book: ${widget.book?.title}, book.language: ${widget.book?.language}');
-
-    final langSettings = SettingsService().settings.languageSettings;
-    _log.d('ChapterScreen',
-        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
-
     _sourceLang = _aiService.detectSourceLanguage(bookLanguage: widget.book?.language, content: _content);
-    _log.d('ChapterScreen', '源语言: $_sourceLang');
 
-    // 根据AI语言模式确定目标语言
     _resolveTargetLang();
 
-    // 同步更新摘要语言（摘要语言和翻译目标语言保持一致）
     _summaryLang = _targetLang ?? 'zh';
-
-    // 跟随书籍语言时，_targetLang == _sourceLang，翻译自动禁用
     _translationTabDisabled = _sourceLang == _targetLang;
 
-    _log.d('ChapterScreen', '译文Tab禁用: $_translationTabDisabled');
+    _log.d('ChapterScreen', '源语言=$_sourceLang, 目标语言=$_targetLang, 译文Tab禁用=$_translationTabDisabled');
   }
 
   /// 从文件加载章节内容
@@ -346,8 +333,6 @@ class _ChapterScreenState extends State<ChapterScreen>
       List<Chapter> chapters = widget.chapters ?? [];
 
       if (chapters.isEmpty && widget.filePath != null) {
-        _log.d('ChapterScreen', '使用FormatRegistry加载章节列表');
-
         final extension = _getFileExtension(widget.filePath!);
         final parser = FormatRegistry.getParser(extension);
 
@@ -360,9 +345,6 @@ class _ChapterScreenState extends State<ChapterScreen>
 
       final topLevelChapters = chapters.where((c) => c.level == 0).toList();
       _chapters = topLevelChapters;
-
-      _log.d('ChapterScreen',
-          '第一级章节总数: ${topLevelChapters.length}, 请求索引: ${widget.chapterIndex}');
 
       if (widget.chapterIndex < 0 ||
           widget.chapterIndex >= topLevelChapters.length) {
@@ -438,7 +420,6 @@ class _ChapterScreenState extends State<ChapterScreen>
 
     // 防止重复加载同一个章节
     if (_hasLoadedSummary && _listeningChapterKey == chapterKey) {
-      _log.d('ChapterScreen', '章节 $chapterKey 已加载过，跳过');
       return;
     }
 
@@ -731,7 +712,6 @@ class _ChapterScreenState extends State<ChapterScreen>
           });
         }
       } else if (_aiService.isConfigured && _content.isNotEmpty) {
-        _log.d('ChapterScreen', '无译文缓存，自动开始翻译');
         if (mounted) {
           setState(() {
             _translationContent = null;
@@ -756,9 +736,6 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// 流式生成译文
   Future<void> _generateTranslationWithStreaming() async {
-    _log.d('ChapterScreen',
-        '开始生成译文，_content.isEmpty: ${_content.isEmpty}, _sourceLang: $_sourceLang, _targetLang: $_targetLang, isConfigured: ${_aiService.isConfigured}');
-
     if (_content.isEmpty) {
       _log.w('ChapterScreen', '章节内容为空，无法生成译文');
       return;
@@ -783,8 +760,6 @@ class _ChapterScreenState extends State<ChapterScreen>
       final contentWithPlaceholders = extractedResult[0] as String;
       final codeBlocks = List<String>.from(extractedResult[1]);
 
-      _log.d('ChapterScreen', '提取了 ${codeBlocks.length} 个代码块');
-
       final success = await _summaryService.generateTranslationStream(
         bookId: widget.bookId,
         chapterIndex: widget.chapterIndex,
@@ -808,8 +783,6 @@ class _ChapterScreenState extends State<ChapterScreen>
           }
         },
       );
-
-      _log.d('ChapterScreen', '翻译完成，success: $success');
 
       if (!mounted) return;
 

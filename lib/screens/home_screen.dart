@@ -56,7 +56,6 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 说明：记录初始化日志，调用父类初始化
   @override
   void initState() {
-    _log.v('HomeScreen', '_HomeScreenState initState 开始执行');
     super.initState();
   }
 
@@ -68,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
   ///   - floatingActionButton: 悬浮按钮，点击触发书籍导入
   @override
   Widget build(BuildContext context) {
-    _log.v('HomeScreen', 'build 开始执行');
     return Scaffold(
       body: BookshelfScreen(key: _bookshelfKey),
       floatingActionButton: FloatingActionButton(
@@ -148,10 +146,8 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   /// 调用方：HomeScreen._importBook()（导入书籍后调用）
   /// 说明：通过setState触发重建，重新从BookService获取书籍列表
   void refresh() {
-    _log.v('BookshelfScreen', 'refresh 开始执行');
-    setState(() {
-      _log.v('BookshelfScreen', 'setState called in refresh');
-    });
+    _log.d('BookshelfScreen', 'refresh');
+    setState(() {});
   }
 
   /// 方法名：dispose
@@ -159,10 +155,8 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   /// 说明：释放_searchController资源，避免内存泄漏
   @override
   void dispose() {
-    _log.v('BookshelfScreen', 'dispose 开始执行');
     _searchController.dispose();
     super.dispose();
-    _log.v('BookshelfScreen', 'dispose 执行完成');
   }
 
   /// 方法名：build
@@ -175,15 +169,9 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   ///   - 非空状态显示书籍网格
   @override
   Widget build(BuildContext context) {
-    _log.v('BookshelfScreen', 'build 开始执行, searchQuery: $_searchQuery');
-
-    /// 根据搜索关键词决定获取全部书籍还是过滤书籍
-    /// 空关键词：返回全部书籍
-    /// 非空关键词：返回匹配的书籍
     final books = _searchQuery.isEmpty
         ? _bookService.books
         : _bookService.searchBooks(_searchQuery);
-    _log.v('BookshelfScreen', 'build 找到书籍数量: ${books.length}');
 
     return Scaffold(
       appBar: AppBar(

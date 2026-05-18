@@ -21,7 +21,6 @@ class OpfReaderService {
   static Future<OpfMetadata?> readFromOpfFile(String opfPath) async {
     try {
       if (!await File(opfPath).exists()) {
-        _log.d('OpfReaderService', 'OPF文件不存在: $opfPath');
         return null;
       }
 
@@ -44,14 +43,11 @@ class OpfReaderService {
     final bookDir = p.dirname(bookFilePath);
     final opfPath = p.join(bookDir, 'metadata.opf');
 
-    _log.d('OpfReaderService', '查找OPF文件: $opfPath');
-    
     if (await File(opfPath).exists()) {
       _log.d('OpfReaderService', '找到OPF文件: $opfPath');
       return await readFromOpfFile(opfPath);
     }
-    
-    _log.d('OpfReaderService', '未找到OPF文件: $opfPath');
+
     return null;
   }
 
@@ -78,21 +74,18 @@ class OpfReaderService {
       final titleElements = metadataElement.findAllElements('dc:title');
       if (titleElements.isNotEmpty) {
         title = titleElements.first.innerText.trim();
-        _log.d('OpfReaderService', '从OPF获取标题: $title');
       }
 
       String? author;
       final creatorElements = metadataElement.findAllElements('dc:creator');
       if (creatorElements.isNotEmpty) {
         author = creatorElements.map((e) => e.innerText.trim()).join(', ');
-        _log.d('OpfReaderService', '从OPF获取作者: $author');
       }
 
       String? language;
       final langElements = metadataElement.findAllElements('dc:language');
       if (langElements.isNotEmpty) {
         language = langElements.first.innerText.trim();
-        _log.d('OpfReaderService', '从OPF获取语言: $language');
       }
 
       // 提取封面引用
@@ -102,16 +95,12 @@ class OpfReaderService {
         if (meta.getAttribute('name') == 'cover') {
           final coverId = meta.getAttribute('content');
           if (coverId != null) {
-            _log.d('OpfReaderService', '找到封面ID: $coverId');
-            
-            // 在manifest中查找封面文件
             final manifestElements = document.findAllElements('manifest').firstOrNull;
             if (manifestElements != null) {
               final itemElements = manifestElements.findAllElements('item');
               for (final item in itemElements) {
                 if (item.getAttribute('id') == coverId) {
                   coverPath = item.getAttribute('href');
-                  _log.d('OpfReaderService', '找到封面路径: $coverPath');
                   break;
                 }
               }

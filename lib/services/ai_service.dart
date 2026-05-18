@@ -116,7 +116,6 @@ class AIService {
   /// 方法名：_onAiSettingsChanged
   /// 功能：AI设置变化时的回调，重新加载配置
   void _onAiSettingsChanged() {
-    _log.d('AIService', 'AI设置发生变化，重新加载配置');
     reloadConfig();
   }
 
@@ -177,8 +176,6 @@ class AIService {
   /// - AI配置页面保存新配置后，立即更新AIService
   void updateConfig(AiSettings settings) {
     _config = settings;
-    _log.d('AIService',
-        '配置已更新: provider=${settings.provider}, model=${settings.model}');
   }
 
   /// 方法名：testConnection
@@ -198,7 +195,6 @@ class AIService {
     try {
       final result = await _callAI('Hello');
       if (result != null) {
-        _log.d('AIService', '测试连接成功');
         return true;
       } else {
         _log.w('AIService', '测试连接失败：AI返回null');
@@ -435,12 +431,7 @@ class AIService {
         String currentDataContent = '';
 
         // 监听数据到达事件
-        int chunkCount = 0;
         await for (final chunk in response.transform(utf8.decoder)) {
-          chunkCount++;
-          if (chunkCount <= 3) {
-            _log.d('AIService', '收到数据块 #$chunkCount，长度: ${chunk.length}');
-          }
 
           buffer += chunk;
 
@@ -479,7 +470,6 @@ class AIService {
             buffer = buffer.substring(lineEnd + 1);
 
             if (line == '[DONE]') {
-              _log.d('AIService', '收到 [DONE]，流式响应结束');
               return;
             }
 
@@ -546,8 +536,6 @@ class AIService {
     String? chapterTitle,
     String? bookId,
   }) async* {
-    _log.v('AIService',
-        'generateFullChapterSummaryStream 开始执行，content length: ${content.length}, chapterTitle: $chapterTitle, bookId: $bookId');
     if (!isConfigured) {
       _log.w('AIService', 'AI 配置未设置或 API Key 无效');
       return;
@@ -555,8 +543,6 @@ class AIService {
 
     // 从 SettingsService 读取语言设置
     final langSettings = SettingsService().settings.languageSettings;
-    _log.d('AIService',
-        '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
 
     String languageInstruction;
 
@@ -615,8 +601,6 @@ class AIService {
     int? totalChapters,
     String? bookId,
   }) async* {
-    _log.v('AIService',
-        'generateBookSummaryStream 开始执行，title: $title, author: $author, chapterSummaries length: ${chapterSummaries.length}, bookId: $bookId');
     if (!isConfigured) {
       _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return;
@@ -677,8 +661,6 @@ class AIService {
     int? totalChapters,
     String? bookId,
   }) async* {
-    _log.v('AIService',
-        'generateBookSummaryFromPrefaceStream 开始执行，title: $title, author: $author, prefaceContent length: ${prefaceContent.length}, bookId: $bookId');
     if (!isConfigured) {
       _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return;
@@ -730,8 +712,6 @@ class AIService {
     required String sourceLang,
     required String targetLang,
   }) async* {
-    _log.v('AIService',
-        'translateHtmlStream 开始执行，content length: ${content.length}, sourceLang: $sourceLang, targetLang: $targetLang');
     if (!isConfigured) {
       _log.w('AIService', 'AI 配置未设置或 API Key 无效');
       return;
@@ -779,7 +759,6 @@ class AIService {
     }
 
     final buffer = StringBuffer();
-    int chunkCount = 0;
 
     await for (final chunk in translateHtmlStream(
       content,
@@ -788,11 +767,6 @@ class AIService {
       targetLang: targetLang,
     )) {
       buffer.write(chunk);
-      chunkCount++;
-
-      if (chunkCount <= 3) {
-        _log.d('AIService', 'Chunk $chunkCount: $chunk');
-      }
 
       if (onProgress != null) {
         onProgress(buffer.toString());
@@ -800,7 +774,6 @@ class AIService {
     }
 
     final result = buffer.toString();
-    _log.d('AIService', '翻译完成，译文长度: ${result.length}, chunk数: $chunkCount');
     return result;
   }
 
@@ -1002,7 +975,6 @@ class AIService {
       }
       
       // 默认中文
-      _log.d('AIService', '无法识别的系统 locale，默认使用中文');
       return 'zh';
     } catch (e) {
       _log.w('AIService', '检测系统语言失败: $e，使用默认中文');
@@ -1022,10 +994,8 @@ class AIService {
       return convertLanguageCodeToStandard(bookLanguage);
     }
     if (content != null && content.isNotEmpty) {
-      _log.d('AIService', '元数据无语言信息，从内容中检测');
       return detectLanguageFromContent(content);
     }
-    _log.d('AIService', '无源语言信息，默认中文');
     return 'zh';
   }
 

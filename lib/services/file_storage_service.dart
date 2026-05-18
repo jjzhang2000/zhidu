@@ -93,7 +93,6 @@ class FileStorageService {
 
       // 检查文件是否存在，避免FileNotFound异常
       if (!await file.exists()) {
-        _log.v('FileStorageService', '文件不存在: $filePath');
         return null;
       }
 

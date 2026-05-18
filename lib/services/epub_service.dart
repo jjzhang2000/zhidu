@@ -81,7 +81,6 @@ class EpubService {
   /// 4. 提取封面图片并保存
   /// 5. 生成书籍ID，创建Book对象
   Future<Book?> parseEpubFile(String filePath) async {
-    _log.v('EpubService', 'parseEpubFile 开始执行, filePath: $filePath');
     try {
       _log.d('EpubService', '开始解析文件 $filePath');
       final file = File(filePath);
@@ -90,11 +89,7 @@ class EpubService {
         return null;
       }
 
-      _log.d('EpubService', '读取文件字节...');
       final bytes = await file.readAsBytes();
-      _log.d('EpubService', '文件大小: ${bytes.length} bytes');
-
-      _log.d('EpubService', '解析EPUB结构...');
 
       String? title;
       String? author;
@@ -103,17 +98,6 @@ class EpubService {
       try {
         // 首选方案：使用EpubReader解析
         final epubBook = await EpubReader.readBook(bytes);
-        _log.d('EpubService', 'EPUB解析成功');
-        _log.d('EpubService', 'epubBook.title = ${epubBook.title}');
-        _log.d('EpubService', 'epubBook.authors = ${epubBook.authors}');
-        _log.d(
-            'EpubService', 'epubBook.chapters = ${epubBook.chapters?.length}');
-        _log.d('EpubService', 'epubBook.schema = ${epubBook.schema != null}');
-        _log.d('EpubService', 'epubBook.content = ${epubBook.content != null}');
-        _log.d('EpubService',
-            'epubBook.content?.images = ${epubBook.content?.images?.length}');
-        _log.d('EpubService',
-            'epubBook.content?.html = ${epubBook.content?.html?.length}');
 
         // 从 epubBook 获取元数据
         title = epubBook.title;
@@ -128,13 +112,9 @@ class EpubService {
           chapterTitles = _extractChapterTitles(epubBook.chapters!);
         }
 
-        _log.d('EpubService', '从EPUB元数据获取标题: $title');
-        _log.d('EpubService', '从EPUB元数据获取作者: $author');
-        _log.d('EpubService', '从导航获取章节数: ${chapterTitles.length}');
       } catch (e, stackTrace) {
         _log.e('EpubService', '使用EpubReader解析失败', e);
         _log.e('EpubService', '堆栈', stackTrace);
-        _log.d('EpubService', '尝试使用archive直接解析EPUB...');
 
         // 回退方案：使用 archive 直接解析 EPUB
         final archive = ZipDecoder().decodeBytes(bytes);
@@ -144,8 +124,6 @@ class EpubService {
         if (containerInfo != null) {
           title = containerInfo['title'];
           author = containerInfo['author'];
-          _log.d('EpubService', '从container.xml获取标题: $title');
-          _log.d('EpubService', '从container.xml获取作者: $author');
         }
 
         // 解析 OPF 文件获取元数据
@@ -153,8 +131,6 @@ class EpubService {
         if (opfInfo != null) {
           title ??= opfInfo['title'];
           author ??= opfInfo['author'];
-          _log.d('EpubService', '从OPF获取标题: $title');
-          _log.d('EpubService', '从OPF获取作者: $author');
         }
 
         // 解析 NCX/NAV 文件获取章节列表
@@ -170,9 +146,6 @@ class EpubService {
         author = '未知作者';
       }
 
-      _log.d('EpubService', '最终书名: $title');
-      _log.d('EpubService', '最终作者: $author');
-
       // 生成书籍ID
       final bookId = _uuid.v4();
 
@@ -183,7 +156,6 @@ class EpubService {
       } catch (e) {
         _log.e('EpubService', '封面提取失败', e);
       }
-      _log.d('EpubService', '封面路径: $coverPath');
 
       // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
       String? opfLanguage;
@@ -238,7 +210,6 @@ class EpubService {
   }
 
   Future<String?> extractPrefaceContent(String filePath) async {
-    _log.v('EpubService', 'extractPrefaceContent 开始执行, filePath: $filePath');
     try {
       final file = File(filePath);
       if (!await file.exists()) return null;
@@ -271,7 +242,6 @@ class EpubService {
                 final content = _extractTextFromHtml(chapter.htmlContent ?? '');
                 if (content.isNotEmpty && content.length > 100) {
                   foundContents.add(content);
-                  _log.d('EpubService', '找到前言/序言内容: ${chapter.title}');
                   break;
                 }
               }
@@ -288,7 +258,6 @@ class EpubService {
         }
       } catch (e) {
         _log.e('EpubService', '使用EpubReader提取前言失败', e);
-        _log.d('EpubService', '尝试使用archive回退方案...');
       }
 
       return await _extractPrefaceFromArchive(bytes);
@@ -299,8 +268,6 @@ class EpubService {
   }
 
   Future<String?> _extractPrefaceFromArchive(Uint8List bytes) async {
-    _log.v('EpubService',
-        '_extractPrefaceFromArchive 开始执行, bytes length: ${bytes.length}');
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
 
@@ -335,7 +302,6 @@ class EpubService {
           if (title.contains(pattern.toLowerCase())) {
             final text = _extractTextFromHtml(content);
             if (text.isNotEmpty && text.length > 100) {
-              _log.d('EpubService', '从archive找到前言内容: $title');
               if (text.length > 5000) {
                 return text.substring(0, 5000);
               }
@@ -353,8 +319,6 @@ class EpubService {
   }
 
   String _extractTextFromHtml(String html) {
-    _log.v('EpubService',
-        '_extractTextFromHtml 开始执行, html length: ${html.length}');
     var text = html
         .replaceAll(
             RegExp(r'<script[^>]*>[\s\S]*?</script>', caseSensitive: false), '')
@@ -366,23 +330,16 @@ class EpubService {
         .replaceAll(RegExp(r'&[a-z]+;'), '')
         .trim();
 
-    _log.v('EpubService',
-        '_extractTextFromHtml 执行完成, extracted text length: ${text.length}');
     return text;
   }
 
   String _extractTitleFromPath(String filePath) {
-    _log.v('EpubService', '_extractTitleFromPath 开始执行, filePath: $filePath');
     final fileName = p.basenameWithoutExtension(filePath);
     final result = fileName.replaceAll('_', ' ').replaceAll('-', ' ');
-    _log.v(
-        'EpubService', '_extractTitleFromPath 执行完成, extracted title: $result');
     return result;
   }
 
   Map<String, String>? _parseContainerXml(Archive archive) {
-    _log.v('EpubService',
-        '_parseContainerXml 开始执行, archive files count: ${archive.files.length}');
     try {
       ArchiveFile? containerFile;
       for (final file in archive.files) {
@@ -413,7 +370,6 @@ class EpubService {
         return null;
       }
 
-      _log.d('EpubService', 'OPF 文件路径: $opfPath');
       return {'opfPath': opfPath};
     } catch (e) {
       _log.e('EpubService', '解析 container.xml 失败', e);
@@ -422,8 +378,6 @@ class EpubService {
   }
 
   Map<String, String?>? _parseOpfFile(Archive archive) {
-    _log.v('EpubService',
-        '_parseOpfFile 开始执行, archive files count: ${archive.files.length}');
     try {
       String? opfPath;
       ArchiveFile? opfFile;
@@ -469,7 +423,6 @@ class EpubService {
         author = creatorElements.map((e) => e.innerText.trim()).join(', ');
       }
 
-      _log.d('EpubService', 'OPF 解析结果 - 标题: $title, 作者: $author');
       return {'title': title, 'author': author};
     } catch (e) {
       _log.e('EpubService', '解析 OPF 文件失败', e);
@@ -478,8 +431,6 @@ class EpubService {
   }
 
   List<String> _parseNavigationFile(Archive archive) {
-    _log.v('EpubService',
-        '_parseNavigationFile 开始执行, archive files count: ${archive.files.length}');
     try {
       ArchiveFile? navFile;
       String? navFileType;
@@ -571,44 +522,25 @@ class EpubService {
   }
 
   Future<String?> _extractCover(Uint8List bytes, String bookId) async {
-    _log.v('EpubService',
-        '_extractCover 开始执行, bytes length: ${bytes.length}, bookId: $bookId');
     try {
-      _log.d('EpubService', '开始提取封面...');
       final epubBook = await EpubReader.readBook(bytes);
-      _log.d('EpubService', 'EPUB解析成功，检查图片...');
-      _log.d('EpubService', 'content = ${epubBook.content != null}');
-      _log.d('EpubService',
-          'content.images = ${epubBook.content?.images?.length}');
 
       if (epubBook.content?.images?.isNotEmpty == true) {
-        _log.d('EpubService', '找到 ${epubBook.content!.images!.length} 张图片');
-
-        for (final entry in epubBook.content!.images!.entries) {
-          _log.d('EpubService', '图片文件: ${entry.key}');
-        }
-
         EpubByteContentFile? coverImage;
 
         for (final entry in epubBook.content!.images!.entries) {
           final name = entry.key.toLowerCase();
           if (name.contains('cover') || name.contains('title')) {
             coverImage = entry.value;
-            _log.d('EpubService', '找到封面图片: ${entry.key}');
             break;
           }
         }
 
         if (coverImage == null) {
           coverImage = epubBook.content!.images!.values.first;
-          _log.d('EpubService', '使用第一张图片作为封面');
         }
 
         if (coverImage != null && coverImage.content != null) {
-          _log.d('EpubService', '封面图片大小: ${coverImage.content!.length} bytes');
-          _log.d('EpubService', '封面图片类型: ${coverImage.contentMimeType}');
-
-          // 保存到书籍目录
           final coverPath = await StorageConfig.getCoverSavePath(
             bookId,
             coverImage.contentMimeType ?? 'image/jpeg',
@@ -618,25 +550,18 @@ class EpubService {
           await coverOutputFile.writeAsBytes(coverImage.content!);
           _log.d('EpubService', '封面保存成功: $coverPath');
           return coverPath;
-        } else {
-          _log.d('EpubService', '封面图片内容为空');
         }
-      } else {
-        _log.d('EpubService', '未找到任何图片');
       }
     } catch (e, stackTrace) {
       _log.e('EpubService', '提取封面失败', e);
       _log.e('EpubService', '堆栈', stackTrace);
     }
 
-    _log.d('EpubService', '尝试从archive查找封面...');
     return await _extractCoverFromArchive(bytes, bookId);
   }
 
   Future<String?> _extractCoverFromArchive(
       Uint8List bytes, String bookId) async {
-    _log.v('EpubService',
-        '_extractCoverFromArchive 开始执行, bytes length: ${bytes.length}, bookId: $bookId');
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
 
@@ -696,17 +621,13 @@ class EpubService {
   }
 
   Future<List<ChapterInfo>> getChapterList(String filePath) async {
-    _log.v('EpubService', 'getChapterList 开始执行, filePath: $filePath');
     try {
       final file = File(filePath);
       if (!await file.exists()) {
-        _log.v('EpubService', 'getChapterList 文件不存在, filePath: $filePath');
         return [];
       }
 
       final bytes = await file.readAsBytes();
-      _log.v('EpubService',
-          'getChapterList 读取文件完成, bytes length: ${bytes.length}');
 
       try {
         final epubBook = await EpubReader.readBook(bytes);
@@ -816,8 +737,6 @@ class EpubService {
 
   List<ChapterInfo> _extractChapterInfosFromNavigation(
       List<EpubNavigationPoint> navPoints) {
-    _log.v('EpubService',
-        '_extractChapterInfosFromNavigation 开始执行, navPoints count: ${navPoints.length}');
     final result = <ChapterInfo>[];
 
     void traverseNavPoints(List<EpubNavigationPoint> points, int level) {
@@ -846,8 +765,6 @@ class EpubService {
   List<ChapterInfo> _extractChapterInfosFromContent(
       Map<String, EpubTextContentFile> htmlFiles,
       List<EpubSpineItemRef>? spineItems) {
-    _log.v('EpubService',
-        '_extractChapterInfosFromContent 开始执行, htmlFiles count: ${htmlFiles.length}, spineItems count: ${spineItems?.length ?? 0}');
     final result = <ChapterInfo>[];
 
     // 如果有 spine，按照 spine 的顺序
@@ -937,12 +854,9 @@ class EpubService {
       try {
         final epubBook = await EpubReader.readBook(bytes);
 
-        _log.d('EpubService', 'EPUB解析成功');
-
         // 优先从 toc.ncx (navigation) 提取章节顺序
         if (epubBook.schema?.navigation?.navMap != null &&
             epubBook.schema!.navigation!.navMap!.points.isNotEmpty) {
-          _log.d('EpubService', '从 toc.ncx (navigation) 提取章节列表');
           final chapters = _extractChapterInfosFromNavigation(
               epubBook.schema!.navigation!.navMap!.points);
           if (chapters.isNotEmpty) {
@@ -952,7 +866,6 @@ class EpubService {
 
         // 如果没有 navigation，尝试从 chapters 提取
         if (epubBook.chapters.isNotEmpty) {
-          _log.d('EpubService', '从 epubBook.chapters 提取章节列表');
           final chapters = _extractChapterInfos(epubBook.chapters);
           if (chapters.isNotEmpty) {
             return chapters;
@@ -961,7 +874,6 @@ class EpubService {
 
         // 最后尝试从 content 提取
         if (epubBook.content?.html?.isNotEmpty == true) {
-          _log.d('EpubService', '从 content.html 提取章节列表');
           final chapters = _extractChapterInfosFromContent(
               epubBook.content!.html!, epubBook.schema?.package?.spine?.items);
           if (chapters.isNotEmpty) {
@@ -1069,7 +981,6 @@ class EpubService {
         }
       } catch (e) {
         _log.e('EpubService', '使用EpubReader获取章节内容失败', e);
-        _log.d('EpubService', '尝试使用archive回退方案...');
       }
 
       final result = await _getChapterContentFromArchive(bytes, href);
@@ -1118,8 +1029,6 @@ class EpubService {
       final hrefWithoutAnchor = href.split('#').first;
       final hrefWithoutAnchorLower = hrefWithoutAnchor.toLowerCase();
 
-      _log.d('EpubService', '查找章节文件: href=$href, 去除锚点后=$hrefWithoutAnchor');
-
       for (final archiveFile in archive.files) {
         final archiveName = archiveFile.name;
         final archiveNameLower = archiveName.toLowerCase();
@@ -1137,7 +1046,6 @@ class EpubService {
                     .endsWith(hrefWithoutAnchorLower.split('/').last));
 
         if (isMatch) {
-          _log.d('EpubService', '找到章节文件: $archiveName');
           final content = utf8.decode(archiveFile.content as List<int>);
           return _extractTextFromHtml(content);
         }
@@ -1314,7 +1222,6 @@ class EpubService {
         }
       } catch (e) {
         _log.e('EpubService', '使用EpubReader获取章节HTML失败', e);
-        _log.d('EpubService', '尝试使用archive回退方案...');
       }
 
       return await _getChapterHtmlFromArchive(bytes, href);

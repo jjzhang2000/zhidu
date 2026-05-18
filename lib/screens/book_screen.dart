@@ -154,7 +154,6 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 1. 在目录视图展示章节结构
   /// 2. 点击章节时跳转到对应位置
   Future<void> _loadChapters() async {
-    _log.v('BookScreen', '_loadChapters 开始执行');
     setState(() => _isLoadingChapters = true);
 
     try {
@@ -217,15 +216,11 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// - 不影响页面加载速度
   /// - 静默执行，无侵入性
   void _startPreGeneration() {
-    // AI未配置则跳过
     if (!_aiService.isConfigured) {
-      _log.d('BookScreen', 'AI服务未配置，跳过预生成');
       return;
     }
 
-    // 防止重复启动预生成任务
     if (_isPreGenerating) {
-      _log.d('BookScreen', '已在预生成中，跳过');
       return;
     }
 
@@ -242,9 +237,6 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
 
         // 执行摘要生成
         await _summaryService.generateSummariesForBook(_book);
-        _log.d('BookScreen', '后台预生成摘要完成');
-
-        // 生成完成后再次刷新书籍状态
         _refreshBookIfNeeded();
       } catch (e, stackTrace) {
         _log.e('BookScreen', '后台预生成摘要失败', e, stackTrace);
@@ -652,8 +644,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
 
     // 显示全书摘要（Markdown渲染）
     return _buildSummaryWithMarkdown(_bookSummaryFromFile!,
-        onBeforeNavigate: () =>
-            _log.d('BookScreen', '点击全书摘要，进入第一章: ${_flatChapters.first.title}'));
+        onBeforeNavigate: () {});
   }
 
   /// 构建流式全书摘要视图
@@ -740,7 +731,6 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
             // 只有顶层章节才能点击进入阅读
             onTap: chapter.level == 0
                 ? () {
-                    _log.d('BookScreen', '点击章节: ${chapter.title}');
                     Navigator.push(
                       context,
                       MaterialPageRoute(

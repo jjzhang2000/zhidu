@@ -63,9 +63,7 @@ class BookService {
   /// - 索引文件不存在：返回空列表
   /// - 单个元数据解析失败：跳过该书，记录错误日志
   Future<void> init() async {
-    _log.v('BookService', 'init 开始执行');
     await _loadBooks();
-    _log.v('BookService', 'init 执行完成, 加载书籍数量: ${_books.length}');
   }
 
   /// 从文件加载所有书籍数据
@@ -174,17 +172,10 @@ class BookService {
   /// - 使用标题+作者组合判断是否重复
   /// - 重复时返回已存在的书籍，不创建新记录
   Future<Book?> importBookFromPath(String filePath) async {
-    _log.v('BookService', 'importBookFromPath 开始执行: $filePath');
     try {
-      _log.d('BookService', '开始导入书籍: $filePath');
-
-      // 首先尝试读取同目录下的metadata.opf文件
       OpfMetadata? opfMetadata;
       try {
         opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
-        if (opfMetadata != null) {
-          _log.d('BookService', '成功读取外部OPF元数据');
-        }
       } catch (e) {
         _log.w('BookService', '读取外部OPF元数据失败，继续使用原解析逻辑: $e');
       }
@@ -194,21 +185,15 @@ class BookService {
       Book? book;
 
       if (extension == '.epub') {
-        _log.d('BookService', '开始解析EPUB...');
         book = await _epubService.parseEpubFile(filePath);
-        _log.d('BookService', 'EPUB解析结果: ${book?.title ?? "失败"}');
       } else if (extension == '.pdf') {
-        _log.d('BookService', '开始解析PDF...');
         book = await _pdfService.parsePdfFile(filePath);
-        _log.d('BookService', 'PDF解析结果: ${book?.title ?? "失败"}');
       } else {
         _log.w('BookService', '不支持的文件格式: $extension');
         return null;
       }
 
       if (book != null && opfMetadata != null) {
-        _log.d('BookService', '开始合并OPF元数据');
-        
         // 处理封面文件（如果OPF中指定了封面文件）
         String? finalCoverPath = book.coverPath; // 保留原始封面路径作为备选
         if (opfMetadata.coverPath != null) {
@@ -224,13 +209,9 @@ class BookService {
             try {
               await File(coverAbsolutePath).copy(coverDestPath);
               finalCoverPath = coverDestPath;
-              _log.d('BookService', '成功使用外部OPF封面文件: $coverDestPath');
             } catch (e) {
               _log.w('BookService', '复制外部OPF封面文件失败: $e，使用原封面');
-              // 保持原始封面路径不变
             }
-          } else {
-            _log.d('BookService', 'OPF中指定的封面文件不存在: $coverAbsolutePath，使用原封面');
           }
         }
         
@@ -239,14 +220,8 @@ class BookService {
           title: opfMetadata.title ?? book.title,
           author: opfMetadata.author ?? book.author,
           language: opfMetadata.language ?? book.language, // 使用OPF中的语言信息
-          coverPath: finalCoverPath, // 总是使用最终确定的封面路径
+          coverPath: finalCoverPath,
         );
-
-        _log.d('BookService', 'OPF元数据合并完成: title=${book.title}, author=${book.author}, language=${book.language}');
-      } else if (opfMetadata != null) {
-        _log.d('BookService', '仅获取到OPF元数据，用于补充信息');
-        // 如果只有OPF元数据而没有解析出book信息，至少保留关键信息
-        // 这种情况应该不会发生，因为我们先解析了EPUB/PDF
       }
 
       if (book != null) {
@@ -284,7 +259,6 @@ class BookService {
   /// - 成功：返回新导入或已存在的Book对象
   /// - 失败：返回null（用户取消、格式不支持、解析错误等）
   Future<Book?> importBook() async {
-    _log.v('BookService', 'importBook 开始执行');
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -293,7 +267,6 @@ class BookService {
       );
 
       if (result == null || result.files.isEmpty) {
-        _log.d('BookService', '用户取消选择');
         return null;
       }
 
@@ -350,8 +323,6 @@ class BookService {
           _log.e('BookService', '删除书籍目录失败: ${book.title} ($id)');
           return false;
         }
-      } else {
-        _log.d('BookService', '书籍目录不存在，跳过删除: $id');
       }
 
       // 删除成功后，从内存列表中移除
@@ -385,7 +356,6 @@ class BookService {
         _books[index] = book;
         await _saveBooksIndex();
         await _saveBookMetadata(book);
-        _log.d('BookService', '书籍更新成功: ${book.title}');
       }
     } catch (e, stackTrace) {
       _log.e('BookService', '更新书籍失败: ${book.id}', e, stackTrace);
@@ -438,9 +408,6 @@ class BookService {
     int chapterIndex,
     String title,
   ) async {
-    _log.d('BookService',
-        '更新章节标题: bookId=$bookId, index=$chapterIndex, title=$title');
-
     final book = getBookById(bookId);
     if (book == null) {
       _log.w('BookService', '书籍不存在: $bookId');
@@ -452,8 +419,6 @@ class BookService {
 
     final updatedBook = book.copyWith(chapterTitles: updatedTitles);
     await updateBook(updatedBook);
-
-    _log.d('BookService', '章节标题更新成功: $title');
   }
 
   /// 保存所有书籍索引到文件
