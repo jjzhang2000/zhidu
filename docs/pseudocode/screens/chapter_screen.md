@@ -276,91 +276,35 @@ ASYNC PROCEDURE _loadChapterContent():
 END PROCEDURE
 ```
 
-### `_loadSummary()`
+### `_ensureSummary()`
 
 ```
-ASYNC PROCEDURE _loadSummary():
-  chapterKey = '${widget.bookId}_${widget.chapterIndex}'
+ASYNC PROCEDURE _ensureSummary():
+  IF _content.isEmpty OR NOT _aiService.isConfigured: RETURN
 
-  // Prevent duplicate loading
-  IF _hasLoadedSummary AND _listeningChapterKey == chapterKey:
-    RETURN
-
-  _hasLoadedSummary = true
-  _listeningChapterKey = chapterKey
-
-  summary = AWAIT _summaryService.getSummary(bookId, chapterIndex, language: _summaryLang)
-
-  IF summary != null:
-    // Have existing summary — display directly
-    IF NOT mounted: RETURN
-    setState(): _summaryChapter = summary
-  ELSE:
-    // No summary — auto-generate if conditions met
-    IF _content.isNotEmpty AND _aiService.isConfigured:
-      setState():
-        _isGenerating = true
-        _streamingSummary = ''
-      _generateSummaryWithStreaming()
-    ELSE:
-      IF NOT mounted: RETURN
-      setState(): _summaryChapter = summary
-END PROCEDURE
-```
-
-### `_generateSummaryWithStreaming()`
-
-```
-ASYNC PROCEDURE _generateSummaryWithStreaming():
-  IF _content.isEmpty:
-    setState(): _error = '无法生成摘要：章节内容为空'
-    RETURN
+  // Register callback for streaming content
+  _summaryService.registerChapterCallback(bookId, chapterIndex, (content):
+    IF mounted: setState(): _streamingSummary = content
+  )
 
   setState():
     _isGenerating = true
-    _error = null
     _streamingSummary = ''
+    _error = null
 
-  TRY:
-    plainText = _extractTextContent(_content)
+  plainText = _extractTextContent(_content)
+  summary = AWAIT _summaryService.ensureChapterSummary(
+    bookId, chapterIndex, plainText, _title,
+    language: _summaryLang,
+  )
 
-    success = AWAIT _summaryService.generateSingleSummary(
-      bookId, chapterIndex, _title, plainText,
-      language: _summaryLang,
-      onContentUpdate: (content):
-        IF mounted: setState(): _streamingSummary = content
-    )
-
-    IF NOT mounted: RETURN
-
-    IF success:
-      // Load final summary
-      summary = AWAIT _summaryService.getSummary(bookId, chapterIndex, language: _summaryLang)
-      updatedBook = _bookService.getBookById(bookId)
-
-      IF updatedBook != null:
-        newTitle = updatedBook.chapterTitles?[chapterIndex]
-        setState():
-          _summaryChapter = summary
-          _title = newTitle ?? _title
-          _streamingSummary = ''
-          _isGenerating = false
-      ELSE:
-        setState():
-          _summaryChapter = summary
-          _streamingSummary = ''
-          _isGenerating = false
-    ELSE:
-      setState():
-        _error = '生成摘要失败'
-        _streamingSummary = ''
-        _isGenerating = false
-  CATCH e:
-    IF NOT mounted: RETURN
-    setState():
-      _error = '生成摘要失败: $e'
-      _streamingSummary = ''
-      _isGenerating = false
+  IF NOT mounted: RETURN
+  book = _bookService.getBookById(bookId)
+  setState():
+    _summaryChapter = summary
+    _isGenerating = false
+    _streamingSummary = ''
+    _title = book?.chapterTitles?[chapterIndex] ?? _title
 END PROCEDURE
 ```
 
@@ -464,80 +408,48 @@ PROCEDURE _syncScrollToTab(tabIndex):
 END PROCEDURE
 ```
 
-### `_loadTranslation()`
+### `_ensureTranslation()`
 
 ```
-ASYNC PROCEDURE _loadTranslation():
+ASYNC PROCEDURE _ensureTranslation():
   IF _translationTabDisabled OR _targetLang == null OR _content.isEmpty: RETURN
+  IF NOT _aiService.isConfigured: RETURN
 
   TRY:
-    cached = AWAIT _summaryService.getTranslation(bookId, chapterIndex, _targetLang)
-
-    IF cached != null AND not empty:
-      // Have cached translation — restore code blocks and display
-      IF mounted: setState():
-        _translationContent = _restoreCodeBlocks(_cleanBackslashes(cached))
-        _isTranslating = false
-        _streamingTranslation = ''
-    ELSEIF _aiService.isConfigured AND _content.isNotEmpty:
-      // No cache — auto-generate translation
-      IF mounted: setState():
-        _translationContent = null
-        _isTranslating = true
-        _streamingTranslation = ''
-      _generateTranslationWithStreaming()
-    ELSE:
-      IF mounted: setState():
-        _translationContent = null
-        _isTranslating = false
-        _streamingTranslation = ''
-  CATCH e:
-    _log.e('加载译文失败', e)
-END PROCEDURE
-```
-
-### `_generateTranslationWithStreaming()`
-
-```
-ASYNC PROCEDURE _generateTranslationWithStreaming():
-  IF _content.isEmpty OR _targetLang == null: RETURN
-
-  setState():
-    _isTranslating = true
-    _streamingTranslation = ''
-
-  TRY:
-    // Extract code blocks to placeholders for protection
-    (contentWithPlaceholders, codeBlocks) = _extractCodeBlocksToPlaceholders(_content)
+    setState():
+      _isTranslating = true
+      _streamingTranslation = ''
 
     bookFormat = widget.book?.format.name ?? 'epub'
+    (contentWithPlaceholders, codeBlocks) = _extractCodeBlocksToPlaceholders(_content)
 
-    success = AWAIT _summaryService.generateTranslationStream(
-      bookId, chapterIndex, contentWithPlaceholders,
+    // Register callback for streaming translation
+    _summaryService.registerTranslationCallback(bookId, chapterIndex, (content):
+      IF mounted:
+        _captureScrollAnchor(2)
+        setState(): _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks)
+        addPostFrameCallback: _syncScrollToTab(2)
+    )
+
+    translation = AWAIT _summaryService.ensureChapterTranslation(
+      bookId: bookId,
+      chapterIndex: chapterIndex,
+      content: contentWithPlaceholders,
       chapterTitle: _title,
       sourceLang: _sourceLang ?? 'zh',
-      targetLang: _targetLang,
+      targetLang: _targetLang!,
       bookFormat: bookFormat,
-      onContentUpdate: (content):
-        IF mounted:
-          _captureScrollAnchor(2)
-          setState(): _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks)
-          addPostFrameCallback: _syncScrollToTab(2)
     )
 
     IF NOT mounted: RETURN
-
-    IF success:
-      translation = AWAIT _summaryService.getTranslation(bookId, chapterIndex, _targetLang)
-      setState():
-        _translationContent = _restorePlaceholdersToCodeBlocks(_cleanCodeBackslashes(translation), codeBlocks)
-        _isTranslating = false
-        _streamingTranslation = ''
-    ELSE:
-      setState():
-        _isTranslating = false
-        _streamingTranslation = ''
-  CATCH e:
+    setState():
+      _translationContent = translation != null
+        ? _restorePlaceholdersToCodeBlocks(_cleanCodeBackslashes(translation), codeBlocks)
+        : null
+      _isTranslating = false
+      _streamingTranslation = ''
+  CATCH e, stackTrace:
+    _log.e('翻译失败', e, stackTrace)
     IF mounted: setState():
       _isTranslating = false
       _streamingTranslation = ''

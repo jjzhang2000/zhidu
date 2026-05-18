@@ -1143,6 +1143,13 @@ sampleLength = min(content.length, 500)
 
 ## 版本历史
 
+- **2026-05-18**: ChapterScreen 重构新增方法
+  - 新增 `registerChapterCallback`/`unregisterChapterCallback` — 章节摘要流式回调
+  - 新增 `registerTranslationCallback`/`unregisterTranslationCallback` — 章节译文流式回调
+  - 新增 `ensureChapterSummary()` — 一站式：检查已有→流式生成→返回最终摘要
+  - 新增 `ensureChapterTranslation()` — 同上，翻译版本
+  - `generateSingleSummary` / `generateTranslationStream` 内部同步通知注册的回调
+
 - **2026-04-24**: 添加流式显示功能
   - 新增流式回调注册/取消方法
   - 新增 `_notifyStreamingContent` 和 `_notifyBookStreamingContent`

@@ -370,6 +370,12 @@ Documents/zhidu/                   (可自定义)
 - **原则**: 每函数最多1-2条log；内外层调用不重复log同一信息
 - **明细**: epub_service 107→42, summary_service 51→37, ai_service 42→27, epub_parser 50→33, book_service 38→18, chapter_screen 20→9 等
 
+#### 2026-05-18: ChapterScreen 重构为 BookScreen 模式，摘要/翻译编排逻辑归口 SummaryService
+
+- **SummaryService 新增**: 章节级流式回调（`registerChapterCallback`/`registerTranslationCallback`）+ 一站式方法 `ensureChapterSummary()` / `ensureChapterTranslation()`
+- **ChapterScreen 简化**: 删除 `_loadSummary()`、`_generateSummaryWithStreaming()`、`_loadTranslation()`、`_generateTranslationWithStreaming()` 四个方法（~260行），改为 `_ensureSummary()` / `_ensureTranslation()`（各~25行）
+- **模式对齐**: ChapterScreen 不再自行组装「检查→判断→onContentUpdate→生成→加载→UI更新」，全部委托 SummaryService
+
 #### 2026-05-18: AIService 新增 `detectSourceLanguage()` 统一源语言检测
 
 - **提取**: 新增 `detectSourceLanguage()` public 方法，合并 ChapterScreen 和 `_detectLanguageFromMetadataAndContentWithBookId` 两处重复的「元数据→convert / 内容→detect」模式
