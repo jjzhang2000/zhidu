@@ -8,7 +8,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
-import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 
 /// 语言设置页面组件
@@ -46,9 +45,9 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   /// 手动语言选项
   List<(String, String)> _getLanguages(AppLocalizations localizations) {
     return [
-      ('zh', localizations.chineseLanguage ?? '简体中文'),
-      ('en', localizations.englishLanguage ?? 'English'),
-      ('ja', localizations.japaneseLanguage ?? '日本語'),
+      ('zh', localizations.chineseLanguage),
+      ('en', localizations.englishLanguage),
+      ('ja', localizations.japaneseLanguage),
     ];
   }
 
@@ -186,6 +185,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
     required String value,
     required ValueChanged<String?> onChanged,
   }) {
+    final languages = _getLanguages(localizations);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Card(
@@ -200,13 +200,13 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
               ),
               const SizedBox(height: 8.0),
               DropdownButtonFormField<String>(
-                value: _getLanguages(localizations).any((l) => l.$1 == value) ? value : 'zh',
+                value: languages.any((l) => l.$1 == value) ? value : 'zh',
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                 ),
-                items: _getLanguages(localizations).map((lang) {
+                items: languages.map((lang) {
                   return DropdownMenuItem<String>(
                     value: lang.$1,
                     child: Text(lang.$2),
@@ -222,31 +222,13 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   }
 
   /// 更新 AI 语言模式
+  ///
+  /// copyWith 天然保留未传字段，无需显式回填当前值
   Future<void> _updateAiLanguageMode(String mode) async {
-    LanguageSettings newSettings;
-
-    switch (mode) {
-      case 'book':
-        newSettings = _settingsService.languageSettings.value.copyWith(
-          aiLanguageMode: 'book',
-        );
-        break;
-      case 'system':
-        newSettings = _settingsService.languageSettings.value.copyWith(
-          aiLanguageMode: 'system',
-        );
-        break;
-      case 'manual':
-        newSettings = _settingsService.languageSettings.value.copyWith(
-          aiLanguageMode: 'manual',
-          aiOutputLanguage:
-              _settingsService.languageSettings.value.aiOutputLanguage,
-        );
-        break;
-      default:
-        return;
-    }
-
+    if (mode != 'book' && mode != 'system' && mode != 'manual') return;
+    final newSettings = _settingsService.languageSettings.value.copyWith(
+      aiLanguageMode: mode,
+    );
     await _settingsService.updateLanguageSettings(newSettings);
   }
 
@@ -259,25 +241,13 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   }
 
   /// 更新界面语言模式
+  ///
+  /// copyWith 天然保留未传字段，无需显式回填当前值
   Future<void> _updateUiLanguageMode(String mode) async {
-    LanguageSettings newSettings;
-
-    switch (mode) {
-      case 'system':
-        newSettings = _settingsService.languageSettings.value.copyWith(
-          uiLanguageMode: 'system',
-        );
-        break;
-      case 'manual':
-        newSettings = _settingsService.languageSettings.value.copyWith(
-          uiLanguageMode: 'manual',
-          uiLanguage: _settingsService.languageSettings.value.uiLanguage,
-        );
-        break;
-      default:
-        return;
-    }
-
+    if (mode != 'system' && mode != 'manual') return;
+    final newSettings = _settingsService.languageSettings.value.copyWith(
+      uiLanguageMode: mode,
+    );
     await _settingsService.updateLanguageSettings(newSettings);
   }
 
