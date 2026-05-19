@@ -12,8 +12,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/book_service.dart';
-import '../services/summary_service.dart';
-import '../services/log_service.dart';
 import '../models/book.dart';
 import 'book_screen.dart';
 import 'settings_screen.dart';
@@ -43,9 +41,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   /// 书籍服务实例，用于导入书籍
   final _bookService = BookService();
-
-  /// 日志服务实例，用于调试日志输出
-  final _log = LogService();
 
   /// 书架组件的GlobalKey，用于在导入书籍后刷新书架列表
   /// 通过currentState?.refresh()调用子组件方法
@@ -88,10 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
   ///   - 使用mounted检查确保组件仍然存在于树中
   ///   - 通过_bookshelfKey.currentState?.refresh()刷新书架
   Future<void> _importBook() async {
-    _log.v('HomeScreen', '_importBook 开始执行');
     final book = await _bookService.importBook();
     if (book != null && mounted) {
-      _log.v('HomeScreen', '_importBook 书籍导入成功: ${book.title}');
       _bookshelfKey.currentState?.refresh();
       final loc = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -100,8 +93,6 @@ class _HomeScreenState extends State<HomeScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
-    } else {
-      _log.v('HomeScreen', '_importBook 书籍导入被取消或失败');
     }
   }
 }
@@ -132,9 +123,6 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   /// 书籍服务实例，用于获取书籍列表和搜索
   final _bookService = BookService();
 
-  /// 日志服务实例，用于调试日志输出
-  final _log = LogService();
-
   /// 搜索框控制器，用于获取和清空搜索文本
   final _searchController = TextEditingController();
 
@@ -146,7 +134,6 @@ class _BookshelfScreenState extends State<BookshelfScreen> {
   /// 调用方：HomeScreen._importBook()（导入书籍后调用）
   /// 说明：通过setState触发重建，重新从BookService获取书籍列表
   void refresh() {
-    _log.d('BookshelfScreen', 'refresh');
     setState(() {});
   }
 
@@ -343,9 +330,6 @@ class _BookCardState extends State<BookCard> {
 
   /// 书籍服务实例，用于获取最新书籍信息和删除书籍
   final _bookService = BookService();
-
-  /// 摘要服务实例，用于删除书籍时同时删除相关摘要
-  final _summaryService = SummaryService();
 
   /// 方法名：build
   /// 功能：构建书籍卡片UI
@@ -557,13 +541,12 @@ class _BookCardState extends State<BookCard> {
   /// 参数：context - BuildContext
   /// 流程：
   ///   1. 显示确认对话框
-  ///   2. 用户确认后调用BookService删除书籍
-  ///   3. 调用SummaryService删除相关摘要
-  ///   4. 调用onDeleted回调刷新书架列表
-  ///   5. 显示删除成功提示
+  ///   2. 用户确认后调用BookService删除书籍（自动清理关联目录）
+  ///   3. 调用onDeleted回调刷新书架列表
+  ///   4. 显示删除成功提示
   /// 说明：
   ///   - confirmed为true表示用户确认删除
-  ///   - 删除书籍同时删除关联的章节摘要
+  ///   - deleteBook()会删除整个books/{id}/目录，包含摘要文件
   ///   - 使用mounted检查确保组件仍存在
   Future<void> _showDeleteConfirmDialog(BuildContext context) async {
     final confirmed = await showDialog<bool>(

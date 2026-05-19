@@ -350,11 +350,17 @@ Documents/zhidu/                   (可自定义)
 
 ## 版本信息
 
-- **文档更新时间**: 2026-05-18
+- **文档更新时间**: 2026-05-19
 - **项目版本**: v1.3
 - **Flutter 版本**: >= 3.0.0
 
 ### 近期更新
+
+#### 2026-05-19: HomeScreen 僵尸代码清理与冗余日志删除
+
+- **删除**: `_BookCardState._summaryService` 僵尸字段（从未调用）及 `SummaryService` import；BookService.deleteBook() 已自动清理整个书籍目录
+- **删除**: `_HomeScreenState._log` 字段 + 3条 `_log.v()` 追踪日志 + `_BookshelfScreenState._log` 字段 + `_log.d()` 调用 + `LogService` import — 共删14行
+- **更新文档**: `home_screen.md` 伪代码同步、`function_call_relationships.md` 依赖矩阵更新
 
 #### 2026-05-18: AIService 新增 `needsTranslation()` + ChapterScreen 语言归口
 

@@ -13,7 +13,7 @@
 ```
 HomeScreen (StatefulWidget)
 └── _HomeScreenState (State)
-    ├── Services: BookService, LogService
+    ├── Services: BookService
     ├── GlobalKey: _bookshelfKey (for child refresh)
     └── Methods: _importBook()
 ```
@@ -21,7 +21,7 @@ HomeScreen (StatefulWidget)
 ```
 BookshelfScreen (StatefulWidget)
 └── _BookshelfScreenState (State)
-    ├── Services: BookService, LogService
+    ├── Services: BookService
     ├── Controller: _searchController
     ├── State: _searchQuery
     └── Methods: refresh(), _buildEmptyState(), _buildBookGrid()
@@ -32,7 +32,7 @@ BookCard (StatefulWidget)
 ├── Parameters: Book book, VoidCallback? onDeleted
 └── _BookCardState (State)
     ├── State: _isHovered
-    ├── Services: BookService, SummaryService
+    ├── Services: BookService
     └── Methods: _openBook(), _showDeleteConfirmDialog()
 ```
 
@@ -45,7 +45,6 @@ BookCard (StatefulWidget)
 | Variable | Type | Purpose |
 |----------|------|---------|
 | `_bookService` | BookService | Book import singleton |
-| `_log` | LogService | Debug logging |
 | `_bookshelfKey` | GlobalKey | Access BookshelfScreen state |
 
 ### BookshelfScreen State
@@ -53,7 +52,6 @@ BookCard (StatefulWidget)
 | Variable | Type | Purpose |
 |----------|------|---------|
 | `_bookService` | BookService | Book list and search |
-| `_log` | LogService | Debug logging |
 | `_searchController` | TextEditingController | Search input |
 | `_searchQuery` | String | Current search filter |
 
@@ -63,7 +61,6 @@ BookCard (StatefulWidget)
 |----------|------|---------|
 | `_isHovered` | bool | Mouse hover state (delete button) |
 | `_bookService` | BookService | Book operations |
-| `_summaryService` | SummaryService | Summary cleanup |
 
 ---
 
@@ -75,13 +72,9 @@ BookCard (StatefulWidget)
 
 ```
 ASYNC PROCEDURE _importBook():
-  _log.v('HomeScreen', '_importBook 开始执行')
-  
   book = AWAIT _bookService.importBook()
   
   IF book != null AND mounted:
-    _log.v('HomeScreen', '书籍导入成功: ${book.title}')
-    
     // Refresh bookshelf via GlobalKey
     _bookshelfKey.currentState?.refresh()
     
@@ -91,8 +84,6 @@ ASYNC PROCEDURE _importBook():
       content: Text(loc.addedSuccessfully(book.title)),
       duration: 2 seconds
     )
-  ELSE:
-    _log.v('HomeScreen', '书籍导入被取消或失败')
 END PROCEDURE
 ```
 
@@ -102,11 +93,7 @@ END PROCEDURE
 
 ```
 PROCEDURE refresh():
-  _log.v('BookshelfScreen', 'refresh 开始执行')
-  
-  setState():
-    _log.v('BookshelfScreen', 'setState called in refresh')
-  
+  setState()
   // Triggers rebuild, re-fetches books from BookService
 END PROCEDURE
 ```
@@ -115,10 +102,8 @@ END PROCEDURE
 
 ```
 PROCEDURE dispose():
-  _log.v('BookshelfScreen', 'dispose 开始执行')
   _searchController.dispose()
   super.dispose()
-  _log.v('BookshelfScreen', 'dispose 执行完成')
 END PROCEDURE
 ```
 
@@ -211,11 +196,8 @@ ASYNC PROCEDURE _showDeleteConfirmDialog(context):
     │       └── TextButton("移除", red) → pop(true)
   
   IF confirmed == true AND mounted:
-    // Delete book record
+    // Delete book record (automatically cleans up book directory)
     AWAIT _bookService.deleteBook(book.id)
-    
-    // Delete all summaries for this book
-    AWAIT _summaryService.deleteAllSummariesForBook(book.id)
     
     // Notify parent to refresh list
     onDeleted?.call()
@@ -390,8 +372,6 @@ User confirms "移除"
     ↓
 BookService.deleteBook(book.id)
     ↓
-SummaryService.deleteAllSummariesForBook(book.id)
-    ↓
 onDeleted callback
     ↓
 Parent setState() refreshes grid
@@ -472,10 +452,6 @@ User confirms deletion
 BookService.deleteBook(bookId)
     ├── Remove from books_index.json
     └── Delete book directory
-    ↓
-SummaryService.deleteAllSummariesForBook(bookId)
-    ├── Delete all chapter summaries
-    └── Delete book summary
     ↓
 UI refresh via onDeleted callback
 ```
@@ -561,15 +537,6 @@ SEARCH: searchBooks(query) → List<Book>
 DELETE: deleteBook(id)
   - Remove from index
   - Delete directory
-```
-
-### SummaryService
-
-```
-DELETE: deleteAllSummariesForBook(bookId)
-  - Remove all chapter summaries
-  - Remove book summary
-  - Clean up storage
 ```
 
 ---
