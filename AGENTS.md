@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-19**: HomeScreen + BookshelfScreen 合并 — 两个组件合并为单层 Scaffold；消除 GlobalKey `_bookshelfKey` + `refresh()` 方法；删除嵌套 Scaffold + 重复 `BookService` 实例化；import 后直接 `setState` 刷新书架；更新 `home_screen.md`、`function_call_relationships.md`
 **2026-05-19**: HomeScreen 僵尸代码清理与冗余日志删除 — 删除 `_BookCardState._summaryService` 僵尸字段（从未调用）及 `SummaryService` import；删除 `_HomeScreenState`/`_BookshelfScreenState` 中 `_log` 字段及4条冗余日志 + `LogService` import；更新 `home_screen.md`、`function_call_relationships.md`、`index.md`
 **2026-05-18**: ChapterScreen 重构为 BookScreen 模式 — SummaryService 新增章节级流式回调 + `ensureChapterSummary()` / `ensureChapterTranslation()`；ChapterScreen 删除 `_loadSummary`(`_generateSummaryWithStreaming()`)/`_loadTranslation`/`_generateTranslationWithStreaming()` 四个方法(~170行)，改为两个 `_ensureXxx()` 各 ~25 行；删除 `_hasLoadedSummary`/`_listeningChapterKey` 字段；所有摘要/翻译编排逻辑归口 SummaryService
 **2026-05-18**: AIService 新增 `needsTranslation()` + 删除 `_resolveTargetLang()` — 所有语言判断统一归口到 AIService；`needsTranslation(sourceLang)` 判断源/目标语言是否需要翻译；ChapterScreen 删除 `_resolveTargetLang()`（16行），改为 `_aiService.getTargetLanguage()` + `_aiService.needsTranslation()`

@@ -21,9 +21,7 @@
         └── runApp(ZhiduApp)
                 │
                 ├── home: HomeScreen
-                │       ├── BookshelfScreen
-                │       │     └── BookCard ──→ BookScreen
-                │       └── 导入按钮 → BookService.importBook()
+                │       └── BookCard ──→ BookScreen
                 │
                 ├── settings: SettingsScreen
                 │       ├── AiConfigScreen
@@ -264,7 +262,8 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 ZhiduApp (MaterialApp)
     │
     ├── HomeScreen
-    │       ├── 悬浮按钮 → BookService().importBook() → 文件选择 → 导入
+    │       ├── AppBar搜索框 → 过滤书籍
+    │       ├── FAB → BookService().importBook() → 文件选择 → 导入
     │       └── BookCard.onTap → Navigator.push(BookScreen)
     │
     ├── BookScreen (接收 Book 对象)
@@ -467,9 +466,10 @@ SummaryService.getBookSummaryContent()
 │  ──────────               ──────────            ─────────────    │
 │  - BookService            - BookService         - BookService    │
 │                           - SummaryService      - SummaryService │
-│  + _importBook()          - AIService           - AIService      │
-│  + BookshelfScreen         + _startPreGeneration() -Translation..│
-│                           + _refreshBookIfNeeded()+ _loadSummary()│
+│                           - AIService           - AIService      │
+│  + _importBook()          + _startPreGeneration() - Translation..│
+│  + _buildEmptyState()     + _refreshBookIfNeeded()+ _loadSummary │
+│  + _buildBookGrid()                                           │
 │                                                                    │
 │  SettingsScreen           AiConfigScreen        PdfReaderScreen  │
 │  ──────────────           ──────────────        ─────────────── │
@@ -491,6 +491,7 @@ SummaryService.getBookSummaryContent()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-05-19 | HomeScreen + BookshelfScreen 合并为单层 Scaffold；删除 GlobalKey/嵌套 Scaffold/重复 BookService 实例 |
 | 2026-05-19 | HomeScreen: 删除 SummaryService/LogService 依赖；BookService.deleteBook() 已自动清理书籍目录，无需单独调用 SummaryService |
 | 2026-05-18 | AiConfigScreen: 新增 LogService 依赖、_fetchModelsForCurrentProvider 方法；依赖矩阵更新 LogSvc ✓ |
 | 2026-05-11 | 初始版本：完整类/函数调用关系图，含新服务(TranslationService, OpfReaderService)、新模型(OpfMetadata)、OPF元数据集成流程 |

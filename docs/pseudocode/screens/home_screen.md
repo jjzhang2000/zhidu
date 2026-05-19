@@ -4,7 +4,7 @@
 
 **File**: `lib/screens/home_screen.dart`
 **Purpose**: Application home screen with bookshelf, import, and search
-**Pattern**: StatefulWidget with GlobalKey for child state management
+**Pattern**: Single StatefulWidget (HomeScreen + BookshelfScreen merged)
 
 ---
 
@@ -14,17 +14,9 @@
 HomeScreen (StatefulWidget)
 └── _HomeScreenState (State)
     ├── Services: BookService
-    ├── GlobalKey: _bookshelfKey (for child refresh)
-    └── Methods: _importBook()
-```
-
-```
-BookshelfScreen (StatefulWidget)
-└── _BookshelfScreenState (State)
-    ├── Services: BookService
     ├── Controller: _searchController
     ├── State: _searchQuery
-    └── Methods: refresh(), _buildEmptyState(), _buildBookGrid()
+    └── Methods: _importBook(), _buildEmptyState(), _buildBookGrid()
 ```
 
 ```
@@ -44,14 +36,7 @@ BookCard (StatefulWidget)
 
 | Variable | Type | Purpose |
 |----------|------|---------|
-| `_bookService` | BookService | Book import singleton |
-| `_bookshelfKey` | GlobalKey | Access BookshelfScreen state |
-
-### BookshelfScreen State
-
-| Variable | Type | Purpose |
-|----------|------|---------|
-| `_bookService` | BookService | Book list and search |
+| `_bookService` | BookService | Book operations (import/list/search) |
 | `_searchController` | TextEditingController | Search input |
 | `_searchQuery` | String | Current search filter |
 
@@ -68,42 +53,28 @@ BookCard (StatefulWidget)
 
 ### HomeScreen Methods
 
-#### `_importBook()`
-
-```
-ASYNC PROCEDURE _importBook():
-  book = AWAIT _bookService.importBook()
-  
-  IF book != null AND mounted:
-    // Refresh bookshelf via GlobalKey
-    _bookshelfKey.currentState?.refresh()
-    
-    // Show success message
-    loc = AppLocalizations.of(context)
-    ScaffoldMessenger.showSnackBar(
-      content: Text(loc.addedSuccessfully(book.title)),
-      duration: 2 seconds
-    )
-END PROCEDURE
-```
-
-### BookshelfScreen Methods
-
-#### `refresh()`
-
-```
-PROCEDURE refresh():
-  setState()
-  // Triggers rebuild, re-fetches books from BookService
-END PROCEDURE
-```
-
 #### `dispose()`
 
 ```
 PROCEDURE dispose():
   _searchController.dispose()
   super.dispose()
+END PROCEDURE
+```
+
+#### `_importBook()`
+
+```
+ASYNC PROCEDURE _importBook():
+  book = AWAIT _bookService.importBook()
+
+  IF book != null AND mounted:
+    setState()  // Refresh bookshelf
+    loc = AppLocalizations.of(context)
+    ScaffoldMessenger.showSnackBar(
+      content: Text(loc.addedSuccessfully(book.title)),
+      duration: 2 seconds
+    )
 END PROCEDURE
 ```
 
@@ -134,7 +105,7 @@ PROCEDURE _buildBookGrid(books):
     ├── padding: 12
     ├── gridDelegate:
     │   ├── crossAxisCount: 4
-    │   ├── childAspectRatio: 0.7
+    │   ├── childAspectRatio: 0.6
     │   ├── crossAxisSpacing: 12
     │   └── mainAxisSpacing: 12
     ├── itemCount: books.length
@@ -170,14 +141,8 @@ END PROCEDURE
 
 ```
 ASYNC PROCEDURE _openBook(context):
-  // Get latest book data (avoid stale data)
   latestBook = _bookService.getBookById(book.id) OR book
-  
-  AWAIT Navigator.push(
-    BookScreen(book: latestBook)
-  )
-  
-  // Refresh card after return (update progress)
+  AWAIT Navigator.push(BookScreen(book: latestBook))
   IF mounted:
     setState()
 END PROCEDURE
@@ -194,15 +159,10 @@ ASYNC PROCEDURE _showDeleteConfirmDialog(context):
     │   └── actions:
     │       ├── TextButton("取消") → pop(false)
     │       └── TextButton("移除", red) → pop(true)
-  
+
   IF confirmed == true AND mounted:
-    // Delete book record (automatically cleans up book directory)
     AWAIT _bookService.deleteBook(book.id)
-    
-    // Notify parent to refresh list
     onDeleted?.call()
-    
-    // Show success message
     IF mounted:
       ScaffoldMessenger.showSnackBar(
         content: Text("已移除《${book.title}》")
@@ -215,16 +175,6 @@ END PROCEDURE
 ## Widget Tree Structure
 
 ### HomeScreen Widget Tree
-
-```
-Scaffold
-├── Body: BookshelfScreen(key: _bookshelfKey)
-└── FloatingActionButton
-    ├── child: Icon(Icons.add)
-    └── onPressed: _importBook()
-```
-
-### BookshelfScreen Widget Tree
 
 ```
 Scaffold
@@ -244,12 +194,14 @@ Scaffold
 │       │   └── onPressed: navigate to SettingsScreen
 │       └── SizedBox(width: 8)
 │   ]
-│
-└── Body:
-    IF books.isEmpty:
-      _buildEmptyState(isSearching: _searchQuery.isNotEmpty)
-    ELSE:
-      _buildBookGrid(books)
+├── Body:
+│   IF books.isEmpty:
+│     _buildEmptyState(isSearching: _searchQuery.isNotEmpty)
+│   ELSE:
+│     _buildBookGrid(books)
+└── FloatingActionButton
+    ├── child: Icon(Icons.add)
+    └── onPressed: _importBook()
 ```
 
 ### BookCard Widget Tree
@@ -268,12 +220,10 @@ MouseRegion
             │           └── InkWell(onTap: _showDeleteConfirmDialog)
             │               └── Icon(Icons.remove, white, size: 18)
             │
-            └── Expanded(flex: 1): Padding(8)
+            └── Expanded(flex: 1): LayoutBuilder → auto-scale fonts
                 └── Column
-                    ├── Text: book.title (bold, fontSize: 12, maxLines: 1)
-                    ├── SizedBox(height: 2)
-                    ├── Text: book.author (grey, fontSize: 10, maxLines: 1)
-                    ├── Spacer()
+                    ├── Text: book.title (bold, maxLines: 1)
+                    ├── Text: book.author (grey, maxLines: 1)
                     └── IF book.readingProgress > 0:
                         LinearProgressIndicator(value: progress)
 ```
@@ -302,9 +252,7 @@ BookService parses file
     ↓
 RETURN Book object
     ↓
-_bookshelfKey.currentState.refresh()
-    ↓
-BookshelfScreen rebuilds
+setState() → HomeScreen rebuilds
     ↓
 New book appears in grid
     ↓
@@ -403,11 +351,9 @@ Back to bookshelf
 
 ```
 HomeScreen
-├── FloatingActionButton → Import Book
-├── BookshelfScreen
-│   ├── BookCard → BookScreen
-│   └── Settings icon → SettingsScreen
-│   └── Search box → Filter books
+├── AppBar → SettingsScreen
+├── FAB → Import Book
+└── BookCard → BookScreen
 ```
 
 ---
@@ -455,28 +401,6 @@ BookService.deleteBook(bookId)
     ↓
 UI refresh via onDeleted callback
 ```
-
----
-
-## GlobalKey Pattern
-
-```
-HomeScreen
-├── _bookshelfKey = GlobalKey<_BookshelfScreenState>
-├── BookshelfScreen(key: _bookshelfKey)
-│   └── _BookshelfScreenState
-│       └── refresh() method
-│
-Import success:
-    ↓
-_bookshelfKey.currentState?.refresh()
-    ↓
-BookshelfScreen.setState()
-    ↓
-Grid rebuilds with new book
-```
-
-**Purpose**: Allow parent (HomeScreen) to trigger child (BookshelfScreen) refresh without rebuilding entire tree.
 
 ---
 
@@ -546,7 +470,7 @@ DELETE: deleteBook(id)
 ```
 GridView configuration:
 ├── crossAxisCount: 4 (4 books per row)
-├── childAspectRatio: 0.7 (vertical cards)
+├── childAspectRatio: 0.6 (vertical cards)
 ├── crossAxisSpacing: 12 (horizontal gap)
 └── mainAxisSpacing: 12 (vertical gap)
 

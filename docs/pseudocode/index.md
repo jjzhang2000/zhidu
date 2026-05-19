@@ -356,6 +356,12 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-19: HomeScreen + BookshelfScreen 合并
+
+- **合并**: `HomeScreen` + `BookshelfScreen` 合并为单层 `Scaffold`（AppBar + body + FAB），消除嵌套布局
+- **删除**: `GlobalKey<_BookshelfScreenState>`、`refresh()` 方法、嵌套 `Scaffold`、重复 `BookService` 实例
+- **简化**: 导入成功后直接 `setState((){})` 刷新书架，无需 GlobalKey 跨层调用
+
 #### 2026-05-19: HomeScreen 僵尸代码清理与冗余日志删除
 
 - **删除**: `_BookCardState._summaryService` 僵尸字段（从未调用）及 `SummaryService` import；BookService.deleteBook() 已自动清理整个书籍目录
