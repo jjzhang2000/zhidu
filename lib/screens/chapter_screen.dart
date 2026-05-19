@@ -22,7 +22,7 @@ import '../models/book.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import '../services/book_service.dart';
-import '../services/parsers/format_registry.dart';
+import '../services/parsers/book_format_parser.dart';
 import '../services/log_service.dart';
 import '../services/settings_service.dart';
 

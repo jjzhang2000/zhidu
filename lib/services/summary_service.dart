@@ -14,7 +14,7 @@ import 'log_service.dart';
 import 'book_service.dart';
 import 'ai_service.dart';
 import 'settings_service.dart';
-import 'parsers/format_registry.dart';
+import 'parsers/book_format_parser.dart';
 import 'storage_config.dart';
 
 /// 信号量类，用于控制并发数

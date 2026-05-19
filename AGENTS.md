@@ -21,7 +21,7 @@ lib/
 ├── models/                   # app_settings, book, chapter, chapter_summary等
 ├── screens/                  # home, book, chapter, pdf_reader, settings系列页面
 ├── services/                 # book, epub, pdf, ai, summary, storage_config, file_storage, settings, log
-│   └── parsers/             # book_format_parser(接口), epub_parser, pdf_parser, format_registry
+│   └── parsers/             # book_format_parser(接口+注册表), epub_parser, pdf_parser
 └── utils/                    # app_theme
 ```
 
@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-19**: format_registry 合并到 book_format_parser — FormatRegistry 类合并入接口文件，删除死代码 `initialize()`；删除 `format_registry.dart`；更新 4 处 import + 3 处测试引用 + 文档；去掉冗余注释（286→42 行）
 **2026-05-19**: settings_screen 僵尸代码清理 + loc getter 复用 — 删除 `_buildSection` 两个未使用参数 `title`/`icon`（全部3处调用白传）；`AppLocalizations.of(context)!` 提取为 getter，删除7处重复声明；注释精简（过时版本号、冗余内联）；theme_settings_screen 合并重复文件级/类级注释；更新 `settings_screen.md`、`index.md`
 **2026-05-19**: language_settings_screen.dart 冗余清理 — switch → copyWith 简化 `_updateAiLanguageMode`/`_updateUiLanguageMode`（省 ~40 行）；`_buildLanguageSelector` 中 `_getLanguages` 提取为局部变量避免重复调用；删除 `_getLanguages` 中冗余 `??` fallback 及 `app_settings.dart` import
 **2026-05-19**: fix — 删除失败 SnackBar 硬编码中文改为 i18n key `loc.failed`；原 `const Text('删除失败…')` 在 en/ja 界面下遗留中文且 `const` 导致语言切换不更新

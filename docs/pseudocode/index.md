@@ -57,9 +57,8 @@ docs/pseudocode/
 │   ├── storage_config.md         # 存储路径配置
 │   ├── summary_service.md        # 摘要管理服务
 │   └── parsers/
-│       ├── book_format_parser.md # 解析器接口
+│       ├── book_format_parser.md # 解析器接口 + 格式注册表
 │       ├── epub_parser.md        # EPUB解析器
-│       ├── format_registry.md    # 格式注册表
 │       └── pdf_parser.md         # PDF 解析器
 └── utils/
     └── app_theme.md              # 应用主题配置
@@ -130,10 +129,9 @@ docs/pseudocode/
 
 | 文件 | 类 | 模式 |
 |------|------|------|
-| `book_format_parser.dart` | `BookFormatParser` | 策略模式抽象接口 |
+| `book_format_parser.dart` | `BookFormatParser`, `FormatRegistry` | 策略模式接口 + 注册表模式 |
 | `epub_parser.dart` | `EpubParser` | EPUB解析实现 |
 | `pdf_parser.dart` | `PdfParser` | PDF解析实现 |
-| `format_registry.dart` | `FormatRegistry` | 注册表模式，扩展名→解析器映射 |
 
 ---
 

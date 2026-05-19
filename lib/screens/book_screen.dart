@@ -26,7 +26,7 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../models/book.dart';
 import '../services/book_service.dart';
-import '../services/parsers/format_registry.dart';
+import '../services/parsers/book_format_parser.dart';
 import '../models/chapter.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
