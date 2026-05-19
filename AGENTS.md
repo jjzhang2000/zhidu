@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-19**: language_settings_screen.dart 冗余清理 — switch → copyWith 简化 `_updateAiLanguageMode`/`_updateUiLanguageMode`（省 ~40 行）；`_buildLanguageSelector` 中 `_getLanguages` 提取为局部变量避免重复调用；删除 `_getLanguages` 中冗余 `??` fallback 及 `app_settings.dart` import
 **2026-05-19**: fix — 删除失败 SnackBar 硬编码中文改为 i18n key `loc.failed`；原 `const Text('删除失败…')` 在 en/ja 界面下遗留中文且 `const` 导致语言切换不更新
 **2026-05-19**: fix — BookCard 删除时检查 deleteBook() 返回值防止目录残留；`deleteBook()` 返回 `bool` 但此前不检查，磁盘 IO 失败（文件被占用/权限不足）时目录残留但卡片被移除；修复后仅成功才 `onDeleted`，失败显示错误 SnackBar
 **2026-05-19**: HomeScreen + BookshelfScreen 合并 — 两个组件合并为单层 Scaffold；消除 GlobalKey `_bookshelfKey` + `refresh()` 方法；删除嵌套 Scaffold + 重复 `BookService` 实例化；import 后直接 `setState` 刷新书架；更新 `home_screen.md`、`function_call_relationships.md`

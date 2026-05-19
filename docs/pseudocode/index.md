@@ -356,6 +356,12 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-19: language_settings_screen.dart 冗余清理
+
+- **简化**: `_updateAiLanguageMode`/`_updateUiLanguageMode` switch → `copyWith`（省 ~40 行）；`copyWith` 天然保留未传字段
+- **去重**: `_buildLanguageSelector` 中 `_getLanguages(localizations)` 提取为局部变量，避免两次调用
+- **清理**: 删除 `_getLanguages` 中冗余 `?? fallback`（各 i18n key 已非 null）；删除无用 `app_settings.dart` import
+
 #### 2026-05-19: fix — 删除失败 SnackBar 硬编码中文 → i18n key
 
 - **问题**: 删除书籍失败时显示 `const Text('删除失败，请稍后重试')`，en/ja 界面下遗留中文，`const` 导致语言切换后不更新

@@ -92,9 +92,9 @@ END PROCEDURE
 ```
 PROCEDURE _getLanguages(localizations):
   RETURN [
-    ('zh', localizations.chineseLanguage OR '简体中文'),
-    ('en', localizations.englishLanguage OR 'English'),
-    ('ja', localizations.japaneseLanguage OR '日本語')
+    ('zh', localizations.chineseLanguage),
+    ('en', localizations.englishLanguage),
+    ('ja', localizations.japaneseLanguage)
   ]
 END PROCEDURE
 ```
@@ -115,6 +115,7 @@ END PROCEDURE
 
 ```
 PROCEDURE _buildLanguageSelector(localizations, title, value, onChanged):
+  languages = _getLanguages(localizations)  // 提取为局部变量，避免重复调用
   RETURN Padding(16, 8)
     └── Card
         └── Padding(16)
@@ -122,9 +123,9 @@ PROCEDURE _buildLanguageSelector(localizations, title, value, onChanged):
                 ├── Text: title (titleSmall)
                 ├── SizedBox(height: 8)
                 └── DropdownButtonFormField<String>
-                    ├── value: value OR 'zh' (fallback)
+                    ├── value: languages.contains(value) ? value : 'zh'
                     ├── decoration: OutlineInputBorder
-                    ├── items: language options
+                    ├── items: languages
                     └── onChanged: onChanged callback
 END PROCEDURE
 ```
@@ -132,22 +133,13 @@ END PROCEDURE
 ### `_updateAiLanguageMode(mode)`
 
 ```
+// copyWith 天然保留未传字段，无需显式回填当前值
 ASYNC PROCEDURE _updateAiLanguageMode(mode):
-  currentSettings = _settingsService.languageSettings.value
-  
-  SWITCH mode:
-    CASE 'book':
-      newSettings = currentSettings.copyWith(aiLanguageMode: 'book')
-    CASE 'system':
-      newSettings = currentSettings.copyWith(aiLanguageMode: 'system')
-    CASE 'manual':
-      newSettings = currentSettings.copyWith(
-        aiLanguageMode: 'manual',
-        aiOutputLanguage: currentSettings.aiOutputLanguage
-      )
-    DEFAULT:
-      RETURN
-  
+  IF mode not in ['book', 'system', 'manual']: RETURN
+
+  newSettings = _settingsService.languageSettings.value.copyWith(
+    aiLanguageMode: mode
+  )
   AWAIT _settingsService.updateLanguageSettings(newSettings)
 END PROCEDURE
 ```
@@ -167,20 +159,13 @@ END PROCEDURE
 ### `_updateUiLanguageMode(mode)`
 
 ```
+// copyWith 天然保留未传字段，无需显式回填当前值
 ASYNC PROCEDURE _updateUiLanguageMode(mode):
-  currentSettings = _settingsService.languageSettings.value
-  
-  SWITCH mode:
-    CASE 'system':
-      newSettings = currentSettings.copyWith(uiLanguageMode: 'system')
-    CASE 'manual':
-      newSettings = currentSettings.copyWith(
-        uiLanguageMode: 'manual',
-        uiLanguage: currentSettings.uiLanguage
-      )
-    DEFAULT:
-      RETURN
-  
+  IF mode not in ['system', 'manual']: RETURN
+
+  newSettings = _settingsService.languageSettings.value.copyWith(
+    uiLanguageMode: mode
+  )
   AWAIT _settingsService.updateLanguageSettings(newSettings)
 END PROCEDURE
 ```
