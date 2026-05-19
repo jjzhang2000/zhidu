@@ -356,6 +356,11 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-19: fix — BookCard 删除时检查 deleteBook() 返回值防止目录残留
+
+- **问题**: `deleteBook()` 返回 `Future<bool>` 但未被检查；磁盘 IO 失败时目录残留于硬盘但 UI 已移除卡片
+- **修复**: 检查返回值，仅成功时调用 `onDeleted`；失败时显示「删除失败，请稍后重试」SnackBar，卡片保留
+
 #### 2026-05-19: HomeScreen + BookshelfScreen 合并
 
 - **合并**: `HomeScreen` + `BookshelfScreen` 合并为单层 `Scaffold`（AppBar + body + FAB），消除嵌套布局

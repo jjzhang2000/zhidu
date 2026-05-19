@@ -161,11 +161,16 @@ ASYNC PROCEDURE _showDeleteConfirmDialog(context):
     │       └── TextButton("移除", red) → pop(true)
 
   IF confirmed == true AND mounted:
-    AWAIT _bookService.deleteBook(book.id)
-    onDeleted?.call()
-    IF mounted:
+    deleted = AWAIT _bookService.deleteBook(book.id)
+    IF not mounted: RETURN
+    IF deleted:
+      onDeleted?.call()
       ScaffoldMessenger.showSnackBar(
         content: Text("已移除《${book.title}》")
+      )
+    ELSE:
+      ScaffoldMessenger.showSnackBar(
+        content: Text("删除失败，请稍后重试")
       )
 END PROCEDURE
 ```
@@ -320,13 +325,12 @@ User confirms "移除"
     ↓
 BookService.deleteBook(book.id)
     ↓
-onDeleted callback
-    ↓
-Parent setState() refreshes grid
-    ↓
-Book removed from display
-    ↓
-SnackBar shows removal message
+IF deleted:
+  onDeleted → setState() → grid refreshed
+  SnackBar "已移除《xxx》"
+ELSE:
+  SnackBar "删除失败，请稍后重试"
+  Book remains in grid
 ```
 
 ### Flow 5: Navigate to Settings
