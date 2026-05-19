@@ -390,12 +390,17 @@ class _BookCardState extends State<BookCard> {
     );
 
     if (confirmed == true && mounted) {
-      await _bookService.deleteBook(widget.book.id);
-      widget.onDeleted?.call();
-      if (mounted) {
-        final loc = AppLocalizations.of(context)!;
+      final deleted = await _bookService.deleteBook(widget.book.id);
+      if (!mounted) return;
+      final loc = AppLocalizations.of(context)!;
+      if (deleted) {
+        widget.onDeleted?.call();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(loc.removedSuccessfully(widget.book.title))),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('删除失败，请稍后重试')),
         );
       }
     }
