@@ -170,7 +170,7 @@ ASYNC PROCEDURE _showDeleteConfirmDialog(context):
       )
     ELSE:
       ScaffoldMessenger.showSnackBar(
-        content: Text("删除失败，请稍后重试")
+        content: Text(loc.failed)
       )
 END PROCEDURE
 ```
@@ -329,7 +329,7 @@ IF deleted:
   onDeleted → setState() → grid refreshed
   SnackBar "已移除《xxx》"
 ELSE:
-  SnackBar "删除失败，请稍后重试"
+  SnackBar loc.failed
   Book remains in grid
 ```
 

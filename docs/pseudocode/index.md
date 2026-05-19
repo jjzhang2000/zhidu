@@ -356,10 +356,15 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-19: fix — 删除失败 SnackBar 硬编码中文 → i18n key
+
+- **问题**: 删除书籍失败时显示 `const Text('删除失败，请稍后重试')`，en/ja 界面下遗留中文，`const` 导致语言切换后不更新
+- **修复**: 改为 `Text(loc.failed)`，复用已有 i18n key（失败 / Failed / 失敗）
+
 #### 2026-05-19: fix — BookCard 删除时检查 deleteBook() 返回值防止目录残留
 
 - **问题**: `deleteBook()` 返回 `Future<bool>` 但未被检查；磁盘 IO 失败时目录残留于硬盘但 UI 已移除卡片
-- **修复**: 检查返回值，仅成功时调用 `onDeleted`；失败时显示「删除失败，请稍后重试」SnackBar，卡片保留
+- **修复**: 检查返回值，仅成功时调用 `onDeleted`；失败时显示「删除失败」SnackBar，卡片保留
 
 #### 2026-05-19: HomeScreen + BookshelfScreen 合并
 
