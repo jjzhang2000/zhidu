@@ -400,7 +400,7 @@ class _BookCardState extends State<BookCard> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('删除失败，请稍后重试')),
+          SnackBar(content: Text(loc.failed)),
         );
       }
     }
