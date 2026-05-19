@@ -1,57 +1,54 @@
-# Settings Screen - Pseudocode Documentation
+# Settings Screen - 伪代码文档
 
-## Overview
+## 概述
 
-**File**: `lib/screens/settings_screen.dart`
-**Purpose**: Main settings hub with AI, appearance, export, and about sections
-**Pattern**: StatefulWidget with ListenableBuilder for reactive settings display
+**文件**: `lib/screens/settings_screen.dart`
+**用途**: 设置主入口页面，聚合 AI、外观、关于三个区块
+**模式**: StatefulWidget + loc getter + ListenableBuilder 响应式显示
 
 ---
 
-## StatefulWidget Structure
+## StatefulWidget 结构
 
 ```
 SettingsScreen (StatefulWidget)
 └── _SettingsScreenState (State)
-    ├── Services: ExportService, BookService, SummaryService, SettingsService
-    ├── State: _summaryCount, _isExporting
-    └── Methods: _loadSummaryCount, _exportBookSummaries, status getters
+    ├── Service: SettingsService
+    ├── Getter: loc → AppLocalizations.of(context)!
+    ├── State: _version
+    └── Methods: _loadVersion, _buildXxxSection, _getXxxStatus
 ```
 
 ---
 
-## State Variables
+## 状态变量
 
-| Variable | Type | Purpose |
-|----------|------|---------|
-| `_exportService` | ExportService | Markdown export service |
-| `_bookService` | BookService | Book management |
-| `_summaryService` | SummaryService | Summary operations |
-| `_settingsService` | SettingsService | Settings management |
-| `_summaryCount` | int | Total summary count |
-| `_isExporting` | bool | Export operation state |
+| 变量 | 类型 | 用途 |
+|------|------|------|
+| `_version` | String | 应用版本号 |
+| `loc` | AppLocalizations | 国际化 getter（一次定义，全局复用） |
 
 ---
 
-## Methods Pseudocode
+## 方法伪代码
 
 ### `initState()`
 
 ```
 PROCEDURE initState():
   super.initState()
-  _loadSummaryCount()
+  _loadVersion()
 END PROCEDURE
 ```
 
-### `_loadSummaryCount()`
+### `_loadVersion()`
 
 ```
-ASYNC PROCEDURE _loadSummaryCount():
-  summaries = AWAIT _summaryService.getAllSummaries()
-  
-  setState():
-    _summaryCount = summaries.length
+ASYNC PROCEDURE _loadVersion():
+  info = AWAIT PackageInfo.fromPlatform()
+  IF mounted:
+    setState():
+      _version = info.version
 END PROCEDURE
 ```
 
@@ -59,27 +56,23 @@ END PROCEDURE
 
 ```
 PROCEDURE _buildSectionHeader(title):
-  RETURN Padding(16, 8)
+  RETURN Padding(horizontal: 16, vertical: 8)
     └── Text: title
         ├── style: titleMedium
         ├── fontWeight: bold
-        └── color: primary color
+        └── color: primary
 END PROCEDURE
 ```
 
-### `_buildSection(title, icon, children)`
+### `_buildSection(children)`
 
 ```
-PROCEDURE _buildSection(title, icon, children):
+PROCEDURE _buildSection(children):
   RETURN Card
-    ├── margin: 16, 4
+    ├── margin: horizontal 16, vertical 4
     ├── elevation: 2
     └── Column
-        ├── Padding(16): Row
-        │   ├── Icon(icon, primary color)
-        │   ├── SizedBox(width: 12)
-        │   └── Text: title (titleMedium, fontWeight: 600)
-        └── children (ListTile list)
+        └── children: children
 END PROCEDURE
 ```
 
@@ -87,11 +80,7 @@ END PROCEDURE
 
 ```
 PROCEDURE _buildAiSection():
-  loc = AppLocalizations.of(context)
-  
   RETURN _buildSection
-    ├── title: loc.aiConfigTitle
-    ├── icon: Icons.smart_toy
     └── children: [
         ListenableBuilder
         ├── listenable: SettingsService().aiSettings
@@ -109,49 +98,25 @@ END PROCEDURE
 
 ```
 PROCEDURE _buildAppearanceSection():
-  loc = AppLocalizations.of(context)
-  
   RETURN _buildSection
-    ├── title: loc.appearanceSettingTitle
-    ├── icon: Icons.palette
     └── children: [
-        ListTile
-        ├── leading: Icon(Icons.brightness_6)
-        ├── title: Text(loc.themeSettingTitle)
-        ├── subtitle: Text(_getThemeStatus())
-        ├── trailing: Icon(Icons.chevron_right)
-        └── onTap: Navigator.push(ThemeSettingsScreen),
-        
-        ListTile
-        ├── leading: Icon(Icons.language)
-        ├── title: Text(loc.languageSettingTitle)
-        ├── subtitle: Text(_getLanguageStatus())
-        ├── trailing: Icon(Icons.chevron_right)
-        └── onTap: Navigator.push(LanguageSettingsScreen)
-      ]
-END PROCEDURE
-```
+        ListenableBuilder
+        ├── listenable: SettingsService().themeMode
+        └── builder: ListTile
+            ├── leading: Icon(Icons.brightness_6)
+            ├── title: Text(loc.themeSettingTitle)
+            ├── subtitle: Text(_getThemeStatus())
+            ├── trailing: Icon(Icons.chevron_right)
+            └── onTap: Navigator.push(ThemeSettingsScreen),
 
-### `_buildExportSection()`
-
-```
-PROCEDURE _buildExportSection():
-  loc = AppLocalizations.of(context)
-  
-  RETURN _buildSection
-    ├── title: loc.dataExportTitle
-    ├── icon: Icons.upload_file
-    └── children: [
-        ListTile
-        ├── leading: Icon(Icons.description)
-        ├── title: Text(loc.exportBookSummaries)
-        ├── subtitle: Text(loc.exportBookSummariesDesc)
-        ├── trailing: 
-        │   IF _isExporting: CircularProgressIndicator(strokeWidth: 2)
-        │   ELSE: Icon(Icons.chevron_right)
-        └── onTap: 
-            IF _isExporting: null (disabled)
-            ELSE: _exportBookSummaries()
+        ListenableBuilder
+        ├── listenable: SettingsService().languageSettings
+        └── builder: ListTile
+            ├── leading: Icon(Icons.language)
+            ├── title: Text(loc.languageSettingTitle)
+            ├── subtitle: Text(_getLanguageStatus())
+            ├── trailing: Icon(Icons.chevron_right)
+            └── onTap: Navigator.push(LanguageSettingsScreen)
       ]
 END PROCEDURE
 ```
@@ -160,17 +125,13 @@ END PROCEDURE
 
 ```
 PROCEDURE _buildAboutSection():
-  loc = AppLocalizations.of(context)
-  
   RETURN _buildSection
-    ├── title: loc.aboutTitle
-    ├── icon: Icons.info
     └── children: [
         ListTile
         ├── leading: Icon(Icons.apps)
         ├── title: Text(loc.appTitle)
-        └── subtitle: Text("${loc.version} 0.1.0"),
-        
+        └── subtitle: Text("${loc.version} $_version"),
+
         ListTile
         ├── leading: Icon(Icons.code)
         ├── title: Text(loc.aiLayeredReader)
@@ -183,9 +144,8 @@ END PROCEDURE
 
 ```
 PROCEDURE _getAiConfigStatus():
-  loc = AppLocalizations.of(context)
   settings = SettingsService().settings.aiSettings
-  
+
   IF settings.isValid:
     RETURN "${settings.provider} - ${settings.model}"
   ELSE:
@@ -197,9 +157,8 @@ END PROCEDURE
 
 ```
 PROCEDURE _getThemeStatus():
-  loc = AppLocalizations.of(context)
   mode = SettingsService().settings.themeSettings.mode
-  
+
   SWITCH mode:
     CASE ThemeMode.system:
       RETURN loc.themeModeSystem
@@ -214,442 +173,203 @@ END PROCEDURE
 
 ```
 PROCEDURE _getLanguageStatus():
-  loc = AppLocalizations.of(context)
   settings = SettingsService().settings.languageSettings
-  
-  // Build AI language text
+
   aiLanguageText = BUILD based on settings.aiLanguageMode:
     'book' → "AI: ${loc.aiLanguageFollowBook}"
     'system' → "AI: ${loc.aiLanguageFollowSystem}"
-    'manual' → "AI: ${loc.selectAiOutputLanguage} (${languageName})"
-  
-  // Build UI language text
+    'manual' → "AI: ${languageName}"
+
   uiLanguageText = BUILD based on settings.uiLanguageMode:
     'system' → "${loc.uiDisplayLanguage}: ${loc.uiLanguageFollowSystem}"
     'manual' → "${loc.uiDisplayLanguage}: ${languageName}"
-  
+
   RETURN "$aiLanguageText, $uiLanguageText"
 END PROCEDURE
 ```
 
-### `_exportBookSummaries()`
-
-```
-ASYNC PROCEDURE _exportBookSummaries():
-  loc = AppLocalizations.of(context)
-  books = _bookService.books
-  
-  IF books.isEmpty:
-    _showSnackBar(loc.noBooks)
-    RETURN
-  
-  setState(): _isExporting = true
-  
-  TRY:
-    successCount = 0
-    
-    FOR each book in books:
-      result = AWAIT _exportService.exportBookSummaryToMarkdown(book)
-      IF result != null:
-        successCount++
-    
-    IF successCount > 0:
-      _showSnackBar("$successCount ${loc.booksCount} ${loc.success}")
-    ELSE:
-      _showSnackBar("${loc.exportBookSummariesDesc} - ${loc.failed}")
-  FINALLY:
-    setState(): _isExporting = false
-END PROCEDURE
-```
-
-### `_showSnackBar(message)`
-
-```
-PROCEDURE _showSnackBar(message):
-  ScaffoldMessenger.showSnackBar
-    ├── content: Text(message)
-    └── duration: 2 seconds
-END PROCEDURE
-```
-
 ---
 
-## Widget Tree Structure
+## Widget 树结构
 
 ```
 Scaffold
 ├── AppBar
-│   ├── Title: "设置"
+│   ├── Title: loc.settingsTitle
 │   └── centerTitle: true
 │
 └── Body: ListView
-    ├── _buildSectionHeader("AI配置")
+    ├── _buildSectionHeader(loc.aiConfigTitle)
     ├── _buildAiSection()
     ├── SizedBox(height: 16)
-    ├── _buildSectionHeader("外观设置")
+    ├── _buildSectionHeader(loc.appearanceSettingTitle)
     ├── _buildAppearanceSection()
     ├── SizedBox(height: 16)
-    ├── _buildSectionHeader("数据导出")
-    ├── _buildExportSection()
-    ├── SizedBox(height: 16)
-    ├── _buildSectionHeader("关于")
+    ├── _buildSectionHeader(loc.aboutTitle)
     ├── _buildAboutSection()
     └── SizedBox(height: 24)
 ```
 
-### AI Section Widget Tree
+### AI 区块
 
 ```
 Card
-├── Header Row: Icon(Icons.smart_toy) + "AI配置"
 └── ListenableBuilder
     └── ListTile
         ├── leading: Icon(Icons.api)
-        ├── title: "AI服务设置"
-        ├── subtitle: "provider - model" OR "未配置，点击设置"
+        ├── title: loc.aiServiceSettings
+        ├── subtitle: "provider - model" OR loc.notConfiguredClickToSet
         ├── trailing: Icon(Icons.chevron_right)
         └── onTap: → AiConfigScreen
 ```
 
-### Appearance Section Widget Tree
+### 外观区块
 
 ```
 Card
-├── Header Row: Icon(Icons.palette) + "外观设置"
-├── ListTile (Theme)
-│   ├── leading: Icon(Icons.brightness_6)
-│   ├── title: "主题设置"
-│   ├── subtitle: "跟随系统" OR "亮色" OR "暗色"
-│   ├── trailing: Icon(Icons.chevron_right)
-│   └── onTap: → ThemeSettingsScreen
+├── ListenableBuilder (themeMode)
+│   └── ListTile
+│       ├── leading: Icon(Icons.brightness_6)
+│       ├── title: loc.themeSettingTitle
+│       ├── subtitle: loc.themeModeSystem/Light/Dark
+│       ├── trailing: Icon(Icons.chevron_right)
+│       └── onTap: → ThemeSettingsScreen
 │
-└── ListTile (Language)
-    ├── leading: Icon(Icons.language)
-    ├── title: "语言设置"
-    ├── subtitle: "AI: xxx, 界面: xxx"
-    ├── trailing: Icon(Icons.chevron_right)
-    └── onTap: → LanguageSettingsScreen
+└── ListenableBuilder (languageSettings)
+    └── ListTile
+        ├── leading: Icon(Icons.language)
+        ├── title: loc.languageSettingTitle
+        ├── subtitle: "AI: xxx, ${loc.uiDisplayLanguage}: xxx"
+        ├── trailing: Icon(Icons.chevron_right)
+        └── onTap: → LanguageSettingsScreen
 ```
 
-### Export Section Widget Tree
-
-```
-Card
-├── Header Row: Icon(Icons.upload_file) + "数据导出"
-└── ListTile
-    ├── leading: Icon(Icons.description)
-    ├── title: "导出书籍摘要"
-    ├── subtitle: "将所有书籍摘要导出为Markdown文件"
-    ├── trailing: 
-    │   IF exporting: CircularProgressIndicator
-    │   ELSE: Icon(Icons.chevron_right)
-    └── onTap: 
-        IF exporting: null (disabled)
-        ELSE: _exportBookSummaries()
-```
-
-### About Section Widget Tree
+### 关于区块
 
 ```
 Card
-├── Header Row: Icon(Icons.info) + "关于"
-├── ListTile (App Name)
+├── ListTile (应用名称)
 │   ├── leading: Icon(Icons.apps)
-│   ├── title: "智读"
-│   └── subtitle: "版本 0.1.0"
+│   ├── title: loc.appTitle
+│   └── subtitle: "${loc.version} $_version"
 │
-└── ListTile (Description)
+└── ListTile (描述)
     ├── leading: Icon(Icons.code)
-    ├── title: "AI分层阅读器"
-    └── subtitle: "先读薄，再读厚"
+    ├── title: loc.aiLayeredReader
+    └── subtitle: loc.readThinThick
 ```
 
 ---
 
-## User Interaction Flows
+## 用户交互流程
 
-### Flow 1: Navigate to AI Config
+### AI 配置
 
 ```
-User taps "AI服务设置" ListTile
+用户点击 "AI服务设置" ListTile
     ↓
 Navigator.push(AiConfigScreen)
     ↓
-AI config screen displays
+用户配置 provider/apiKey/model
     ↓
-User configures provider, API key, model
+返回 SettingsScreen
     ↓
-User saves configuration
-    ↓
-Navigator.pop()
-    ↓
-Return to SettingsScreen
-    ↓
-ListenableBuilder detects change
-    ↓
-AI status text updates
+ListenableBuilder 检测变化 → 状态文本自动更新
 ```
 
-### Flow 2: Navigate to Theme Settings
+### 主题设置
 
 ```
-User taps "主题设置" ListTile
+用户点击 "主题设置" ListTile
     ↓
 Navigator.push(ThemeSettingsScreen)
     ↓
-Theme options displayed
+用户选择模式 → 即时保存
     ↓
-User selects theme mode
-    ↓
-Settings saved immediately
-    ↓
-Navigator.pop()
-    ↓
-Return to SettingsScreen
-    ↓
-Theme status text updates
+返回 SettingsScreen → 主题状态文本更新
 ```
 
-### Flow 3: Navigate to Language Settings
+### 语言设置
 
 ```
-User taps "语言设置" ListTile
+用户点击 "语言设置" ListTile
     ↓
 Navigator.push(LanguageSettingsScreen)
     ↓
-Language options displayed
+用户配置 AI/UI 语言 → 即时保存
     ↓
-User configures AI/UI language
-    ↓
-Settings saved immediately
-    ↓
-Navigator.pop()
-    ↓
-Return to SettingsScreen
-    ↓
-Language status text updates
-```
-
-### Flow 4: Export Book Summaries
-
-```
-User taps "导出书籍摘要" ListTile
-    ↓
-_exportBookSummaries() called
-    ↓
-Check books exist
-    ↓
-IF empty: Show "暂无书籍" SnackBar, RETURN
-    ↓
-Set _isExporting = true
-    ↓
-Disable button (show progress indicator)
-    ↓
-FOR each book:
-    ├── ExportService.exportBookSummaryToMarkdown(book)
-    ├── Creates Markdown file
-    └── Saves to user-selected directory
-    ↓
-Count successful exports
-    ↓
-Show result SnackBar
-    ↓
-Set _isExporting = false
-    ↓
-Button re-enabled
+返回 SettingsScreen → 语言状态文本更新
 ```
 
 ---
 
-## State Management Pattern
+## 状态管理模式
 
-### ListenableBuilder for AI Settings
+### loc Getter
+
+```
+AppLocalizations get loc => AppLocalizations.of(context)!
+
+一次定义，所有方法共享：
+├── 避免 7 处重复 final loc = AppLocalizations.of(context)!
+├── 每次 build 时自动获取最新 locale
+└── 语言切换时随 widget 重建自动更新
+```
+
+### ListenableBuilder 响应式
 
 ```
 SettingsService().aiSettings (ValueNotifier)
     ↓
-ListenableBuilder listens
+ListenableBuilder 监听变化
     ↓
-builder(context, _) re-executes on change
+_getAiConfigStatus() 读取最新设置
     ↓
-_getAiConfigStatus() reads latest settings
-    ↓
-Subtitle shows current provider/model
-```
-
-### Direct Settings Read
-
-```
-_getThemeStatus():
-    ↓
-SettingsService().settings.themeSettings.mode
-    ↓
-Return localized mode name
-
-_getLanguageStatus():
-    ↓
-SettingsService().settings.languageSettings
-    ↓
-Build combined status text
+Subtitle 实时显示当前 provider/model
 ```
 
 ---
 
-## Conditional Rendering
-
-### Export Button State
+## Service 集成
 
 ```
-_isExporting = false:
-    ├── trailing: Icon(Icons.chevron_right)
-    └── onTap: _exportBookSummaries (enabled)
-
-_isExporting = true:
-    ├── trailing: CircularProgressIndicator(strokeWidth: 2)
-    └── onTap: null (disabled)
-
-Purpose: Prevent duplicate export operations
-```
-
-### AI Config Status
-
-```
-settings.isValid = true:
-    subtitle: "${provider} - ${model}"
-
-settings.isValid = false:
-    subtitle: "未配置，点击设置"
-
-isValid checks:
-    ├── API key not empty
-    ├── API key not placeholder
-    └── Model not empty
+SettingsService
+├── READ: settings.aiSettings / themeSettings / languageSettings
+├── LISTEN: aiSettings / themeMode / languageSettings (ValueNotifier)
+└── 导航目标: AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 ```
 
 ---
 
-## Service Integration
-
-### SettingsService
+## 导航流程
 
 ```
-READ: SettingsService().settings
-  ├── aiSettings: provider, apiKey, model, baseUrl
-  ├── themeSettings: mode (system/light/dark)
-  └── languageSettings: aiLanguageMode, aiOutputLanguage, uiLanguageMode, uiLanguage
-
-LISTEN: SettingsService().aiSettings (ValueNotifier)
-  - Reactive updates via ListenableBuilder
-```
-
-### ExportService
-
-```
-EXPORT: exportBookSummaryToMarkdown(book)
-  ├── Get book summary
-  ├── Get all chapter summaries
-  ├── Combine into Markdown format
-  ├── Prompt user for save location
-  └── Write file to disk
-  └── RETURN file path OR null (failed)
-```
-
-### BookService
-
-```
-READ: _bookService.books
-  - List of all imported books
-  - Used for export iteration
-```
-
-### SummaryService
-
-```
-READ: getAllSummaries()
-  - Returns all chapter summaries
-  - Used for count display
-```
-
----
-
-## Navigation Flow
-
-```
-HomeScreen (AppBar settings icon)
+HomeScreen (AppBar 设置图标)
     ↓
 Navigator.push(SettingsScreen)
     ↓
-SettingsScreen displays
-    ├── AI配置 → AiConfigScreen
-    ├── 主题设置 → ThemeSettingsScreen
-    ├── 语言设置 → LanguageSettingsScreen
-    └── 导出书籍摘要 → Export operation
+├── AI配置 → AiConfigScreen
+├── 主题设置 → ThemeSettingsScreen
+├── 语言设置 → LanguageSettingsScreen
+└── 关于 (信息展示)
     ↓
 Navigator.pop()
     ↓
-Return to HomeScreen
+返回 HomeScreen
 ```
 
 ---
 
-## Data Export Flow
+## 国际化
 
 ```
-_exportBookSummaries():
-    ↓
-FOR each book in _bookService.books:
-    ↓
-    ExportService.exportBookSummaryToMarkdown(book)
-    ↓
-    SummaryService.getBookSummary(bookId)
-    ↓
-    SummaryService.getChapterSummaries(bookId)
-    ↓
-    Combine into Markdown:
-    ```
-    # 书名
-    
-    ## 全书摘要
-    {book summary content}
-    
-    ## 章节摘要
-    
-    ### 第一章
-    {chapter 1 summary}
-    
-    ### 第二章
-    {chapter 2 summary}
-    ...
-    ```
-    ↓
-    file_picker.getSaveLocation()
-    ↓
-    Write to selected path
-    ↓
-    RETURN success/failure
-```
-
----
-
-## Internationalization
-
-```
-AppLocalizations.of(context) provides:
+loc (AppLocalizations) 提供:
 ├── settingsTitle
-├── aiConfigTitle
-├── aiServiceSettings
-├── notConfiguredClickToSet
-├── appearanceSettingTitle
-├── themeSettingTitle
-├── languageSettingTitle
+├── aiConfigTitle / aiServiceSettings / notConfiguredClickToSet
+├── appearanceSettingTitle / themeSettingTitle / languageSettingTitle
 ├── themeModeSystem/Light/Dark
-├── dataExportTitle
-├── exportBookSummaries
-├── exportBookSummariesDesc
-├── aboutTitle
-├── appTitle
-├── version
-├── aiLayeredReader
-├── readThinThick
-└── ... (all UI strings)
+├── aboutTitle / appTitle / version
+├── aiLayeredReader / readThinThick
+├── aiLanguageFollowBook/System / chineseLanguage/englishLanguage/japaneseLanguage
+└── uiDisplayLanguage / uiLanguageFollowSystem
 ```

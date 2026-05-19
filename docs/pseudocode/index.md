@@ -103,7 +103,7 @@ docs/pseudocode/
 | `home_screen.dart` | 首页 | 书架界面+书籍导入 |
 | `language_settings_screen.dart` | 语言设置 | AI输出语言/界面语言(跟随/手动) |
 | `pdf_reader_screen.dart` | PDF阅读器 | 分页阅读+章节导航 |
-| `settings_screen.dart` | 设置主页 | 入口：AI/主题/语言/存储/数据管理 |
+| `settings_screen.dart` | 设置主页 | 入口：AI/主题/语言/关于 |
 | `theme_settings_screen.dart` | 主题设置 | 系统/浅色/深色三种模式 |
 
 ---

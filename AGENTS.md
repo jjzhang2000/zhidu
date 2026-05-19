@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-19**: settings_screen 僵尸代码清理 + loc getter 复用 — 删除 `_buildSection` 两个未使用参数 `title`/`icon`（全部3处调用白传）；`AppLocalizations.of(context)!` 提取为 getter，删除7处重复声明；注释精简（过时版本号、冗余内联）；theme_settings_screen 合并重复文件级/类级注释；更新 `settings_screen.md`、`index.md`
 **2026-05-19**: language_settings_screen.dart 冗余清理 — switch → copyWith 简化 `_updateAiLanguageMode`/`_updateUiLanguageMode`（省 ~40 行）；`_buildLanguageSelector` 中 `_getLanguages` 提取为局部变量避免重复调用；删除 `_getLanguages` 中冗余 `??` fallback 及 `app_settings.dart` import
 **2026-05-19**: fix — 删除失败 SnackBar 硬编码中文改为 i18n key `loc.failed`；原 `const Text('删除失败…')` 在 en/ja 界面下遗留中文且 `const` 导致语言切换不更新
 **2026-05-19**: fix — BookCard 删除时检查 deleteBook() 返回值防止目录残留；`deleteBook()` 返回 `bool` 但此前不检查，磁盘 IO 失败（文件被占用/权限不足）时目录残留但卡片被移除；修复后仅成功才 `onDeleted`，失败显示错误 SnackBar

@@ -1,21 +1,11 @@
-/// 主题设置页面
-///
-/// 提供应用主题模式切换功能：
-/// - 跟随系统：自动跟随系统主题设置
-/// - 亮色模式：强制使用浅色主题
-/// - 暗色模式：强制使用深色主题
-///
-/// 主题切换即时生效，通过 SettingsService.themeMode 通知监听者
-/// 设置自动保存到本地文件
-
 import 'package:flutter/material.dart' hide ThemeMode;
 import 'package:zhidu/l10n/app_localizations.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 
-/// 主题设置页面组件
+/// 主题设置页面
 ///
-/// 使用 StatefulWidget 监听主题变化并更新 UI
+/// 提供三种主题模式切换（跟随系统 / 亮色 / 暗色），通过 ValueNotifier 即时生效并自动保存。
 class ThemeSettingsScreen extends StatefulWidget {
   const ThemeSettingsScreen({super.key});
 

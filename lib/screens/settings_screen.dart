@@ -28,6 +28,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = '';
 
+  AppLocalizations get loc => AppLocalizations.of(context)!;
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
         title: Text(loc.settingsTitle),
@@ -69,10 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 构建区域标题
   ///
-  /// 统一的区域标题样式：
-  /// - 左粗字体
-  /// - 适当间距
-  /// - 与内容形成视觉分组
+  /// 统一样式：粗体标题 + 主题色 + 适当间距
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -86,26 +84,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 构建区域容器
-  ///
-  /// 为设置区域提供统一样式：
-  /// - 圆角边框
-  /// - 阴影效果
-  /// - 内边距
-  /// - 适配主题色彩
-  Widget _buildSection({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
+  Widget _buildSection({required List<Widget> children}) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       elevation: 2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...children,
-        ],
+        children: children,
       ),
     );
   }
@@ -116,11 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// - 点击跳转到AI配置页面
   /// - 显示当前配置状态（provider/model 或 未配置）
   Widget _buildAiSection() {
-    final loc = AppLocalizations.of(context)!;
-    return _buildSection(
-      title: loc.aiConfigTitle,
-      icon: Icons.smart_toy,
-      children: [
+    return _buildSection(children: [
         ListenableBuilder(
           listenable: SettingsService().aiSettings,
           builder: (context, _) {
@@ -148,11 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ///
   /// 提供主题和语言设置入口
   Widget _buildAppearanceSection() {
-    final loc = AppLocalizations.of(context)!;
-    return _buildSection(
-      title: loc.appearanceSettingTitle,
-      icon: Icons.palette,
-      children: [
+    return _buildSection(children: [
         ListenableBuilder(
           listenable: SettingsService().themeMode,
           builder: (context, _) {
@@ -197,16 +174,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 构建关于区块
   ///
-  /// 显示应用信息：
-  /// - 应用名称：智读
-  /// - 版本号：0.1.0
-  /// - 副标题：AI 分层阅读器 - 先读薄，再读厚
+  /// 显示应用名称、版本号、副标题等信息
   Widget _buildAboutSection() {
-    final loc = AppLocalizations.of(context)!;
-    return _buildSection(
-      title: loc.aboutTitle,
-      icon: Icons.info,
-      children: [
+    return _buildSection(children: [
         ListTile(
           leading: const Icon(Icons.apps),
           title: Text(loc.appTitle),
@@ -227,7 +197,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// - 有效配置：显示provider和model
   /// - 无效配置：提示用户检查设置
   String _getAiConfigStatus() {
-    final loc = AppLocalizations.of(context)!;
     final settings = SettingsService().settings.aiSettings;
     if (settings.isValid) {
       return '${settings.provider} - ${settings.model}';
@@ -238,7 +207,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 获取主题状态显示文本
   String _getThemeStatus() {
-    final loc = AppLocalizations.of(context)!;
     final mode = SettingsService().settings.themeSettings.mode;
     switch (mode) {
       case ThemeMode.system:
@@ -252,10 +220,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 获取语言状态显示文本
   String _getLanguageStatus() {
-    final loc = AppLocalizations.of(context)!;
     final settings = SettingsService().settings.languageSettings;
 
-    // 构建AI语言设置显示文本
     String aiLanguageText;
     switch (settings.aiLanguageMode) {
       case 'book':
@@ -286,7 +252,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         break;
     }
 
-    // 构建界面语言设置显示文本
     String uiLanguageText;
     switch (settings.uiLanguageMode) {
       case 'system':
@@ -314,7 +279,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         break;
     }
 
-    // 返回AI和界面语言设置的组合文本
     return '$aiLanguageText, $uiLanguageText';
   }
 
