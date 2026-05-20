@@ -1,77 +1,16 @@
-// ============================================================
-// PDF格式解析器
-// ============================================================
-// 功能说明：
-// - 解析PDF文件，提取元数据、章节列表和内容
-// - 自动检测封面页（首页文字少于50字符）
-// - 智能识别章节边界（支持中文和英文章节标题）
-// - 将PDF页面转换为章节结构
-//
-// 核心特性：
-// - 使用pdfrx库进行PDF解析
-// - 支持多种章节标题格式识别
-// - 自动跳过封面页
-// - 纯文本和HTML双重输出格式
-//
-// 依赖：
-// - pdfrx: PDF文档渲染和文本提取
-// - path: 文件路径处理
-// ============================================================
-
 import 'dart:io';
 import 'package:pdfrx/pdfrx.dart';
-import 'package:path/path.dart' as p;
 
-import '../../models/book.dart';
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
-import '../opf_reader_service.dart';
 
-/// PDF格式解析器实现
+/// PDF 格式解析器
 ///
-/// 实现BookFormatParser接口，提供PDF文件的解析能力。
-/// 主要职责：
-/// 1. 解析PDF文件元数据（标题、页数等）
-/// 2. 提取PDF章节结构（基于章节标题检测）
-/// 3. 提取章节内容（纯文本和HTML格式）
-/// 4. 封面提取（PDF暂不支持，返回null）
-///
-/// 解析流程：
-/// ```
-/// 文件存在检查 → 打开PDF文档 → 提取元数据/章节/内容 → 释放资源
-/// ```
+/// 章节检测：逐页匹配中英文章节标题正则，自动跳过封面页。
 class PdfParser implements BookFormatParser {
-  /// 日志服务实例
   final LogService _log = LogService();
 
-  // ============================================================
-  // 章节提取
-  // ============================================================
-
-  /// 提取PDF文件的章节列表
-  ///
-  /// 章节检测算法：
-  /// 1. 封面检测：首页文字少于50字符视为封面，跳过
-  /// 2. 逐页提取文本内容
-  /// 3. 检查每页前5行的章节标题模式
-  /// 4. 匹配成功则记录为章节边界
-  /// 5. 防止重复章节号（避免误识别）
-  ///
-  /// 支持的章节标题格式：
-  /// - 中文：第X章、第十章等（X为一二三四五六七八九十百零）
-  /// - 阿拉伯数字：第1章、第2章等
-  /// - 英文：Chapter 1、CHAPTER 1等
-  ///
-  /// 参数：
-  /// - [filePath] PDF文件路径
-  ///
-  /// 返回：
-  /// - Chapter列表，每个章节包含起始页和结束页
-  ///
-  /// 边界情况处理：
-  /// - 无法识别章节时，整个文档作为一个章节
-  /// - 跳过封面后无有效页面时，返回空列表
   @override
   Future<List<Chapter>> getChapters(String filePath) async {
     final file = File(filePath);
@@ -81,9 +20,6 @@ class PdfParser implements BookFormatParser {
     }
 
     try {
-      // ----------------------------------------------------------
-      // 打开PDF并提取所有页面文本
-      // ----------------------------------------------------------
       final document = await PdfDocument.openFile(filePath);
       final totalPages = document.pages.length;
 
@@ -92,8 +28,6 @@ class PdfParser implements BookFormatParser {
         return [];
       }
 
-      // 预先收集所有页面的文本内容
-      // 这样可以一次性完成文档读取，避免多次打开
       final pageContents = <String>[];
       for (int i = 0; i < totalPages; i++) {
         final page = document.pages[i];
@@ -101,121 +35,49 @@ class PdfParser implements BookFormatParser {
         pageContents.add(pageText?.fullText ?? '');
       }
 
-      // 释放文档资源
       await document.dispose();
 
-      // ----------------------------------------------------------
-      // 封面检测逻辑
-      // ----------------------------------------------------------
-      // PDF首页可能是封面，通常包含图片而非大量文字
-      // 检测策略：首页文字少于50字符，认为是封面
-      //
-      // 封面特征：
-      // - 主要是图片或装饰元素
-      // - 文字极少（书名、作者名等）
-      // - 不包含正文内容
       int startOffset = 0;
-      final coverThreshold = 50; // 封面检测阈值：50字符
+      final coverThreshold = 50;
 
       if (pageContents.isNotEmpty &&
           pageContents[0].trim().length < coverThreshold) {
         startOffset = 1;
       }
 
-      // ----------------------------------------------------------
-      // 处理跳过封面后的情况
-      // ----------------------------------------------------------
       final effectivePages = totalPages - startOffset;
       if (effectivePages <= 0) {
         _log.d('PdfParser', '跳过封面后无有效页面');
         return [];
       }
 
-      // ----------------------------------------------------------
-      // 章节标题正则表达式模式
-      // ----------------------------------------------------------
-      // 定义多种章节标题匹配模式，支持中英文
-      // 模式说明：
-      // 1. ^第[一二三四五六七八九十百零]+章[：:\s]
-      //    - 匹配中文数字章节：第一章、第十二章等
-      //    - [：:\s] 匹配中文冒号、英文冒号或空白字符
-      //
-      // 2. ^第\d+章[：:\s]
-      //    - 匹配阿拉伯数字章节：第1章、第12章等
-      //
-      // 3. ^Chapter\s+\d+[：:\s]
-      //    - 匹配英文章节：Chapter 1、Chapter 12等
-      //
-      // 4. ^CHAPTER\s+\d+[：:\s]
-      //    - 匹配大写英文章节：CHAPTER 1等
       final patterns = [
-        r'^第[一二三四五六七八九十百零]+章[：:\s]', // 中文数字章节
-        r'^第\d+章[：:\s]', // 阿拉伯数字章节
-        r'^Chapter\s+\d+[：:\s]', // 英文章节（首字母大写）
-        r'^CHAPTER\s+\d+[：:\s]', // 英文章节（全大写）
+        r'^第[一二三四五六七八九十百零]+章[：:\s]',
+        r'^第\d+章[：:\s]',
+        r'^Chapter\s+\d+[：:\s]',
+        r'^CHAPTER\s+\d+[：:\s]',
       ];
 
-      // ----------------------------------------------------------
-      // 章节边界检测
-      // ----------------------------------------------------------
-      // 章节边界：包含章节标题的页面索引
-      // 初始包含startOffset（第一个有效页面）
       final chapterBoundaries = <int>[startOffset];
-
-      // 章节标题列表
-      // 第一个默认为"全文"（用于无法识别章节时）
       final chapterTitles = <String>['全文'];
-
-      // 上一个章节号，用于防止重复
-      // 某些页面可能多次出现同一章节号（如页眉）
       int lastChapterNum = -1;
 
-      // ----------------------------------------------------------
-      // 逐页检测章节标题
-      // ----------------------------------------------------------
-      // 从startOffset开始，遍历每个页面的文本内容
       for (int i = startOffset; i < pageContents.length; i++) {
         final content = pageContents[i];
-
-        // 只检查每页的前5行
-        // 章节标题通常出现在页面开头
-        // 限制行数可以提高检测效率，减少误判
         final firstLines = content.split('\n').take(5);
 
-        // 检查前5行的每一行
         for (final line in firstLines) {
-          // 尝试匹配每个章节标题模式
           for (final pattern in patterns) {
-            // 创建正则表达式
-            // multiLine: true 允许^匹配每行开头
-            // caseSensitive: false 忽略大小写
             final regex =
                 RegExp(pattern, multiLine: true, caseSensitive: false);
             final match = regex.firstMatch(line);
 
             if (match != null) {
-              // 提取匹配到的标题文本
               final title = match.group(0)?.trim() ?? '';
-
-              // ----------------------------------------------------------
-              // 提取章节号（用于去重）
-              // ----------------------------------------------------------
-              // 从标题中提取章节编号
-              // 例如："第一章 " → "一"
-              //      "第12章：" → "12"
               final numMatch = RegExp(r'\d+|[一二三四五六七八九十百零]+').firstMatch(title);
               if (numMatch != null) {
                 final chapterNum = numMatch.group(0);
 
-                // ----------------------------------------------------------
-                // 验证并记录章节边界
-                // ----------------------------------------------------------
-                // 条件：
-                // 1. i != startOffset: 不是第一个有效页面（已经作为起始点）
-                // 2. chapterNum != null: 成功提取章节号
-                // 3. !chapterBoundaries.contains(i): 当前页未被记录过
-                // 4. lastChapterNum != int.tryParse(chapterNum):
-                //    章节号与上一个不同（防止重复）
                 if (i != startOffset &&
                     chapterNum != null &&
                     !chapterBoundaries.contains(i) &&
@@ -225,17 +87,12 @@ class PdfParser implements BookFormatParser {
                   lastChapterNum = int.tryParse(chapterNum) ?? -1;
                 }
               }
-              break; // 匹配成功，跳出模式循环
+              break;
             }
           }
         }
       }
 
-      // ----------------------------------------------------------
-      // 处理无法识别章节的情况
-      // ----------------------------------------------------------
-      // 如果只检测到起始边界，说明无法识别章节结构
-      // 此时将整个有效文档作为一个章节
       if (chapterBoundaries.length == 1) {
         _log.d('PdfParser', '未检测到章节结构，将有效文档视为一个章节');
         return [
@@ -251,21 +108,11 @@ class PdfParser implements BookFormatParser {
         ];
       }
 
-      // ----------------------------------------------------------
-      // 添加最后一页作为边界
-      // ----------------------------------------------------------
-      // 章节边界定义的是章节起始页
-      // 需要添加文档最后一页，用于定义最后一个章节的结束位置
       if (chapterBoundaries.last != totalPages - 1) {
         chapterBoundaries.add(totalPages - 1);
-        chapterTitles.add('结束'); // 占位标题
+        chapterTitles.add('结束');
       }
 
-      // ----------------------------------------------------------
-      // 创建章节对象
-      // ----------------------------------------------------------
-      // 根据边界创建Chapter对象
-      // 每个章节从boundary[i]到boundary[i+1]
       final chapters = <Chapter>[];
       for (int i = 0; i < chapterBoundaries.length - 1; i++) {
         final startIndex = chapterBoundaries[i];
@@ -292,30 +139,6 @@ class PdfParser implements BookFormatParser {
     }
   }
 
-  // ============================================================
-  // 章节内容提取
-  // ============================================================
-
-  /// 提取指定章节的内容
-  ///
-  /// 内容提取流程：
-  /// 1. 检查文件是否存在
-  /// 2. 打开PDF文档
-  /// 3. 根据章节的startPage和endPage确定页面范围
-  /// 4. 提取页面范围内的所有文本
-  /// 5. 将纯文本转换为HTML格式（用<p>包裹段落）
-  /// 6. 释放文档资源
-  ///
-  /// 参数：
-  /// - [filePath] PDF文件路径
-  /// - [chapter] 要提取的章节对象
-  ///
-  /// 返回：
-  /// - 更新后的Chapter对象（包含htmlContent）
-  ///
-  /// 注意：
-  /// - 页码是1-based（用户视角）
-  /// - 内部访问时需要转换为0-based索引
   @override
   Future<Chapter> getChapterContent(
       String filePath, Chapter chapter) async {
@@ -326,16 +149,8 @@ class PdfParser implements BookFormatParser {
     }
 
     try {
-      // ----------------------------------------------------------
-      // 打开PDF文档
-      // ----------------------------------------------------------
       final document = await PdfDocument.openFile(filePath);
 
-      // ----------------------------------------------------------
-      // 获取章节的页面范围
-      // ----------------------------------------------------------
-      // startPage和endPage都是1-based（从1开始计数）
-      // 例如：startPage=1 表示第一页
       final startPage = chapter.location.startPage;
       final endPage = chapter.location.endPage;
 
@@ -349,23 +164,17 @@ class PdfParser implements BookFormatParser {
       for (int pageNum = startPage;
           pageNum <= endPage && pageNum <= document.pages.length;
           pageNum++) {
-        // 转换为0-based索引
         final page = document.pages[pageNum - 1];
         final pageText = await page.loadText();
 
-        // 页面之间用双换行分隔
         if (buffer.isNotEmpty) {
           buffer.write('\n\n');
         }
         buffer.write(pageText?.fullText ?? '');
       }
 
-      // 释放文档资源
       await document.dispose();
 
-      // ----------------------------------------------------------
-      // 处理提取结果
-      // ----------------------------------------------------------
       final plainText = buffer.toString().trim();
 
       if (plainText.isEmpty) {
@@ -373,14 +182,6 @@ class PdfParser implements BookFormatParser {
         return chapter;
       }
 
-      // ----------------------------------------------------------
-      // 将纯文本转换为HTML格式
-      // ----------------------------------------------------------
-      // PDF文本提取是纯文本，需要转换为HTML以便渲染
-      // 转换规则：
-      // 1. 按换行符分割为段落
-      // 2. 过滤空段落
-      // 3. 用<p>标签包裹每个段落
       final paragraphs =
           plainText.split('\n').where((p) => p.trim().isNotEmpty);
       final htmlContent =
@@ -400,39 +201,8 @@ class PdfParser implements BookFormatParser {
     }
   }
 
-  // ============================================================
-  // 封面提取
-  // ============================================================
-
-  /// 提取PDF文件封面
-  ///
-  /// 实现说明：
-  /// PDF文件的封面提取比较复杂，原因如下：
-  /// 1. PDF没有像EPUB那样独立的封面图片资源
-  /// 2. PDF首页可能是：
-  ///    - 纯图片封面（需要渲染第一页为图片）
-  ///    - 混合内容（文字+图片）
-  ///    - 直接从正文开始（无封面）
-  /// 3. 渲染PDF页面为图片需要额外处理，且效果不稳定
-  ///
-  /// 当前策略：
-  /// - 直接返回null
-  /// - UI层使用默认封面占位图
-  /// - 未来可考虑：渲染第一页为缩略图作为封面
-  ///
-  /// 参数：
-  /// - [filePath] PDF文件路径
-  ///
-  /// 返回：
-  /// - 始终返回null（不支持封面提取）
   @override
   Future<String?> extractCover(String filePath) async {
-    final file = File(filePath);
-    if (!await file.exists()) {
-      _log.w('PdfParser', '文件不存在: $filePath');
-      return null;
-    }
-
     return null;
   }
 }

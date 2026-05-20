@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-19**: epub_parser + pdf_parser 僵尸代码清理 — epub 删除 6 个死方法 `_extractChapterTitles`/`_extractTitleFromPath`/`_parseContainerXml`/`_parseOpfFile`/`_parseNavigationFile`/`_findEpubChapterByIndex`+2个未用 import（1139→629 行）；pdf 删除冗余文件头/分节符/内联注释、死代码 `extractCover` 文件检查、3个未用 import（438→208 行）
 **2026-05-19**: book_format_parser.dart 格式整理 — 抽象方法补一行 `///` 注释，两方法间隔统一，类属性与后续方法统一间距
 **2026-05-19**: format_registry 合并到 book_format_parser — FormatRegistry 类合并入接口文件，删除死代码 `initialize()`；删除 `format_registry.dart`；更新 4 处 import + 3 处测试引用 + 文档；去掉冗余注释（286→42 行）
 **2026-05-19**: settings_screen 僵尸代码清理 + loc getter 复用 — 删除 `_buildSection` 两个未使用参数 `title`/`icon`（全部3处调用白传）；`AppLocalizations.of(context)!` 提取为 getter，删除7处重复声明；注释精简（过时版本号、冗余内联）；theme_settings_screen 合并重复文件级/类级注释；更新 `settings_screen.md`、`index.md`
