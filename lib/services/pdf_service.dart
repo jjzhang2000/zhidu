@@ -25,12 +25,10 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:flutter/material.dart' show Colors;
-import 'package:uuid/uuid.dart';
 import 'package:image/image.dart' as img;
 import '../models/book.dart';
 import 'storage_config.dart';
 import 'log_service.dart';
-import 'opf_reader_service.dart';
 
 /// 类名：PdfService
 /// 功能：PDF文件解析服务单例类
@@ -59,40 +57,14 @@ class PdfService {
   /// 私有构造函数，实现单例模式
   PdfService._internal();
 
-  /// UUID生成器，用于生成书籍唯一ID
-  final _uuid = const Uuid();
-
-  /// 日志服务实例
   final _log = LogService();
 
-  /// 方法名：parsePdfFile
-  /// 功能：解析PDF文件并创建Book对象
-  ///
-  /// 参数：
-  /// - filePath: PDF文件的完整路径
-  ///
-  /// 返回值：
-  /// - 成功：返回Book对象，包含PDF元数据
-  /// - 失败：返回null
-  ///
-  /// 处理流程：
-  /// 1. 使用pdfrx打开PDF文档
-  /// 2. 获取总页数
-  /// 3. 从文件名提取书籍标题
-  /// 4. 检测章节结构
-  /// 5. 渲染第一页为封面图片
-  /// 6. 创建Book对象并返回
-  ///
-  /// 异常处理：
-  /// - 捕获所有异常，记录日志后返回null
-  Future<Book?> parsePdfFile(String filePath) async {
+  Future<Book?> parsePdfFile(String filePath, String bookId) async {
     try {
       final document = await PdfDocument.openFile(filePath);
 
       final fileName = filePath.split('/').last.split('\\').last;
       var title = fileName.substring(0, fileName.lastIndexOf('.'));
-
-      final bookId = _uuid.v4();
 
       final chapters = await _detectChapters(document);
       _log.d('PdfService', '检测到 ${chapters.length} 个章节');
@@ -102,22 +74,9 @@ class PdfService {
       // 释放PDF文档资源
       await document.dispose();
 
-      // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
-      String? opfLanguage;
-      var author = 'Unknown'; // PDF通常无法自动提取作者信息
-      
-      try {
-        final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
-        if (opfMetadata != null) {
-          title = opfMetadata.title ?? title;
-          author = opfMetadata.author ?? author;
-          opfLanguage = opfMetadata.language;
-        }
-      } catch (e) {
-        _log.w('PdfService', '读取外部OPF元数据失败: $e');
-      }
-
       // 创建并返回Book对象
+      const author = 'Unknown';
+
       return Book(
         id: bookId,
         title: title,
@@ -127,7 +86,6 @@ class PdfService {
         format: BookFormat.pdf,
         totalChapters: chapters.length,
         addedAt: DateTime.now(),
-        language: opfLanguage,
       );
     } catch (e, stackTrace) {
       _log.e('PdfService', '解析PDF失败', e, stackTrace);

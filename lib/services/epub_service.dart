@@ -23,12 +23,10 @@ import 'dart:convert';
 import 'package:archive/archive.dart';
 import 'package:epub_plus/epub_plus.dart';
 import 'package:path/path.dart' as p;
-import 'package:uuid/uuid.dart';
 import 'package:xml/xml.dart';
 import '../models/book.dart';
 import 'log_service.dart';
 import 'storage_config.dart';
-import 'opf_reader_service.dart';
 
 /// 类名：EpubService
 /// 功能：EPUB电子书解析服务（单例模式）
@@ -58,29 +56,7 @@ class EpubService {
   /// 日志服务实例
   final _log = LogService();
 
-  /// UUID生成器，用于生成书籍ID
-  final _uuid = const Uuid();
-
-  /// 方法名：parseEpubFile
-  /// 功能：解析EPUB文件并创建Book对象
-  ///
-  /// 参数：
-  /// - filePath: EPUB文件的绝对路径
-  ///
-  /// 返回值：Book对象（包含元数据和封面），失败时返回null
-  ///
-  /// 调用方：BookService.importBook()
-  ///
-  /// 算法逻辑：
-  /// 1. 读取文件字节
-  /// 2. 首选方案：使用EpubReader解析（标准库）
-  /// 3. 回退方案：使用archive直接解析ZIP结构
-  ///    - 解析container.xml获取OPF路径
-  ///    - 解析OPF文件获取元数据
-  ///    - 解析NCX/NAV文件获取章节列表
-  /// 4. 提取封面图片并保存
-  /// 5. 生成书籍ID，创建Book对象
-  Future<Book?> parseEpubFile(String filePath) async {
+  Future<Book?> parseEpubFile(String filePath, String bookId) async {
     try {
       _log.d('EpubService', '开始解析文件 $filePath');
       final file = File(filePath);
@@ -144,9 +120,6 @@ class EpubService {
         author = '未知作者';
       }
 
-      // 生成书籍ID
-      final bookId = _uuid.v4();
-
       // 提取封面图片
       String? coverPath;
       try {
@@ -155,31 +128,15 @@ class EpubService {
         _log.e('EpubService', '封面提取失败', e);
       }
 
-      // 读取同目录下的metadata.opf文件，优先使用OPF中的元数据
-      String? opfLanguage;
-      
-      try {
-        final opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
-        if (opfMetadata != null) {
-          _log.d('EpubService', '使用外部OPF元数据覆盖解析结果');
-          title = opfMetadata.title ?? title;
-          author = opfMetadata.author ?? author;
-          opfLanguage = opfMetadata.language;
-        }
-      } catch (e) {
-        _log.w('EpubService', '读取外部OPF元数据失败: $e');
-      }
-
       return Book(
         id: bookId,
-        title: title ?? _extractTitleFromPath(filePath),
-        author: author ?? 'Unknown',
+        title: title,
+        author: author,
         coverPath: coverPath,
         filePath: filePath,
         format: BookFormat.epub,
         totalChapters: chapterTitles.length,
         addedAt: DateTime.now(),
-        language: opfLanguage,
       );
     } catch (e, stackTrace) {
       _log.e('EpubService', '解析EPUB文件失败', e);

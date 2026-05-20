@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-20**: bookId 提炼 + OPF 读取去重 — `_uuid.v4()` 从 EpubService/PdfService 收归 BookService；删除两 Service 内部 OPF 读取块（之前每次导入读 3 遍，现只读 1 遍）；删除 `OpfReaderService` import + `language` 构造参数
 **2026-05-20**: epub_service 封面提取日志降级 — `_extractCover`/`_extractCoverFromArchive`/`parseEpubFile` 回退路径 catch 从 `_log.e`+堆栈降为 `_log.w`（无异常dump）；EpubReader 解析失败属可恢复回退，不应报 error
 **2026-05-19**: epub_parser + pdf_parser 僵尸代码清理 — epub 删除 6 个死方法 `_extractChapterTitles`/`_extractTitleFromPath`/`_parseContainerXml`/`_parseOpfFile`/`_parseNavigationFile`/`_findEpubChapterByIndex`+2个未用 import（1139→629 行）；pdf 删除冗余文件头/分节符/内联注释、死代码 `extractCover` 文件检查、3个未用 import（438→208 行）
 **2026-05-19**: book_format_parser.dart 格式整理 — 抽象方法补一行 `///` 注释，两方法间隔统一，类属性与后续方法统一间距

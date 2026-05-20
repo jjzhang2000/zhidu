@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../models/book.dart';
 import 'opf_reader_service.dart';
 import 'epub_service.dart';
@@ -39,6 +40,8 @@ class BookService {
 
   /// PDF解析服务 - 处理.pdf格式电子书
   final _pdfService = PdfService();
+
+  final _uuid = const Uuid();
 
   /// 日志服务 - 统一日志输出
   final _log = LogService();
@@ -181,13 +184,14 @@ class BookService {
       }
 
       final extension = p.extension(filePath).toLowerCase();
+      final bookId = _uuid.v4();
 
       Book? book;
 
       if (extension == '.epub') {
-        book = await _epubService.parseEpubFile(filePath);
+        book = await _epubService.parseEpubFile(filePath, bookId);
       } else if (extension == '.pdf') {
-        book = await _pdfService.parsePdfFile(filePath);
+        book = await _pdfService.parsePdfFile(filePath, bookId);
       } else {
         _log.w('BookService', '不支持的文件格式: $extension');
         return null;
