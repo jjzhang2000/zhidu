@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-20**: AiPrompts 提示词 l10n 化 + 占位符消除 — 全部提示词文本委托 AppLocalizations 三语翻译；删除 `_englishBookSummary`/`_englishBookSummaryFromPreface`/`_englishChapterSummary`/`_englishTranslateHtml`/`_getLanguageName` 5 个死方法（~315行）；消除 `languageInstruction`（仅作为 systemMessage）、`sourceLangName`/`targetLangName`、`promptLanguageReqLabel`、`langName*` 全部动态占位符；`getLanguageInstruction` 简化签名为 `(languageCode)`；`translateHtml` 从 l10n 移回 AiPrompts 内部按目标语言分支；ai_prompts.dart 457→128 行；更新 `ai_prompts.md` 伪代码文档
 **2026-05-20**: epub_parser 重构精简 — 删除 extractCover 接口+3个实现（死代码链）；删除 Level 2 冗余分支 `_extractChapterInfos`（与 NCX 同源）；`_extractTextFromHtml`+`_extractTitleFromHtmlContent` 手写正则→`package:html` DOM 查询（新增依赖）；epub_parser 647→436 行
 **2026-05-20**: bookId 提炼 + OPF 读取去重 — `_uuid.v4()` 从 EpubService/PdfService 收归 BookService；删除两 Service 内部 OPF 读取块（之前每次导入读 3 遍，现只读 1 遍）；删除 `OpfReaderService` import + `language` 构造参数
 **2026-05-20**: epub_service 封面提取日志降级 — `_extractCover`/`_extractCoverFromArchive`/`parseEpubFile` 回退路径 catch 从 `_log.e`+堆栈降为 `_log.w`（无异常dump）；EpubReader 解析失败属可恢复回退，不应报 error

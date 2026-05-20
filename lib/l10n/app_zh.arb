@@ -158,5 +158,27 @@
   },
   "@aboutTitle": {
     "description": "关于标题"
-  }
+  },
+  "promptLanguageReqLabel": "【语言要求】",
+  "promptBookTitleLabel": "书名：",
+  "promptBookAuthorLabel": "作者：",
+  "promptBookChaptersLabel": "章节数：",
+  "langNameZh": "中文",
+  "langNameEn": "英文",
+  "langNameJa": "日文",
+  "promptBookSummary": "promptBookSummary",
+  "promptPrefaceSummary": "promptPrefaceSummary",
+  "promptChapterSummary": "promptChapterSummary",
+  "promptTranslateHtml": "promptTranslateHtml",
+  "@promptLanguageReqLabel": { "description": "提示词-语言要求标签" },
+  "@promptBookTitleLabel": { "description": "提示词-书名标签" },
+  "@promptBookAuthorLabel": { "description": "提示词-作者标签" },
+  "@promptBookChaptersLabel": { "description": "提示词-章节数标签" },
+  "@langNameZh": { "description": "提示词-中文语言名" },
+  "@langNameEn": { "description": "提示词-英文语言名" },
+  "@langNameJa": { "description": "提示词-日文语言名" },
+  "@promptBookSummary": { "description": "提示词-全书摘要模板" },
+  "@promptPrefaceSummary": { "description": "提示词-前言摘要模板" },
+  "@promptChapterSummary": { "description": "提示词-章节摘要模板" },
+  "@promptTranslateHtml": { "description": "提示词-HTML翻译模板" }
 }

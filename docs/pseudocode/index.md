@@ -112,7 +112,7 @@ docs/pseudocode/
 | 文件 | 服务 | 核心职责 |
 |------|------|----------|
 | `ai_service.dart` | `AIService` | AI API交互：流式摘要生成、翻译、语言检测、连接测试 |
-| `ai_prompts.dart` | `AiPrompts` | 静态提示词模板：章节摘要/全书摘要/翻译 |
+| `ai_prompts.dart` | `AiPrompts` | 静态提示词模板：章节摘要/全书摘要/翻译（通过 AppLocalizations l10n） |
 | `book_service.dart` | `BookService` | 书籍CRUD：导入、存储、查询、删除、搜索 |
 | `epub_service.dart` | `EpubService` | EPUB文件解析：元数据/章节/封面提取 |
 | `file_storage_service.dart` | `FileStorageService` | 文件系统操作：JSON/文本读写、文件删除 |

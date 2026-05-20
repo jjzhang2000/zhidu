@@ -738,6 +738,23 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Restore Data'**
   String get restoreData;
+
+  String get promptBookTitleLabel;
+
+  /// Prompt - book author label
+  String get promptBookAuthorLabel;
+
+  /// Prompt - book chapters label
+  String get promptBookChaptersLabel;
+
+  /// Prompt - book summary from chapter summaries
+  String promptBookSummary(Object title, Object author, Object chapterSummaries, Object chaptersLine);
+
+  /// Prompt - book summary from preface content
+  String promptPrefaceSummary(Object title, Object author, Object prefaceContent, Object chaptersLine);
+
+  /// Prompt - chapter summary
+  String promptChapterSummary(Object chapterTitle, Object content);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -19,6 +19,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
@@ -28,6 +29,7 @@ import 'log_service.dart';
 import 'settings_service.dart';
 import 'book_service.dart';
 import '../models/app_settings.dart';
+import '../l10n/app_localizations.dart';
 
 
 /// 功能：AI服务单例类，封装与大语言模型API的所有交互
@@ -550,13 +552,13 @@ class AIService {
     if (langSettings.aiLanguageMode == 'book' && bookId != null) {
       String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content);
       languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
+          AiPrompts.getLanguageInstruction(detectedLanguage);
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else if (langSettings.aiLanguageMode == 'book') {
       String detectedLanguage = detectLanguageFromContent(content);
       languageInstruction =
-          _getLanguageInstructionForLanguage(detectedLanguage);
+          AiPrompts.getLanguageInstruction(detectedLanguage);
       _log.d('AIService',
           '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
     } else {
@@ -566,10 +568,12 @@ class AIService {
       );
     }
 
+    final loc = _getPromptLoc();
+
     final prompt = AiPrompts.chapterSummary(
+      loc: loc,
       chapterTitle: chapterTitle,
       content: content,
-      languageInstruction: languageInstruction,
     );
 
     try {
@@ -613,10 +617,10 @@ class AIService {
 
     if (langSettings.aiLanguageMode == 'book' && bookId != null) {
       String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
+      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
     } else if (langSettings.aiLanguageMode == 'book') {
       String detectedLanguage = detectLanguageFromContent(chapterSummaries);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
+      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
     } else {
       languageInstruction = _getLanguageInstructionForModel(
         aiLanguageMode: langSettings.aiLanguageMode,
@@ -624,12 +628,14 @@ class AIService {
       );
     }
 
+    final loc = _getPromptLoc();
+
     final prompt = AiPrompts.bookSummary(
+      loc: loc,
       title: title,
       author: author,
       chapterSummaries: chapterSummaries,
       totalChapters: totalChapters,
-      languageInstruction: languageInstruction,
     );
 
     try {
@@ -672,10 +678,10 @@ class AIService {
 
     if (langSettings.aiLanguageMode == 'book' && bookId != null) {
       String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
+      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
     } else if (langSettings.aiLanguageMode == 'book') {
       String detectedLanguage = detectLanguageFromContent(prefaceContent);
-      languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage);
+      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
     } else {
       languageInstruction = _getLanguageInstructionForModel(
         aiLanguageMode: langSettings.aiLanguageMode,
@@ -683,12 +689,14 @@ class AIService {
       );
     }
 
+    final loc = _getPromptLoc();
+
     final prompt = AiPrompts.bookSummaryFromPreface(
+      loc: loc,
       title: title,
       author: author,
       prefaceContent: prefaceContent,
       totalChapters: totalChapters,
-      languageInstruction: languageInstruction,
     );
 
     try {
@@ -929,34 +937,6 @@ class AIService {
     return iso2To1Map[baseCode] ?? baseCode;
   }
 
-  /// 为特定语言生成语言指令
-  ///
-  /// 参数:
-  /// - languageCode: 语言代码 ('zh', 'en', 'ja'等)
-  ///
-  /// 返回:
-  /// - 对应语言的指令字符串
-  String _getLanguageInstructionForLanguage(String languageCode) {
-    switch (languageCode) {
-      case 'zh':
-        return 'IMPORTANT: Respond in Chinese (简体中文).';
-      case 'en':
-        return 'IMPORTANT: Respond in English.';
-      case 'ja':
-        return 'IMPORTANT: Respond in Japanese (日本語).';
-      case 'fr':
-        return 'IMPORTANT: Respond in French (Français).';
-      case 'de':
-        return 'IMPORTANT: Respond in German (Deutsch).';
-      case 'ru':
-        return 'IMPORTANT: Respond in Russian (Русский).';
-      case 'es':
-        return 'IMPORTANT: Respond in Spanish (Español).';
-      default:
-        return 'IMPORTANT: Respond in Chinese (简体中文).'; // 默认中文
-    }
-  }
-
   /// 检测系统语言
   ///
   /// 通过 Platform.localeName 获取系统语言设置
@@ -974,7 +954,6 @@ class AIService {
         return 'en';
       }
       
-      // 默认中文
       return 'zh';
     } catch (e) {
       _log.w('AIService', '检测系统语言失败: $e，使用默认中文');
@@ -999,20 +978,44 @@ class AIService {
     return 'zh';
   }
 
+  /// 获取用于提示词模板的 AppLocalizations 实例
+  ///
+  /// 根据用户界面语言设置，返回对应语言的本地化实例，
+  /// 确保 AI 提示词模板文本与用户界面语言一致。
+  AppLocalizations _getPromptLoc() {
+    final langSettings = SettingsService().settings.languageSettings;
+    String langCode;
+    if (langSettings.uiLanguageMode == 'manual') {
+      langCode = langSettings.uiLanguage;
+    } else {
+      langCode = detectSystemLanguage();
+    }
+    if (!const ['en', 'ja', 'zh'].contains(langCode)) {
+      langCode = 'zh';
+    }
+    return lookupAppLocalizations(Locale(langCode));
+  }
+
   /// 获取语言指令（包含系统语言检测）
   ///
-  /// 根据语言设置模式和系统语言生成具体的AI语言指令
+  /// 根据语言设置模式解析出最终语言代码，然后委托给
+  /// [AiPrompts.getLanguageInstruction] 生成指令字符串。
   String _getLanguageInstructionForModel({
     required String aiLanguageMode,
     String? aiOutputLanguage,
   }) {
-    String systemLanguage = detectSystemLanguage();
-    
-    return AiPrompts.getLanguageInstruction(
-      aiLanguageMode,
-      manualLanguage: aiLanguageMode == 'manual' ? aiOutputLanguage : null,
-      systemLanguage: aiLanguageMode == 'system' ? systemLanguage : null,
-    );
+    String languageCode;
+    switch (aiLanguageMode) {
+      case 'manual':
+        languageCode = aiOutputLanguage ?? 'zh';
+        break;
+      case 'system':
+        languageCode = detectSystemLanguage();
+        break;
+      default:
+        languageCode = 'zh';
+    }
+    return AiPrompts.getLanguageInstruction(languageCode);
   }
 
   /// 获取当前目标语言代码

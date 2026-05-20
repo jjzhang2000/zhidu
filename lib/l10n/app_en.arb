@@ -156,5 +156,27 @@
   },
   "@aboutTitle": {
     "description": "About title"
-  }
+  },
+  "promptLanguageReqLabel": "[Language Requirement]: ",
+  "promptBookTitleLabel": "Book Title: ",
+  "promptBookAuthorLabel": "Author: ",
+  "promptBookChaptersLabel": "Chapters: ",
+  "langNameZh": "Chinese",
+  "langNameEn": "English",
+  "langNameJa": "Japanese",
+  "promptBookSummary": "promptBookSummary",
+  "promptPrefaceSummary": "promptPrefaceSummary",
+  "promptChapterSummary": "promptChapterSummary",
+  "promptTranslateHtml": "promptTranslateHtml",
+  "@promptLanguageReqLabel": { "description": "Prompt - Language Requirement label" },
+  "@promptBookTitleLabel": { "description": "Prompt - Book Title label" },
+  "@promptBookAuthorLabel": { "description": "Prompt - Author label" },
+  "@promptBookChaptersLabel": { "description": "Prompt - Chapters label" },
+  "@langNameZh": { "description": "Prompt - Chinese language name" },
+  "@langNameEn": { "description": "Prompt - English language name" },
+  "@langNameJa": { "description": "Prompt - Japanese language name" },
+  "@promptBookSummary": { "description": "Prompt - Book Summary template" },
+  "@promptPrefaceSummary": { "description": "Prompt - Preface Summary template" },
+  "@promptChapterSummary": { "description": "Prompt - Chapter Summary template" },
+  "@promptTranslateHtml": { "description": "Prompt - HTML Translation template" }
 }

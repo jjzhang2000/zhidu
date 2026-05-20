@@ -342,4 +342,103 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get restoreData => 'Restore Data';
+
+  @override
+  String get promptBookTitleLabel => 'Title: ';
+
+  @override
+  String get promptBookAuthorLabel => 'Author: ';
+
+  @override
+  String get promptBookChaptersLabel => 'Chapters: ';
+
+  @override
+  String promptBookSummary(Object title, Object author, Object chapterSummaries, Object chaptersLine) {
+    return '''Please generate a complete book summary based on the following chapter summaries, output in Markdown format.
+
+Book information:
+- Title: $title
+- Author: $author
+$chaptersLine
+
+Chapter summaries:
+$chapterSummaries
+
+Requirements:
+1. **Length: 400-600 words** (approximately 800-900 Chinese characters) - this is strict
+   - Do NOT exceed 700 words
+   - Do NOT write less than 300 words
+2. Output in sections using Markdown headers (##) and paragraphs for easy reading
+3. Synthesize chapter content to distill the book's core ideas and knowledge system
+4. Must include the target audience or technical requirements (e.g., required background knowledge, prerequisites)
+5. Output in Markdown format, can include headers, lists, bold text, etc.
+6. Structure your response as:
+   - `## Content Summary` - Overview of the book's content
+   - `## Core Themes` - Main themes and key ideas, described in paragraphs
+   - `## Key Points` - 3-5 bullet points of the most important concepts
+   - `## Target Audience` - Who should read this book and what prerequisites are needed
+
+**IMPORTANT**: DO NOT output placeholder text like "(Book content overview)" or "(Core themes)". Generate actual summary content based on the chapter summaries.
+''';
+  }
+
+  @override
+  String promptPrefaceSummary(Object title, Object author, Object prefaceContent, Object chaptersLine) {
+    return '''Please generate a content introduction for the book based on the following preface/foreword content, output in Markdown format.
+
+Book information:
+- Title: $title
+- Author: $author
+$chaptersLine
+
+Preface/Foreword content:
+$prefaceContent
+
+Requirements:
+1. **Length: 400-600 words** (approximately 800-900 Chinese characters) - this is strict
+   - Do NOT exceed 700 words
+   - Do NOT write less than 300 words
+2. Output in sections using Markdown headers (##) and paragraphs for easy reading
+3. Distill the book's theme and core content based on the preface/foreword
+4. Must include the target audience or technical requirements (e.g., required background knowledge, prerequisites)
+5. Output in Markdown format, can include headers, lists, bold text, etc.
+6. Structure your response as:
+   - `## Content Summary` - Overview of the book's content
+   - `## Core Themes` - Main themes and key ideas, described in paragraphs
+   - `## Target Audience` - Who should read this book and what prerequisites are needed
+
+**IMPORTANT**: DO NOT output placeholder text like "(Content overview)" or "(Core content description)". Generate actual summary content based on the preface.
+''';
+  }
+
+  @override
+  String promptChapterSummary(Object chapterTitle, Object content) {
+    return '''Please analyze the following book chapter content comprehensively, **first extract the real chapter title**, then generate a summary.
+
+${chapterTitle != '' ? 'Original chapter identifier: $chapterTitle (may not be accurate, please judge the real title based on the content)\n' : ''}Chapter content:
+$content
+
+Requirements:
+1. **The first line must output the real chapter title**, format: `## [Real Title]`
+   - **Must preserve chapter numbering** (e.g., "Chapter X", "Part X", "X." etc.)
+   - Title format examples: "## Chapter 1: Data Structures and Algorithms", "## Chapter 1: Introduction", "## 1. Basic Concepts"
+   - If the original identifier contains numbering, preserve the numbering and extract the full title
+   - If there is no obvious title in the content, distill a summary title based on the content (still needs to include numbering)
+2. After the title line, leave a blank line, then output the summary text
+3. **Summary length: 200-300 words** (approximately 400-600 Chinese characters) - this is strict
+   - Do NOT exceed 350 words
+   - Do NOT write less than 150 words
+   - Focus on key points, be concise
+4. Summary text should use Markdown headers (##) and paragraphs for easy reading
+5. Use accessible language, maintain objectivity and neutrality
+6. Structure your response as:
+   - Start with `## [title]` (only show the title, not "Chapter Title:" prefix)
+   - Then `## Core Content` section with main points
+   - Then `## Key Points` with 3-5 bullet points
+   - End with `## Summary` section
+
+**IMPORTANT**: DO NOT output placeholder text like "(Main content overview)" or "(Chapter summary)". Generate actual summary content based on the chapter.
+''';
+  }
 }
+

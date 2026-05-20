@@ -149,5 +149,27 @@
   },
   "@aboutTitle": {
     "description": "アプリについてのタイトル"
-  }
+  },
+  "promptLanguageReqLabel": "【言語要件】",
+  "promptBookTitleLabel": "書名：",
+  "promptBookAuthorLabel": "著者：",
+  "promptBookChaptersLabel": "章数：",
+  "langNameZh": "中国語",
+  "langNameEn": "英語",
+  "langNameJa": "日本語",
+  "promptBookSummary": "promptBookSummary",
+  "promptPrefaceSummary": "promptPrefaceSummary",
+  "promptChapterSummary": "promptChapterSummary",
+  "promptTranslateHtml": "promptTranslateHtml",
+  "@promptLanguageReqLabel": { "description": "プロンプト-言語要件ラベル" },
+  "@promptBookTitleLabel": { "description": "プロンプト-書名ラベル" },
+  "@promptBookAuthorLabel": { "description": "プロンプト-著者ラベル" },
+  "@promptBookChaptersLabel": { "description": "プロンプト-章数ラベル" },
+  "@langNameZh": { "description": "プロンプト-中国語言語名" },
+  "@langNameEn": { "description": "プロンプト-英語言語名" },
+  "@langNameJa": { "description": "プロンプト-日本語言語名" },
+  "@promptBookSummary": { "description": "プロンプト-書籍全体要約テンプレート" },
+  "@promptPrefaceSummary": { "description": "プロンプト-序文要約テンプレート" },
+  "@promptChapterSummary": { "description": "プロンプト-章要約テンプレート" },
+  "@promptTranslateHtml": { "description": "プロンプト-HTML翻訳テンプレート" }
 }

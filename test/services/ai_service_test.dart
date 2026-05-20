@@ -8,6 +8,7 @@ import 'package:zhidu/services/settings_service.dart';
 import 'package:zhidu/services/ai_prompts.dart';
 import 'package:zhidu/models/app_settings.dart';
 
+
 void main() {
   late AIService aiService;
   late Directory testDir;
@@ -673,126 +674,38 @@ void main() {
       });
     });
 
-    group('Language Injection', () {
-      // These tests verify that language instruction can be injected through prompts.
-      // The AIService methods use AiPrompts which accept languageInstruction parameter.
-      // Note: Current AIService doesn't automatically inject language from SettingsService,
-      // but the prompts support language instruction when provided.
-
-      test('chapterSummary prompt includes language instruction when provided',
-          () {
-        final prompt = AiPrompts.chapterSummary(
-          chapterTitle: 'Chapter 1',
-          content: 'Test content',
-          languageInstruction: 'Please respond in English.',
-        );
-
-        expect(prompt, contains('Please respond in English'));
-      });
-
-      test(
-          'bookSummaryFromPreface prompt includes language instruction when provided',
-          () {
-        final prompt = AiPrompts.bookSummaryFromPreface(
-          title: 'Book Title',
-          author: 'Author',
-          prefaceContent: 'Preface content',
-          languageInstruction: '请用中文输出摘要。',
-        );
-
-        expect(prompt, contains('请用中文输出摘要'));
-      });
-
-      test('bookSummary prompt includes language instruction when provided',
-          () {
-        final prompt = AiPrompts.bookSummary(
-          title: 'Book Title',
-          author: 'Author',
-          chapterSummaries: 'Chapter summaries',
-          languageInstruction: '摘要は日本語で出力してください。',
-        );
-
-        expect(prompt, contains('摘要は日本語で出力してください'));
-      });
-    });
-
     group('AiPrompts Language Instruction', () {
-      test('Language mode auto_book adds correct instruction', () {
-        final instruction = AiPrompts.getLanguageInstruction('auto_book');
-        expect(instruction, contains('根据书籍内容的语言'));
+
+      test('Language mode book adds correct instruction', () {
+        final instruction = AiPrompts.getLanguageInstruction('book');
+        expect(instruction, contains('SAME LANGUAGE'));
       });
 
-      test('Language mode system adds correct instruction', () {
-        final instruction = AiPrompts.getLanguageInstruction('system');
-        expect(instruction, contains('根据系统语言设置'));
+      test('Language mode zh returns Chinese instruction', () {
+        final instruction = AiPrompts.getLanguageInstruction('zh');
+        expect(instruction, contains('Chinese'));
+        expect(instruction, contains('简体中文'));
       });
 
-      test('Language mode manual adds correct instruction for zh', () {
-        final instruction =
-            AiPrompts.getLanguageInstruction('manual', manualLanguage: 'zh');
-        expect(instruction, '请用中文输出摘要。');
+      test('Language mode en returns English instruction', () {
+        final instruction = AiPrompts.getLanguageInstruction('en');
+        expect(instruction, contains('English'));
       });
 
-      test('Language mode manual adds correct instruction for en', () {
-        final instruction =
-            AiPrompts.getLanguageInstruction('manual', manualLanguage: 'en');
-        expect(instruction, 'Please respond in English for the summary.');
+      test('Language mode ja returns Japanese instruction', () {
+        final instruction = AiPrompts.getLanguageInstruction('ja');
+        expect(instruction, contains('Japanese'));
+        expect(instruction, contains('日本語'));
       });
 
-      test('Language mode manual adds correct instruction for ja', () {
-        final instruction =
-            AiPrompts.getLanguageInstruction('manual', manualLanguage: 'ja');
-        expect(instruction, '摘要は日本語で出力してください。');
+      test('Invalid language code falls back to Chinese', () {
+        final instruction = AiPrompts.getLanguageInstruction('xx');
+        expect(instruction, contains('Chinese'));
       });
 
-      test('Invalid language mode handled gracefully', () {
-        final instruction = AiPrompts.getLanguageInstruction('invalid_mode');
-        expect(instruction, contains('根据系统语言设置'));
-      });
-
-      test('Invalid manual language falls back to system', () {
-        final instruction =
-            AiPrompts.getLanguageInstruction('manual', manualLanguage: 'fr');
-        expect(instruction, contains('根据系统语言设置'));
-      });
-
-      test('chapterSummary includes language instruction when provided', () {
-        final prompt = AiPrompts.chapterSummary(
-          chapterTitle: 'Chapter 1',
-          content: 'Test content',
-          languageInstruction: '请用中文输出摘要。',
-        );
-        expect(prompt, contains('语言要求：请用中文输出摘要。'));
-      });
-
-      test('chapterSummary excludes language instruction when not provided',
-          () {
-        final prompt = AiPrompts.chapterSummary(
-          chapterTitle: 'Chapter 1',
-          content: 'Test content',
-        );
-        expect(prompt, isNot(contains('语言要求')));
-      });
-
-      test('bookSummaryFromPreface includes language instruction when provided',
-          () {
-        final prompt = AiPrompts.bookSummaryFromPreface(
-          title: 'Book',
-          author: 'Author',
-          prefaceContent: 'Preface',
-          languageInstruction: 'Please respond in English.',
-        );
-        expect(prompt, contains('语言要求：Please respond in English.'));
-      });
-
-      test('bookSummary includes language instruction when provided', () {
-        final prompt = AiPrompts.bookSummary(
-          title: 'Book',
-          author: 'Author',
-          chapterSummaries: 'Summaries',
-          languageInstruction: '摘要は日本語で出力してください。',
-        );
-        expect(prompt, contains('语言要求：摘要は日本語で出力してください。'));
+      test('Unsupported language falls back to Chinese', () {
+        final instruction = AiPrompts.getLanguageInstruction('fr');
+        expect(instruction, contains('Chinese'));
       });
     });
   });

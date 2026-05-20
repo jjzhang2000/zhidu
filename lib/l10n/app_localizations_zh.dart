@@ -1,5 +1,3 @@
-// ignore: unused_import
-import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -342,4 +340,105 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get restoreData => '恢复数据';
+
+  @override
+  String get promptBookTitleLabel => '书名：';
+
+  @override
+  String get promptBookAuthorLabel => '作者：';
+
+  @override
+  String get promptBookChaptersLabel => '章节数：';
+
+  @override
+  String promptBookSummary(Object title, Object author, Object chapterSummaries, Object chaptersLine) {
+    return '''请根据以下各章节摘要，为全书生成一份完整的书籍摘要，使用 Markdown 格式输出。
+
+书籍信息：
+- 书名：$title
+- 作者：$author
+$chaptersLine
+
+各章节摘要：
+$chapterSummaries
+
+要求：
+1. **长度：400-600 字**（约 200-300 英文单词）- 这是严格要求
+   - 不要超过 700 字
+   - 不要少于 300 字
+2. 按内容分段输出，使用 Markdown 标题（##）和段落组织，便于阅读
+3. 综合各章节内容，提炼全书核心观点和知识体系
+4. 必须包含本书的适用读者人群或技术要求（如需要的基础知识、前置技能等）
+5. 使用 Markdown 格式输出，可以包含标题、列表、粗体等格式
+6. 输出结构：
+   - `## 内容简介` - 全书内容概览
+   - `## 核心主题` - 全书核心主题，用段落描述
+   - `## 关键要点` - 最重要的 3-5 个概念要点
+   - `## 适合读者` - 谁应该阅读此书以及需要什么前置知识
+
+**重要**：不要输出占位符文本如"（全书内容概述）"或"（核心主题）"。基于章节摘要生成实际的摘要内容。
+''';
+  }
+
+  @override
+  String promptPrefaceSummary(Object title, Object author, Object prefaceContent, Object chaptersLine) {
+    return '''请根据以下前言/序言内容，为书籍生成一份内容介绍，使用 Markdown 格式输出。
+
+书籍信息：
+- 书名：$title
+- 作者：$author
+$chaptersLine
+
+前言/序言内容：
+$prefaceContent
+
+要求：
+1. **长度：400-600 字**（约 200-300 英文单词）- 这是严格要求
+   - 不要超过 700 字
+   - 不要少于 300 字
+2. 按内容分段输出，使用 Markdown 标题（##）和段落组织，便于阅读
+3. 基于前言/序言内容提炼书籍主题和核心内容
+4. 必须包含本书的适用读者人群或技术要求（如需要的基础知识、前置技能等）
+5. 使用 Markdown 格式输出，可以包含标题、列表、粗体等格式
+6. 输出结构：
+   - `## 内容简介` - 书籍内容概览
+   - `## 核心主题` - 主要主题和关键思想，用段落描述
+   - `## 适合读者` - 谁应该阅读此书以及需要什么前置知识
+
+**重要**：不要输出占位符文本如"（内容概述）"或"（核心内容描述）"。基于前言生成实际的摘要内容。
+''';
+  }
+
+  @override
+  String promptChapterSummary(Object chapterTitle, Object content) {
+    return '''请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
+
+${chapterTitle != '' ? '原始章节标识：$chapterTitle（可能不准确，请根据内容判断真实标题）\n' : ''}章节内容：
+$content
+
+要求：
+1. **第一行必须输出章节的真实标题**，格式为：`## [真实标题]`
+   - **必须保留章节编号**（如"第 X 章"、"Chapter X"、"X."等）
+   - 标题格式示例："## 第 1 章 数据结构与算法基础"、"## Chapter 1: Introduction"、"## 1. 基础概念"
+   - 如果原始标识包含编号，保留编号并提取完整标题
+   - 如果内容无明显标题，请根据内容提炼概括性标题（仍需包含编号）
+2. 标题行之后空一行，然后输出摘要正文
+3. **摘要长度：200-300 字**（约 100-150 英文单词）- 这是严格要求
+   - 不要超过 350 字
+   - 不要少于 150 字
+   - 重点关注要点，保持简洁
+4. 摘要正文使用 Markdown 标题（##）和段落组织，便于阅读
+5. 使用通俗易懂的语言，保持客观中立
+6. 输出结构：
+   - 以 `## [标题]` 开始（只显示标题，不显示"章节标题："这类字样）
+   - 然后是 `## 核心内容` 部分，包含主要要点
+   - 然后是 `## 关键要点`，包含 3-5 个要点
+   - 最后是 `## 总结` 部分
+
+**重要**：不要输出占位符文本如"（主要内容概述）"或"（章节总结）"。基于章节内容生成实际的摘要内容。
+''';
+  }
+
+
 }
+
