@@ -7,10 +7,12 @@ import '../log_service.dart';
 
 /// PDF 格式解析器
 ///
-/// 章节检测：逐页匹配中英文章节标题正则，自动跳过封面页。
+/// 章节检测：逐页匹配中英文章节标题正则，自动跳过封面页（首页文字 < 50 字符）。
+/// 不支持封面提取（直接返回 null）。
 class PdfParser implements BookFormatParser {
   final LogService _log = LogService();
 
+  /// 检测 PDF 章节结构：封面检测 → 逐页正则匹配章节标题 → 边界转 Chapter 列表
   @override
   Future<List<Chapter>> getChapters(String filePath) async {
     final file = File(filePath);
@@ -139,6 +141,7 @@ class PdfParser implements BookFormatParser {
     }
   }
 
+  /// 提取章节内容：按 startPage-endPage 范围提取页面文本，转换为 <p> 包裹的 HTML
   @override
   Future<Chapter> getChapterContent(
       String filePath, Chapter chapter) async {
@@ -199,10 +202,5 @@ class PdfParser implements BookFormatParser {
       _log.e('PdfParser', '获取章节内容失败', e, stackTrace);
       return chapter;
     }
-  }
-
-  @override
-  Future<String?> extractCover(String filePath) async {
-    return null;
   }
 }

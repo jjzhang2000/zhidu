@@ -22,6 +22,9 @@ dependencies:
   image: ^4.3.0
   xml: ^6.5.0
   
+  # HTML解析
+  html: ^0.15.6
+
   # UI组件
   flutter_html: ^3.0.0-beta.2
   markdown: ^7.2.1

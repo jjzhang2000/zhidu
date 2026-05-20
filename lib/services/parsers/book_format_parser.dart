@@ -10,9 +10,6 @@ abstract class BookFormatParser {
 
   /// 获取指定章节的完整 HTML 内容
   Future<Chapter> getChapterContent(String filePath, Chapter chapter);
-
-  /// 提取封面图片，无封面时返回 null
-  Future<String?> extractCover(String filePath);
 }
 
 /// 文件格式解析器注册表（注册表模式）
