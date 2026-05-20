@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-20**: epub_service 封面提取日志降级 — `_extractCover`/`_extractCoverFromArchive`/`parseEpubFile` 回退路径 catch 从 `_log.e`+堆栈降为 `_log.w`（无异常dump）；EpubReader 解析失败属可恢复回退，不应报 error
 **2026-05-19**: epub_parser + pdf_parser 僵尸代码清理 — epub 删除 6 个死方法 `_extractChapterTitles`/`_extractTitleFromPath`/`_parseContainerXml`/`_parseOpfFile`/`_parseNavigationFile`/`_findEpubChapterByIndex`+2个未用 import（1139→629 行）；pdf 删除冗余文件头/分节符/内联注释、死代码 `extractCover` 文件检查、3个未用 import（438→208 行）
 **2026-05-19**: book_format_parser.dart 格式整理 — 抽象方法补一行 `///` 注释，两方法间隔统一，类属性与后续方法统一间距
 **2026-05-19**: format_registry 合并到 book_format_parser — FormatRegistry 类合并入接口文件，删除死代码 `initialize()`；删除 `format_registry.dart`；更新 4 处 import + 3 处测试引用 + 文档；去掉冗余注释（286→42 行）

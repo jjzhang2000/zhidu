@@ -112,11 +112,9 @@ class EpubService {
           chapterTitles = _extractChapterTitles(epubBook.chapters!);
         }
 
-      } catch (e, stackTrace) {
-        _log.e('EpubService', '使用EpubReader解析失败', e);
-        _log.e('EpubService', '堆栈', stackTrace);
+      } catch (_) {
+        _log.w('EpubService', 'EpubReader 解析失败，回退到 archive 方案');
 
-        // 回退方案：使用 archive 直接解析 EPUB
         final archive = ZipDecoder().decodeBytes(bytes);
 
         // 解析 container.xml 获取元数据
@@ -552,9 +550,8 @@ class EpubService {
           return coverPath;
         }
       }
-    } catch (e, stackTrace) {
-      _log.e('EpubService', '提取封面失败', e);
-      _log.e('EpubService', '堆栈', stackTrace);
+    } catch (e, _) {
+      _log.w('EpubService', 'EpubReader 提取封面失败，回退到 archive 方案');
     }
 
     return await _extractCoverFromArchive(bytes, bookId);
@@ -615,7 +612,7 @@ class EpubService {
         return coverPath;
       }
     } catch (e) {
-      _log.e('EpubService', '从archive提取封面失败', e);
+      _log.w('EpubService', 'archive 回退方案也未找到封面');
     }
     return null;
   }

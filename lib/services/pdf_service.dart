@@ -223,7 +223,7 @@ class PdfService {
       _log.info('PdfService', '封面已保存: $coverPath');
       return coverPath;
     } catch (e, stackTrace) {
-      _log.e('PdfService', '提取封面失败', e, stackTrace);
+      _log.e('PdfService', '提取封面渲染失败', e, stackTrace);
       return null;
     }
   }
