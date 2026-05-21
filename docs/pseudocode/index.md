@@ -354,6 +354,13 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-21: 删除 `_callAI` + 统一 `dart:io` `HttpClient`
+
+- **删除**: `_callAI()` 阻塞方法（~70行）、`_httpClient` 字段、`setMockClient()`、`dispose()` 僵尸方法
+- **统一**: `testConnection` 改用 `_callAIStream('Hello')`；`fetchAvailableModels` 改用 `HttpClient()`
+- **移除**: `package:http` / `http_testing` 依赖；3 个非流式方法的伪代码文档
+- **简化**: `resetForTest` 仅重置 `_config`；区域编号从 7 个缩减为 6 个
+
 #### 2026-05-21: 消除 systemMessage + translateHtml 迁移至 l10n + 回复语言指令嵌入提示词
 
 - **消除**: `_callAIStream` / `_callAI` / `_buildMessages` 移除 `systemMessage` 参数；消息列表仅含 `user` role

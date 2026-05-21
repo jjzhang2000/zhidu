@@ -20,7 +20,6 @@ CLASS AIService:
     // 私有命名构造函数 - 防止外部实例化
     PRIVATE CONSTRUCTOR _internal():
         _config = null
-        _httpClient = null
 ```
 
 ---
@@ -57,7 +56,6 @@ CLASS AiSettings:
 ```pseudocode
 PRIVATE PROPERTIES:
     _config: AiSettings?          // AI 配置对象（直接使用 AiSettings）
-    _httpClient: http.Client?     // HTTP 客户端（可被测试替换）
     _log: LogService              // 日志服务实例
 ```
 
@@ -95,16 +93,6 @@ ASYNC METHOD init():
 │  初始化完成                                                  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
-```
-
----
-
-### dispose() - 清理资源
-
-```pseudocode
-METHOD dispose():
-    // 移除监听器
-    SettingsService().aiSettings.removeListener(_onAiSettingsChanged)
 ```
 
 ---
@@ -156,70 +144,6 @@ PUBLIC PROPERTY isConfigured -> Boolean:
 
 ---
 
-### generateFullChapterSummary() - 生成章节摘要
-
-```pseudocode
-ASYNC METHOD generateFullChapterSummary(
-    content: String,
-    chapterTitle: String? = null,
-    bookId: String? = null
-) -> String?:
-    IF _config == null OR NOT _config.isValid:
-        _log.w('AIService', 'AI配置未设置或API Key无效')
-        RETURN null
-    
-    outputLanguage = await _resolveOutputLanguage(
-        SettingsService().settings.languageSettings,
-        content: content,
-        bookId: bookId
-    )
-    
-    loc = _getPromptLoc(outputLanguage)
-    
-    prompt = AiPrompts.chapterSummary(
-        loc: loc,
-        chapterTitle: chapterTitle,
-        content: content
-    )
-    
-    TRY:
-        RETURN await _callAI(prompt)
-    
-    CATCH e:
-        _log.e('AIService', '生成章节摘要失败', e)
-        RETURN null
-```
-
-**生成流程图:**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│         generateFullChapterSummary() 生成流程                │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  输入: content, chapterTitle                                 │
-│      ↓                                                      │
-│  检查配置有效性                                              │
-│      ├─ 无效 → RETURN null                                  │
-│      ↓                                                      │
-│  获取语言设置                                                │
-│      ↓                                                      │
-│  确定语言指令                                                │
-│      ├─ 'book' 模式 → 检测内容语言                          │
-│      ├─ 'system' 模式 → 使用系统语言                        │
-│      └─ 'manual' 模式 → 使用指定语言                        │
-│      ↓                                                      │
-│  构建提示词 (AiPrompts.chapterSummary)                       │
-│      ↓                                                      │
-│  调用 AI API (_callAI)                                       │
-│      ├─ 成功 → RETURN 摘要内容                              │
-│      └─ 失败 → RETURN null                                  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
 ### generateFullChapterSummaryStream() - 生成章节摘要（流式）
 
 ```pseudocode
@@ -252,46 +176,6 @@ STREAM METHOD generateFullChapterSummaryStream(
     
     CATCH e:
         _log.e('AIService', '生成章节摘要流失败', e)
-```
-
----
-
-### generateBookSummaryFromPreface() - 基于前言生成全书摘要
-
-```pseudocode
-ASYNC METHOD generateBookSummaryFromPreface(
-    title: String, 
-    author: String, 
-    prefaceContent: String, 
-    totalChapters: int? = null,
-    bookId: String? = null
-) -> String?:
-    IF _config == null OR NOT _config.isValid:
-        _log.w('AIService', 'AI服务未配置或API Key无效')
-        RETURN null
-    
-    outputLanguage = await _resolveOutputLanguage(
-        SettingsService().settings.languageSettings,
-        content: prefaceContent,
-        bookId: bookId
-    )
-    
-    loc = _getPromptLoc(outputLanguage)
-    
-    prompt = AiPrompts.bookSummaryFromPreface(
-        loc: loc,
-        title: title,
-        author: author,
-        prefaceContent: prefaceContent,
-        totalChapters: totalChapters
-    )
-    
-    TRY:
-        RETURN await _callAI(prompt)
-    
-    CATCH e:
-        _log.e('AIService', '基于前言生成全书摘要失败', e)
-        RETURN null
 ```
 
 ---
@@ -332,46 +216,6 @@ STREAM METHOD generateBookSummaryFromPrefaceStream(
     
     CATCH e:
         _log.e('AIService', '基于前言生成全书摘要流失败', e)
-```
-
----
-
-### generateBookSummary() - 基于章节摘要生成全书摘要
-
-```pseudocode
-ASYNC METHOD generateBookSummary(
-    title: String, 
-    author: String, 
-    chapterSummaries: String, 
-    totalChapters: int? = null,
-    bookId: String? = null
-) -> String?:
-    IF _config == null OR NOT _config.isValid:
-        _log.w('AIService', 'AI服务未配置或API Key无效')
-        RETURN null
-    
-    outputLanguage = await _resolveOutputLanguage(
-        SettingsService().settings.languageSettings,
-        content: chapterSummaries,
-        bookId: bookId
-    )
-    
-    loc = _getPromptLoc(outputLanguage)
-    
-    prompt = AiPrompts.bookSummary(
-        loc: loc,
-        title: title,
-        author: author,
-        chapterSummaries: chapterSummaries,
-        totalChapters: totalChapters
-    )
-    
-    TRY:
-        RETURN await _callAI(prompt)
-    
-    CATCH e:
-        _log.e('AIService', '生成全书摘要失败', e)
-        RETURN null
 ```
 
 ---
@@ -723,42 +567,6 @@ METHOD convertLanguageCodeToStandard(languageCode: String) -> String:
 
 ---
 
-### _callAI() - 调用 AI API
-
-```pseudocode
-PRIVATE ASYNC METHOD _callAI(prompt: String) -> String?:
-    url = Uri.parse('{_config.baseUrl}/chat/completions')
-    
-    client = _httpClient ?? http.Client()
-    
-    messages = [{'role': 'user', 'content': prompt}]
-    
-    response = await client.post(
-        url,
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer {_config.apiKey}'
-        },
-        body: jsonEncode({
-            'model': _config.model,
-            'messages': messages,
-            'temperature': 0.7,
-            'max_tokens': 1000
-        })
-    )
-    
-    IF response.statusCode == 200:
-        json = jsonDecode(response.body)
-        RETURN json['choices']?[0]?['message']?['content']
-    
-    ELSE:
-        _log.e('AIService', 
-            'AI API调用失败：{response.statusCode} - {response.body}')
-        RETURN null
-```
-
----
-
 ### _callAIStream() - 调用 AI API（流式）
 
 ```pseudocode
@@ -950,41 +758,14 @@ PUBLIC METHOD updateConfig(settings: AiSettings):
 
 ```pseudocode
 PUBLIC ASYNC METHOD testConnection() -> Boolean:
-    // 检查配置有效性
-    IF _config == null OR NOT _config.isValid:
+    IF NOT isConfigured:
         _log.w('AIService', '测试连接失败：配置无效')
         RETURN false
     
     TRY:
-        // 构建请求 URL
-        url = Uri.parse('{_config.baseUrl}/chat/completions')
-        
-        // 获取客户端
-        client = _httpClient ?? http.Client()
-        
-        // 发送简单测试请求
-        response = await client.post(
-            url,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer {_config.apiKey}'
-            },
-            body: jsonEncode({
-                'model': _config.model,
-                'messages': [{'role': 'user', 'content': 'Hello'}],
-                'temperature': 0.7,
-                'max_tokens': 10
-            })
-        )
-        
-        // 检查响应状态
-        IF response.statusCode == 200:
-            _log.d('AIService', '测试连接成功')
+        AWAIT FOR _ IN _callAIStream('Hello'):
             RETURN true
-        
-        ELSE:
-            _log.w('AIService', '测试连接失败: {response.statusCode}')
-            RETURN false
+        RETURN false
     
     CATCH e:
         _log.e('AIService', '测试连接异常', e)
@@ -993,45 +774,14 @@ PUBLIC ASYNC METHOD testConnection() -> Boolean:
 
 ---
 
-## 测试支持方法
-
 ### resetForTest() - 重置服务状态
 
 ```pseudocode
 PUBLIC STATIC METHOD resetForTest():
     _instance._config = null
-    _instance._httpClient = null
 ```
 
 ---
-
-## 流式与非流式方法对比
-
-| 非流式方法 | 流式方法 | 返回值类型 | 使用场景 |
-|-----------|---------|-----------|---------|
-| generateFullChapterSummary() | generateFullChapterSummaryStream() | String? / Stream<String> | 需要实时反馈时使用流式 |
-| generateBookSummary() | generateBookSummaryStream() | String? / Stream<String> | 需要实时反馈时使用流式 |
-| generateBookSummaryFromPreface() | generateBookSummaryFromPrefaceStream() | String? / Stream<String> | 需要实时反馈时使用流式 |
-
-**流式方法特点:**
-1. 使用 `Stream<String>` 返回类型
-2. 内部调用 `_callAIStream()` 而非 `_callAI()`
-3. 支持 SSE (Server-Sent Events) 数据解析
-4. 可以实时获取 AI 生成的内容片段
-5. UI 可以通过 `await for` 循环接收内容更新
-
-**SSE 数据格式:**
-```
-data: {"choices":[{"delta":{"content":"内容片段"},"index":0,"finish_reason":null}]}
-data: [DONE]
-```
-
-### setMockClient() - 设置 Mock HTTP 客户端
-
-```pseudocode
-PUBLIC METHOD setMockClient(client: MockClient):
-    _httpClient = client
-```
 
 ---
 
@@ -1118,7 +868,8 @@ Body:
 
 ## 版本历史
 
-- **2026-05-21**: 彻底消除 systemMessage — 删除 `_getLanguageInstructionForModel()`/`_getLanguageInstructionForLanguage()`；新增 `_resolveOutputLanguage()`/`_getPromptLoc(languageCode)`；`_callAIStream`/`_callAI`/`_buildMessages` 移除 `systemMessage` 参数；提示词语言指令内嵌至 l10n 模板，`loc` 由 AI 输出语言决定
+- **2026-05-21**: 删除 `_callAI` + 统一 `dart:io` `HttpClient` — 删除 `_callAI()` 阻塞方法（~70行）、`_httpClient` 字段、`setMockClient()` 及 `package:http`/`http_testing` 依赖；`testConnection` 改用 `_callAIStream('Hello')`；`fetchAvailableModels` 改用 `HttpClient()`；删除 `dispose()` 僵尸方法；删除 3 个非流式方法的伪代码；`resetForTest` 简化为仅重置 `_config`
+- **2026-05-21**: 彻底消除 systemMessage — 删除 `_getLanguageInstructionForModel()`/`_getLanguageInstructionForLanguage()`；新增 `_resolveOutputLanguage()`/`_getPromptLoc(languageCode)`；`_callAIStream`/`_buildMessages` 移除 `systemMessage` 参数；提示词语言指令内嵌至 l10n 模板，`loc` 由 AI 输出语言决定
 - **2026-05-20**: AiPrompts 提示词 l10n 化 + 占位符消除 — 删除 `_englishBookSummary`/`_englishBookSummaryFromPreface`/`_englishChapterSummary`/`_englishTranslateHtml`/`_getLanguageName` 5 个死方法；`getLanguageInstruction` 简化签名
   - 合并 ChapterScreen 和 AIService 内部两处重复的「元数据→内容」源语言检测模式
   - `_detectLanguageFromMetadataAndContentWithBookId` 简化为委托调用

@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.5 | **更新日期**: 2026-05-21 | **基于代码版本**: v1.3
+> **文档版本**: v2.6 | **更新日期**: 2026-05-21 | **基于代码版本**: v1.3
 
 ---
 
@@ -491,7 +491,7 @@ SummaryService.getBookSummaryContent()
 
 | 日期 | 更新内容 |
 |------|----------|
-| 2026-05-21 | 消除 systemMessage：`_callAIStream`/`_callAI` 移除 `systemMessage`；新增 `_resolveOutputLanguage()`/`_getPromptLoc(langCode)`；AiPrompts 所有方法移除 `outputLanguage` 参数；`translateHtml` 硬编码三语提示词迁移至 l10n；回复语言指令直接嵌入 l10n 模板首行 |
+| 2026-05-21 | 删除 `_callAI` + 统一 `dart:io` `HttpClient`：`testConnection` 改用 `_callAIStream`；`fetchAvailableModels` 改用 `HttpClient()`；删除 `dispose`/`_httpClient`/`setMockClient`；`package:http`/`http_testing` 依赖移除 |
 | 2026-05-19 | fix: 删除失败 SnackBar 硬编码中文改 i18n key `loc.failed` |
 | 2026-05-19 | fix: BookCard 删除检查 deleteBook() 返回值，防止 IO 失败时目录残留 |
 | 2026-05-19 | HomeScreen + BookshelfScreen 合并为单层 Scaffold；删除 GlobalKey/嵌套 Scaffold/重复 BookService 实例 |

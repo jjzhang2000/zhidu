@@ -5,16 +5,12 @@
 // 主要职责：
 // - 加载和管理AI配置（API Key、模型、Base URL等）
 // - 封装AI API调用逻辑（兼容智谱/通义千问等OpenAI兼容接口）
-// - 提供章节摘要、全书摘要等AI生成能力
-//
-// 依赖：
-// - ai_prompts.dart：AI提示词模板
-// - log_service.dart：日志服务
-// - http包：HTTP请求
+// - 提供章节摘要、全书摘要、翻译等 AI 生成能力（流式）
 //
 // 调用方：
-// - summary_service.dart：摘要生成服务
-// - settings_screen.dart：设置页面（检查AI配置状态）
+// - summary_service.dart：摘要生成与翻译
+// - chapter_screen.dart：语言检测与翻译判断
+// - ai_config_screen.dart：连接测试、模型获取
 // ============================================================================
 
 import 'dart:convert';
@@ -22,8 +18,6 @@ import 'dart:io';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart' as http_testing;
 import 'ai_prompts.dart';
 import 'log_service.dart';
 import 'settings_service.dart';
@@ -36,16 +30,12 @@ import '../l10n/app_localizations.dart';
 ///
 /// 主要职责：
 /// - 初始化时加载AI配置文件
-/// - 提供章节摘要生成接口
-/// - 提供全书摘要生成接口（基于前言/章节摘要）
-/// - 封装HTTP请求和响应处理逻辑
+/// - 提供章节摘要、全书摘要、翻译的流式生成接口
+/// - 提供语言检测与翻译判断
+/// - 封装HTTP请求和SSE流式响应处理
 ///
 /// 设计模式：
 /// - 单例模式：确保全局只有一个AIService实例
-///
-/// 调用方：
-/// - summary_service.dart：调用generateFullChapterSummary、generateBookSummary等方法
-/// - settings_screen.dart：检查isConfigured属性
 class AIService {
   /// 单例实例
   static final AIService _instance = AIService._internal();
@@ -59,32 +49,18 @@ class AIService {
   /// AI配置对象，初始化时从SettingsService加载
   AiSettings? _config;
 
-  /// HTTP客户端（可被测试替换）
-  http.Client? _httpClient;
-
   /// 日志服务实例
   final _log = LogService();
 
   // ==========================================================================
-  // 区域1：测试辅助方法
+  // 区域1：生命周期管理
   // ==========================================================================
 
   /// 测试用：重置服务状态
   @visibleForTesting
   static void resetForTest() {
     AIService._instance._config = null;
-    AIService._instance._httpClient = null;
   }
-
-  /// 测试用：设置Mock HTTP客户端
-  @visibleForTesting
-  void setMockClient(http_testing.MockClient client) {
-    _httpClient = client;
-  }
-
-  // ==========================================================================
-  // 区域2：生命周期管理
-  // ==========================================================================
 
   /// 方法名：init
   /// 功能：初始化AI服务，从SettingsService加载API配置
@@ -104,15 +80,6 @@ class AIService {
 
     // 监听AI设置变化
     SettingsService().aiSettings.addListener(_onAiSettingsChanged);
-  }
-
-  /// 方法名：dispose
-  /// 功能：清理资源，移除监听器
-  ///
-  /// 调用时机：
-  /// - 应用退出时调用
-  void dispose() {
-    SettingsService().aiSettings.removeListener(_onAiSettingsChanged);
   }
 
   /// 方法名：_onAiSettingsChanged
@@ -152,7 +119,7 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域3：配置管理
+  // 区域2：配置管理
   // ==========================================================================
 
   /// 属性名：isConfigured
@@ -195,13 +162,10 @@ class AIService {
     }
 
     try {
-      final result = await _callAI('Hello');
-      if (result != null) {
+      await for (final _ in _callAIStream('Hello')) {
         return true;
-      } else {
-        _log.w('AIService', '测试连接失败：AI返回null');
-        return false;
       }
+      return false;
     } catch (e) {
       _log.e('AIService', '测试连接异常', e);
       return false;
@@ -226,20 +190,20 @@ class AIService {
   }) async {
     try {
       final url = Uri.parse('$baseUrl/models');
-      final client = _httpClient ?? http.Client();
+      final httpClient = HttpClient();
+      httpClient.connectionTimeout = const Duration(seconds: 10);
 
-      final headers = {
-        'Content-Type': 'application/json',
-      };
-
+      final request = await httpClient.getUrl(url);
+      request.headers.set('Content-Type', 'application/json');
       if (apiKey.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $apiKey';
+        request.headers.set('Authorization', 'Bearer $apiKey');
       }
 
-      final response = await client.get(url, headers: headers);
+      final response = await request.close();
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
+        final body = await response.transform(utf8.decoder).join();
+        final json = jsonDecode(body);
         if (json['data'] != null && json['data'] is List) {
           final models = (json['data'] as List)
               .map((m) => m['id']?.toString())
@@ -264,7 +228,7 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域4：核心AI调用（所有摘要方法的基础）
+  // 区域3：核心AI调用（所有摘要方法的基础）
   // ==========================================================================
 
   /// 构建 AI 请求消息列表
@@ -272,83 +236,6 @@ class AIService {
     final messages = <Map<String, String>>[];
     messages.add({'role': 'user', 'content': prompt});
     return messages;
-  }
-
-  /// 方法名：_callAI
-  /// 功能：调用 AI API 发送请求并获取响应
-  ///
-  /// 参数：
-  /// - prompt: 发送给 AI 的提示词
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的内容字符串
-  /// - 失败时返回 null
-  ///
-  /// 使用场景：
-  /// - 所有 AI 调用的统一入口
-  ///
-  /// 算法逻辑：
-  /// 1. 构建请求 URL：{baseUrl}/chat/completions
-  /// 2. 设置请求头：Content-Type、Authorization
-  /// 3. 构建请求体：模型名称、消息列表、温度参数、最大 token 数
-  /// 4. 发送 POST 请求
-  /// 5. 如果状态码为 200，解析响应 JSON 并提取内容
-  /// 6. 如果状态码非 200，记录错误日志并返回 null
-  ///
-  /// 请求体格式：
-  /// ```json
-  /// {
-  ///   "model": "glm-4-flash",
-  ///   "messages": [
-  ///     {"role": "system", "content": "系统指令"},
-  ///     {"role": "user", "content": "用户提示词"}
-  ///   ],
-  ///   "temperature": 0.7,
-  ///   "max_tokens": 1000
-  /// }
-  /// ```
-  ///
-  /// 响应体格式：
-  /// ```json
-  /// {
-  ///   "choices": [
-  ///     {
-  ///       "message": {
-  ///         "content": "AI 生成的内容"
-  ///       }
-  ///     }
-  ///   ]
-  /// }
-  /// ```
-  Future<String?> _callAI(String prompt) async {
-    final url = Uri.parse('${_config!.baseUrl}/chat/completions');
-
-    final client = _httpClient ?? http.Client();
-
-    final response = await client.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${_config!.apiKey}',
-      },
-      body: jsonEncode({
-        'model': _config!.model,
-        'messages': _buildMessages(prompt),
-        'temperature': 0.7,
-        'max_tokens': 1000,
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
-      return json['choices']?[0]?['message']?['content'];
-    } else {
-      _log.e(
-        'AIService',
-        'AI API 调用失败：${response.statusCode} - ${response.body}',
-      );
-      return null;
-    }
   }
 
   /// 方法名：_callAIStream
@@ -376,11 +263,10 @@ class AIService {
   /// {
   ///   "model": "glm-4-flash",
   ///   "messages": [
-  ///     {"role": "system", "content": "系统指令"},
   ///     {"role": "user", "content": "用户提示词"}
   ///   ],
   ///   "temperature": 0.7,
-  ///   "max_tokens": 1000,
+  ///   "max_tokens": 8000,
   ///   "stream": true
   /// }
   /// ```
@@ -501,7 +387,7 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域5：摘要生成 - 流式版
+  // 区域4：摘要生成 - 流式版
   // ==========================================================================
 
   /// 方法名：generateFullChapterSummaryStream
@@ -509,7 +395,7 @@ class AIService {
   ///
   /// 参数：
   /// - content: 章节内容的文本
-  /// - chapterTitle: 章节标题（可选，用于提示词模板）
+  /// - chapterTitle: 章节标题（可选）
   /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
   ///
   /// 返回值：
@@ -518,14 +404,6 @@ class AIService {
   ///
   /// 调用方：
   /// - summary_service.dart 的 generateSummaryStream 方法
-  ///
-  /// 算法逻辑：
-  /// 1. 记录详细日志（内容长度、章节标题）
-  /// 2. 检查 AI 配置是否有效（无效则返回空流）
-  /// 3. 从 SettingsService 读取语言设置
-  /// 4. 使用 AiPrompts 构建提示词
-  /// 5. 调用_callAIStream 方法发送流式请求
-  /// 6. 逐个返回内容片段
   Stream<String> generateFullChapterSummaryStream(
     String content, {
     String? chapterTitle,
@@ -660,7 +538,7 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域7：翻译
+  // 区域5：翻译
   // ==========================================================================
 
   /// 方法名：translateHtmlStream
@@ -736,7 +614,7 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域8：语言检测与转换
+  // 区域6：语言检测与转换
   // ==========================================================================
 
   /// 从书籍元数据和内容中检测语言
