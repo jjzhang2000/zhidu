@@ -2,7 +2,7 @@
 
 ## 概述
 
-EPUB 文件解析服务，负责 EPUB 文件的导入、元数据提取、章节解析、封面提取。是 `BookService.importBook()` 的核心解析组件。
+EPUB 文件解析服务，负责 EPUB 文件的导入、元数据提取、章节标题计数、封面提取。是 `BookService.importBook()` 的核心解析组件。
 
 ## 源文件
 
@@ -20,118 +20,89 @@ class EpubService {
   factory EpubService() => _instance;
   EpubService._internal();
   
-  final _uuid = const Uuid();
   final _log = LogService();
 }
 ```
 
 ## 方法列表
 
-### parseEpubFile(String filePath) → Future<Book?>
+### parseEpubFile(String filePath, String bookId) → Future<Book?>
 
 解析 EPUB 文件并创建 Book 对象。
 
 ```
 参数:
   filePath: EPUB 文件的完整路径
+  bookId: 书籍唯一标识符（由 BookService 生成）
 
 返回:
-  成功: Book 对象（含元数据、章节列表、封面）
+  成功: Book 对象（含元数据、章节计数、封面）
   失败: null
 
 处理流程:
-  1. 使用 epub_plus 库读取 EPUB 文件 (EpubReader.readFromUri)
-  2. 提取元数据（title, author）或从文件名回退
-  3. 生成 bookId (UUID v4)
-  4. 解析章节列表 (_extractChapters)
-  5. 提取封面图片 (_extractCover)
-  6. 读取同目录 metadata.opf (OpfReaderService)
-     → 合并 OPF 元数据（优先覆盖）
-  7. 创建 Book 对象
+  1. EpubReader.readBook() 解析 EPUB
+     → 提取 title, author, chapterTitles
+  2. 解析失败时回退到 archive 方案
+     → _parseContainerXml() → _parseOpfFile() → _parseNavigationFile()
+  3. 标题回退: _extractTitleFromPath()
+  4. _extractCover() 提取封面（EpubReader → archive 回退）
+  5. 创建并返回 Book 对象
 ```
 
-### _extractChapters(EpubBook epubBook) → Future<List<Chapter>>
+### _extractChapterTitles(List<EpubChapter> chapters) → List<String>
 
-从 EPUB 结构中提取章节列表。
+从 EpubChapter 树中提取章节标题列表（递归遍历 subChapters）。
 
-```
-处理流程:
-  1. 尝试从 EPUB spine 或 toc 获取章节顺序
-  2. 对每个章节项提取 title + href
-  3. 构造 ChapterLocation 对象
-  4. 生成唯一章节 ID
-  5. 构建 Chapter 列表
+### _extractTextFromHtml(String html) → String
 
-支持:
-  - 标准 ToC (Table of Contents)
-  - NCX 导航文件
-  - NAV HTML 导航文件
-  - Spine 线性顺序（回退方案）
-```
+从 HTML 字符串中去除 script/style 标签、HTML 标签、实体，返回纯文本。
 
-### _extractCover(EpubBook epubBook, String bookId) → Future<String?>
+### _extractTitleFromPath(String filePath) → String
 
-提取 EPUB 封面图片。
+从文件路径提取标题（去除扩展名，替换 _/- 为空格）。
 
-```
-处理流程:
-  1. 查找 EPUB 内部封面文件引用
-  2. 读取封面图片数据
-  3. 保存到 books/{bookId}/cover.{ext}
-  4. 返回封面路径
+### _parseContainerXml(Archive archive) → Map<String, String>?
 
-回退:
-  - 无内部封面时返回 null
-```
+解析 META-INF/container.xml，提取 OPF 文件路径。
 
-### _fileNameToTitle(String filePath) → String
+### _parseOpfFile(Archive archive) → Map<String, String?>?
 
-从文件路径提取标题（去除扩展名）。
+解析 OPF 文件，提取 title 和 author。
 
-### getChapterContent(String filePath, int chapterIndex) → Future<ChapterContent?>
+### _parseNavigationFile(Archive archive) → List<String>
 
-获取指定章节的内容（HTML + 纯文本）。
+解析 NCX/NAV 导航文件，提取章节标题列表。
 
-```
-参数:
-  filePath: EPUB 文件路径
-  chapterIndex: 章节索引
+### _extractCover(Uint8List bytes, String bookId) → Future<String?>
 
-返回:
-  ChapterContent { htmlContent, plainText }
+提取 EPUB 封面（EpubReader 主路径 → archive 回退）。
 
-处理流程:
-  1. 打开 EPUB 文件
-  2. 获取章节 HTML 文件路径
-  3. 读取 HTML 内容
-  4. 解析 HTML 提取纯文本（去除标签）
-  5. 返回 ChapterContent
-```
+### _extractCoverFromArchive(Uint8List bytes, String bookId) → Future<String?>
+
+从 archive 中按模式匹配提取封面图片。
 
 ## 数据流
 
 ```
 EPUB 文件
     ↓
-EpubService.parseEpubFile()
+EpubService.parseEpubFile(filePath, bookId)
     ↓
-EpubReader.readFromUri()  → EpubBook 对象
+EpubReader.readBook()  → title, author, chapters
+    ↓ (失败回退)
+_parseContainerXml() → _parseOpfFile() → _parseNavigationFile()
     ↓
-_extractChapters()         → List<Chapter>
-_extractCover()            → cover.jpg/png 路径
-OpfReaderService.readFromSameDirectory() → OpfMetadata
+_extractCover() → cover.jpg/png 路径
     ↓
-合并 OPF 元数据
-    ↓
-Book 对象（含元数据 + 章节列表 + 封面路径）
+Book 对象（id=bookId, title, author, totalChapters, coverPath）
 ```
 
 ## 依赖
 
 - `epub_plus`: EPUB 解析核心库
-- `OpfReaderService`: 外部 OPF 元数据读取
+- `archive`: ZIP 解压（回退方案）
+- `xml`: XML 解析（container.xml/OPF/NCX）
+- `path`: 文件名提取
 - `LogService`: 日志
 - `StorageConfig`: 封面存储路径
-- `Book` / `BookFormat` / `Chapter`: 数据模型
-- `File`: 文件操作
-- `uuid`: UUID 生成
+- `Book` / `BookFormat`: 数据模型

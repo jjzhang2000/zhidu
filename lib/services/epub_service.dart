@@ -1,21 +1,7 @@
 // ============================================================================
 // 文件名：epub_service.dart
-// 功能：EPUB电子书解析服务，提供EPUB文件的解析和提取功能
+// 功能：EPUB 电子书解析服务（单例模式）
 // ============================================================================
-//
-// 主要职责：
-// - 解析EPUB文件结构，提取书籍元数据
-// - 提取封面图片并保存到本地
-// - 解析章节列表和内容
-// - 支持多种解析策略和回退方案
-//
-// 调用方：BookService.importBook()
-//
-// 技术要点：
-// - 使用epub_plus库进行标准解析
-// - 使用archive库处理ZIP解压（EPUB本质是ZIP）
-// - 使用xml库解析XML文件（container.xml、opf、ncx）
-// - 单例模式，全局唯一实例
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -28,32 +14,13 @@ import '../models/book.dart';
 import 'log_service.dart';
 import 'storage_config.dart';
 
-/// 类名：EpubService
-/// 功能：EPUB电子书解析服务（单例模式）
-/// 父类：无
-///
-/// 主要职责：
-/// - 解析EPUB文件获取书籍元数据
-/// - 提取封面图片
-/// - 获取章节列表和内容
-/// - 支持回退解析方案
-///
-/// 使用方式：
-/// ```dart
-/// final epubService = EpubService();
-/// final book = await epubService.parseEpubFile(filePath);
-/// ```
 class EpubService {
-  /// 单例实例
   static final EpubService _instance = EpubService._internal();
 
-  /// 工厂构造函数，返回单例实例
   factory EpubService() => _instance;
 
-  /// 私有构造函数，防止外部创建实例
   EpubService._internal();
 
-  /// 日志服务实例
   final _log = LogService();
 
   Future<Book?> parseEpubFile(String filePath, String bookId) async {
@@ -72,47 +39,38 @@ class EpubService {
       List<String> chapterTitles = [];
 
       try {
-        // 首选方案：使用EpubReader解析
         final epubBook = await EpubReader.readBook(bytes);
 
-        // 从 epubBook 获取元数据
         title = epubBook.title;
 
-        // 获取作者
         if (epubBook.authors?.isNotEmpty == true) {
           author = epubBook.authors!.join(', ');
         }
 
-        // 从 chapters 获取章节标题
         if (epubBook.chapters?.isNotEmpty == true) {
           chapterTitles = _extractChapterTitles(epubBook.chapters!);
         }
-
       } catch (_) {
         _log.w('EpubService', 'EpubReader 解析失败，回退到 archive 方案');
 
         final archive = ZipDecoder().decodeBytes(bytes);
 
-        // 解析 container.xml 获取元数据
         final containerInfo = _parseContainerXml(archive);
         if (containerInfo != null) {
           title = containerInfo['title'];
           author = containerInfo['author'];
         }
 
-        // 解析 OPF 文件获取元数据
         final opfInfo = _parseOpfFile(archive);
         if (opfInfo != null) {
           title ??= opfInfo['title'];
           author ??= opfInfo['author'];
         }
 
-        // 解析 NCX/NAV 文件获取章节列表
         chapterTitles = _parseNavigationFile(archive);
         _log.d('EpubService', '从导航文件获取章节数: ${chapterTitles.length}');
       }
 
-      // 最终回退：从文件路径提取书名
       if (title == null || title.isEmpty) {
         title = _extractTitleFromPath(filePath);
       }
@@ -120,7 +78,6 @@ class EpubService {
         author = '未知作者';
       }
 
-      // 提取封面图片
       String? coverPath;
       try {
         coverPath = await _extractCover(bytes, bookId);
@@ -153,7 +110,6 @@ class EpubService {
         if (chapter.title?.isNotEmpty == true) {
           titles.add(chapter.title!);
         }
-        // 递归处理子章节
         if (chapter.subChapters?.isNotEmpty == true) {
           traverseChapters(chapter.subChapters!, level + 1);
         }
@@ -162,115 +118,6 @@ class EpubService {
 
     traverseChapters(chapters, 0);
     return titles;
-  }
-
-  Future<String?> extractPrefaceContent(String filePath) async {
-    try {
-      final file = File(filePath);
-      if (!await file.exists()) return null;
-
-      final bytes = await file.readAsBytes();
-
-      try {
-        final epubBook = await EpubReader.readBook(bytes);
-
-        final prefacePatterns = [
-          '前言',
-          '序言',
-          '序',
-          '自序',
-          '代序',
-          '引言',
-          '导言',
-          'preface',
-          'introduction',
-          'prologue',
-        ];
-
-        final List<String> foundContents = [];
-
-        if (epubBook.chapters?.isNotEmpty == true) {
-          for (final chapter in epubBook.chapters!) {
-            final title = chapter.title?.toLowerCase() ?? '';
-            for (final pattern in prefacePatterns) {
-              if (title.contains(pattern.toLowerCase())) {
-                final content = _extractTextFromHtml(chapter.htmlContent ?? '');
-                if (content.isNotEmpty && content.length > 100) {
-                  foundContents.add(content);
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        if (foundContents.isNotEmpty) {
-          final combined = foundContents.take(3).join('\n\n');
-          if (combined.length > 5000) {
-            return combined.substring(0, 5000);
-          }
-          return combined;
-        }
-      } catch (e) {
-        _log.e('EpubService', '使用EpubReader提取前言失败', e);
-      }
-
-      return await _extractPrefaceFromArchive(bytes);
-    } catch (e) {
-      _log.e('EpubService', '提取前言内容失败', e);
-      return null;
-    }
-  }
-
-  Future<String?> _extractPrefaceFromArchive(Uint8List bytes) async {
-    try {
-      final archive = ZipDecoder().decodeBytes(bytes);
-
-      final prefacePatterns = [
-        '前言',
-        '序言',
-        '序',
-        '自序',
-        '代序',
-        '引言',
-        '导言',
-        'preface',
-        'introduction',
-        'prologue',
-      ];
-
-      final htmlFiles = <ArchiveFile>[];
-      for (final file in archive.files) {
-        final name = file.name.toLowerCase();
-        if ((name.endsWith('.html') || name.endsWith('.xhtml')) &&
-            !name.contains('nav') &&
-            !name.contains('toc')) {
-          htmlFiles.add(file);
-        }
-      }
-
-      for (final htmlFile in htmlFiles) {
-        final content = utf8.decode(htmlFile.content as List<int>);
-        final title = _extractTitleFromHtml(content).toLowerCase();
-
-        for (final pattern in prefacePatterns) {
-          if (title.contains(pattern.toLowerCase())) {
-            final text = _extractTextFromHtml(content);
-            if (text.isNotEmpty && text.length > 100) {
-              if (text.length > 5000) {
-                return text.substring(0, 5000);
-              }
-              return text;
-            }
-          }
-        }
-      }
-
-      return null;
-    } catch (e) {
-      _log.e('EpubService', '从archive提取前言失败', e);
-      return null;
-    }
   }
 
   String _extractTextFromHtml(String html) {
@@ -290,8 +137,7 @@ class EpubService {
 
   String _extractTitleFromPath(String filePath) {
     final fileName = p.basenameWithoutExtension(filePath);
-    final result = fileName.replaceAll('_', ' ').replaceAll('-', ' ');
-    return result;
+    return fileName.replaceAll('_', ' ').replaceAll('-', ' ');
   }
 
   Map<String, String>? _parseContainerXml(Archive archive) {
@@ -402,7 +248,7 @@ class EpubService {
       if (navFile == null) {
         for (final file in archive.files) {
           final name = file.name.toLowerCase();
-          if (name.contains('nav.') && name.endsWith('.html') ||
+          if ((name.contains('nav.') && name.endsWith('.html')) ||
               name.endsWith('.xhtml')) {
             if (name.contains('nav')) {
               navFile = file;
@@ -556,7 +402,6 @@ class EpubService {
       }
 
       if (coverFile != null) {
-        // 确定文件扩展名
         final extension = coverFile.name.toLowerCase().endsWith('.png')
             ? 'png'
             : 'jpg';
@@ -574,692 +419,4 @@ class EpubService {
     }
     return null;
   }
-
-  Future<List<ChapterInfo>> getChapterList(String filePath) async {
-    try {
-      final file = File(filePath);
-      if (!await file.exists()) {
-        return [];
-      }
-
-      final bytes = await file.readAsBytes();
-
-      try {
-        final epubBook = await EpubReader.readBook(bytes);
-
-        if (epubBook.chapters.isNotEmpty) {
-          final chapters = _extractChapterInfos(epubBook.chapters);
-          if (chapters.isNotEmpty) {
-            return chapters;
-          }
-        }
-
-        if (epubBook.schema?.navigation?.navMap != null &&
-            epubBook.schema!.navigation!.navMap!.points.isNotEmpty) {
-          final chapters = _extractChapterInfosFromNavigation(
-              epubBook.schema!.navigation!.navMap!.points);
-          if (chapters.isNotEmpty) {
-            return chapters;
-          }
-        }
-
-        if (epubBook.content?.html?.isNotEmpty == true) {
-          final chapters = _extractChapterInfosFromContent(
-              epubBook.content!.html!, epubBook.schema?.package?.spine?.items);
-          if (chapters.isNotEmpty) {
-            return chapters;
-          }
-        }
-      } catch (e) {
-        // EpubReader解析失败，使用archive回退方案
-      }
-
-      final archive = ZipDecoder().decodeBytes(bytes);
-      final chaptersFromNcx = _extractChapterInfosFromNcxArchive(archive);
-      if (chaptersFromNcx.isNotEmpty) {
-        return chaptersFromNcx;
-      }
-      return _extractChapterInfosFromArchive(archive);
-    } catch (e) {
-      _log.e('EpubService', '获取章节列表失败', e);
-      return [];
-    }
-  }
-
-  List<ChapterInfo> _extractChapterInfosFromNcxArchive(Archive archive) {
-    try {
-      ArchiveFile? ncxFile;
-      for (final file in archive.files) {
-        if (file.name.toLowerCase().endsWith('.ncx')) {
-          ncxFile = file;
-          break;
-        }
-      }
-
-      if (ncxFile == null) {
-        return [];
-      }
-
-      final content = utf8.decode(ncxFile.content as List<int>);
-      final document = XmlDocument.parse(content);
-      final navMap = document.findAllElements('navMap').firstOrNull;
-
-      if (navMap == null) {
-        return [];
-      }
-
-      List<ChapterInfo> parseNavPoints(Iterable<XmlElement> points, int level) {
-        final result = <ChapterInfo>[];
-        for (final navPoint in points) {
-          final textElements = navPoint
-                  .findElements('navLabel')
-                  .firstOrNull
-                  ?.findElements('text') ??
-              [];
-          final contentElements = navPoint.findElements('content');
-
-          if (textElements.isNotEmpty) {
-            final title = textElements.first.innerText.trim();
-            final href = contentElements.isNotEmpty
-                ? contentElements.first.getAttribute('src')
-                : null;
-
-            if (title.isNotEmpty) {
-              final childNavPoints = navPoint.findElements('navPoint');
-              final children = childNavPoints.isNotEmpty
-                  ? parseNavPoints(childNavPoints, level + 1)
-                  : <ChapterInfo>[];
-
-              result.add(ChapterInfo(
-                title: title,
-                href: href,
-                level: level,
-                children: children,
-              ));
-            }
-          }
-        }
-        return result;
-      }
-
-      final navPoints = navMap.findElements('navPoint');
-      return parseNavPoints(navPoints, 0);
-    } catch (e) {
-      _log.e('EpubService', '从archive解析toc.ncx失败', e);
-      return [];
-    }
-  }
-
-  List<ChapterInfo> _extractChapterInfosFromNavigation(
-      List<EpubNavigationPoint> navPoints) {
-    final result = <ChapterInfo>[];
-
-    void traverseNavPoints(List<EpubNavigationPoint> points, int level) {
-      for (final point in points) {
-        final title = point.navigationLabels.isNotEmpty
-            ? point.navigationLabels.first.text ?? '未知章节'
-            : '未知章节';
-        final href = point.content?.source;
-        result.add(ChapterInfo(
-          title: title,
-          href: href,
-          level: level,
-          children: [],
-        ));
-        // 递归处理子导航点
-        if (point.childNavigationPoints.isNotEmpty) {
-          traverseNavPoints(point.childNavigationPoints, level + 1);
-        }
-      }
-    }
-
-    traverseNavPoints(navPoints, 0);
-    return result;
-  }
-
-  List<ChapterInfo> _extractChapterInfosFromContent(
-      Map<String, EpubTextContentFile> htmlFiles,
-      List<EpubSpineItemRef>? spineItems) {
-    final result = <ChapterInfo>[];
-
-    // 如果有 spine，按照 spine 的顺序
-    if (spineItems?.isNotEmpty == true) {
-      for (final spineItem in spineItems!) {
-        final idRef = spineItem.idRef;
-        // 在 htmlFiles 中查找对应的文件
-        for (final entry in htmlFiles.entries) {
-          // 这里需要根据 idRef 找到对应的文件
-          // 简化处理：使用文件名
-          final fileName = entry.key;
-          if (fileName.toLowerCase().contains(idRef?.toLowerCase() ?? '')) {
-            result.add(ChapterInfo(
-              title: _extractTitleFromHtml(entry.value.content ?? ''),
-              href: fileName,
-              level: 0,
-              children: [],
-            ));
-            break;
-          }
-        }
-      }
-    } else {
-      // 没有 spine，按文件名排序
-      final sortedFiles = htmlFiles.entries.toList()
-        ..sort((a, b) => a.key.compareTo(b.key));
-
-      for (final entry in sortedFiles) {
-        // 排除 nav 和 toc 文件
-        final name = entry.key.toLowerCase();
-        if (!name.contains('nav') && !name.contains('toc')) {
-          result.add(ChapterInfo(
-            title: _extractTitleFromHtml(entry.value.content ?? ''),
-            href: entry.key,
-            level: 0,
-            children: [],
-          ));
-        }
-      }
-    }
-
-    return result;
-  }
-
-  String _extractTitleFromHtml(String html) {
-    // 尝试从 HTML 中提取 title
-    final titleMatch =
-        RegExp(r'<title[^>]*>(.*?)</title>', caseSensitive: false)
-            .firstMatch(html);
-    if (titleMatch != null) {
-      final title = titleMatch.group(1)?.trim();
-      if (title?.isNotEmpty == true) {
-        return title!;
-      }
-    }
-
-    // 尝试从 h1 标签提取
-    final h1Match =
-        RegExp(r'<h1[^>]*>(.*?)</h1>', caseSensitive: false).firstMatch(html);
-    if (h1Match != null) {
-      final title = _extractTextFromHtml(h1Match.group(1) ?? '').trim();
-      if (title.isNotEmpty) {
-        return title;
-      }
-    }
-
-    // 尝试从 h2 标签提取
-    final h2Match =
-        RegExp(r'<h2[^>]*>(.*?)</h2>', caseSensitive: false).firstMatch(html);
-    if (h2Match != null) {
-      final title = _extractTextFromHtml(h2Match.group(1) ?? '').trim();
-      if (title.isNotEmpty) {
-        return title;
-      }
-    }
-
-    return '未知章节';
-  }
-
-  Future<List<ChapterInfo>> getHierarchicalChapterList(String filePath) async {
-    try {
-      final file = File(filePath);
-      if (!await file.exists()) return [];
-
-      final bytes = await file.readAsBytes();
-
-      try {
-        final epubBook = await EpubReader.readBook(bytes);
-
-        // 优先从 toc.ncx (navigation) 提取章节顺序
-        if (epubBook.schema?.navigation?.navMap != null &&
-            epubBook.schema!.navigation!.navMap!.points.isNotEmpty) {
-          final chapters = _extractChapterInfosFromNavigation(
-              epubBook.schema!.navigation!.navMap!.points);
-          if (chapters.isNotEmpty) {
-            return chapters;
-          }
-        }
-
-        // 如果没有 navigation，尝试从 chapters 提取
-        if (epubBook.chapters.isNotEmpty) {
-          final chapters = _extractChapterInfos(epubBook.chapters);
-          if (chapters.isNotEmpty) {
-            return chapters;
-          }
-        }
-
-        // 最后尝试从 content 提取
-        if (epubBook.content?.html?.isNotEmpty == true) {
-          final chapters = _extractChapterInfosFromContent(
-              epubBook.content!.html!, epubBook.schema?.package?.spine?.items);
-          if (chapters.isNotEmpty) {
-            return chapters;
-          }
-        }
-      } catch (e) {
-        _log.e('EpubService', 'EpubReader解析失败，使用archive回退方案', e);
-      }
-
-      // 回退方案：使用archive解析，优先从toc.ncx提取
-      final archive = ZipDecoder().decodeBytes(bytes);
-      final chaptersFromNcx = _extractChapterInfosFromNcxArchive(archive);
-
-      if (chaptersFromNcx.isNotEmpty) {
-        return chaptersFromNcx;
-      }
-
-      // 如果toc.ncx解析失败，使用文件名排序作为最终回退
-      final flatChapters = _extractChapterInfosFromArchive(archive);
-
-      // 将扁平化章节转换为层级化结构（所有章节都设为同一层级）
-      final hierarchicalChapters = <ChapterInfo>[];
-      for (final chapter in flatChapters) {
-        hierarchicalChapters.add(ChapterInfo(
-          title: chapter.title,
-          href: chapter.href,
-          level: 0,
-          children: [],
-        ));
-      }
-
-      return hierarchicalChapters;
-    } catch (e) {
-      _log.e('EpubService', '获取层级章节列表失败', e);
-      return [];
-    }
-  }
-
-  List<ChapterInfo> _extractChapterInfos(List<EpubChapter> chapters) {
-    final result = <ChapterInfo>[];
-
-    void traverseChapters(List<EpubChapter> chapters, int level) {
-      for (final chapter in chapters) {
-        result.add(ChapterInfo(
-          title: chapter.title ?? '未知章节',
-          href: chapter.contentFileName,
-          level: level,
-          children: [],
-        ));
-        // 递归处理子章节
-        if (chapter.subChapters?.isNotEmpty == true) {
-          traverseChapters(chapter.subChapters!, level + 1);
-        }
-      }
-    }
-
-    traverseChapters(chapters, 0);
-    return result;
-  }
-
-  List<ChapterInfo> _extractChapterInfosFromArchive(Archive archive) {
-    final chapters = <ChapterInfo>[];
-    final htmlFiles = <String>[];
-
-    for (final file in archive.files) {
-      final name = file.name.toLowerCase();
-      if ((name.endsWith('.html') || name.endsWith('.xhtml')) &&
-          !name.contains('nav') &&
-          !name.contains('toc')) {
-        htmlFiles.add(file.name);
-      }
-    }
-
-    htmlFiles.sort();
-
-    for (int i = 0; i < htmlFiles.length; i++) {
-      chapters.add(ChapterInfo(title: '第 ${i + 1} 章', href: htmlFiles[i]));
-    }
-
-    return chapters;
-  }
-
-  Future<String?> getChapterContent(String filePath, int chapterIndex) async {
-    try {
-      final chapters = await getChapterList(filePath);
-      if (chapterIndex < 0 || chapterIndex >= chapters.length) return null;
-
-      final chapter = chapters[chapterIndex];
-      final href = chapter.href;
-      if (href == null) return null;
-
-      final file = File(filePath);
-      if (!await file.exists()) return null;
-
-      final bytes = await file.readAsBytes();
-
-      try {
-        final epubBook = await EpubReader.readBook(bytes);
-
-        final epubChapter =
-            _findEpubChapterByIndex(epubBook.chapters, chapterIndex);
-        if (epubChapter != null) {
-          return _extractTextFromHtml(epubChapter.htmlContent ?? '');
-        }
-      } catch (e) {
-        _log.e('EpubService', '使用EpubReader获取章节内容失败', e);
-      }
-
-      final result = await _getChapterContentFromArchive(bytes, href);
-      if (result == null) {
-        _log.w('EpubService',
-            '从archive获取章节内容失败, chapterIndex: $chapterIndex, href: $href');
-      }
-      return result;
-    } catch (e) {
-      _log.e('EpubService', '获取章节内容失败', e);
-      return null;
-    }
-  }
-
-  EpubChapter? _findEpubChapterByIndex(
-      List<EpubChapter>? chapters, int targetIndex) {
-    if (chapters == null) return null;
-
-    var currentIndex = 0;
-    EpubChapter? result;
-
-    void traverseChapters(List<EpubChapter> chapters) {
-      for (final chapter in chapters) {
-        if (currentIndex == targetIndex) {
-          result = chapter;
-          return;
-        }
-        currentIndex++;
-        if (chapter.subChapters?.isNotEmpty == true) {
-          traverseChapters(chapter.subChapters!);
-          if (result != null) return;
-        }
-      }
-    }
-
-    traverseChapters(chapters);
-    return result;
-  }
-
-  Future<String?> _getChapterContentFromArchive(
-      Uint8List bytes, String href) async {
-    try {
-      final archive = ZipDecoder().decodeBytes(bytes);
-
-      // 移除 href 中的锚点部分
-      final hrefWithoutAnchor = href.split('#').first;
-      final hrefWithoutAnchorLower = hrefWithoutAnchor.toLowerCase();
-
-      for (final archiveFile in archive.files) {
-        final archiveName = archiveFile.name;
-        final archiveNameLower = archiveName.toLowerCase();
-
-        final isMatch = archiveName == hrefWithoutAnchor ||
-            archiveName.endsWith('/$hrefWithoutAnchor') ||
-            archiveNameLower == hrefWithoutAnchorLower ||
-            archiveNameLower.endsWith('/$hrefWithoutAnchorLower') ||
-            archiveName.endsWith(hrefWithoutAnchor) ||
-            archiveNameLower.endsWith(hrefWithoutAnchorLower) ||
-            (hrefWithoutAnchor.contains('/') &&
-                archiveName.endsWith(hrefWithoutAnchor.split('/').last)) ||
-            (hrefWithoutAnchorLower.contains('/') &&
-                archiveNameLower
-                    .endsWith(hrefWithoutAnchorLower.split('/').last));
-
-        if (isMatch) {
-          final content = utf8.decode(archiveFile.content as List<int>);
-          return _extractTextFromHtml(content);
-        }
-      }
-
-      _log.d('EpubService', '未找到章节文件: href=$hrefWithoutAnchor');
-      return null;
-    } catch (e) {
-      _log.e('EpubService', '从archive获取章节内容失败', e);
-      return null;
-    }
-  }
-
-  Future<List<SectionInfo>> getSectionsInChapter(
-      String filePath, int chapterIndex) async {
-    try {
-      final chapters = await getChapterList(filePath);
-      if (chapterIndex < 0 || chapterIndex >= chapters.length) return [];
-
-      final chapter = chapters[chapterIndex];
-      final href = chapter.href;
-      if (href == null) return [];
-
-      final file = File(filePath);
-      if (!await file.exists()) return [];
-
-      final bytes = await file.readAsBytes();
-
-      try {
-        final epubBook = await EpubReader.readBook(bytes);
-
-        final epubChapter =
-            _findEpubChapterByIndex(epubBook.chapters, chapterIndex);
-        if (epubChapter != null) {
-          return _extractSectionsFromHtml(epubChapter.htmlContent ?? '');
-        }
-      } catch (e) {
-        // 静默处理EpubReader错误，使用回退方案
-      }
-
-      final htmlContent = await _getChapterHtmlFromArchive(bytes, href);
-      if (htmlContent == null) return [];
-
-      return _extractSectionsFromHtml(htmlContent);
-    } catch (e) {
-      _log.e('EpubService', '获取章节内小节失败', e);
-      return [];
-    }
-  }
-
-  Future<String?> getChapterContentFromHref(
-      String filePath, String href) async {
-    try {
-      final file = File(filePath);
-      if (!await file.exists()) return null;
-
-      final bytes = await file.readAsBytes();
-      return await _getChapterHtmlFromArchive(bytes, href);
-    } catch (e) {
-      _log.e('EpubService', 'getChapterContentFromHref 失败', e);
-      return null;
-    }
-  }
-
-  Future<String?> _getChapterHtmlFromArchive(
-      Uint8List bytes, String href) async {
-    try {
-      final archive = ZipDecoder().decodeBytes(bytes);
-
-      final hrefWithoutAnchor = href.split('#').first;
-      final hrefWithoutAnchorLower = hrefWithoutAnchor.toLowerCase();
-
-      for (final archiveFile in archive.files) {
-        final archiveName = archiveFile.name;
-        final archiveNameLower = archiveName.toLowerCase();
-
-        final isMatch = archiveName == hrefWithoutAnchor ||
-            archiveName.endsWith('/$hrefWithoutAnchor') ||
-            archiveNameLower == hrefWithoutAnchorLower ||
-            archiveNameLower.endsWith('/$hrefWithoutAnchorLower') ||
-            archiveName.endsWith(hrefWithoutAnchor) ||
-            archiveNameLower.endsWith(hrefWithoutAnchorLower) ||
-            (hrefWithoutAnchor.contains('/') &&
-                archiveName.endsWith(hrefWithoutAnchor.split('/').last)) ||
-            (hrefWithoutAnchorLower.contains('/') &&
-                archiveNameLower
-                    .endsWith(hrefWithoutAnchorLower.split('/').last));
-
-        if (isMatch) {
-          return utf8.decode(archiveFile.content as List<int>);
-        }
-      }
-      return null;
-    } catch (e) {
-      _log.e('EpubService', '从archive获取章节HTML失败', e);
-      return null;
-    }
-  }
-
-  List<SectionInfo> _extractSectionsFromHtml(String html) {
-    final sections = <SectionInfo>[];
-
-    final h2Pattern = RegExp(r'<h2[^>]*>(.*?)</h2>', caseSensitive: false);
-    final h3Pattern = RegExp(r'<h3[^>]*>(.*?)</h3>', caseSensitive: false);
-
-    final h2Matches = h2Pattern.allMatches(html).toList();
-
-    if (h2Matches.length >= 2) {
-      for (int i = 0; i < h2Matches.length; i++) {
-        final title = _extractTextFromHtml(h2Matches[i].group(1) ?? '');
-        final startPos = h2Matches[i].end;
-        final endPos =
-            i < h2Matches.length - 1 ? h2Matches[i + 1].start : html.length;
-        final sectionHtml = html.substring(startPos, endPos);
-        final content = _extractTextFromHtml(sectionHtml);
-
-        sections.add(SectionInfo(
-          title: title.isEmpty ? '第 ${i + 1} 节' : title,
-          content: content,
-          level: 2,
-        ));
-      }
-    } else {
-      final h3Matches = h3Pattern.allMatches(html).toList();
-      if (h3Matches.length >= 2) {
-        for (int i = 0; i < h3Matches.length; i++) {
-          final title = _extractTextFromHtml(h3Matches[i].group(1) ?? '');
-          final startPos = h3Matches[i].end;
-          final endPos =
-              i < h3Matches.length - 1 ? h3Matches[i + 1].start : html.length;
-          final sectionHtml = html.substring(startPos, endPos);
-          final content = _extractTextFromHtml(sectionHtml);
-
-          sections.add(SectionInfo(
-            title: title.isEmpty ? '第 ${i + 1} 节' : title,
-            content: content,
-            level: 3,
-          ));
-        }
-      }
-    }
-
-    return sections;
-  }
-
-  Future<String?> getSectionContent(
-      String filePath, int chapterIndex, int sectionIndex) async {
-    final sections = await getSectionsInChapter(filePath, chapterIndex);
-    if (sectionIndex < 0 || sectionIndex >= sections.length) return null;
-    return sections[sectionIndex].content;
-  }
-
-  Future<String?> getChapterHtml(String filePath, int chapterIndex) async {
-    try {
-      final chapters = await getChapterList(filePath);
-      if (chapterIndex < 0 || chapterIndex >= chapters.length) return null;
-
-      final chapter = chapters[chapterIndex];
-      final href = chapter.href;
-      if (href == null) return null;
-
-      final file = File(filePath);
-      if (!await file.exists()) return null;
-
-      final bytes = await file.readAsBytes();
-
-      try {
-        final epubBook = await EpubReader.readBook(bytes);
-
-        final epubChapter =
-            _findEpubChapterByIndex(epubBook.chapters, chapterIndex);
-        if (epubChapter != null) {
-          return epubChapter.htmlContent;
-        }
-      } catch (e) {
-        _log.e('EpubService', '使用EpubReader获取章节HTML失败', e);
-      }
-
-      return await _getChapterHtmlFromArchive(bytes, href);
-    } catch (e) {
-      _log.e('EpubService', '获取章节HTML失败', e);
-      return null;
-    }
-  }
-
-  Future<String?> getSectionHtml(
-      String filePath, int chapterIndex, int sectionIndex) async {
-    try {
-      final chapters = await getChapterList(filePath);
-      if (chapterIndex < 0 || chapterIndex >= chapters.length) return null;
-
-      final chapter = chapters[chapterIndex];
-      final href = chapter.href;
-      if (href == null) return null;
-
-      final file = File(filePath);
-      if (!await file.exists()) return null;
-
-      final bytes = await file.readAsBytes();
-      final htmlContent = await _getChapterHtmlFromArchive(bytes, href);
-
-      if (htmlContent == null) return null;
-
-      final h2Pattern = RegExp(r'<h2[^>]*>', caseSensitive: false);
-      final h3Pattern = RegExp(r'<h3[^>]*>', caseSensitive: false);
-
-      final h2Matches = h2Pattern.allMatches(htmlContent).toList();
-
-      if (h2Matches.length >= 2) {
-        if (sectionIndex >= 0 && sectionIndex < h2Matches.length) {
-          final startPos = h2Matches[sectionIndex].start;
-          final endPos = sectionIndex < h2Matches.length - 1
-              ? h2Matches[sectionIndex + 1].start
-              : htmlContent.length;
-          return htmlContent.substring(startPos, endPos);
-        }
-      } else {
-        final h3Matches = h3Pattern.allMatches(htmlContent).toList();
-        if (h3Matches.length >= 2) {
-          if (sectionIndex >= 0 && sectionIndex < h3Matches.length) {
-            final startPos = h3Matches[sectionIndex].start;
-            final endPos = sectionIndex < h3Matches.length - 1
-                ? h3Matches[sectionIndex + 1].start
-                : htmlContent.length;
-            return htmlContent.substring(startPos, endPos);
-          }
-        }
-      }
-
-      return null;
-    } catch (e) {
-      _log.e('EpubService', '获取小节HTML失败', e);
-      return null;
-    }
-  }
-}
-
-class ChapterInfo {
-  final String title;
-  final String? href;
-  final int level; // 层级深度，0为顶级
-  final List<ChapterInfo> children; // 子章节
-
-  ChapterInfo({
-    required this.title,
-    this.href,
-    this.level = 0,
-    this.children = const [],
-  });
-}
-
-class SectionInfo {
-  final String title;
-  final String content;
-  final int level;
-
-  SectionInfo({
-    required this.title,
-    required this.content,
-    required this.level,
-  });
 }

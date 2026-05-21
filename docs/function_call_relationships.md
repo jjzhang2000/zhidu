@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.7 | **更新日期**: 2026-05-21 | **基于代码版本**: v1.4
+> **文档版本**: v2.8 | **更新日期**: 2026-05-21 | **基于代码版本**: v1.5
 
 ---
 
@@ -283,8 +283,8 @@ ZhiduApp (MaterialApp)
 
 ```
 BookService         → Book, Chapter
-EpubService         → Book, Chapter, ChapterLocation
-PdfService          → Book, PdfChapter, PdfPageContent
+EpubService         → Book, BookFormat
+PdfService          → Book, BookFormat
 AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 AiSettings)
 SummaryService      → Chapter, Book (通过summary-zh.md文件存储全书摘要)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings
@@ -422,8 +422,7 @@ SummaryService.getBookSummaryContent()
 │  EpubService   PdfService   + writeJson() / readJson()           │
 │  ────────────  ──────────── + writeText() / readText()           │
 │  + parseEpub.. + parsePdf.. + deleteFile() / deleteDirectory()   │
-│  + getChapter..+ getChapterPages() + fileExists()                │
-│  + getChapterPageRange()                                        │
+│                             + fileExists()                       │
 │                                                                  │
 │  OpfReaderService          StorageConfig                         │
 │  ────────────────          ─────────────                         │
@@ -445,11 +444,9 @@ SummaryService.getBookSummaryContent()
 │                                                                  │
 │  <<interface>>               EpubParser        PdfParser         │
 │  BookFormatParser            ──────────        ─────────         │
-│  ────────────────            + parse()         + parse()         │
-│  + parse(filePath)           + getChapters()   + getChapters()   │
+│  ────────────────            + getChapters()   + getChapters()   │
 │  + getChapters()             + getChapterContent() + getChapterContent│
-│  + getChapterContent()       + extractCover()  + extractCover()  │
-│  + extractCover()                                               │
+│  + getChapterContent()                                           │
 │                                                                  │
 │  FormatRegistry                                                   │
 │  ──────────────                                                   │
@@ -491,6 +488,7 @@ SummaryService.getBookSummaryContent()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-05-21 | EpubService/PdfService 僵尸代码清理 + 测试同步 — EpubService 删除 8 个公共方法（extractPrefaceContent/getHierarchicalChapterList/getSectionContent/getChapterContentFromHref/getChapterHtml/getSectionHtml/getSectionsInChapter/getChapterList）及 10+ 私有依赖方法、2 个内部类（ChapterInfo/SectionInfo），1265→422 行；PdfService 删除 3 个公共方法（getChapterPages/getChapterPageRange/getPageContent）及 2 个内部类（PdfChapter/PdfPageContent 改为私有 _PdfChapter），472→189 行；同步删除 epub_service_test.pdf_service_test 中对应用例、删除 epub_parser_test/pdf_parser_test 中 extractCover 用例；更新 epub_service.md/pdf_service.md/function_call_relationships.md/index.md |
 | 2026-05-21 | BookService: 删除僵尸方法 `saveBooksIndex()`（无外部调用），精简注释（434→289行，-33%），同步更新伪代码 |
 | 2026-05-21 | AI 语言检测：`detectLanguageFromContent` 改为 AI 识别；`detectSourceLanguage` 新增 bookId + 回写；合并 `getTargetLanguage` → `resolveOutputLanguage` |
 | 2026-05-19 | fix: 删除失败 SnackBar 硬编码中文改 i18n key `loc.failed` |

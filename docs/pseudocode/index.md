@@ -114,11 +114,11 @@ docs/pseudocode/
 | `ai_service.dart` | `AIService` | AI API交互：流式摘要生成、翻译、语言检测、连接测试 |
 | `ai_prompts.dart` | `AiPrompts` | 静态提示词模板：章节摘要/全书摘要/翻译（通过 AppLocalizations l10n） |
 | `book_service.dart` | `BookService` | 书籍CRUD：导入、存储、查询、删除、搜索 |
-| `epub_service.dart` | `EpubService` | EPUB文件解析：元数据/章节/封面提取 |
+| `epub_service.dart` | `EpubService` | EPUB文件解析：元数据提取/章节标题计数/封面提取 |
 | `file_storage_service.dart` | `FileStorageService` | 文件系统操作：JSON/文本读写、文件删除 |
 | `log_service.dart` | `LogService` | 分级别日志：verbose/debug/info/warning/error |
 | `opf_reader_service.dart` | `OpfReaderService` | Calibre OPF文件读取与解析 |
-| `pdf_service.dart` | `PdfService` | PDF文件解析：元数据/章节/封面提取 |
+| `pdf_service.dart` | `PdfService` | PDF文件解析：元数据提取/章节检测/封面渲染 |
 | `settings_service.dart` | `SettingsService` | 统一设置管理：AI/主题/语言，ValueNotifier响应式 |
 | `storage_config.dart` | `StorageConfig` | 存储路径配置：统一路径管理 |
 | `summary_service.dart` | `SummaryService` + `Semaphore` | 摘要生成/存储/并发控制/流式回调 |
