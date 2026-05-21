@@ -354,7 +354,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String promptBookSummary(Object title, Object author, Object chapterSummaries, Object chaptersLine) {
-    return '''Please generate a complete book summary based on the following chapter summaries, output in Markdown format.
+    return '''Please respond in English.
+
+Please generate a complete book summary based on the following chapter summaries, output in Markdown format.
 
 Book information:
 - Title: $title
@@ -384,7 +386,9 @@ Requirements:
 
   @override
   String promptPrefaceSummary(Object title, Object author, Object prefaceContent, Object chaptersLine) {
-    return '''Please generate a content introduction for the book based on the following preface/foreword content, output in Markdown format.
+    return '''Please respond in English.
+
+Please generate a content introduction for the book based on the following preface/foreword content, output in Markdown format.
 
 Book information:
 - Title: $title
@@ -413,7 +417,9 @@ Requirements:
 
   @override
   String promptChapterSummary(Object chapterTitle, Object content) {
-    return '''Please analyze the following book chapter content comprehensively, **first extract the real chapter title**, then generate a summary.
+    return '''Please respond in English.
+
+Please analyze the following book chapter content comprehensively, **first extract the real chapter title**, then generate a summary.
 
 ${chapterTitle != '' ? 'Original chapter identifier: $chapterTitle (may not be accurate, please judge the real title based on the content)\n' : ''}Chapter content:
 $content
@@ -438,6 +444,28 @@ Requirements:
    - End with `## Summary` section
 
 **IMPORTANT**: DO NOT output placeholder text like "(Main content overview)" or "(Chapter summary)". Generate actual summary content based on the chapter.
+''';
+  }
+
+  @override
+  String promptTranslateHtml(Object content, Object chapterTitle) {
+    return '''Please respond in English.
+
+Please translate the following HTML content to English.
+
+${chapterTitle != '' ? 'Chapter title: $chapterTitle\n' : ''}HTML source:
+$content
+
+Translation Rules
+1. ALL text must be translated to English, regardless of the source language
+2. Strictly preserve ALL HTML tags: tag names, attributes, nesting, and order must remain completely unchanged
+3. Only translate the text content inside tags, do not translate tag names, attribute values, URLs, or code
+4. Technical terms can remain in original
+5. Code blocks (content inside \`<code>\` or \`<pre>\` tags) should NOT be translated at all, and do NOT perform any escape processing
+6. For content in \`<code>\` and \`<pre>\`, output exactly as-is, do NOT add or remove any backslashes
+7. The input may contain placeholders \`%%ZHIDU_CODE_BLOCK_N%%\` (where N is a number), these are markers for code blocks - keep them as-is
+8. Do NOT add any explanations, notes, or extra content
+9. Output ONLY the translated HTML
 ''';
   }
 }

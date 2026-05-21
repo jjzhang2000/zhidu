@@ -164,55 +164,26 @@ ASYNC METHOD generateFullChapterSummary(
     chapterTitle: String? = null,
     bookId: String? = null
 ) -> String?:
-    // 记录详细日志
-    _log.v('AIService', 
-        'generateFullChapterSummary 开始，content length: {content.length}, chapterTitle: {chapterTitle}')
-    
-    // 检查配置有效性
     IF _config == null OR NOT _config.isValid:
         _log.w('AIService', 'AI配置未设置或API Key无效')
         RETURN null
     
-    // 从 SettingsService 读取语言设置
-    langSettings = SettingsService().settings.languageSettings
-    _log.d('AIService', 
-        '语言设置：aiLanguageMode={langSettings.aiLanguageMode}, aiOutputLanguage={langSettings.aiOutputLanguage}')
-    
-    // 根据语言模式生成语言指令
-    languageInstruction: String
-    
-    IF langSettings.aiLanguageMode == 'book':
-        IF bookId != null:
-            // 优先从书籍元数据获取语言信息
-            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
-        ELSE:
-            // 从内容检测语言
-            detectedLanguage = detectLanguageFromContent(content)
-        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
-        _log.d('AIService', 
-            '检测到书籍语言为: {detectedLanguage}, 使用语言指令: {languageInstruction}')
-    
-    ELSE:
-        // 使用预设语言指令
-        languageInstruction = AiPrompts.getLanguageInstruction(
-            langSettings.aiLanguageMode,
-            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
-                           THEN langSettings.aiOutputLanguage 
-                           ELSE null
-        )
-    
-    _log.d('AIService', '生成的语言指令：{languageInstruction}')
-    
-    // 构建提示词
-    prompt = AiPrompts.chapterSummary(
-        chapterTitle: chapterTitle,
+    outputLanguage = await _resolveOutputLanguage(
+        SettingsService().settings.languageSettings,
         content: content,
-        languageInstruction: languageInstruction
+        bookId: bookId
+    )
+    
+    loc = _getPromptLoc(outputLanguage)
+    
+    prompt = AiPrompts.chapterSummary(
+        loc: loc,
+        chapterTitle: chapterTitle,
+        content: content
     )
     
     TRY:
-        // 调用 AI API
-        RETURN await _callAI(prompt, systemMessage: languageInstruction)
+        RETURN await _callAI(prompt)
     
     CATCH e:
         _log.e('AIService', '生成章节摘要失败', e)
@@ -257,46 +228,26 @@ STREAM METHOD generateFullChapterSummaryStream(
     chapterTitle: String? = null,
     bookId: String? = null
 ) -> Stream<String>:
-    // 记录详细日志
-    _log.v('AIService', 
-        'generateFullChapterSummaryStream 开始，content length: {content.length}, chapterTitle: {chapterTitle}')
-    
-    // 检查配置有效性
     IF _config == null OR NOT _config.isValid:
         _log.w('AIService', 'AI 配置未设置或 API Key 无效')
         RETURN empty stream
     
-    // 从 SettingsService 读取语言设置
-    langSettings = SettingsService().settings.languageSettings
-    
-    // 根据语言模式生成语言指令
-    languageInstruction: String
-    
-    IF langSettings.aiLanguageMode == 'book':
-        IF bookId != null:
-            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
-        ELSE:
-            detectedLanguage = detectLanguageFromContent(content)
-        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
-    
-    ELSE:
-        languageInstruction = AiPrompts.getLanguageInstruction(
-            langSettings.aiLanguageMode,
-            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
-                           THEN langSettings.aiOutputLanguage 
-                           ELSE null
-        )
-    
-    // 构建提示词
-    prompt = AiPrompts.chapterSummary(
-        chapterTitle: chapterTitle,
+    outputLanguage = await _resolveOutputLanguage(
+        SettingsService().settings.languageSettings,
         content: content,
-        languageInstruction: languageInstruction
+        bookId: bookId
+    )
+    
+    loc = _getPromptLoc(outputLanguage)
+    
+    prompt = AiPrompts.chapterSummary(
+        loc: loc,
+        chapterTitle: chapterTitle,
+        content: content
     )
     
     TRY:
-        // 调用流式 AI API，逐个 yield 内容片段
-        AWAIT FOR chunk IN _callAIStream(prompt, systemMessage: languageInstruction):
+        AWAIT FOR chunk IN _callAIStream(prompt):
             YIELD chunk
     
     CATCH e:
@@ -315,47 +266,28 @@ ASYNC METHOD generateBookSummaryFromPreface(
     totalChapters: int? = null,
     bookId: String? = null
 ) -> String?:
-    // 记录详细日志
-    _log.v('AIService', 
-        'generateBookSummaryFromPreface 开始，title: {title}, author: {author}, prefaceContent length: {prefaceContent.length}')
-    
-    // 检查配置有效性
     IF _config == null OR NOT _config.isValid:
         _log.w('AIService', 'AI服务未配置或API Key无效')
         RETURN null
     
-    // 获取语言设置
-    langSettings = SettingsService().settings.languageSettings
+    outputLanguage = await _resolveOutputLanguage(
+        SettingsService().settings.languageSettings,
+        content: prefaceContent,
+        bookId: bookId
+    )
     
-    // 根据语言模式生成语言指令
-    languageInstruction: String
+    loc = _getPromptLoc(outputLanguage)
     
-    IF langSettings.aiLanguageMode == 'book':
-        IF bookId != null:
-            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent)
-        ELSE:
-            detectedLanguage = detectLanguageFromContent(prefaceContent)
-        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
-    
-    ELSE:
-        languageInstruction = AiPrompts.getLanguageInstruction(
-            langSettings.aiLanguageMode,
-            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
-                           THEN langSettings.aiOutputLanguage 
-                           ELSE null
-        )
-    
-    // 构建提示词
     prompt = AiPrompts.bookSummaryFromPreface(
+        loc: loc,
         title: title,
         author: author,
         prefaceContent: prefaceContent,
-        totalChapters: totalChapters,
-        languageInstruction: languageInstruction
+        totalChapters: totalChapters
     )
     
     TRY:
-        RETURN await _callAI(prompt, systemMessage: languageInstruction)
+        RETURN await _callAI(prompt)
     
     CATCH e:
         _log.e('AIService', '基于前言生成全书摘要失败', e)
@@ -374,48 +306,28 @@ STREAM METHOD generateBookSummaryFromPrefaceStream(
     totalChapters: int? = null,
     bookId: String? = null
 ) -> Stream<String>:
-    // 记录详细日志
-    _log.v('AIService', 
-        'generateBookSummaryFromPrefaceStream 开始，title: {title}, author: {author}')
-    
-    // 检查配置有效性
     IF _config == null OR NOT _config.isValid:
         _log.w('AIService', 'AI 服务未配置或 API Key 无效')
         RETURN empty stream
     
-    // 获取语言设置
-    langSettings = SettingsService().settings.languageSettings
+    outputLanguage = await _resolveOutputLanguage(
+        SettingsService().settings.languageSettings,
+        content: prefaceContent,
+        bookId: bookId
+    )
     
-    // 根据语言模式生成语言指令
-    languageInstruction: String
+    loc = _getPromptLoc(outputLanguage)
     
-    IF langSettings.aiLanguageMode == 'book':
-        IF bookId != null:
-            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent)
-        ELSE:
-            detectedLanguage = detectLanguageFromContent(prefaceContent)
-        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
-    
-    ELSE:
-        languageInstruction = AiPrompts.getLanguageInstruction(
-            langSettings.aiLanguageMode,
-            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
-                           THEN langSettings.aiOutputLanguage 
-                           ELSE null
-        )
-    
-    // 构建提示词
     prompt = AiPrompts.bookSummaryFromPreface(
+        loc: loc,
         title: title,
         author: author,
         prefaceContent: prefaceContent,
-        totalChapters: totalChapters,
-        languageInstruction: languageInstruction
+        totalChapters: totalChapters
     )
     
     TRY:
-        // 调用流式 AI API
-        AWAIT FOR chunk IN _callAIStream(prompt, systemMessage: languageInstruction):
+        AWAIT FOR chunk IN _callAIStream(prompt):
             YIELD chunk
     
     CATCH e:
@@ -434,47 +346,28 @@ ASYNC METHOD generateBookSummary(
     totalChapters: int? = null,
     bookId: String? = null
 ) -> String?:
-    // 记录详细日志
-    _log.v('AIService', 
-        'generateBookSummary 开始，title: {title}, author: {author}, chapterSummaries length: {chapterSummaries.length}')
-    
-    // 检查配置有效性
     IF _config == null OR NOT _config.isValid:
         _log.w('AIService', 'AI服务未配置或API Key无效')
         RETURN null
     
-    // 获取语言设置
-    langSettings = SettingsService().settings.languageSettings
+    outputLanguage = await _resolveOutputLanguage(
+        SettingsService().settings.languageSettings,
+        content: chapterSummaries,
+        bookId: bookId
+    )
     
-    // 根据语言模式生成语言指令
-    languageInstruction: String
+    loc = _getPromptLoc(outputLanguage)
     
-    IF langSettings.aiLanguageMode == 'book':
-        IF bookId != null:
-            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries)
-        ELSE:
-            detectedLanguage = detectLanguageFromContent(chapterSummaries)
-        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
-    
-    ELSE:
-        languageInstruction = AiPrompts.getLanguageInstruction(
-            langSettings.aiLanguageMode,
-            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
-                           THEN langSettings.aiOutputLanguage 
-                           ELSE null
-        )
-    
-    // 构建提示词
     prompt = AiPrompts.bookSummary(
+        loc: loc,
         title: title,
         author: author,
         chapterSummaries: chapterSummaries,
-        totalChapters: totalChapters,
-        languageInstruction: languageInstruction
+        totalChapters: totalChapters
     )
     
     TRY:
-        RETURN await _callAI(prompt, systemMessage: languageInstruction)
+        RETURN await _callAI(prompt)
     
     CATCH e:
         _log.e('AIService', '生成全书摘要失败', e)
@@ -493,48 +386,28 @@ STREAM METHOD generateBookSummaryStream(
     totalChapters: int? = null,
     bookId: String? = null
 ) -> Stream<String>:
-    // 记录详细日志
-    _log.v('AIService', 
-        'generateBookSummaryStream 开始，title: {title}, author: {author}')
-    
-    // 检查配置有效性
     IF _config == null OR NOT _config.isValid:
         _log.w('AIService', 'AI 服务未配置或 API Key 无效')
         RETURN empty stream
     
-    // 获取语言设置
-    langSettings = SettingsService().settings.languageSettings
+    outputLanguage = await _resolveOutputLanguage(
+        SettingsService().settings.languageSettings,
+        content: chapterSummaries,
+        bookId: bookId
+    )
     
-    // 根据语言模式生成语言指令
-    languageInstruction: String
+    loc = _getPromptLoc(outputLanguage)
     
-    IF langSettings.aiLanguageMode == 'book':
-        IF bookId != null:
-            detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries)
-        ELSE:
-            detectedLanguage = detectLanguageFromContent(chapterSummaries)
-        languageInstruction = _getLanguageInstructionForLanguage(detectedLanguage)
-    
-    ELSE:
-        languageInstruction = AiPrompts.getLanguageInstruction(
-            langSettings.aiLanguageMode,
-            manualLanguage: IF langSettings.aiLanguageMode == 'manual' 
-                           THEN langSettings.aiOutputLanguage 
-                           ELSE null
-        )
-    
-    // 构建提示词
     prompt = AiPrompts.bookSummary(
+        loc: loc,
         title: title,
         author: author,
         chapterSummaries: chapterSummaries,
-        totalChapters: totalChapters,
-        languageInstruction: languageInstruction
+        totalChapters: totalChapters
     )
     
     TRY:
-        // 调用流式 AI API
-        AWAIT FOR chunk IN _callAIStream(prompt, systemMessage: languageInstruction):
+        AWAIT FOR chunk IN _callAIStream(prompt):
             YIELD chunk
     
     CATCH e:
@@ -671,30 +544,41 @@ METHOD detectLanguageFromContent(content: String) -> String:
 
 ---
 
-### _getLanguageInstructionForLanguage() - 生成语言指令
+### _resolveOutputLanguage() - 解析 AI 输出语言
+
+根据语言设置、书籍元数据和内容检测决定 AI 输出的目标语言代码。
 
 ```pseudocode
-PRIVATE METHOD _getLanguageInstructionForLanguage(languageCode: String) -> String:
-    SWITCH languageCode:
-        CASE 'zh':
-            RETURN 'IMPORTANT: Respond in Chinese (简体中文).'
-        CASE 'en':
-            RETURN 'IMPORTANT: Respond in English.'
-        CASE 'ja':
-            RETURN 'IMPORTANT: Respond in Japanese (日本語).'
-        CASE 'ko':
-            RETURN 'IMPORTANT: Respond in Korean (한국어).'
-        CASE 'fr':
-            RETURN 'IMPORTANT: Respond in French (Français).'
-        CASE 'de':
-            RETURN 'IMPORTANT: Respond in German (Deutsch).'
-        CASE 'ru':
-            RETURN 'IMPORTANT: Respond in Russian (Русский).'
-        CASE 'es':
-            RETURN 'IMPORTANT: Respond in Spanish (Español).'
+PRIVATE ASYNC METHOD _resolveOutputLanguage(
+    langSettings: LanguageSettings,
+    content: String,
+    bookId: String?
+) -> String:
+    IF langSettings.aiLanguageMode == 'book' AND bookId != null:
+        RETURN await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
+    IF langSettings.aiLanguageMode == 'book':
+        RETURN detectLanguageFromContent(content)
+    SWITCH langSettings.aiLanguageMode:
+        CASE 'manual':
+            RETURN langSettings.aiOutputLanguage ?? 'zh'
+        CASE 'system':
+            RETURN detectSystemLanguage()
         DEFAULT:
-            RETURN 'IMPORTANT: Respond in Chinese (简体中文).'
+            RETURN 'zh'
 ```
+
+---
+
+### _getPromptLoc() - 获取目标语言对应的 AppLocalizations
+
+```pseudocode
+PRIVATE METHOD _getPromptLoc(languageCode: String) -> AppLocalizations:
+    IF languageCode NOT IN ['en', 'ja', 'zh']:
+        languageCode = 'zh'
+    RETURN lookupAppLocalizations(Locale(languageCode))
+```
+
+被调用方: 所有生成方法 (`generateFullChapterSummaryStream`, `generateBookSummaryStream`, `generateBookSummaryFromPrefaceStream`, `translateHtmlStream`)
 
 ---
 
@@ -725,7 +609,7 @@ PUBLIC METHOD detectSystemLanguage() -> String:
         RETURN 'zh'
 ```
 
-被调用方: `ChapterScreen._resolveTargetLang()`, `_getLanguageInstructionForModel()`, `getTargetLanguage()`
+被调用方: `_resolveOutputLanguage()`, `_getPromptLoc()`, `detectSystemLanguage()`, `getTargetLanguage()`
 
 ---
 
@@ -842,24 +726,13 @@ METHOD convertLanguageCodeToStandard(languageCode: String) -> String:
 ### _callAI() - 调用 AI API
 
 ```pseudocode
-PRIVATE ASYNC METHOD _callAI(prompt: String, systemMessage: String? = null) -> String?:
-    // 构建请求 URL
+PRIVATE ASYNC METHOD _callAI(prompt: String) -> String?:
     url = Uri.parse('{_config.baseUrl}/chat/completions')
     
-    // 获取 HTTP 客户端（使用 Mock 或真实客户端）
     client = _httpClient ?? http.Client()
     
-    // 构建消息列表
-    messages = []
+    messages = [{'role': 'user', 'content': prompt}]
     
-    // 如果有系统消息，添加为 system role
-    IF systemMessage != null AND systemMessage.isNotEmpty:
-        messages.add({'role': 'system', 'content': systemMessage})
-    
-    // 添加用户提示词
-    messages.add({'role': 'user', 'content': prompt})
-    
-    // 发送 POST 请求
     response = await client.post(
         url,
         headers: {
@@ -874,16 +747,11 @@ PRIVATE ASYNC METHOD _callAI(prompt: String, systemMessage: String? = null) -> S
         })
     )
     
-    // 处理响应
     IF response.statusCode == 200:
-        // 解析 JSON 响应
         json = jsonDecode(response.body)
-        
-        // 提取 AI 生成的内容
         RETURN json['choices']?[0]?['message']?['content']
     
     ELSE:
-        // 记录错误
         _log.e('AIService', 
             'AI API调用失败：{response.statusCode} - {response.body}')
         RETURN null
@@ -894,27 +762,17 @@ PRIVATE ASYNC METHOD _callAI(prompt: String, systemMessage: String? = null) -> S
 ### _callAIStream() - 调用 AI API（流式）
 
 ```pseudocode
-PRIVATE STREAM METHOD _callAIStream(prompt: String, systemMessage: String? = null) -> Stream<String>:
-    // 构建请求 URL
+PRIVATE STREAM METHOD _callAIStream(prompt: String) -> Stream<String>:
     url = Uri.parse('{_config.baseUrl}/chat/completions')
     
-    // 构建消息列表
-    messages = []
+    messages = [{'role': 'user', 'content': prompt}]
     
-    // 如果有系统消息，添加为 system role
-    IF systemMessage != null AND systemMessage.isNotEmpty:
-        messages.add({'role': 'system', 'content': systemMessage})
-    
-    // 添加用户提示词
-    messages.add({'role': 'user', 'content': prompt})
-    
-    // 构建请求体（启用流式响应）
     requestBody = jsonEncode({
         'model': _config.model,
         'messages': messages,
         'temperature': 0.7,
-        'max_tokens': 1000,
-        'stream': true  // 启用流式响应
+        'max_tokens': 8000,
+        'stream': true
     })
     
     // 使用 dart:io HttpClient 实现真正的流式请求
@@ -1052,8 +910,7 @@ PRIVATE STREAM METHOD _callAIStream(prompt: String, systemMessage: String? = nul
 {
   "model": "qwen-plus",
   "messages": [
-    {"role": "system", "content": "IMPORTANT: Respond in Chinese."},
-    {"role": "user", "content": "请对以下章节内容生成摘要..."}
+    {"role": "user", "content": "请用中文回复。\n\n请对以下章节内容生成摘要..."}
   ],
   "temperature": 0.7,
   "max_tokens": 1000
@@ -1261,7 +1118,8 @@ Body:
 
 ## 版本历史
 
-- **2026-05-18**: 新增 `detectSourceLanguage()` public 方法，统一源语言检测逻辑
+- **2026-05-21**: 彻底消除 systemMessage — 删除 `_getLanguageInstructionForModel()`/`_getLanguageInstructionForLanguage()`；新增 `_resolveOutputLanguage()`/`_getPromptLoc(languageCode)`；`_callAIStream`/`_callAI`/`_buildMessages` 移除 `systemMessage` 参数；提示词语言指令内嵌至 l10n 模板，`loc` 由 AI 输出语言决定
+- **2026-05-20**: AiPrompts 提示词 l10n 化 + 占位符消除 — 删除 `_englishBookSummary`/`_englishBookSummaryFromPreface`/`_englishChapterSummary`/`_englishTranslateHtml`/`_getLanguageName` 5 个死方法；`getLanguageInstruction` 简化签名
   - 合并 ChapterScreen 和 AIService 内部两处重复的「元数据→内容」源语言检测模式
   - `_detectLanguageFromMetadataAndContentWithBookId` 简化为委托调用
 - **2026-05-18**: `detectSystemLanguage()` 改为 public

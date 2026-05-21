@@ -755,6 +755,9 @@ abstract class AppLocalizations {
 
   /// Prompt - chapter summary
   String promptChapterSummary(Object chapterTitle, Object content);
+
+  /// Prompt - HTML translation
+  String promptTranslateHtml(Object content, Object chapterTitle);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -773,8 +776,6 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
-
-
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'en': return AppLocalizationsEn();

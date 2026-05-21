@@ -268,13 +268,8 @@ class AIService {
   // ==========================================================================
 
   /// 构建 AI 请求消息列表
-  List<Map<String, String>> _buildMessages(String prompt, {String? systemMessage}) {
+  List<Map<String, String>> _buildMessages(String prompt) {
     final messages = <Map<String, String>>[];
-
-    if (systemMessage != null && systemMessage.isNotEmpty) {
-      messages.add({'role': 'system', 'content': systemMessage});
-    }
-
     messages.add({'role': 'user', 'content': prompt});
     return messages;
   }
@@ -284,7 +279,6 @@ class AIService {
   ///
   /// 参数：
   /// - prompt: 发送给 AI 的提示词
-  /// - systemMessage: 系统级指令（可选），用于设置行为准则
   ///
   /// 返回值：
   /// - 成功时返回 AI 生成的内容字符串
@@ -326,7 +320,7 @@ class AIService {
   ///   ]
   /// }
   /// ```
-  Future<String?> _callAI(String prompt, {String? systemMessage}) async {
+  Future<String?> _callAI(String prompt) async {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
     final client = _httpClient ?? http.Client();
@@ -339,7 +333,7 @@ class AIService {
       },
       body: jsonEncode({
         'model': _config!.model,
-        'messages': _buildMessages(prompt, systemMessage: systemMessage),
+        'messages': _buildMessages(prompt),
         'temperature': 0.7,
         'max_tokens': 1000,
       }),
@@ -362,7 +356,6 @@ class AIService {
   ///
   /// 参数：
   /// - prompt: 发送给 AI 的提示词
-  /// - systemMessage: 系统级指令（可选），用于设置行为准则
   ///
   /// 返回值：
   /// - 成功时返回 AI 生成的内容流
@@ -397,13 +390,13 @@ class AIService {
   /// data: {"choices":[{"delta":{"content":"AI生成的内容片段"},"index":0,"finish_reason":null}]}
   /// data: [DONE]
   /// ```
-  Stream<String> _callAIStream(String prompt, {String? systemMessage}) async* {
+  Stream<String> _callAIStream(String prompt) async* {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
     // 构建请求体
     final requestBody = jsonEncode({
       'model': _config!.model,
-      'messages': _buildMessages(prompt, systemMessage: systemMessage),
+      'messages': _buildMessages(prompt),
       'temperature': 0.7,
       'max_tokens': 8000,  // 增加 token 限制以支持全文翻译
       'stream': true,  // 启用流式响应
@@ -543,32 +536,13 @@ class AIService {
       return;
     }
 
-    // 从 SettingsService 读取语言设置
-    final langSettings = SettingsService().settings.languageSettings;
+    final outputLanguage = await _resolveOutputLanguage(
+      SettingsService().settings.languageSettings,
+      content: content,
+      bookId: bookId,
+    );
 
-    String languageInstruction;
-
-    // 如果是书籍语言模式，优先使用书籍元数据中的语言信息，否则从内容中检测语言
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, content);
-      languageInstruction =
-          AiPrompts.getLanguageInstruction(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = detectLanguageFromContent(content);
-      languageInstruction =
-          AiPrompts.getLanguageInstruction(detectedLanguage);
-      _log.d('AIService',
-          '检测到书籍语言为: $detectedLanguage, 使用语言指令: $languageInstruction');
-    } else {
-      languageInstruction = _getLanguageInstructionForModel(
-        aiLanguageMode: langSettings.aiLanguageMode,
-        aiOutputLanguage: langSettings.aiOutputLanguage,
-      );
-    }
-
-    final loc = _getPromptLoc();
+    final loc = _getPromptLoc(outputLanguage);
 
     final prompt = AiPrompts.chapterSummary(
       loc: loc,
@@ -577,7 +551,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt, systemMessage: languageInstruction)) {
+      await for (final chunk in _callAIStream(prompt)) {
         yield chunk;
       }
     } catch (e) {
@@ -610,25 +584,13 @@ class AIService {
       return;
     }
 
-    // 从 SettingsService 读取语言设置
-    final langSettings = SettingsService().settings.languageSettings;
+    final outputLanguage = await _resolveOutputLanguage(
+      SettingsService().settings.languageSettings,
+      content: chapterSummaries,
+      bookId: bookId,
+    );
 
-    String languageInstruction;
-
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, chapterSummaries);
-      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = detectLanguageFromContent(chapterSummaries);
-      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
-    } else {
-      languageInstruction = _getLanguageInstructionForModel(
-        aiLanguageMode: langSettings.aiLanguageMode,
-        aiOutputLanguage: langSettings.aiOutputLanguage,
-      );
-    }
-
-    final loc = _getPromptLoc();
+    final loc = _getPromptLoc(outputLanguage);
 
     final prompt = AiPrompts.bookSummary(
       loc: loc,
@@ -639,7 +601,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt, systemMessage: languageInstruction)) {
+      await for (final chunk in _callAIStream(prompt)) {
         yield chunk;
       }
     } catch (e) {
@@ -672,24 +634,13 @@ class AIService {
       return;
     }
 
-    final langSettings = SettingsService().settings.languageSettings;
+    final outputLanguage = await _resolveOutputLanguage(
+      SettingsService().settings.languageSettings,
+      content: prefaceContent,
+      bookId: bookId,
+    );
 
-    String languageInstruction;
-
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      String detectedLanguage = await _detectLanguageFromMetadataAndContentWithBookId(bookId, prefaceContent);
-      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
-    } else if (langSettings.aiLanguageMode == 'book') {
-      String detectedLanguage = detectLanguageFromContent(prefaceContent);
-      languageInstruction = AiPrompts.getLanguageInstruction(detectedLanguage);
-    } else {
-      languageInstruction = _getLanguageInstructionForModel(
-        aiLanguageMode: langSettings.aiLanguageMode,
-        aiOutputLanguage: langSettings.aiOutputLanguage,
-      );
-    }
-
-    final loc = _getPromptLoc();
+    final loc = _getPromptLoc(outputLanguage);
 
     final prompt = AiPrompts.bookSummaryFromPreface(
       loc: loc,
@@ -700,7 +651,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt, systemMessage: languageInstruction)) {
+      await for (final chunk in _callAIStream(prompt)) {
         yield chunk;
       }
     } catch (e) {
@@ -725,17 +676,16 @@ class AIService {
       return;
     }
 
+    final loc = _getPromptLoc(targetLang);
+
     final prompt = AiPrompts.translateHtml(
+      loc: loc,
       content: content,
       chapterTitle: chapterTitle,
-      sourceLang: sourceLang,
-      targetLang: targetLang,
     );
 
-    final systemMessage = 'You are a professional translator. Translate ALL text content to $targetLang. Do NOT mix languages. Preserve ALL HTML tags exactly as they appear.';
-
     try {
-      await for (final chunk in _callAIStream(prompt, systemMessage: systemMessage)) {
+      await for (final chunk in _callAIStream(prompt)) {
         yield chunk;
       }
     } catch (e) {
@@ -978,44 +928,34 @@ class AIService {
     return 'zh';
   }
 
-  /// 获取用于提示词模板的 AppLocalizations 实例
-  ///
-  /// 根据用户界面语言设置，返回对应语言的本地化实例，
-  /// 确保 AI 提示词模板文本与用户界面语言一致。
-  AppLocalizations _getPromptLoc() {
-    final langSettings = SettingsService().settings.languageSettings;
-    String langCode;
-    if (langSettings.uiLanguageMode == 'manual') {
-      langCode = langSettings.uiLanguage;
-    } else {
-      langCode = detectSystemLanguage();
+  /// 获取 AI 输出语言对应的 AppLocalizations 实例
+  AppLocalizations _getPromptLoc(String languageCode) {
+    if (!const ['en', 'ja', 'zh'].contains(languageCode)) {
+      languageCode = 'zh';
     }
-    if (!const ['en', 'ja', 'zh'].contains(langCode)) {
-      langCode = 'zh';
-    }
-    return lookupAppLocalizations(Locale(langCode));
+    return lookupAppLocalizations(Locale(languageCode));
   }
 
-  /// 获取语言指令（包含系统语言检测）
-  ///
-  /// 根据语言设置模式解析出最终语言代码，然后委托给
-  /// [AiPrompts.getLanguageInstruction] 生成指令字符串。
-  String _getLanguageInstructionForModel({
-    required String aiLanguageMode,
-    String? aiOutputLanguage,
-  }) {
-    String languageCode;
-    switch (aiLanguageMode) {
-      case 'manual':
-        languageCode = aiOutputLanguage ?? 'zh';
-        break;
-      case 'system':
-        languageCode = detectSystemLanguage();
-        break;
-      default:
-        languageCode = 'zh';
+  /// 解析 AI 输出语言
+  Future<String> _resolveOutputLanguage(
+    LanguageSettings langSettings, {
+    required String content,
+    String? bookId,
+  }) async {
+    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
+      return await _detectLanguageFromMetadataAndContentWithBookId(bookId, content);
     }
-    return AiPrompts.getLanguageInstruction(languageCode);
+    if (langSettings.aiLanguageMode == 'book') {
+      return detectLanguageFromContent(content);
+    }
+    switch (langSettings.aiLanguageMode) {
+      case 'manual':
+        return langSettings.aiOutputLanguage ?? 'zh';
+      case 'system':
+        return detectSystemLanguage();
+      default:
+        return 'zh';
+    }
   }
 
   /// 获取当前目标语言代码

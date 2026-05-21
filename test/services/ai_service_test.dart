@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
 import 'package:zhidu/services/ai_service.dart';
 import 'package:zhidu/services/settings_service.dart';
-import 'package:zhidu/services/ai_prompts.dart';
 import 'package:zhidu/models/app_settings.dart';
 
 
@@ -671,41 +670,6 @@ void main() {
         aiService.updateConfig(settings);
 
         expect(aiService.isConfigured, isTrue);
-      });
-    });
-
-    group('AiPrompts Language Instruction', () {
-
-      test('Language mode book adds correct instruction', () {
-        final instruction = AiPrompts.getLanguageInstruction('book');
-        expect(instruction, contains('SAME LANGUAGE'));
-      });
-
-      test('Language mode zh returns Chinese instruction', () {
-        final instruction = AiPrompts.getLanguageInstruction('zh');
-        expect(instruction, contains('Chinese'));
-        expect(instruction, contains('简体中文'));
-      });
-
-      test('Language mode en returns English instruction', () {
-        final instruction = AiPrompts.getLanguageInstruction('en');
-        expect(instruction, contains('English'));
-      });
-
-      test('Language mode ja returns Japanese instruction', () {
-        final instruction = AiPrompts.getLanguageInstruction('ja');
-        expect(instruction, contains('Japanese'));
-        expect(instruction, contains('日本語'));
-      });
-
-      test('Invalid language code falls back to Chinese', () {
-        final instruction = AiPrompts.getLanguageInstruction('xx');
-        expect(instruction, contains('Chinese'));
-      });
-
-      test('Unsupported language falls back to Chinese', () {
-        final instruction = AiPrompts.getLanguageInstruction('fr');
-        expect(instruction, contains('Chinese'));
       });
     });
   });

@@ -4,57 +4,9 @@ import 'package:zhidu/services/ai_prompts.dart';
 
 void main() {
   group('AiPrompts', () {
-    group('getLanguageInstruction', () {
-
-      test('should return book language instruction for "book"', () {
-        final instruction = AiPrompts.getLanguageInstruction('book');
-
-        expect(instruction, contains('SAME LANGUAGE'));
-        expect(instruction, contains('book content'));
-        expect(instruction, contains('summary'));
-      });
-
-      test('should return Chinese instruction for "zh"', () {
-        final instruction = AiPrompts.getLanguageInstruction('zh');
-
-        expect(instruction, contains('Chinese'));
-        expect(instruction, contains('简体中文'));
-        expect(instruction, contains('IMPORTANT'));
-      });
-
-      test('should return English instruction for "en"', () {
-        final instruction = AiPrompts.getLanguageInstruction('en');
-
-        expect(instruction, contains('English'));
-        expect(instruction, contains('IMPORTANT'));
-      });
-
-      test('should return Japanese instruction for "ja"', () {
-        final instruction = AiPrompts.getLanguageInstruction('ja');
-
-        expect(instruction, contains('Japanese'));
-        expect(instruction, contains('日本語'));
-      });
-
-      test('should handle unknown language code with Chinese fallback', () {
-        final instruction = AiPrompts.getLanguageInstruction('xx');
-
-        expect(instruction, contains('Chinese'));
-        expect(instruction, isNotEmpty);
-      });
-
-      test('should handle empty string with Chinese fallback', () {
-        final instruction = AiPrompts.getLanguageInstruction('');
-
-        expect(instruction, contains('Chinese'));
-        expect(instruction, isNotEmpty);
-      });
-    });
-
-
+    final loc = AppLocalizationsZh();
 
     group('bookSummaryFromPreface', () {
-      final loc = AppLocalizationsZh();
 
       test('should generate prompt with all parameters', () {
         final prompt = AiPrompts.bookSummaryFromPreface(
@@ -127,7 +79,6 @@ void main() {
     });
 
     group('bookSummary', () {
-      final loc = AppLocalizationsZh();
 
       test('should generate prompt with all parameters', () {
         final prompt = AiPrompts.bookSummary(
@@ -200,7 +151,6 @@ void main() {
     });
 
     group('chapterSummary', () {
-      final loc = AppLocalizationsZh();
 
       test('should generate prompt with chapter title', () {
         final prompt = AiPrompts.chapterSummary(

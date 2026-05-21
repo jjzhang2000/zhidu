@@ -354,7 +354,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String promptBookSummary(Object title, Object author, Object chapterSummaries, Object chaptersLine) {
-    return '''以下の各章の要約に基づいて、書籍全体の完全な要約を生成し、Markdown形式で出力してください。
+    return '''日本語で回答してください。
+
+以下の各章の要約に基づいて、書籍全体の完全な要約を生成し、Markdown形式で出力してください。
 
 書籍情報：
 - 書名：$title
@@ -384,7 +386,9 @@ $chapterSummaries
 
   @override
   String promptPrefaceSummary(Object title, Object author, Object prefaceContent, Object chaptersLine) {
-    return '''以下の前書き/序文の内容に基づいて、書籍の内容紹介を生成し、Markdown形式で出力してください。
+    return '''日本語で回答してください。
+
+以下の前書き/序文の内容に基づいて、書籍の内容紹介を生成し、Markdown形式で出力してください。
 
 書籍情報：
 - 書名：$title
@@ -413,7 +417,9 @@ $prefaceContent
 
   @override
   String promptChapterSummary(Object chapterTitle, Object content) {
-    return '''以下の書籍の章の内容を包括的に分析し、**まず章の実際のタイトルを抽出**してから、要約を生成してください。
+    return '''日本語で回答してください。
+
+以下の書籍の章の内容を包括的に分析し、**まず章の実際のタイトルを抽出**してから、要約を生成してください。
 
 ${chapterTitle != '' ? '元の章の識別子：$chapterTitle（正確でない可能性があります。内容に基づいて実際のタイトルを判断してください）\n' : ''}章の内容：
 $content
@@ -440,5 +446,28 @@ $content
 **重要**：プレースホルダーテキスト（「（主要内容の概要）」や「（章のまとめ）」など）を出力しないでください。章の内容に基づいて実際の要約内容を生成してください。
 ''';
   }
+
+  @override
+  String promptTranslateHtml(Object content, Object chapterTitle) {
+    return '''日本語で回答してください。
+
+以下のHTMLコンテンツを日本語に翻訳してください。
+
+${chapterTitle != '' ? '章タイトル：$chapterTitle\n' : ''}HTML原文：
+$content
+
+重要：翻訳ルール
+1. すべてのテキストを日本語に統一して翻訳
+2. すべてのHTMLタグを厳密に保持：タグ名、属性、ネスト関係、順序を完全に変更しないこと
+3. タグ内のプレーンテキストのみを翻訳し、タグ名、属性値、URL、コード内容は翻訳しないこと
+4. 技術用語は原文のまま保持可能
+5. コードブロック（\`<code>\` または \`<pre>\` タグ内の内容）は一切翻訳せず、エスケープ処理も行わないこと
+6. \`<code>\` と \`<pre>\` 内の内容はそのまま出力し、バックスラッシュを追加・削除しないこと
+7. 入力に \`%%ZHIDU_CODE_BLOCK_N%%\`（Nは数字）というプレースホルダーが含まれる場合があります。これはコードブロックのマーカーです。そのまま保持し、翻訳・解釈・変更しないでください
+8. 説明、注釈、追加コンテンツを一切追加しないこと
+9. 翻訳後のHTMLのみを直接出力すること
+''';
+  }
+
 
 }

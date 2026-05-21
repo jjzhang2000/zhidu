@@ -352,7 +352,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String promptBookSummary(Object title, Object author, Object chapterSummaries, Object chaptersLine) {
-    return '''请根据以下各章节摘要，为全书生成一份完整的书籍摘要，使用 Markdown 格式输出。
+    return '''请用中文回复。
+
+请根据以下各章节摘要，为全书生成一份完整的书籍摘要，使用 Markdown 格式输出。
 
 书籍信息：
 - 书名：$title
@@ -382,7 +384,9 @@ $chapterSummaries
 
   @override
   String promptPrefaceSummary(Object title, Object author, Object prefaceContent, Object chaptersLine) {
-    return '''请根据以下前言/序言内容，为书籍生成一份内容介绍，使用 Markdown 格式输出。
+    return '''请用中文回复。
+
+请根据以下前言/序言内容，为书籍生成一份内容介绍，使用 Markdown 格式输出。
 
 书籍信息：
 - 书名：$title
@@ -411,7 +415,9 @@ $prefaceContent
 
   @override
   String promptChapterSummary(Object chapterTitle, Object content) {
-    return '''请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
+    return '''请用中文回复。
+
+请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
 
 ${chapterTitle != '' ? '原始章节标识：$chapterTitle（可能不准确，请根据内容判断真实标题）\n' : ''}章节内容：
 $content
@@ -436,6 +442,28 @@ $content
    - 最后是 `## 总结` 部分
 
 **重要**：不要输出占位符文本如"（主要内容概述）"或"（章节总结）"。基于章节内容生成实际的摘要内容。
+''';
+  }
+
+  @override
+  String promptTranslateHtml(Object content, Object chapterTitle) {
+    return '''请用中文回复。
+
+请将以下 HTML 内容翻译为中文。
+
+${chapterTitle != '' ? '章节标题：$chapterTitle\n' : ''}HTML原文：
+$content
+
+重要：翻译规则
+1. 所有文本必须统一翻译为中文，无论原文是哪种语言
+2. 严格保留所有 HTML 标签：标签的名称、属性、嵌套关系、顺序完全不变
+3. 只翻译标签内的纯文本，不翻译标签名、属性值、URL、代码内容
+4. 技术术语可以保留原文
+5. 代码块（\`<code>\` 或 \`<pre>\` 标签内的内容）完全不需要翻译，也不要进行任何转义处理
+6. 对于 \`<code>\` 和 \`<pre>\` 中的内容，原样输出，不要添加或移除任何反斜杠
+7. 输入中可能包含占位符 \`%%ZHIDU_CODE_BLOCK_N%%\`（N为数字），这些是代码块的标记，原样保留即可
+8. 不要添加任何解释、注释或额外内容
+9. 直接输出翻译后的 HTML
 ''';
   }
 

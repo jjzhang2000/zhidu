@@ -2,10 +2,7 @@
 
 ## 概述
 
-AiPrompts 是一个静态类，提供用于 AI 服务的提示词模板。支持书籍摘要和章节摘要的生成。
-
-提示词文本通过 `AppLocalizations`（l10n）进行国际化翻译，`languageInstruction` 不作为提示词体内容，
-而只通过 `systemMessage` 参数传递给 AI。
+AiPrompts 是一个静态类，提供用于 AI 服务的提示词模板。所有提示词文本通过 `AppLocalizations`（l10n）进行国际化翻译，回复语言指令直接嵌入提示词文本首行，不再通过 `systemMessage` 传递。
 
 ---
 
@@ -14,35 +11,15 @@ AiPrompts 是一个静态类，提供用于 AI 服务的提示词模板。支持
 ```pseudocode
 CLASS AiPrompts:
     // 所有方法均为静态方法
-    // 无实例属性
-    // 无构造函数（纯静态类）
-    // 依赖 AppLocalizations 获取本地化标签
+    // 无实例属性、无构造函数（纯静态类）
+    // 依赖 AppLocalizations 获取本地化提示词模板
 ```
 
 ---
 
 ## 方法伪代码
 
-### getLanguageInstruction() - 获取语言指令
-
-生成 AI 输出的语言控制指令，只作为 `systemMessage` 使用，**不再嵌入 prompt 体**。
-
-```pseudocode
-PUBLIC STATIC METHOD getLanguageInstruction(languageCode: String) -> String:
-    SWITCH languageCode:
-        CASE 'zh':
-            RETURN 'IMPORTANT: Respond in Chinese (简体中文).'
-        CASE 'en':
-            RETURN 'IMPORTANT: Respond in English.'
-        CASE 'ja':
-            RETURN 'IMPORTANT: Respond in Japanese (日本語).'
-        DEFAULT:
-            RETURN 'IMPORTANT: Respond in Chinese (简体中文).'
-```
-
----
-
-### bookSummaryFromPreface() - 基于前言生成书籍摘要提示词
+### bookSummaryFromPreface() - 基于前言生成全书摘要提示词
 
 ```pseudocode
 PUBLIC STATIC METHOD bookSummaryFromPreface(
@@ -59,31 +36,7 @@ PUBLIC STATIC METHOD bookSummaryFromPreface(
     RETURN loc.promptPrefaceSummary(title, author, prefaceContent, chaptersLine)
 ```
 
-`loc.promptPrefaceSummary()` 在每个语言的实现中直接包含完整模板文本。
-以简体中文为例，返回：
-
-```
-请根据以下前言/序言内容，为书籍生成一份内容介绍，使用 Markdown 格式输出。
-
-书籍信息：
-- 书名：{title}
-- 作者：{author}
-{chaptersLine}
-
-前言/序言内容：
-{prefaceContent}
-
-要求：
-1. **长度：400-600 字**
-2. 按内容分段输出，使用 Markdown 标题（##）和段落组织
-3. 基于前言/序言内容提炼书籍主题和核心内容
-4. 必须包含本书的适用读者人群或技术要求
-5. 使用 Markdown 格式输出
-6. 输出结构：
-   - `## 内容简介` - 书籍内容概览
-   - `## 核心主题` - 主要主题和关键思想
-   - `## 适合读者` - 谁应该阅读此书
-```
+`loc.promptPrefaceSummary()` 以简体中文为例，返回首行含 "请用中文回复。" 的完整模板文本。
 
 ---
 
@@ -120,26 +73,7 @@ PUBLIC STATIC METHOD chapterSummary(
     )
 ```
 
-以简体中文为例，`loc.promptChapterSummary()` 返回：
-
-```
-请对以下书籍章节内容进行全面分析，**首先提取章节的真实标题**，然后生成摘要。
-
-{chapterTitle != '' ? '原始章节标识：{chapterTitle}\n' : ''}
-章节内容：
-{content}
-
-要求：
-1. **第一行必须输出章节的真实标题**
-2. 标题行之后空一行，然后输出摘要正文
-3. **摘要长度：200-300 字**
-4. 使用 Markdown 标题（##）和段落组织
-5. 输出结构：
-   - 以 `## [标题]` 开始
-   - 然后是 `## 核心内容` 部分
-   - 然后是 `## 关键要点`，包含 3-5 个要点
-   - 最后是 `## 总结` 部分
-```
+以简体中文为例，`loc.promptChapterSummary()` 返回首行含 "请用中文回复。" 的完整模板文本。
 
 章节标题名在不同语言文件中直接硬编码为对应语言：
 
@@ -153,53 +87,34 @@ PUBLIC STATIC METHOD chapterSummary(
 
 ### translateHtml() - HTML 翻译提示词
 
-翻译提示词不通过 l10n，直接在 AiPrompts 内部按目标语言分支：
-
 ```pseudocode
 PUBLIC STATIC METHOD translateHtml(
+    loc: AppLocalizations,
     content: String,
-    sourceLang: String,
-    targetLang: String,
     chapterTitle: String? = null
 ) -> String:
-    t = _langName(targetLang)
-
-    IF targetLang == 'ja':
-        RETURN 日语翻译模板（含 $t 插值）
-    IF targetLang == 'zh':
-        RETURN 中文翻译模板（含 $t 插值）
-    RETURN 英文翻译模板（含 $t 插值）
+    RETURN loc.promptTranslateHtml(content, chapterTitle ?? '')
 ```
 
----
-
-### _langName() - 语言名称
-
-```pseudocode
-PRIVATE STATIC METHOD _langName(code: String) -> String:
-    SWITCH code:
-        CASE 'zh': RETURN '中文'
-        CASE 'en': RETURN 'English'
-        CASE 'ja': RETURN '日本語'
-        DEFAULT: RETURN code
-```
+`loc.promptTranslateHtml()` 在各语言实现中直接包含完整翻译提示词模板，首行同样包含回复语言指令。
 
 ---
 
 ## AppLocalizations l10n 结构
 
-提示词相关 l10n key 仅保留 3 个静态标签 getter + 3 个内容模板方法：
+提示词相关 l10n key：
 
 | Key | 类型 | 说明 |
 |-----|------|------|
-| `promptBookTitleLabel` | getter | 书名标签：`书名：` / `Title: ` / `書名：` |
-| `promptBookAuthorLabel` | getter | 作者标签：`作者：` / `Author: ` / `著者：` |
-| `promptBookChaptersLabel` | getter | 章节数标签：`章节数：` / `Chapters: ` / `章数：` |
+| `promptBookTitleLabel` | getter | 书名标签 |
+| `promptBookAuthorLabel` | getter | 作者标签 |
+| `promptBookChaptersLabel` | getter | 章节数标签 |
 | `promptBookSummary` | 方法 | 全书摘要模板 |
 | `promptPrefaceSummary` | 方法 | 前言摘要模板 |
 | `promptChapterSummary` | 方法 | 章节摘要模板 |
+| `promptTranslateHtml` | 方法 | HTML 翻译模板（新增） |
 
-所有模板方法只接受内容参数（title、author、content 等），不接受 `languageInstruction` 或语言名称等动态占位符。
+所有模板方法首行自带回复语言指令：中文 "请用中文回复。"、英文 "Please respond in English."、日语 "日本語で回答してください。"。
 
 ---
 
@@ -208,21 +123,26 @@ PRIVATE STATIC METHOD _langName(code: String) -> String:
 ```
 AIService.generateFullChapterSummaryStream()
     │
-    ├─ languageInstruction = AiPrompts.getLanguageInstruction('en')
-    │      → 'IMPORTANT: Respond in English.'          ← systemMessage 用
+    ├─ outputLanguage = await _resolveOutputLanguage(...)
     │
-    ├─ loc = _getPromptLoc()                           ← 根据 UI 语言设置
+    ├─ loc = _getPromptLoc(outputLanguage)
     │
     ├─ prompt = AiPrompts.chapterSummary(loc: loc, ...)
-    │      → loc.promptChapterSummary(...)              ← 纯内容模板（无语言前缀）
+    │      → loc.promptChapterSummary(...)
+    │      → 首行：请用中文回复。/Please respond in English./日本語で回答してください。
+    │      → 提示词语言与 AI 输出语言一致
     │
-    └─ _callAIStream(prompt, systemMessage: languageInstruction)
-           → AI 通过 systemMessage 接收语言指令
+    └─ _callAIStream(prompt)           ← 不再需要 systemMessage
 ```
 
 **关键设计决策**：
-- `languageInstruction` **只作为 systemMessage**，不嵌入 prompt 体
-- prompt 体是纯内容模板，通过 l10n 实现三语（zh/en/ja）
-- 模板中无动态占位符，每个语言文件的模板文本各自独立
+- 回复语言指令 **直接嵌入 prompt 体首行**，不再作为 systemMessage 传递
+- prompt 体通过 l10n 实现三语（zh/en/ja），提示词语言与 AI 输出语言一致
+- `_callAIStream()` / `_callAI()` 不再接收 `systemMessage` 参数，消息列表仅含 `user` role
 
 ---
+
+## 版本历史
+
+- **2026-05-21**: 彻底消除 systemMessage — 删除 `getLanguageInstruction()`/`_outputInstruction()`/`_langName()` 三个方法；删除 `AiPrompts` 方法上 `outputLanguage` 参数；`translateHtml` 硬编码三语提示词迁移至 l10n 的 `promptTranslateHtml`；回复语言指令直接嵌入各 l10n 提示词模板首行
+- **2026-05-20**: 提示词 l10n 化 — 全部提示词文本委托 AppLocalizations；删除 5 个死方法（~315行）；消除动态占位符；`getLanguageInstruction` 简化为 `(languageCode)`；ai_prompts.dart 457→128 行

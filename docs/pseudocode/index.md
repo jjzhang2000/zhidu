@@ -348,11 +348,20 @@ Documents/zhidu/                   (可自定义)
 
 ## 版本信息
 
-- **文档更新时间**: 2026-05-19
+- **文档更新时间**: 2026-05-21
 - **项目版本**: v1.3
 - **Flutter 版本**: >= 3.0.0
 
 ### 近期更新
+
+#### 2026-05-21: 消除 systemMessage + translateHtml 迁移至 l10n + 回复语言指令嵌入提示词
+
+- **消除**: `_callAIStream` / `_callAI` / `_buildMessages` 移除 `systemMessage` 参数；消息列表仅含 `user` role
+- **新增**: `_resolveOutputLanguage()` 统一解析 AI 输出语言；`_getPromptLoc(languageCode)` 按目标语言获取 AppLocalizations
+- **删除**: `AiPrompts.getLanguageInstruction()` / `_outputInstruction()` / `_langName()` / `_getLanguageInstructionForModel()`
+- **迁移**: `translateHtml` 硬编码三语提示词 → l10n `promptTranslateHtml`
+- **嵌入**: 回复语言指令（"请用中文回复。" / "Please respond in English." / "日本語で回答してください。"）直接写入各 l10n 模板首行
+- **原则**: 提示词语言即 AI 输出语言，不再需要 systemMessage 绕圈
 
 #### 2026-05-19: language_settings_screen.dart 冗余清理
 
