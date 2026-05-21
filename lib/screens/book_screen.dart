@@ -281,29 +281,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// 获取章节标题
-  ///
-  /// 标题来源优先级：
-  /// 1. **优先**：从[_book.chapterTitles]获取（AI提取的高质量标题）
-  /// 2. **回退**：使用[chapter.title]（EPUB原始标题）
-  ///
-  /// AI提取的标题通常更准确，因为EPUB原始标题可能：
-  /// - 包含噪音字符（如"第1章"、"Chapter 1"等）
-  /// - 格式不统一
-  /// - 层级信息缺失
-  ///
-  /// 参数：
-  /// - [index] 章节索引
-  /// - [chapter] 章节对象
-  ///
-  /// 返回：显示用的章节标题
   String _getChapterTitle(int index, Chapter chapter) {
-    // 尝试从书籍的章节标题映射中获取
-    final titles = _book.chapterTitles;
-    if (titles != null && titles.containsKey(index)) {
-      return titles[index]!;
-    }
-    // 回退到原始标题
     return chapter.title;
   }
 

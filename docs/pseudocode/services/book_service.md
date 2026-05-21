@@ -349,24 +349,6 @@ PUBLIC METHOD searchBooks(query: String) -> List<Book>:
     ).toList()
 ```
 
----
-
-### updateChapterTitle() - 修正章节标题
-
-```pseudocode
-ASYNC METHOD updateChapterTitle(bookId: String, chapterIndex: int, title: String):
-    book = getBookById(bookId)
-    
-    IF book == null:
-        _log.w('BookService', '书籍不存在: {bookId}')
-        RETURN
-    
-    updatedTitles = Map<int, String>.from(book.chapterTitles ?? {})
-    updatedTitles[chapterIndex] = title
-    updatedBook = book.copyWith(chapterTitles: updatedTitles)
-    await updateBook(updatedBook)
-```
-
 ## 去重策略
 
 ### 去重逻辑

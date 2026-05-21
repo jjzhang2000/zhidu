@@ -354,6 +354,14 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-21: 删除 chapterTitles 持久化
+
+- **原因**: AI 从摘要内容推断的章节标题不属于书籍元数据，不应持久化到 metadata.json
+- **删除**: `Book.chapterTitles` 字段、`BookService.updateChapterTitle()`、`SummaryService` 中调用方
+- **简化**: `BookScreen._getChapterTitle()` / `ChapterScreen._getChapterTitle()` → 直接返回原始标题
+- **测试**: `book_test.dart` / `book_detail_screen_test.dart` / `chapter_screen_test.dart` 全部移除 chapterTitles 用例
+- **同步**: `book_service.md` 删除 `updateChapterTitle()` 伪代码、`summary_service.md` 删除标题持久化流程
+
 #### 2026-05-21: BookService 僵尸代码清理与注释精简
 
 - **删除**: `saveBooksIndex()` public 方法 — 无源码级别外部调用，仅内部使用 `_saveBooksIndex()` private 方法

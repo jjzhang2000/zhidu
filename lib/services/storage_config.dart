@@ -216,23 +216,9 @@ class StorageConfig {
         bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$targetLang.html');
   }
 
-  /// 获取封面保存路径
-  ///
-  /// 根据 MIME 类型确定封面文件的扩展名。
-  /// - `image/png` → `cover.png`
-  /// - `image/jpeg` 或其他 → `cover.jpg`
-  ///
-  /// 用于从 EPUB 中提取封面时确定保存文件名。
-  ///
-  /// Parameters:
-  ///   - [bookId]: 书籍唯一标识符
-  ///   - [mimeType]: 图片的 MIME 类型（如 `image/jpeg`, `image/png`）
-  ///
-  /// Returns:
-  ///   封面保存路径字符串
-  static Future<String> getCoverSavePath(String bookId, String mimeType) async {
+  /// 获取封面保存路径（bookDir/cover.{extension}）
+  static Future<String> getCoverSavePath(String bookId, String extension) async {
     final bookDir = await getBookDirectory(bookId);
-    final extension = mimeType.contains('png') ? 'png' : 'jpg';
     return p.join(bookDir.path, 'cover.$extension');
   }
 }

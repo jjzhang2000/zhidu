@@ -304,18 +304,9 @@ class SummaryService {
 
       // 生成完成，处理最终内容
       if (accumulatedContent.isNotEmpty) {
-        // 提取AI返回的章节标题
         final extractedTitle = extractTitleFromSummary(accumulatedContent);
         final cleanSummary = removeTitleLineFromSummary(accumulatedContent);
 
-        // 如果提取到有效标题，更新书籍元数据
-        if (extractedTitle != null && extractedTitle.isNotEmpty) {
-          await _bookService.updateChapterTitle(
-              bookId, chapterIndex, extractedTitle);
-          _log.d('SummaryService', '提取并更新章节标题: $extractedTitle');
-        }
-
-        // 构建并保存摘要对象
         final chapterSummary = Chapter(
           bookId: bookId,
           index: chapterIndex,

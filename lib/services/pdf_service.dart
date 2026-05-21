@@ -169,7 +169,7 @@ class PdfService {
       final pngBytes = Uint8List.fromList(img.encodePng(image));
 
       final coverPath =
-          await StorageConfig.getCoverSavePath(bookId, 'image/png');
+          await StorageConfig.getCoverSavePath(bookId, 'png');
       final coverFile = File(coverPath);
 
       // 将PNG数据写入文件

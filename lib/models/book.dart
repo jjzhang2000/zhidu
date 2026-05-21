@@ -23,7 +23,6 @@ enum BookFormat {
 /// 主要用途：
 /// - 存储书籍的基本信息（标题、作者、文件路径等）
 /// - 跟踪阅读进度（当前章节、阅读进度百分比）
-/// - 管理AI生成的书籍介绍和章节标题
 /// - 提供序列化/反序列化功能用于数据存储
 class Book {
   /// 书籍唯一标识符（UUID格式）
@@ -59,11 +58,6 @@ class Book {
   /// 最后阅读时间（可选）
   final DateTime? lastReadAt;
 
-  /// 章节索引到章节标题的映射（可选）
-  /// Key: 章节索引（int）
-  /// Value: 章节标题（String）
-  final Map<int, String>? chapterTitles;
-  
   /// 书籍语言（从OPF元数据中获取）
   final String? language;
 
@@ -83,7 +77,6 @@ class Book {
   /// - currentChapter: 当前章节，默认为0
   /// - readingProgress: 阅读进度，默认为0.0
   /// - lastReadAt: 最后阅读时间，默认为null
-  /// - chapterTitles: 章节标题映射，默认为null
   /// - language: 书籍语言，默认为null
   Book({
     required this.id,
@@ -97,7 +90,6 @@ class Book {
     this.readingProgress = 0.0,
     required this.addedAt,
     this.lastReadAt,
-    this.chapterTitles,
     this.language,
   });
 
@@ -116,7 +108,6 @@ class Book {
   /// - readingProgress: 新的阅读进度（可选）
   /// - addedAt: 新的添加时间（可选）
   /// - lastReadAt: 新的最后阅读时间（可选）
-  /// - chapterTitles: 新的章节标题映射（可选）
   /// - language: 新的语言信息（可选）
   ///
   /// 返回值：新的Book实例，未指定的字段保留原值
@@ -134,7 +125,6 @@ class Book {
     double? readingProgress,
     DateTime? addedAt,
     DateTime? lastReadAt,
-    Map<int, String>? chapterTitles,
     String? language,
   }) {
     return Book(
@@ -149,7 +139,6 @@ class Book {
       readingProgress: readingProgress ?? this.readingProgress,
       addedAt: addedAt ?? this.addedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
-      chapterTitles: chapterTitles ?? this.chapterTitles,
       language: language ?? this.language,
     );
   }
@@ -175,7 +164,6 @@ class Book {
       'readingProgress': readingProgress,
       'addedAt': addedAt.toIso8601String(),
       'lastReadAt': lastReadAt?.toIso8601String(),
-      'chapterTitles': chapterTitles?.map((k, v) => MapEntry(k.toString(), v)),
       'language': language,
     };
   }
@@ -190,11 +178,6 @@ class Book {
   ///
   /// 调用方：Database（从数据库读取时）、BookService（加载数据时）
   factory Book.fromJson(Map<String, dynamic> json) {
-    final chapterTitlesRaw = json['chapterTitles'] as Map<String, dynamic>?;
-    final chapterTitles = chapterTitlesRaw?.map(
-      (k, v) => MapEntry(int.parse(k), v as String),
-    );
-
     return Book(
       id: json['id'],
       title: json['title'],
@@ -212,7 +195,6 @@ class Book {
       lastReadAt: json['lastReadAt'] != null
           ? DateTime.parse(json['lastReadAt'])
           : null,
-      chapterTitles: chapterTitles,
       language: json['language'],
     );
   }

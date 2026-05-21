@@ -385,25 +385,15 @@ ASYNC METHOD generateSingleSummary(
         
         // 生成完成，处理最终内容
         IF accumulatedContent.isNotEmpty:
-            // 提取 AI 返回的章节标题
             extractedTitle = extractTitleFromSummary(accumulatedContent)
             cleanSummary = removeTitleLineFromSummary(accumulatedContent)
             
-            // 如果提取到有效标题，更新书籍元数据
-            IF extractedTitle != null AND extractedTitle.isNotEmpty:
-                await _bookService.updateChapterTitle(
-                    bookId, chapterIndex, extractedTitle)
-                _log.d('SummaryService', '提取并更新章节标题: {extractedTitle}')
-            
-            // 构建并保存摘要对象
-            chapterSummary = ChapterSummary(
+            chapterSummary = Chapter(
                 bookId: bookId,
-                chapterIndex: chapterIndex,
-                chapterTitle: extractedTitle ?? chapterTitle,
+                index: chapterIndex,
+                title: extractedTitle ?? chapterTitle,
+                location: ChapterLocation(),
                 objectiveSummary: cleanSummary,
-                aiInsight: '',
-                keyPoints: [],
-                createdAt: DateTime.now()
             )
             
             await saveSummary(chapterSummary, language: language)

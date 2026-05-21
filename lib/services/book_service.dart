@@ -22,7 +22,7 @@ class BookService {
   final _log = LogService();
   final _fileStorage = FileStorageService();
 
-  List<Book> _books = [];
+  final List<Book> _books = [];
 
   List<Book> get books => _books;
 
@@ -36,12 +36,10 @@ class BookService {
     final data = await _fileStorage.readJson(indexPath);
 
     if (data == null) {
-      _books = [];
       return;
     }
 
     final booksList = data['books'] as List<dynamic>? ?? [];
-    _books = [];
 
     for (final bookJson in booksList) {
       final bookId = bookJson['id'] as String?;
@@ -121,7 +119,7 @@ class BookService {
           if (await File(coverAbsolutePath).exists()) {
             final coverDestPath = await StorageConfig.getCoverSavePath(
               book.id,
-              _getMimeTypeFromExtension(p.extension(coverAbsolutePath)),
+              p.extension(coverAbsolutePath).replaceFirst('.', ''),
             );
             
             try {
@@ -252,38 +250,4 @@ class BookService {
     }).toList();
   }
 
-  String _getMimeTypeFromExtension(String extension) {
-    switch (extension.toLowerCase()) {
-      case '.jpg':
-      case '.jpeg':
-        return 'image/jpeg';
-      case '.png':
-        return 'image/png';
-      case '.gif':
-        return 'image/gif';
-      case '.svg':
-        return 'image/svg+xml';
-      default:
-        return 'image/jpeg';
-    }
-  }
-
-  /// 修正或替换指定章节的标题
-  Future<void> updateChapterTitle(
-    String bookId,
-    int chapterIndex,
-    String title,
-  ) async {
-    final book = getBookById(bookId);
-    if (book == null) {
-      _log.w('BookService', '书籍不存在: $bookId');
-      return;
-    }
-
-    final updatedTitles = Map<int, String>.from(book.chapterTitles ?? {});
-    updatedTitles[chapterIndex] = title;
-
-    final updatedBook = book.copyWith(chapterTitles: updatedTitles);
-    await updateBook(updatedBook);
-  }
 }

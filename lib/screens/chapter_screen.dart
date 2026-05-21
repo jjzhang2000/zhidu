@@ -411,12 +411,10 @@ class _ChapterScreenState extends State<ChapterScreen>
     );
 
     if (!mounted) return;
-    final book = _bookService.getBookById(widget.bookId);
     setState(() {
       _summaryChapter = summary;
       _isGenerating = false;
       _streamingSummary = '';
-      _title = book?.chapterTitles?[widget.chapterIndex] ?? _title;
     });
   }
 
@@ -607,36 +605,14 @@ class _ChapterScreenState extends State<ChapterScreen>
     }
   }
 
-  /// 获取章节标题
-  ///
-  /// AppBar标题显示逻辑：
-  /// 1. 优先从Book对象的chapterTitles映射获取（AI更新后的标题）
-  /// 2. 如果没有，使用传入的默认标题
-  ///
-  /// 这样设计的原因：
-  /// - AI生成摘要时可能同时更新章节标题（更准确的标题）
-  /// - chapterTitles存储在Book对象中，持久化到数据库
-  /// - 下次进入时可以显示更新后的标题
-  String _getChapterTitle(int index, String defaultTitle) {
-    if (widget.book != null) {
-      final titles = widget.book!.chapterTitles;
-      if (titles != null && titles.containsKey(index)) {
-        return titles[index]!;
-      }
-    }
-    return defaultTitle;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        // 标题显示逻辑：
-        // 使用_getChapterTitle获取标题，优先显示AI更新后的标题
         title: Text(
-          _getChapterTitle(widget.chapterIndex, widget.chapterTitle),
+          widget.chapterTitle,
           style: const TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: 16,

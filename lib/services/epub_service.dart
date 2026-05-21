@@ -496,9 +496,11 @@ class EpubService {
         }
 
         if (coverImage != null && coverImage.content != null) {
+          final extension =
+              coverImage.contentMimeType?.contains('png') == true ? 'png' : 'jpg';
           final coverPath = await StorageConfig.getCoverSavePath(
             bookId,
-            coverImage.contentMimeType ?? 'image/jpeg',
+            extension,
           );
 
           final coverOutputFile = File(coverPath);
@@ -555,13 +557,12 @@ class EpubService {
 
       if (coverFile != null) {
         // 确定文件扩展名
-        final mimeType = coverFile.name.toLowerCase().endsWith('.png')
-            ? 'image/png'
-            : 'image/jpeg';
+        final extension = coverFile.name.toLowerCase().endsWith('.png')
+            ? 'png'
+            : 'jpg';
 
-        // 保存到书籍目录
         final coverPath =
-            await StorageConfig.getCoverSavePath(bookId, mimeType);
+            await StorageConfig.getCoverSavePath(bookId, extension);
         final coverOutputFile = File(coverPath);
         await coverOutputFile.writeAsBytes(coverFile.content as List<int>);
         _log.d('EpubService', '封面保存成功: $coverPath');
