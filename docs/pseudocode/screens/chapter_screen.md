@@ -201,20 +201,20 @@ END PROCEDURE
 
 ```
 ASYNC PROCEDURE _initializeLanguageSettings():
-  _sourceLang = _aiService.detectSourceLanguage(
+  _sourceLang = await _aiService.detectSourceLanguage(
     bookLanguage: widget.book?.language,
-    content: _content
+    content: _content,
+    bookId: widget.book?.id
   )
 
-  // All language decisions delegated to AIService
   final lang = SettingsService().settings.languageSettings
-  _targetLang = _aiService.getTargetLanguage(
-    aiLanguageMode: lang.aiLanguageMode,
-    aiOutputLanguage: lang.aiOutputLanguage,
-    bookLanguage: _sourceLang,
+  _targetLang = await _aiService.resolveOutputLanguage(
+    lang,
+    content: _content,
+    preResolvedLanguage: _sourceLang,
   )
   _summaryLang = _targetLang ?? 'zh'
-  _translationTabDisabled = !_aiService.needsTranslation(_sourceLang!)
+  _translationTabDisabled = !(await _aiService.needsTranslation(_sourceLang!))
 END PROCEDURE
 ```
 

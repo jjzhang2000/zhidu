@@ -354,6 +354,13 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-21: AI 语言检测 + 合并 resolveOutputLanguage + 语言回写
+
+- **AI 检测**: `detectLanguageFromContent` 从 75 行字符统计算法 → AI 流式识别（截取前 2000 字符），消除中/日文汉字误判
+- **回写**: `detectSourceLanguage` 新增 `bookId` 参数，AI 检测后回写 `Book.language` 持久化，后续访问零开销
+- **合并**: `getTargetLanguage` 删除，统一为 `resolveOutputLanguage`（新增 `preResolvedLanguage` 快路径）
+- **异步**: 4 个方法签名 sync→async：`detectLanguageFromContent`/`detectSourceLanguage`/`needsTranslation`/`getTargetLanguage`
+
 #### 2026-05-21: 删除 `_callAI` + 统一 `dart:io` `HttpClient`
 
 - **删除**: `_callAI()` 阻塞方法（~70行）、`_httpClient` 字段、`setMockClient()`、`dispose()` 僵尸方法

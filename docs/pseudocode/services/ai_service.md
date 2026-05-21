@@ -260,148 +260,52 @@ STREAM METHOD generateBookSummaryStream(
 
 ---
 
-### detectLanguageFromContent() - 从内容检测语言
+### detectLanguageFromContent() - 从内容中检测语言（AI 识别）
+
+截取前 2000 字符发送给 AI 判断语言，消除纯字符统计对中/日文汉字的误判。
 
 ```pseudocode
-METHOD detectLanguageFromContent(content: String) -> String:
-    // 空内容返回默认语言
+ASYNC METHOD detectLanguageFromContent(content: String) -> String:
     IF content.isEmpty:
         RETURN 'zh'
-    
-    // 初始化字符计数器
-    chineseChars = 0
-    englishChars = 0
-    japaneseChars = 0
-    koreanChars = 0
-    punctuationChars = 0
-    
-    // 遍历每个字符
-    FOR i = 0 TO content.length - 1:
-        charCode = content.codeUnitAt(i)
-        
-        // 检测中文字符 (CJK 统一汉字、扩展A、兼容汉字)
-        IF (charCode >= 0x4e00 AND charCode <= 0x9fff) OR
-           (charCode >= 0x3400 AND charCode <= 0x4dbf) OR
-           (charCode >= 0xf900 AND charCode <= 0xfaff):
-            chineseChars++
-        
-        // 检测日文字符 (平假名、片假名)
-        ELSE IF (charCode >= 0x3040 AND charCode <= 0x309f) OR
-                (charCode >= 0x30a0 AND charCode <= 0x30ff) OR
-                (charCode >= 0x31f0 AND charCode <= 0x31ff):
-            japaneseChars++
-        
-        // 检测韩文字符 (韩文音节)
-        ELSE IF charCode >= 0xac00 AND charCode <= 0xd7af:
-            koreanChars++
-        
-        // 检测英文字符 (A-Z, a-z)
-        ELSE IF (charCode >= 65 AND charCode <= 90) OR
-                (charCode >= 97 AND charCode <= 122):
-            englishChars++
-        
-        // 检测标点符号
-        ELSE IF (charCode >= 32 AND charCode <= 47) OR
-                (charCode >= 58 AND charCode <= 64) OR
-                (charCode >= 12288 AND charCode <= 12543):
-            punctuationChars++
-    
-    // 计算总有效字符数
-    totalChars = chineseChars + englishChars + japaneseChars + koreanChars
-    
-    // 无有效字符返回默认
-    IF totalChars == 0:
-        RETURN 'zh'
-    
-    // 计算各语言比例
-    chineseRatio = chineseChars / totalChars
-    englishRatio = englishChars / totalChars
-    japaneseRatio = japaneseChars / totalChars
-    koreanRatio = koreanChars / totalChars
-    
-    // 中文优先判断（30%阈值）
-    IF chineseRatio >= 0.3:
-        RETURN 'zh'
-    
-    // 其他语言按比例判断
-    ELSE IF japaneseRatio > englishRatio AND japaneseRatio > koreanRatio:
-        RETURN 'ja'
-    
-    ELSE IF koreanRatio > englishRatio:
-        RETURN 'ko'
-    
-    ELSE IF englishRatio > chineseRatio AND 
-            englishRatio > japaneseRatio AND 
-            englishRatio > koreanRatio:
-        RETURN 'en'
-    
-    // 按数量判断
-    maxCount = 0
-    detectedLanguage = 'zh'
-    
-    IF chineseChars > maxCount:
-        maxCount = chineseChars
-        detectedLanguage = 'zh'
-    
-    IF englishChars > maxCount:
-        maxCount = englishChars
-        detectedLanguage = 'en'
-    
-    IF japaneseChars > maxCount:
-        maxCount = japaneseChars
-        detectedLanguage = 'ja'
-    
-    IF koreanChars > maxCount:
-        maxCount = koreanChars
-        detectedLanguage = 'ko'
-    
-    RETURN detectedLanguage
-```
 
-**语言检测流程图:**
+    sample = content.length > 2000 ? content.substring(0, 2000) : content
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│           detectLanguageFromContent() 检测流程                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  输入: content (文本内容)                                    │
-│      ↓                                                      │
-│  遍历每个字符，统计各类字符数量                               │
-│      ├─ 中文字符 (CJK)                                       │
-│      ├─ 日文字符 (假名)                                      │
-│      ├─ 韩文字符 (音节)                                      │
-│      ├─ 英文字符 (A-Z, a-z)                                  │
-│      └─ 标点符号                                             │
-│      ↓                                                      │
-│  计算各语言比例                                              │
-│      ↓                                                      │
-│  判断语言                                                    │
-│      ├─ 中文比例 >= 30% → 'zh'                              │
-│      ├─ 日文比例最高 → 'ja'                                  │
-│      ├─ 韩文比例最高 → 'ko'                                  │
-│      ├─ 英文比例最高 → 'en'                                  │
-│      └─ 按数量判断 → 最大数量的语言                          │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+    TRY:
+        buffer = ''
+        AWAIT FOR chunk IN _callAIStream(
+            'Detect the language of the following text. Reply with exactly one code in lowercase: "zh" for Chinese, "en" for English, or "ja" for Japanese. Do not explain.\n\n' + sample
+        ):
+            buffer += chunk
+
+        result = buffer.trim().toLowerCase()
+        IF result.contains('ja') OR result.contains('jp'): RETURN 'ja'
+        IF result.contains('en'): RETURN 'en'
+        RETURN 'zh'
+    CATCH e:
+        _log.w('AI 语言检测失败，默认中文')
+        RETURN 'zh'
 ```
 
 ---
 
-### _resolveOutputLanguage() - 解析 AI 输出语言
+### resolveOutputLanguage() - 解析 AI 输出语言
 
-根据语言设置、书籍元数据和内容检测决定 AI 输出的目标语言代码。
+根据语言设置决定 AI 输出语言代码。统一入口，同时供内部流式生成方法和外部 ChapterScreen 使用。
 
 ```pseudocode
-PRIVATE ASYNC METHOD _resolveOutputLanguage(
+PUBLIC ASYNC METHOD resolveOutputLanguage(
     langSettings: LanguageSettings,
     content: String,
-    bookId: String?
+    bookId: String?,
+    preResolvedLanguage: String?
 ) -> String:
+    IF langSettings.aiLanguageMode == 'book' AND preResolvedLanguage != null:
+        RETURN preResolvedLanguage
     IF langSettings.aiLanguageMode == 'book' AND bookId != null:
         RETURN await _detectLanguageFromMetadataAndContentWithBookId(bookId, content)
     IF langSettings.aiLanguageMode == 'book':
-        RETURN detectLanguageFromContent(content)
+        RETURN await detectLanguageFromContent(content)
     SWITCH langSettings.aiLanguageMode:
         CASE 'manual':
             RETURN langSettings.aiOutputLanguage ?? 'zh'
@@ -410,6 +314,8 @@ PRIVATE ASYNC METHOD _resolveOutputLanguage(
         DEFAULT:
             RETURN 'zh'
 ```
+
+被调用方: 所有流式生成方法、`needsTranslation()`、`ChapterScreen._initializeLanguageSettings()`
 
 ---
 
@@ -453,53 +359,37 @@ PUBLIC METHOD detectSystemLanguage() -> String:
         RETURN 'zh'
 ```
 
-被调用方: `_resolveOutputLanguage()`, `_getPromptLoc()`, `detectSystemLanguage()`, `getTargetLanguage()`
+被调用方: `resolveOutputLanguage()`, `_getPromptLoc()`, `detectSystemLanguage()`
 
 ---
 
 ### detectSourceLanguage() - 检测源语言
 
-优先从书籍元数据获取语言并标准化，否则从内容中检测。统一入口供所有调用方。
+优先从书籍元数据获取语言并标准化，否则委托 AI 从内容中检测。AI 检测结果会回写到 `Book.language` 避免重复检测。
 
 ```pseudocode
-PUBLIC METHOD detectSourceLanguage({bookLanguage?: String, content?: String}) -> String:
+PUBLIC ASYNC METHOD detectSourceLanguage({
+    bookLanguage?: String,
+    content?: String,
+    bookId?: String
+}) -> String:
     IF bookLanguage != null AND not empty:
         _log.d('从元数据获取语言: {bookLanguage}')
         RETURN convertLanguageCodeToStandard(bookLanguage)
     IF content != null AND not empty:
-        _log.d('元数据无语言信息，从内容中检测')
-        RETURN detectLanguageFromContent(content)
-    _log.d('无源语言信息，默认中文')
+        detected = await detectLanguageFromContent(content)
+        IF bookId != null:
+            _persistDetectedLanguage(bookId, detected)
+        RETURN detected
     RETURN 'zh'
+
+PRIVATE ASYNC METHOD _persistDetectedLanguage(bookId: String, language: String):
+    book = BookService().getBookById(bookId)
+    IF book != null AND book.language != language:
+        BookService().updateBook(book.copyWith(language: language))
 ```
 
 被调用方: `ChapterScreen._initializeLanguageSettings()`, `_detectLanguageFromMetadataAndContentWithBookId()`
-
----
-
-### getTargetLanguage() - 获取当前目标语言代码
-
-根据 AI 语言模式动态确定目标语言。
-
-```pseudocode
-PUBLIC METHOD getTargetLanguage({
-    required aiLanguageMode: String,
-    aiOutputLanguage?: String,
-    bookLanguage?: String,
-    content?: String,
-}) -> String:
-    SWITCH aiLanguageMode:
-        CASE 'system':
-            RETURN detectSystemLanguage()
-        CASE 'manual':
-            RETURN aiOutputLanguage ?? 'zh'
-        CASE 'book' / DEFAULT:
-            IF bookLanguage != null AND not empty:
-                RETURN bookLanguage
-            ELSE IF content != null AND not empty:
-                RETURN detectLanguageFromContent(content)
-            RETURN 'zh'
-```
 
 ---
 
@@ -508,12 +398,12 @@ PUBLIC METHOD getTargetLanguage({
 根据 AI 语言设置确定目标语言，与源语言比较，相同时无需翻译。
 
 ```pseudocode
-PUBLIC METHOD needsTranslation(sourceLang: String) -> Boolean:
+PUBLIC ASYNC METHOD needsTranslation(sourceLang: String) -> Boolean:
     lang = SettingsService().settings.languageSettings
-    targetLang = getTargetLanguage(
-        aiLanguageMode: lang.aiLanguageMode,
-        aiOutputLanguage: lang.aiOutputLanguage,
-        bookLanguage: sourceLang
+    targetLang = await resolveOutputLanguage(
+        lang,
+        content: '',
+        preResolvedLanguage: sourceLang
     )
     RETURN sourceLang != targetLang
 ```
@@ -868,8 +758,8 @@ Body:
 
 ## 版本历史
 
+- **2026-05-21**: AI 语言检测 + 合并 resolveOutputLanguage — `detectLanguageFromContent` 改为 AI 识别（截取前 2000 字符），消除中/日文汉字误判；`detectSourceLanguage` 新增 `bookId` 参数，AI 检测后回写 `Book.language` 避免重复检测；合并 `getTargetLanguage` 至 `resolveOutputLanguage`（新增 `preResolvedLanguage` 快路径）；连带 `detectSourceLanguage`/`needsTranslation`/`getTargetLanguage` 签名从 sync 改为 async
 - **2026-05-21**: 删除 `_callAI` + 统一 `dart:io` `HttpClient` — 删除 `_callAI()` 阻塞方法（~70行）、`_httpClient` 字段、`setMockClient()` 及 `package:http`/`http_testing` 依赖；`testConnection` 改用 `_callAIStream('Hello')`；`fetchAvailableModels` 改用 `HttpClient()`；删除 `dispose()` 僵尸方法；删除 3 个非流式方法的伪代码；`resetForTest` 简化为仅重置 `_config`
-- **2026-05-21**: 彻底消除 systemMessage — 删除 `_getLanguageInstructionForModel()`/`_getLanguageInstructionForLanguage()`；新增 `_resolveOutputLanguage()`/`_getPromptLoc(languageCode)`；`_callAIStream`/`_buildMessages` 移除 `systemMessage` 参数；提示词语言指令内嵌至 l10n 模板，`loc` 由 AI 输出语言决定
 - **2026-05-20**: AiPrompts 提示词 l10n 化 + 占位符消除 — 删除 `_englishBookSummary`/`_englishBookSummaryFromPreface`/`_englishChapterSummary`/`_englishTranslateHtml`/`_getLanguageName` 5 个死方法；`getLanguageInstruction` 简化签名
   - 合并 ChapterScreen 和 AIService 内部两处重复的「元数据→内容」源语言检测模式
   - `_detectLanguageFromMetadataAndContentWithBookId` 简化为委托调用

@@ -414,7 +414,7 @@ class AIService {
       return;
     }
 
-    final outputLanguage = await _resolveOutputLanguage(
+    final outputLanguage = await resolveOutputLanguage(
       SettingsService().settings.languageSettings,
       content: content,
       bookId: bookId,
@@ -462,7 +462,7 @@ class AIService {
       return;
     }
 
-    final outputLanguage = await _resolveOutputLanguage(
+    final outputLanguage = await resolveOutputLanguage(
       SettingsService().settings.languageSettings,
       content: chapterSummaries,
       bookId: bookId,
@@ -512,7 +512,7 @@ class AIService {
       return;
     }
 
-    final outputLanguage = await _resolveOutputLanguage(
+    final outputLanguage = await resolveOutputLanguage(
       SettingsService().settings.languageSettings,
       content: prefaceContent,
       bookId: bookId,
@@ -632,96 +632,40 @@ class AIService {
   Future<String> _detectLanguageFromMetadataAndContentWithBookId(String bookId, String content) async {
     final bookService = BookService();
     final book = bookService.getBookById(bookId);
-    return detectSourceLanguage(bookLanguage: book?.language, content: content);
+    return await detectSourceLanguage(bookLanguage: book?.language, content: content, bookId: bookId);
   }
 
   /// 从内容中检测语言
   ///
-  /// 通过分析文本内容中的字符特征来判断语言。
-  /// 使用比率分析算法：中文字符占比≥30% → zh，
-  /// 正确处理中文文本中混合英文单词的情况。
+  /// 截取前 2000 字符发送给 AI 判断语言，
+  /// 消除纯字符统计对中/日文汉字的误判。
   ///
   /// 参数:
   /// - content: 要分析的文本内容
   ///
   /// 返回:
-  /// - 检测到的语言代码 ('zh', 'en', 'ja'等)
-  /// - 如果无法确定则返回 'zh' (默认中文)
-  String detectLanguageFromContent(String content) {
+  /// - 检测到的语言代码 ('zh', 'en', 'ja')
+  /// - 如果 AI 调用失败则返回 'zh'
+  Future<String> detectLanguageFromContent(String content) async {
     if (content.isEmpty) return 'zh';
 
-    // 计算不同语言的字符数量
-    int chineseChars = 0;
-    int englishChars = 0;
-    int japaneseChars = 0;
+    final sample = content.length > 2000 ? content.substring(0, 2000) : content;
 
-    for (int i = 0; i < content.length; i++) {
-      int charCode = content.codeUnitAt(i);
-
-      // 检测中文字符
-      if ((charCode >= 0x4e00 && charCode <= 0x9fff) || // CJK统一汉字
-          (charCode >= 0x3400 && charCode <= 0x4dbf) || // CJK扩展A
-          (charCode >= 0xf900 && charCode <= 0xfaff)) {
-        // CJK兼容汉字
-        chineseChars++;
+    try {
+      final buffer = StringBuffer();
+      await for (final chunk in _callAIStream(
+        'Detect the language of the following text. Reply with exactly one code in lowercase: "zh" for Chinese, "en" for English, or "ja" for Japanese. Do not explain.\n\n$sample',
+      )) {
+        buffer.write(chunk);
       }
-      // 检测日文字符
-      else if ((charCode >= 0x3040 && charCode <= 0x309f) || // 平假名
-          (charCode >= 0x30a0 && charCode <= 0x30ff) || // 片假名
-          (charCode >= 0x31f0 && charCode <= 0x31ff)) {
-        // 日文片假名扩展
-        japaneseChars++;
-      }
-      // 检测英文字符
-      else if ((charCode >= 65 && charCode <= 90) || // A-Z
-          (charCode >= 97 && charCode <= 122)) {
-        // a-z
-        englishChars++;
-      }
-    }
-
-    // 计算总的有效字符数（不包括空格等空白字符）
-    int totalChars = chineseChars + englishChars + japaneseChars;
-
-    // 如果没有有效字符，返回默认语言
-    if (totalChars == 0) {
+      final result = buffer.toString().trim().toLowerCase();
+      if (result.contains('ja') || result.contains('jp')) return 'ja';
+      if (result.contains('en')) return 'en';
+      return 'zh';
+    } catch (e) {
+      _log.w('AIService', 'AI 语言检测失败，默认中文: $e');
       return 'zh';
     }
-
-    // 计算各种语言字符的比例
-    double chineseRatio = chineseChars / totalChars;
-    double englishRatio = englishChars / totalChars;
-    double japaneseRatio = japaneseChars / totalChars;
-
-    // 更加严格的中文判断：如果中文字符比例超过阈值，优先判断为中文
-    // 中文文本中常常混有英文单词和技术术语，所以不能仅凭英文字符数量判断
-    if (chineseRatio >= 0.3) {
-      // 如果中文字符占比超过30%，判断为中文
-      return 'zh';
-    } else if (japaneseRatio > englishRatio) {
-      return 'ja';
-    } else if (englishRatio > chineseRatio && englishRatio > japaneseRatio) {
-      return 'en';
-    }
-
-    // 如果都不满足条件，根据数量判断
-    int maxCount = 0;
-    String detectedLanguage = 'zh'; // 默认中文
-
-    if (chineseChars > maxCount) {
-      maxCount = chineseChars;
-      detectedLanguage = 'zh';
-    }
-    if (englishChars > maxCount) {
-      maxCount = englishChars;
-      detectedLanguage = 'en';
-    }
-    if (japaneseChars > maxCount) {
-      maxCount = japaneseChars;
-      detectedLanguage = 'ja';
-    }
-
-    return detectedLanguage;
   }
 
   /// 将语言代码转换为标准 ISO 639-1 格式
@@ -750,16 +694,10 @@ class AIService {
     // ISO 639-2/B → ISO 639-1 映射表
     // 常见3字母语言代码映射到2字母标准代码
     const iso2To1Map = {
-      'zho': 'zh', 'chi': 'zh',
+      'zho': 'zh',
+      'chi': 'zh',
       'eng': 'en',
       'jpn': 'ja',
-      'fra': 'fr', 'fre': 'fr',
-      'deu': 'de', 'ger': 'de',
-      'spa': 'es',
-      'por': 'pt',
-      'ita': 'it',
-      'rus': 'ru',
-      'ara': 'ar',
     };
 
     return iso2To1Map[baseCode] ?? baseCode;
@@ -791,19 +729,33 @@ class AIService {
 
   /// 检测源语言
   ///
-  /// 优先从书籍元数据获取语言并标准化，否则从内容中检测。
+  /// 优先从书籍元数据获取语言并标准化，否则委托 AI 从内容中检测。
+  /// AI 检测结果会回写到 [Book.language] 避免重复检测。
   /// - [bookLanguage]: 书籍元数据中的语言字段（可为 null）
   /// - [content]: 用于回退检测的内容文本
+  /// - [bookId]: 书籍ID，AI 检测时用于回写结果
   /// 返回语言代码：'zh'、'en'、'ja' 等
-  String detectSourceLanguage({String? bookLanguage, String? content}) {
+  Future<String> detectSourceLanguage({String? bookLanguage, String? content, String? bookId}) async {
     if (bookLanguage != null && bookLanguage.isNotEmpty) {
       _log.d('AIService', '从元数据获取语言: $bookLanguage');
       return convertLanguageCodeToStandard(bookLanguage);
     }
     if (content != null && content.isNotEmpty) {
-      return detectLanguageFromContent(content);
+      final detected = await detectLanguageFromContent(content);
+      if (bookId != null) {
+        await _persistDetectedLanguage(bookId, detected);
+      }
+      return detected;
     }
     return 'zh';
+  }
+
+  Future<void> _persistDetectedLanguage(String bookId, String language) async {
+    final book = BookService().getBookById(bookId);
+    if (book != null && book.language != language) {
+      await BookService().updateBook(book.copyWith(language: language));
+      _log.d('AIService', '已保存 AI 检测的语言到 Book: $language');
+    }
   }
 
   /// 获取 AI 输出语言对应的 AppLocalizations 实例
@@ -815,16 +767,26 @@ class AIService {
   }
 
   /// 解析 AI 输出语言
-  Future<String> _resolveOutputLanguage(
+  ///
+  /// 根据语言设置决定 AI 输出语言代码。
+  /// - [langSettings]: 语言设置对象
+  /// - [content]: 用于 AI 检测的文本内容
+  /// - [bookId]: 书籍ID，book 模式时用于查元数据 + AI 检测 + 回写
+  /// - [preResolvedLanguage]: 已解析的语言代码，book 模式时直接使用（跳过检测）
+  Future<String> resolveOutputLanguage(
     LanguageSettings langSettings, {
     required String content,
     String? bookId,
+    String? preResolvedLanguage,
   }) async {
+    if (langSettings.aiLanguageMode == 'book' && preResolvedLanguage != null) {
+      return preResolvedLanguage;
+    }
     if (langSettings.aiLanguageMode == 'book' && bookId != null) {
       return await _detectLanguageFromMetadataAndContentWithBookId(bookId, content);
     }
     if (langSettings.aiLanguageMode == 'book') {
-      return detectLanguageFromContent(content);
+      return await detectLanguageFromContent(content);
     }
     switch (langSettings.aiLanguageMode) {
       case 'manual':
@@ -836,52 +798,16 @@ class AIService {
     }
   }
 
-  /// 获取当前目标语言代码
-  ///
-  /// 根据AI语言模式动态确定目标语言：
-  /// - 'book' 模式：从书籍元数据或内容中检测语言
-  /// - 'system' 模式：检测系统语言
-  /// - 'manual' 模式：使用用户配置的语言
-  ///
-  /// 参数：
-  /// - [aiLanguageMode]: AI语言模式 ('book', 'system', 'manual')
-  /// - [aiOutputLanguage]: 用户配置的语言（manual模式时使用）
-  /// - [bookLanguage]: 书籍语言（book模式时使用）
-  /// - [content]: 章节内容（book模式且无书籍语言时用于检测）
-  ///
-  /// 返回：目标语言代码（如 'zh', 'en', 'ja'）
-  String getTargetLanguage({
-    required String aiLanguageMode,
-    String? aiOutputLanguage,
-    String? bookLanguage,
-    String? content,
-  }) {
-    switch (aiLanguageMode) {
-      case 'system':
-        return detectSystemLanguage();
-      case 'manual':
-        return aiOutputLanguage ?? 'zh';
-      case 'book':
-      default:
-        if (bookLanguage != null && bookLanguage.isNotEmpty) {
-          return bookLanguage;
-        } else if (content != null && content.isNotEmpty) {
-          return detectLanguageFromContent(content);
-        }
-        return 'zh';
-    }
-  }
-
   /// 判断是否需要翻译
   ///
   /// 根据 AI 语言设置确定目标语言，与源语言比较。
   /// 当源语言与目标语言相同时无需翻译。
-  bool needsTranslation(String sourceLang) {
+  Future<bool> needsTranslation(String sourceLang) async {
     final lang = SettingsService().settings.languageSettings;
-    final targetLang = getTargetLanguage(
-      aiLanguageMode: lang.aiLanguageMode,
-      aiOutputLanguage: lang.aiOutputLanguage,
-      bookLanguage: sourceLang,
+    final targetLang = await resolveOutputLanguage(
+      lang,
+      content: '',
+      preResolvedLanguage: sourceLang,
     );
     return sourceLang != targetLang;
   }

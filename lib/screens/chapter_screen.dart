@@ -297,17 +297,17 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 确定源语言和目标语言，判断译文Tab是否禁用
   Future<void> _initializeLanguageSettings() async {
-    _sourceLang = _aiService.detectSourceLanguage(bookLanguage: widget.book?.language, content: _content);
+    _sourceLang = await _aiService.detectSourceLanguage(bookLanguage: widget.book?.language, content: _content, bookId: widget.book?.id);
 
     final lang = SettingsService().settings.languageSettings;
-    _targetLang = _aiService.getTargetLanguage(
-      aiLanguageMode: lang.aiLanguageMode,
-      aiOutputLanguage: lang.aiOutputLanguage,
-      bookLanguage: _sourceLang,
+    _targetLang = await _aiService.resolveOutputLanguage(
+      lang,
+      content: _content,
+      preResolvedLanguage: _sourceLang,
     );
 
     _summaryLang = _targetLang ?? 'zh';
-    _translationTabDisabled = !_aiService.needsTranslation(_sourceLang!);
+    _translationTabDisabled = !(await _aiService.needsTranslation(_sourceLang!));
 
     _log.d('ChapterScreen', '源语言=$_sourceLang, 目标语言=$_targetLang, 译文Tab禁用=$_translationTabDisabled');
   }

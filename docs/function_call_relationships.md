@@ -215,11 +215,11 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `generateBookSummaryFromPrefaceStream()` | SummaryService._generateBookSummaryFromPreface() |
 | `translateContent()` | SummaryService.generateTranslationStream() |
 | `testConnection()` | AiConfigScreen 测试按钮 |
-| `detectLanguageFromContent()` | SummaryService (语言检测), ChapterScreen._initializeLanguageSettings() |
+| `detectLanguageFromContent()` | `detectSourceLanguage()`, `resolveOutputLanguage()` |
 | `detectSourceLanguage()` | `_detectLanguageFromMetadataAndContentWithBookId()`, ChapterScreen._initializeLanguageSettings() |
-| `detectSystemLanguage()` | `_resolveOutputLanguage()`, `getTargetLanguage()`, `_getPromptLoc()` |
-| `getTargetLanguage()` | SummaryService (目标语言确定) |
-| `convertLanguageCodeToStandard()` | ChapterScreen._initializeLanguageSettings() |
+| `detectSystemLanguage()` | `resolveOutputLanguage()`, `_getPromptLoc()` |
+| `needsTranslation()` | ChapterScreen._initializeLanguageSettings() |
+| `convertLanguageCodeToStandard()` | `detectSourceLanguage()` |
 | `_callAIStream()` (内部) | 所有流式方法 |
 | `get config` | SummaryService, SettingsScreen |
 | `get availableModels` | AiConfigScreen |
@@ -491,7 +491,7 @@ SummaryService.getBookSummaryContent()
 
 | 日期 | 更新内容 |
 |------|----------|
-| 2026-05-21 | 删除 `_callAI` + 统一 `dart:io` `HttpClient`：`testConnection` 改用 `_callAIStream`；`fetchAvailableModels` 改用 `HttpClient()`；删除 `dispose`/`_httpClient`/`setMockClient`；`package:http`/`http_testing` 依赖移除 |
+| 2026-05-21 | AI 语言检测：`detectLanguageFromContent` 改为 AI 识别；`detectSourceLanguage` 新增 bookId + 回写；合并 `getTargetLanguage` → `resolveOutputLanguage` |
 | 2026-05-19 | fix: 删除失败 SnackBar 硬编码中文改 i18n key `loc.failed` |
 | 2026-05-19 | fix: BookCard 删除检查 deleteBook() 返回值，防止 IO 失败时目录残留 |
 | 2026-05-19 | HomeScreen + BookshelfScreen 合并为单层 Scaffold；删除 GlobalKey/嵌套 Scaffold/重复 BookService 实例 |
