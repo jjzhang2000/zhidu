@@ -354,6 +354,12 @@ Documents/zhidu/                   (可自定义)
 
 ### 近期更新
 
+#### 2026-05-21: BookService 僵尸代码清理与注释精简
+
+- **删除**: `saveBooksIndex()` public 方法 — 无源码级别外部调用，仅内部使用 `_saveBooksIndex()` private 方法
+- **精简**: 类级/方法级注释大幅精简，删除冗余流程说明、设计考量、内联注释（434→289行，-33%）
+- **同步**: `book_service.md` 伪代码 — 删除 `saveBooksIndex()` 章节、删除 `_log.v` 遗留调用、新增 `_uuid` + OPF元数据/封面复制流程
+
 #### 2026-05-21: AI 语言检测 + 合并 resolveOutputLanguage + 语言回写
 
 - **AI 检测**: `detectLanguageFromContent` 从 75 行字符统计算法 → AI 流式识别（截取前 2000 字符），消除中/日文汉字误判

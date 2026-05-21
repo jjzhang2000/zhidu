@@ -2,51 +2,40 @@
 
 ## 概述
 
-BookService 是一个单例模式的书籍管理服务，负责书籍的导入、存储、查询和删除。支持 EPUB 和 PDF 格式，使用文件存储架构（JSON + Markdown）。
+BookService 是单例模式的书籍管理服务，负责导入、存储、查询和删除。支持 EPUB/PDF 格式，使用文件存储架构。
 
 ---
 
-## 单例模式实现
+## 单例模式
 
 ```pseudocode
 CLASS BookService:
-    // 单例实例 - 静态私有变量
     PRIVATE STATIC _instance: BookService = BookService._internal()
-    
-    // 工厂构造函数 - 返回单例实例
     PUBLIC STATIC FACTORY BookService():
         RETURN _instance
-    
-    // 私有命名构造函数 - 防止外部实例化
     PRIVATE CONSTRUCTOR _internal():
-        // 初始化服务依赖
         _epubService = EpubService()
         _pdfService = PdfService()
+        _uuid = Uuid()
         _log = LogService()
         _fileStorage = FileStorageService()
-        _books = []  // 内存中的书籍列表
+        _books = []
 ```
 
 ---
 
 ## 数据结构
 
-### 私有属性
-
 ```pseudocode
 PRIVATE PROPERTIES:
-    _epubService: EpubService       // EPUB 解析服务
-    _pdfService: PdfService         // PDF 解析服务
-    _log: LogService                // 日志服务
-    _fileStorage: FileStorageService // 文件存储服务
-    _books: List<Book>              // 内存中的书籍列表
-```
+    _epubService: EpubService
+    _pdfService: PdfService
+    _uuid: Uuid
+    _log: LogService
+    _fileStorage: FileStorageService
+    _books: List<Book>
 
-### 公共属性
-
-```pseudocode
 PUBLIC PROPERTIES:
-    // 只读访问书籍列表 - 外部不能直接修改
     books: List<Book> -> _books
 ```
 
@@ -92,16 +81,11 @@ PUBLIC PROPERTIES:
 
 ## 方法伪代码
 
-### init() - 初始化书籍服务
+### init() - 初始化
 
 ```pseudocode
 ASYNC METHOD init():
-    _log.v('BookService', 'init 开始执行')
-    
-    // 从文件加载书籍列表
     await _loadBooks()
-    
-    _log.v('BookService', 'init 执行完成, 加载书籍数量: {_books.length}')
 ```
 
 **初始化流程图:**
@@ -129,43 +113,31 @@ ASYNC METHOD init():
 
 ---
 
-### _loadBooks() - 从文件加载所有书籍
+### _loadBooks() - 从索引文件加载元数据
 
 ```pseudocode
 PRIVATE ASYNC METHOD _loadBooks():
-    // 获取索引文件路径
     indexPath = await StorageConfig.getBooksIndexPath()
-    
-    // 读取索引文件
     data = await _fileStorage.readJson(indexPath)
     
-    // 索引文件不存在，返回空列表
     IF data == null:
         _books = []
         RETURN
     
-    // 提取书籍列表
     booksList = data['books'] as List<dynamic>? ?? []
     _books = []
     
-    // 遍历每个书籍条目
     FOR bookJson IN booksList:
-        // 提取书籍ID
         bookId = bookJson['id'] as String?
         IF bookId == null:
-            CONTINUE  // 跳过无效条目
+            CONTINUE
         
-        // 获取元数据文件路径
         metadataPath = await StorageConfig.getBookMetadataPath(bookId)
-        
-        // 读取元数据
         metadata = await _fileStorage.readJson(metadataPath)
         
         IF metadata != null:
             TRY:
-                // 解析元数据为 Book 对象
                 _books.add(Book.fromJson(metadata))
-            
             CATCH e:
                 _log.e('BookService', '解析书籍元数据失败: {bookId}', e)
     
@@ -174,14 +146,11 @@ PRIVATE ASYNC METHOD _loadBooks():
 
 ---
 
-### _saveBooksIndex() - 保存书籍索引文件
+### _saveBooksIndex() - 保存索引文件
 
 ```pseudocode
 PRIVATE ASYNC METHOD _saveBooksIndex():
-    // 获取索引文件路径
     indexPath = await StorageConfig.getBooksIndexPath()
-    
-    // 构建索引数据
     data = {
         'version': '1.0',
         'lastUpdated': DateTime.now().toIso8601String(),
@@ -194,76 +163,76 @@ PRIVATE ASYNC METHOD _saveBooksIndex():
             'addedAt': b.addedAt.toIso8601String()
         }).toList()
     }
-    
-    // 写入文件
     await _fileStorage.writeJson(indexPath, data)
 ```
 
 ---
 
-### _saveBookMetadata() - 保存单个书籍元数据
+### _saveBookMetadata() - 保存书籍元数据
 
 ```pseudocode
 PRIVATE ASYNC METHOD _saveBookMetadata(book: Book):
-    // 获取元数据文件路径
     metadataPath = await StorageConfig.getBookMetadataPath(book.id)
-    
-    // 序列化 Book 对象
     data = book.toJson()
-    
-    // 写入文件
     await _fileStorage.writeJson(metadataPath, data)
 ```
 
 ---
 
-### importBookFromPath() - 从指定路径导入书籍
+### importBookFromPath() - 从文件路径导入
 
 ```pseudocode
 ASYNC METHOD importBookFromPath(filePath: String) -> Book?:
-    _log.v('BookService', 'importBookFromPath 开始执行: {filePath}')
-    
     TRY:
-        _log.d('BookService', '开始导入书籍: {filePath}')
+        // 读取同目录 OPF 元数据
+        opfMetadata: OpfMetadata?
+        TRY:
+            opfMetadata = await OpfReaderService.readFromSameDirectory(filePath)
+        CATCH e:
+            _log.w('BookService', '读取外部OPF元数据失败: {e}')
         
-        // 获取文件扩展名
         extension = getExtension(filePath).toLowerCase()
-        
-        // 根据扩展名选择解析服务
+        bookId = _uuid.v4()
         book: Book?
         
         IF extension == '.epub':
-            _log.d('BookService', '开始解析EPUB...')
-            book = await _epubService.parseEpubFile(filePath)
-            _log.d('BookService', 'EPUB解析结果: {book?.title ?? "失败"}')
-        
+            book = await _epubService.parseEpubFile(filePath, bookId)
         ELSE IF extension == '.pdf':
-            _log.d('BookService', '开始解析PDF...')
-            book = await _pdfService.parsePdfFile(filePath)
-            _log.d('BookService', 'PDF解析结果: {book?.title ?? "失败"}')
-        
+            book = await _pdfService.parsePdfFile(filePath, bookId)
         ELSE:
             _log.w('BookService', '不支持的文件格式: {extension}')
             RETURN null
         
-        // 解析成功
+        // 合并 OPF 元数据
+        IF book != null AND opfMetadata != null:
+            finalCoverPath = book.coverPath
+            IF opfMetadata.coverPath != null:
+                // 复制外部封面文件
+                coverDestPath = await StorageConfig.getCoverSavePath(...)
+                TRY:
+                    await File(coverAbsPath).copy(coverDestPath)
+                    finalCoverPath = coverDestPath
+                CATCH e:
+                    _log.w('BookService', '复制封面失败: {e}')
+            book = book.copyWith(
+                title: opfMetadata.title ?? book.title,
+                author: opfMetadata.author ?? book.author,
+                language: opfMetadata.language ?? book.language,
+                coverPath: finalCoverPath,
+            )
+        
+        // 标题+作者去重
         IF book != null:
-            // 检查是否已存在（标题+作者去重）
-            existingBook = _books.where((b) => 
+            existingBook = _books.where((b) =>
                 b.title == book.title AND b.author == book.author
             ).firstOrNull
-            
             IF existingBook != null:
                 _log.info('BookService', '书籍已存在: {book.title}')
                 RETURN existingBook
             
-            // 添加到内存列表
             _books.add(book)
-            
-            // 保存索引和元数据
             await _saveBooksIndex()
             await _saveBookMetadata(book)
-            
             _log.info('BookService', '书籍导入成功: {book.title}')
             RETURN book
         
@@ -274,69 +243,28 @@ ASYNC METHOD importBookFromPath(filePath: String) -> Book?:
         RETURN null
 ```
 
-**导入流程图:**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│           importBookFromPath() 导入流程                      │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  输入: filePath (文件路径)                                   │
-│      ↓                                                      │
-│  获取文件扩展名                                              │
-│      ↓                                                      │
-│  选择解析服务                                                │
-│      ├─ .epub → EpubService.parseEpubFile()                 │
-│      ├─ .pdf → PdfService.parsePdfFile()                    │
-│      └─ 其他 → RETURN null                                  │
-│      ↓                                                      │
-│  解析文件                                                    │
-│      ├─ 成功 → book 对象                                     │
-│      └─ 失败 → RETURN null                                  │
-│      ↓                                                      │
-│  检查重复（标题+作者）                                        │
-│      ├─ 已存在 → RETURN existingBook                        │
-│      ↓                                                      │
-│  添加到 _books                                               │
-│      ↓                                                      │
-│  保存索引文件                                                │
-│      ↓                                                      │
-│  保存元数据文件                                              │
-│      ↓                                                      │
-│  RETURN book                                                │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ---
 
-### importBook() - 通过文件选择器导入书籍
+### importBook() - 通过文件选择器导入
 
 ```pseudocode
 ASYNC METHOD importBook() -> Book?:
-    _log.v('BookService', 'importBook 开始执行')
-    
     TRY:
-        // 打开文件选择器
         result = await FilePicker.platform.pickFiles(
             type: FileType.custom,
             allowedExtensions: ['epub', 'pdf'],
             dialogTitle: '选择电子书'
         )
         
-        // 用户取消选择
         IF result == null OR result.files.isEmpty:
-            _log.d('BookService', '用户取消选择')
             RETURN null
         
-        // 获取文件路径
         filePath = result.files.first.path
         
         IF filePath == null:
             _log.w('BookService', '文件路径为空')
             RETURN null
         
-        // 调用路径导入方法
         RETURN await importBookFromPath(filePath)
     
     CATCH e, stackTrace:
@@ -350,34 +278,34 @@ ASYNC METHOD importBook() -> Book?:
 
 ```pseudocode
 PUBLIC METHOD getBookById(id: String) -> Book?:
-    // O(n) 线性查找
     RETURN _books.where((b) => b.id == id).firstOrNull
 ```
 
 ---
 
-### deleteBook() - 删除书籍
+### deleteBook() - 删除书籍及其所有数据
 
 ```pseudocode
 ASYNC METHOD deleteBook(id: String) -> Boolean:
     _log.d('BookService', '删除书籍: {id}')
     
     TRY:
-        // 查找书籍
         book = getBookById(id)
         
         IF book == null:
             _log.w('BookService', '要删除的书籍不存在: {id}')
             RETURN false
         
-        // 删除书籍数据目录
-        bookDir = await StorageConfig.getBookDirectory(id)
-        await _fileStorage.deleteDirectory(bookDir.path)
+        bookDirPath = await StorageConfig.getBookDirectoryPath(id)
+        bookDir = Directory(bookDirPath)
         
-        // 从内存列表移除
+        IF await bookDir.exists():
+            deleted = await _fileStorage.deleteDirectory(bookDirPath)
+            IF NOT deleted:
+                _log.e('BookService', '删除书籍目录失败: {book.title} ({id})')
+                RETURN false
+        
         _books.removeWhere((b) => b.id == id)
-        
-        // 更新索引文件
         await _saveBooksIndex()
         
         _log.info('BookService', '书籍删除成功: {book.title}')
@@ -388,54 +316,21 @@ ASYNC METHOD deleteBook(id: String) -> Boolean:
         RETURN false
 ```
 
-**删除流程图:**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              deleteBook() 删除流程                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  输入: id (书籍ID)                                           │
-│      ↓                                                      │
-│  查找书籍                                                    │
-│      ├─ 不存在 → RETURN false                               │
-│      ↓                                                      │
-│  删除书籍目录                                                │
-│      ├─ metadata.json                                       │
-│      ├─ summary.md                                          │
-│      ├─ chapter-*.md                                        │
-│      └─ cover.*                                             │
-│      ↓                                                      │
-│  从 _books 移除                                              │
-│      ↓                                                      │
-│  更新索引文件                                                │
-│      ↓                                                      │
-│  RETURN true                                                │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ---
 
-### updateBook() - 更新书籍信息
+### updateBook() - 替换内存中的书并持久化
 
 ```pseudocode
 ASYNC METHOD updateBook(book: Book):
     _log.d('BookService', '更新书籍: {book.title}')
     
     TRY:
-        // 在内存列表中查找索引
         index = _books.indexWhere((b) => b.id == book.id)
         
         IF index >= 0:
-            // 替换内存中的 Book 对象
             _books[index] = book
-            
-            // 同步更新索引文件和元数据文件
             await _saveBooksIndex()
             await _saveBookMetadata(book)
-            
-            _log.d('BookService', '书籍更新成功: {book.title}')
     
     CATCH e, stackTrace:
         _log.e('BookService', '更新书籍失败: {book.id}', e, stackTrace)
@@ -443,14 +338,11 @@ ASYNC METHOD updateBook(book: Book):
 
 ---
 
-### searchBooks() - 搜索书籍
+### searchBooks() - 按标题或作者模糊搜索
 
 ```pseudocode
 PUBLIC METHOD searchBooks(query: String) -> List<Book>:
-    // 转换为小写，不区分大小写匹配
     lowerQuery = query.toLowerCase()
-    
-    // 匹配标题或作者中包含搜索词的书籍
     RETURN _books.where((book) => 
         book.title.toLowerCase().contains(lowerQuery) OR
         book.author.toLowerCase().contains(lowerQuery)
@@ -459,46 +351,21 @@ PUBLIC METHOD searchBooks(query: String) -> List<Book>:
 
 ---
 
-### updateChapterTitle() - 更新章节标题映射
+### updateChapterTitle() - 修正章节标题
 
 ```pseudocode
 ASYNC METHOD updateChapterTitle(bookId: String, chapterIndex: int, title: String):
-    _log.d('BookService', 
-        '更新章节标题: bookId={bookId}, index={chapterIndex}, title={title}')
-    
-    // 获取书籍
     book = getBookById(bookId)
     
     IF book == null:
         _log.w('BookService', '书籍不存在: {bookId}')
         RETURN
     
-    // 复制现有标题映射
     updatedTitles = Map<int, String>.from(book.chapterTitles ?? {})
-    
-    // 更新指定索引的标题
     updatedTitles[chapterIndex] = title
-    
-    // 创建更新后的 Book 对象
     updatedBook = book.copyWith(chapterTitles: updatedTitles)
-    
-    // 持久化更新
     await updateBook(updatedBook)
-    
-    _log.d('BookService', '章节标题更新成功: {title}')
 ```
-
----
-
-### saveBooksIndex() - 保存所有书籍索引
-
-```pseudocode
-PUBLIC ASYNC METHOD saveBooksIndex():
-    // 用于外部服务在恢复数据后更新索引
-    await _saveBooksIndex()
-```
-
----
 
 ## 去重策略
 
