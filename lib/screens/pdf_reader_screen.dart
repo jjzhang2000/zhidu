@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
-import '../services/log_service.dart';
+import 'package:logging/logging.dart';
 
 /// PDF阅读器Widget
 ///
@@ -95,7 +95,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   /// 日志服务实例
   ///
   /// 用于记录调试信息和错误日志，便于问题排查。
-  final _log = LogService();
+  final _log = Logger('PdfReaderScreen');
 
   /// 当前阅读页码
   ///
@@ -115,8 +115,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     // 1. 新书阅读：initialPage默认为1
     // 2. 继续阅读/章节定位：initialPage由调用方指定
     _currentPage = widget.initialPage;
-    _log.d('PdfReaderScreen',
-        '初始化PDF阅读器: ${widget.book.title}, 起始页: $_currentPage');
+    _log.info('初始化PDF阅读器: ${widget.book.title}, 起始页: $_currentPage');
   }
 
   @override

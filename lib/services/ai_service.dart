@@ -18,8 +18,8 @@ import 'dart:io';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:logging/logging.dart';
 import 'ai_prompts.dart';
-import 'log_service.dart';
 import 'settings_service.dart';
 import 'book_service.dart';
 import '../models/app_settings.dart';
@@ -50,7 +50,7 @@ class AIService {
   AiSettings? _config;
 
   /// 日志服务实例
-  final _log = LogService();
+  final _log = Logger('AIService');
 
   // ==========================================================================
   // 区域1：生命周期管理
@@ -105,16 +105,13 @@ class AIService {
 
       if (aiSettings.isValid) {
         _config = aiSettings;
-        _log.d(
-          'AIService',
-          'AI配置加载成功: ${_config?.provider}, model: ${_config?.model}',
-        );
+        _log.info('AI配置加载成功: ${_config?.provider}, model: ${_config?.model}');
       } else {
-        _log.w('AIService', 'AI配置无效，请检查设置');
+        _log.warning('AI配置无效，请检查设置');
         _config = null;
       }
     } catch (e) {
-      _log.e('AIService', '从SettingsService加载AI配置失败', e);
+      _log.severe('从SettingsService加载AI配置失败', e);
     }
   }
 
@@ -157,7 +154,7 @@ class AIService {
   /// - false: 连接失败，配置可能不正确
   Future<bool> testConnection() async {
     if (!isConfigured) {
-      _log.w('AIService', '测试连接失败：配置无效');
+      _log.warning('测试连接失败：配置无效');
       return false;
     }
 
@@ -167,7 +164,7 @@ class AIService {
       }
       return false;
     } catch (e) {
-      _log.e('AIService', '测试连接异常', e);
+      _log.severe('测试连接异常', e);
       return false;
     }
   }
@@ -211,17 +208,14 @@ class AIService {
               .cast<String>()
               .toList();
 
-          _log.d('AIService', '获取到 ${models.length} 个可用模型');
+          _log.info('获取到 ${models.length} 个可用模型');
           return models;
         }
       } else {
-        _log.w(
-          'AIService',
-          '获取模型列表失败：${response.statusCode}',
-        );
+        _log.warning('获取模型列表失败：${response.statusCode}');
       }
     } catch (e) {
-      _log.e('AIService', '获取模型列表异常', e);
+      _log.severe('获取模型列表异常', e);
     }
 
     return [];
@@ -368,7 +362,7 @@ class AIService {
                 yield content;
               }
             } catch (e) {
-              _log.w('AIService', '解析SSE数据失败: $e, line: $line');
+              _log.warning('解析SSE数据失败: $e, line: $line');
             }
 
             // 重置状态
@@ -377,10 +371,10 @@ class AIService {
           }
         }
       } else {
-        _log.e('AIService', 'AI API 流式调用失败：${response.statusCode}');
+        _log.severe('AI API 流式调用失败：${response.statusCode}');
       }
     } catch (e) {
-      _log.e('AIService', '流式请求异常', e);
+      _log.severe('流式请求异常', e);
     } finally {
       httpClient.close();
     }
@@ -410,7 +404,7 @@ class AIService {
     String? bookId,
   }) async* {
     if (!isConfigured) {
-      _log.w('AIService', 'AI 配置未设置或 API Key 无效');
+      _log.warning('AI 配置未设置或 API Key 无效');
       return;
     }
 
@@ -433,7 +427,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.e('AIService', '生成章节摘要流失败', e);
+      _log.severe('生成章节摘要流失败', e);
     }
   }
 
@@ -458,7 +452,7 @@ class AIService {
     String? bookId,
   }) async* {
     if (!isConfigured) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
+      _log.warning('AI 服务未配置或 API Key 无效');
       return;
     }
 
@@ -483,7 +477,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.e('AIService', '生成全书摘要流失败', e);
+      _log.severe('生成全书摘要流失败', e);
     }
   }
 
@@ -508,7 +502,7 @@ class AIService {
     String? bookId,
   }) async* {
     if (!isConfigured) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
+      _log.warning('AI 服务未配置或 API Key 无效');
       return;
     }
 
@@ -533,7 +527,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.e('AIService', '基于前言生成全书摘要流失败', e);
+      _log.severe('基于前言生成全书摘要流失败', e);
     }
   }
 
@@ -550,7 +544,7 @@ class AIService {
     required String targetLang,
   }) async* {
     if (!isConfigured) {
-      _log.w('AIService', 'AI 配置未设置或 API Key 无效');
+      _log.warning('AI 配置未设置或 API Key 无效');
       return;
     }
 
@@ -567,7 +561,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.e('AIService', '翻译HTML流失败', e);
+      _log.severe('翻译HTML流失败', e);
     }
   }
 
@@ -590,7 +584,7 @@ class AIService {
     Function(String)? onProgress,
   }) async {
     if (!isConfigured) {
-      _log.w('AIService', 'AI服务未配置，无法翻译');
+      _log.warning('AI服务未配置，无法翻译');
       return '';
     }
 
@@ -663,7 +657,7 @@ class AIService {
       if (result.contains('en')) return 'en';
       return 'zh';
     } catch (e) {
-      _log.w('AIService', 'AI 语言检测失败，默认中文: $e');
+      _log.warning('AI 语言检测失败，默认中文: $e');
       return 'zh';
     }
   }
@@ -710,7 +704,7 @@ class AIService {
   String detectSystemLanguage() {
     try {
       final locale = Platform.localeName;
-      _log.d('AIService', '系统 locale: $locale');
+      _log.fine('系统 locale: $locale');
       
       if (locale.startsWith('zh') || locale.contains('_CN') || locale.contains('_TW') || locale.contains('_HK')) {
         return 'zh';
@@ -722,7 +716,7 @@ class AIService {
       
       return 'zh';
     } catch (e) {
-      _log.w('AIService', '检测系统语言失败: $e，使用默认中文');
+      _log.warning('检测系统语言失败: $e，使用默认中文');
       return 'zh';
     }
   }
@@ -737,7 +731,7 @@ class AIService {
   /// 返回语言代码：'zh'、'en'、'ja' 等
   Future<String> detectSourceLanguage({String? bookLanguage, String? content, String? bookId}) async {
     if (bookLanguage != null && bookLanguage.isNotEmpty) {
-      _log.d('AIService', '从元数据获取语言: $bookLanguage');
+      _log.fine('从元数据获取语言: $bookLanguage');
       return convertLanguageCodeToStandard(bookLanguage);
     }
     if (content != null && content.isNotEmpty) {
@@ -754,7 +748,7 @@ class AIService {
     final book = BookService().getBookById(bookId);
     if (book != null && book.language != language) {
       await BookService().updateBook(book.copyWith(language: language));
-      _log.d('AIService', '已保存 AI 检测的语言到 Book: $language');
+      _log.fine('已保存 AI 检测的语言到 Book: $language');
     }
   }
 

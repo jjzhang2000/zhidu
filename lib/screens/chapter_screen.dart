@@ -23,7 +23,7 @@ import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import '../services/book_service.dart';
 import '../services/parsers/book_format_parser.dart';
-import '../services/log_service.dart';
+import 'package:logging/logging.dart';
 import '../services/settings_service.dart';
 
 /// 滚动位置锚点
@@ -76,7 +76,7 @@ class _ChapterScreenState extends State<ChapterScreen>
   final _aiService = AIService();
 
   /// 日志服务
-  final _log = LogService();
+  final _log = Logger('ChapterScreenState');
 
   /// 摘要服务（用于加载/生成摘要）
   final _summaryService = SummaryService();
@@ -309,7 +309,7 @@ class _ChapterScreenState extends State<ChapterScreen>
     _summaryLang = _targetLang ?? 'zh';
     _translationTabDisabled = !(await _aiService.needsTranslation(_sourceLang!));
 
-    _log.d('ChapterScreen', '源语言=$_sourceLang, 目标语言=$_targetLang, 译文Tab禁用=$_translationTabDisabled');
+    _log.info('源语言=$_sourceLang, 目标语言=$_targetLang, 译文Tab禁用=$_translationTabDisabled');
   }
 
   /// 从文件加载章节内容
@@ -327,7 +327,7 @@ class _ChapterScreenState extends State<ChapterScreen>
         if (parser != null) {
           chapters = await parser.getChapters(widget.filePath!);
         } else {
-          _log.e('ChapterScreen', '不支持的格式: $extension');
+          _log.severe('不支持的格式: $extension');
         }
       }
 
@@ -363,7 +363,7 @@ class _ChapterScreenState extends State<ChapterScreen>
           }
         }
       } catch (e) {
-        _log.e('ChapterScreen', '获取章节内容失败', e);
+        _log.severe('获取章节内容失败', e);
       }
 
       if (content == null || content.isEmpty) {
@@ -595,7 +595,7 @@ class _ChapterScreenState extends State<ChapterScreen>
         _streamingTranslation = '';
       });
     } catch (e, stackTrace) {
-      _log.e('ChapterScreen', '翻译失败', e, stackTrace);
+      _log.severe('翻译失败', e, stackTrace);
       if (mounted) {
         setState(() {
           _isTranslating = false;

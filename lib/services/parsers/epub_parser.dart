@@ -10,8 +10,8 @@ import 'package:xml/xml.dart';
 import '../../models/book.dart';
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
-import '../log_service.dart';
 import '../storage_config.dart';
+import 'package:logging/logging.dart';
 
 /// EPUB 格式解析器
 ///
@@ -19,15 +19,15 @@ import '../storage_config.dart';
 /// 章节内容提取：archive 直读 href → epub_plus 按 index 回退
 /// 元数据解析：EpubReader → archive 回退（container.xml + OPF + 导航文件）
 class EpubParser implements BookFormatParser {
-  final LogService _log = LogService();
+  final _log = Logger('EpubParser');
 
   @override
   Future<BookMetadata?> parseMetadata(String filePath, String bookId) async {
     try {
-      _log.d('EpubParser', '开始解析元数据: $filePath');
+      _log.info('开始解析元数据: $filePath');
       final file = File(filePath);
       if (!await file.exists()) {
-        _log.w('EpubParser', '文件不存在: $filePath');
+        _log.warning('文件不存在: $filePath');
         return null;
       }
 
@@ -51,7 +51,7 @@ class EpubParser implements BookFormatParser {
           totalChapters = _countChapters(epubBook.chapters!);
         }
       } catch (_) {
-        _log.w('EpubParser', 'EpubReader 解析失败，回退到 archive 方案');
+        _log.warning('EpubReader 解析失败，回退到 archive 方案');
 
         final archive = ZipDecoder().decodeBytes(bytes);
 
@@ -77,7 +77,7 @@ class EpubParser implements BookFormatParser {
       try {
         coverPath = await _extractCover(bytes, bookId);
       } catch (e) {
-        _log.w('EpubParser', '封面提取失败: $e');
+        _log.warning('封面提取失败: $e');
       }
 
       return BookMetadata(
@@ -88,7 +88,7 @@ class EpubParser implements BookFormatParser {
         language: language,
       );
     } catch (e, stackTrace) {
-      _log.e('EpubParser', '解析 EPUB 元数据失败', e, stackTrace);
+      _log.severe('解析 EPUB 元数据失败', e, stackTrace);
       return null;
     }
   }
@@ -97,7 +97,7 @@ class EpubParser implements BookFormatParser {
   Future<List<Chapter>> getChapters(String filePath) async {
     final file = File(filePath);
     if (!await file.exists()) {
-      _log.w('EpubParser', '文件不存在: $filePath');
+      _log.warning('文件不存在: $filePath');
       return [];
     }
 
@@ -109,7 +109,7 @@ class EpubParser implements BookFormatParser {
 
       if (epubBook.schema?.navigation?.navMap != null &&
           epubBook.schema!.navigation!.navMap!.points.isNotEmpty) {
-        _log.d('EpubParser', '从navigation提取章节列表');
+        _log.info('从navigation提取章节列表');
         chapterInfos.addAll(_extractChapterInfosFromNavigation(
             epubBook.schema!.navigation!.navMap!.points));
         if (chapterInfos.isNotEmpty) {
@@ -125,7 +125,7 @@ class EpubParser implements BookFormatParser {
         }
       }
     } catch (e) {
-      _log.e('EpubParser', 'EpubReader解析失败，使用archive回退方案', e);
+      _log.severe('EpubReader解析失败，使用archive回退方案', e);
     }
 
     final archive = ZipDecoder().decodeBytes(bytes);
@@ -195,7 +195,7 @@ class EpubParser implements BookFormatParser {
 
       return {'title': title, 'author': author, 'language': language};
     } catch (e) {
-      _log.e('EpubParser', '解析 OPF 文件失败', e);
+      _log.severe('解析 OPF 文件失败', e);
       return null;
     }
   }
@@ -284,7 +284,7 @@ class EpubParser implements BookFormatParser {
 
       return chapters;
     } catch (e) {
-      _log.e('EpubParser', '解析导航文件失败', e);
+      _log.severe('解析导航文件失败', e);
       return [];
     }
   }
@@ -331,7 +331,7 @@ class EpubParser implements BookFormatParser {
         }
       }
     } catch (e, _) {
-      _log.w('EpubParser', 'EpubReader 提取封面失败，回退到 archive 方案');
+      _log.warning('EpubReader 提取封面失败，回退到 archive 方案');
     }
 
     return await _extractCoverFromArchive(bytes, bookId);
@@ -386,7 +386,7 @@ class EpubParser implements BookFormatParser {
         return coverPath;
       }
     } catch (e) {
-      _log.w('EpubParser', 'archive 回退方案也未找到封面');
+      _log.warning('archive 回退方案也未找到封面');
     }
     return null;
   }
@@ -423,7 +423,7 @@ class EpubParser implements BookFormatParser {
       String filePath, Chapter chapter) async {
     final file = File(filePath);
     if (!await file.exists()) {
-      _log.w('EpubParser', '文件不存在：$filePath');
+      _log.warning('文件不存在：$filePath');
       throw Exception('EPUB file not found: $filePath');
     }
 
@@ -431,16 +431,16 @@ class EpubParser implements BookFormatParser {
     final href = chapter.location.href;
 
     if (href == null || href.isEmpty) {
-      _log.w('EpubParser', '章节没有 href: ${chapter.title}');
+      _log.warning('章节没有 href: ${chapter.title}');
       return chapter;
     }
 
-    _log.d('EpubParser', '准备提取章节内容，href: $href');
+    _log.info('准备提取章节内容，href: $href');
 
     try {
       final htmlContent = await _getChapterHtmlFromArchive(bytes, href);
       if (htmlContent != null && htmlContent.isNotEmpty) {
-        _log.d('EpubParser', '✓ 从 archive 提取章节内容，href: $href, len=${htmlContent.length}');
+        _log.info('✓ 从 archive 提取章节内容，href: $href, len=${htmlContent.length}');
         return Chapter(
           bookId: chapter.bookId,
           index: chapter.index,
@@ -450,10 +450,10 @@ class EpubParser implements BookFormatParser {
           htmlContent: htmlContent,
         );
       } else {
-        _log.w('EpubParser', '从 archive 提取的内容为空');
+        _log.warning('从 archive 提取的内容为空');
       }
     } catch (e) {
-      _log.e('EpubParser', '从 archive 提取章节内容失败', e);
+      _log.severe('从 archive 提取章节内容失败', e);
     }
 
     try {
@@ -463,7 +463,7 @@ class EpubParser implements BookFormatParser {
         final epubChapter = epubBook.chapters[chapter.index];
         final htmlContent = epubChapter.htmlContent ?? '';
         if (htmlContent.isNotEmpty) {
-          _log.d('EpubParser', '✓ 使用 EpubReader 获取章节内容，索引：${chapter.index}, 内容长度：${htmlContent.length}');
+          _log.info('✓ 使用 EpubReader 获取章节内容，索引：${chapter.index}, 内容长度：${htmlContent.length}');
           return Chapter(
             bookId: chapter.bookId,
             index: chapter.index,
@@ -475,10 +475,10 @@ class EpubParser implements BookFormatParser {
         }
       }
     } catch (e) {
-      _log.e('EpubParser', '使用 EpubReader 获取章节内容失败', e);
+      _log.severe('使用 EpubReader 获取章节内容失败', e);
     }
 
-    _log.w('EpubParser', '无法获取章节内容：${chapter.title}, href: $href');
+    _log.warning('无法获取章节内容：${chapter.title}, href: $href');
     return chapter;
   }
 
@@ -627,7 +627,7 @@ class EpubParser implements BookFormatParser {
       final navPoints = navMap.findElements('navPoint');
       return parseNavPoints(navPoints, 0);
     } catch (e) {
-      _log.e('EpubParser', '从archive解析toc.ncx失败', e);
+      _log.severe('从archive解析toc.ncx失败', e);
       return [];
     }
   }
@@ -670,7 +670,7 @@ class EpubParser implements BookFormatParser {
       final anchor = hrefParts.length > 1 ? hrefParts[1] : null;
       final hrefWithoutAnchorLower = hrefWithoutAnchor.toLowerCase();
 
-      _log.d('EpubParser', '从 archive 提取章节：href=$href, anchor=$anchor');
+      _log.info('从 archive 提取章节：href=$href, anchor=$anchor');
 
       for (final archiveFile in archive.files) {
         final archiveName = archiveFile.name;
@@ -697,19 +697,19 @@ class EpubParser implements BookFormatParser {
 
           final chapterHtml = _extractChapterByAnchor(fullHtml, anchor);
           if (chapterHtml != null) {
-            _log.d('EpubParser', '成功提取锚点 #$anchor 对应的章节内容');
+            _log.info('成功提取锚点 #$anchor 对应的章节内容');
             return chapterHtml;
           } else {
-            _log.w('EpubParser', '未找到锚点 #$anchor，返回整个文件内容');
+            _log.warning('未找到锚点 #$anchor，返回整个文件内容');
             return fullHtml;
           }
         }
       }
 
-      _log.w('EpubParser', '未找到文件：$hrefWithoutAnchor');
+      _log.warning('未找到文件：$hrefWithoutAnchor');
       return null;
     } catch (e) {
-      _log.e('EpubParser', '从 archive 获取章节 HTML 失败', e);
+      _log.severe('从 archive 获取章节 HTML 失败', e);
       return null;
     }
   }
@@ -721,7 +721,7 @@ class EpubParser implements BookFormatParser {
       final anchorMatch = anchorPattern.firstMatch(fullHtml);
 
       if (anchorMatch == null) {
-        _log.w('EpubParser', '未找到锚点：$anchor');
+        _log.warning('未找到锚点：$anchor');
         return null;
       }
 
@@ -735,7 +735,7 @@ class EpubParser implements BookFormatParser {
       }
 
       if (searchCount >= 500) {
-        _log.w('EpubParser', '向前查找开始标签超时，使用当前位置');
+        _log.warning('向前查找开始标签超时，使用当前位置');
       }
 
       int elementEnd = startPos;
@@ -747,7 +747,7 @@ class EpubParser implements BookFormatParser {
       elementEnd++;
 
       if (searchCount >= 500) {
-        _log.w('EpubParser', '向后查找结束标签超时');
+        _log.warning('向后查找结束标签超时');
       }
 
       final tagContent = fullHtml.substring(elementStart, elementEnd);
@@ -760,7 +760,7 @@ class EpubParser implements BookFormatParser {
 
       final tagNameMatch = RegExp(r'<(\w+)').firstMatch(tagContent);
       if (tagNameMatch == null) {
-        _log.w('EpubParser', '无法提取标签名');
+        _log.warning('无法提取标签名');
         return null;
       }
       final tagName = tagNameMatch.group(1);
@@ -772,11 +772,11 @@ class EpubParser implements BookFormatParser {
         final chapterContent = fullHtml.substring(elementStart, elementEnd + endTagMatch.end);
         return chapterContent;
       } else {
-        _log.w('EpubParser', '未找到结束标签，返回从锚点到文件末尾的内容');
+        _log.warning('未找到结束标签，返回从锚点到文件末尾的内容');
         return fullHtml.substring(elementStart);
       }
     } catch (e) {
-      _log.e('EpubParser', '提取锚点内容失败：anchor=$anchor', e);
+      _log.severe('提取锚点内容失败：anchor=$anchor', e);
       return null;
     }
   }

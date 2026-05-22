@@ -20,9 +20,9 @@ FUNCTION main() ASYNC:
     // 2. 初始化桌面窗口（标题、尺寸、位置、最小尺寸）
     AWAIT initDesktopWindow()
 
-    // 3. 初始化日志服务
-    AWAIT LogService().init(
-        minLevel = LogLevel.verbose,
+    // 3. 初始化日志服务（logging 官方库 + 文件持久化）
+    AWAIT LogHelper.init(
+        minLevel = Level.ALL,
         writeToFile = true
     )
     LOG "应用启动"

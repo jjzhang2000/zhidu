@@ -49,7 +49,7 @@ docs/pseudocode/
 │   ├── ai_service.md             # AI服务
 │   ├── book_service.md           # 书籍管理服务
 │   ├── file_storage_service.md   # 文件存储服务
-│   ├── log_service.md            # 日志服务
+│   ├── log_helper.md             # 日志服务（logging 官方库封装）
 │   ├── opf_reader_service.md     # OPF元数据读取服务
 │   ├── settings_service.md       # 设置管理服务
 │   ├── storage_config.md         # 存储路径配置
@@ -114,7 +114,7 @@ docs/pseudocode/
 | `ai_prompts.dart` | `AiPrompts` | 静态提示词模板：章节摘要/全书摘要/翻译（通过 AppLocalizations l10n） |
 | `book_service.dart` | `BookService` | 书籍CRUD：导入、存储、查询、删除、搜索 |
 | `file_storage_service.dart` | `FileStorageService` | 文件系统操作：JSON/文本读写、文件删除 |
-| `log_service.dart` | `LogService` | 分级别日志：verbose/debug/info/warning/error |
+| `log_helper.dart` | `LogHelper` | 封装 logging 官方库 + 文件持久化 |
 | `opf_reader_service.dart` | `OpfReaderService` | Calibre OPF文件读取与解析 |
 | `settings_service.dart` | `SettingsService` | 统一设置管理：AI/主题/语言，ValueNotifier响应式 |
 | `storage_config.dart` | `StorageConfig` | 存储路径配置：统一路径管理 |
@@ -209,8 +209,8 @@ SSE 流式响应 → 实时回调 → UI 实时显示
 ### 单例模式 (Singleton)
 
 所有 Service 使用单例模式：
-- `LogService` / `SettingsService` / `AIService` / `BookService`
-- `SummaryService` / `FileStorageService`
+- `SettingsService` / `AIService` / `BookService`
+- `SummaryService` / `FileStorageService` / `LogHelper`
 - `FormatRegistry`
 
 ### 工厂模式 / 注册表模式 (Factory + Registry)

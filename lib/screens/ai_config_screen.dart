@@ -17,7 +17,7 @@ import 'package:zhidu/l10n/app_localizations.dart';
 import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 import '../services/ai_service.dart';
-import '../services/log_service.dart';
+import 'package:logging/logging.dart';
 
 /// AI配置页面组件
 ///
@@ -43,7 +43,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   final _aiService = AIService();
 
   /// 日志服务实例
-  final _log = LogService();
+  final _log = Logger('AiConfigScreen');
 
   /// 表单Key，用于验证
   final _formKey = GlobalKey<FormState>();
@@ -233,7 +233,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
         });
       }
     } catch (e) {
-      _log.w('AiConfigScreen', '获取模型列表失败: $e');
+      _log.warning('获取模型列表失败: $e');
     }
   }
 

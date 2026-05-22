@@ -6,11 +6,11 @@
 import 'dart:async';
 
 import 'package:path/path.dart' as p;
+import 'package:logging/logging.dart';
 
 import '../models/chapter.dart';
 import '../models/book.dart';
 import 'file_storage_service.dart';
-import 'log_service.dart';
 import 'book_service.dart';
 import 'ai_service.dart';
 import 'settings_service.dart';
@@ -69,7 +69,7 @@ class SummaryService {
   final _bookService = BookService();
 
   /// 日志服务
-  final _log = LogService();
+  final _log = Logger('SummaryService');
 
   /// 文件存储服务，用于读写摘要文件
   final _fileStorage = FileStorageService();
@@ -87,13 +87,13 @@ class SummaryService {
   /// 注册全书摘要流式内容回调
   void registerBookStreamingCallback(String bookId, Function(String) callback) {
     _streamingCallbacks[bookId] = callback;
-    _log.d('SummaryService', '注册全书摘要流式回调: $bookId');
+    _log.fine('注册全书摘要流式回调: $bookId');
   }
 
   /// 取消全书摘要流式内容回调
   void unregisterBookStreamingCallback(String bookId) {
     _streamingCallbacks.remove(bookId);
-    _log.d('SummaryService', '取消全书摘要流式回调: $bookId');
+    _log.fine('取消全书摘要流式回调: $bookId');
   }
 
   /// 章节摘要流式回调映射表
@@ -157,7 +157,7 @@ class SummaryService {
   Future<void> init() async {
     _initSemaphore();
     SettingsService().aiSettings.addListener(_onAiSettingsChanged);
-    _log.d('SummaryService', '初始化完成');
+    _log.fine('初始化完成');
   }
 
   void _onAiSettingsChanged() {
@@ -170,7 +170,7 @@ class SummaryService {
     final provider = _aiService.currentProvider;
     final isLocal = provider == 'ollama' || provider == 'lmstudio';
     _concurrentRequestSemaphore = Semaphore(isLocal ? 1 : 3);
-    _log.d('SummaryService', '并发限制初始化：provider=$provider, maxConcurrency=${isLocal ? 1 : 3}');
+    _log.fine('并发限制初始化：provider=$provider, maxConcurrency=${isLocal ? 1 : 3}');
   }
 
   /// 清理资源，移除监听器
@@ -201,7 +201,7 @@ class SummaryService {
 
       return chapter;
     } catch (e, stackTrace) {
-      _log.e('SummaryService', 'getSummary 失败', e, stackTrace);
+      _log.severe('getSummary 失败', e, stackTrace);
       return null;
     }
   }
@@ -215,10 +215,9 @@ class SummaryService {
       if (content != null) {
         await _fileStorage.writeText(filePath, content);
       }
-      _log.d(
-          'SummaryService', '摘要已保存: ${chapter.bookId}_${chapter.index}_$language');
+      _log.fine('摘要已保存: ${chapter.bookId}_${chapter.index}_$language');
     } catch (e, stackTrace) {
-      _log.e('SummaryService', 'saveSummary 失败', e, stackTrace);
+      _log.severe('saveSummary 失败', e, stackTrace);
     }
   }
 
@@ -230,7 +229,7 @@ class SummaryService {
       final filePath = await StorageConfig.getBookSummaryPath(bookId, language: language);
       return await _fileStorage.readText(filePath);
     } catch (e, stackTrace) {
-      _log.e('SummaryService', 'getBookSummary 失败: $bookId', e, stackTrace);
+      _log.severe('getBookSummary 失败: $bookId', e, stackTrace);
       return null;
     }
   }
@@ -243,9 +242,9 @@ class SummaryService {
     try {
       final filePath = await StorageConfig.getBookSummaryPath(bookId, language: language);
       await _fileStorage.writeText(filePath, summary);
-      _log.d('SummaryService', '书籍摘要已保存: $bookId, language: $language');
+      _log.fine('书籍摘要已保存: $bookId, language: $language');
     } catch (e, stackTrace) {
-      _log.e('SummaryService', 'saveBookSummary 失败: $bookId', e, stackTrace);
+      _log.severe('saveBookSummary 失败: $bookId', e, stackTrace);
     }
   }
 
@@ -273,7 +272,7 @@ class SummaryService {
 
     // 并发控制：检查是否正在生成
     if (_generatingKeys.contains(key)) {
-      _log.d('SummaryService', '摘要生成中，跳过重复请求: $key');
+      _log.fine('摘要生成中，跳过重复请求: $key');
       return false;
     }
 
@@ -318,11 +317,11 @@ class SummaryService {
         await saveSummary(chapterSummary, language: language);
         return true;
       } else {
-        _log.w('SummaryService', 'AI返回空摘要: $key');
+        _log.warning('AI返回空摘要: $key');
         return false;
       }
     } catch (e, stackTrace) {
-      _log.e('SummaryService', '生成摘要失败: $key', e, stackTrace);
+      _log.severe('生成摘要失败: $key', e, stackTrace);
       return false;
     } finally {
       // 清理并发控制标记
@@ -363,13 +362,13 @@ class SummaryService {
       final parser = FormatRegistry.getParser(extension);
 
       if (parser == null) {
-        _log.w('SummaryService', '不支持的格式: ${book.format}');
+        _log.warning('不支持的格式: ${book.format}');
         return;
       }
 
       // 获取章节列表
       final chapters = await parser.getChapters(book.filePath);
-      _log.d('SummaryService', '获取到 ${chapters.length} 个章节');
+      _log.info('获取到 ${chapters.length} 个章节');
 
       if (book.format == BookFormat.epub) {
         // EPUB文件：先生成全书摘要，再生成章节摘要
@@ -385,9 +384,9 @@ class SummaryService {
         await _generateBookSummaryFromChapters(book, chapters);
       }
 
-      _log.info('SummaryService', '书籍摘要生成完成: ${book.title}');
+      _log.info('书籍摘要生成完成: ${book.title}');
     } catch (e, stackTrace) {
-      _log.e('SummaryService', '生成书籍摘要失败: ${book.title}', e, stackTrace);
+      _log.severe('生成书籍摘要失败: ${book.title}', e, stackTrace);
     }
   }
 
@@ -457,7 +456,7 @@ class SummaryService {
         );
       }
     } catch (e, stackTrace) {
-      _log.e('SummaryService', '处理章节 $chapterIndex 时出错', e, stackTrace);
+      _log.severe('处理章节 $chapterIndex 时出错', e, stackTrace);
     } finally {
       // 释放信号量许可
       semaphore.release();
@@ -474,7 +473,7 @@ class SummaryService {
       // 检查是否已有全书摘要
       final existingSummary = await getBookSummary(book.id);
       if (existingSummary != null && existingSummary.isNotEmpty) {
-        _log.d('SummaryService', '已有全书摘要，跳过: ${book.title}');
+        _log.fine('已有全书摘要，跳过: ${book.title}');
         return;
       }
 
@@ -507,7 +506,7 @@ class SummaryService {
                 '\n\n第一章内容样本（用于语言识别）：\n${contentSample.substring(0, sampleLength)}');
           }
         } catch (e) {
-          _log.w('SummaryService', '获取第一章内容用于语言检测失败: $e');
+          _log.warning('获取第一章内容用于语言检测失败: $e');
           // 如果获取内容失败，使用原方法继续
         }
       }
@@ -531,12 +530,12 @@ class SummaryService {
 
       if (accumulatedContent.isNotEmpty) {
         await saveBookSummary(book.id, accumulatedContent, language: 'zh');
-        _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
+        _log.info('全书摘要生成成功: ${book.title}');
       } else {
-        _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
+        _log.warning('AI返回空的全书摘要: ${book.title}');
       }
     } catch (e, stackTrace) {
-      _log.e('SummaryService', '从前言生成全书摘要失败: ${book.title}', e, stackTrace);
+      _log.severe('从前言生成全书摘要失败: ${book.title}', e, stackTrace);
     }
   }
 
@@ -549,7 +548,7 @@ class SummaryService {
       // 检查是否已有全书摘要
       final existingSummary = await getBookSummary(book.id);
       if (existingSummary != null && existingSummary.isNotEmpty) {
-        _log.d('SummaryService', '已有全书摘要，跳过: ${book.title}');
+        _log.fine('已有全书摘要，跳过: ${book.title}');
         return;
       }
 
@@ -586,13 +585,13 @@ class SummaryService {
               }
             }
           } catch (e) {
-            _log.w('SummaryService', '获取第${i + 1}章内容样本用于语言检测失败: $e');
+            _log.warning('获取第${i + 1}章内容样本用于语言检测失败: $e');
           }
         }
       }
 
       if (chapterSummaries.isEmpty) {
-        _log.w('SummaryService', '没有章节摘要，无法生成全书摘要: ${book.title}');
+        _log.warning('没有章节摘要，无法生成全书摘要: ${book.title}');
         return;
       }
 
@@ -624,12 +623,12 @@ class SummaryService {
 
       if (accumulatedContent.isNotEmpty) {
         await saveBookSummary(book.id, accumulatedContent, language: 'zh');
-        _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
+        _log.info('全书摘要生成成功: ${book.title}');
       } else {
-        _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
+        _log.warning('AI返回空的全书摘要: ${book.title}');
       }
     } catch (e, stackTrace) {
-      _log.e('SummaryService', '从章节摘要生成全书摘要失败: ${book.title}', e, stackTrace);
+      _log.severe('从章节摘要生成全书摘要失败: ${book.title}', e, stackTrace);
     }
   }
 
@@ -644,7 +643,7 @@ class SummaryService {
       final content = await _fileStorage.readText(filePath);
       return content;
     } catch (e, stackTrace) {
-      _log.e('SummaryService', 'getTranslation 失败: $bookId chapter $chapterIndex to $targetLang', e, stackTrace);
+      _log.severe('getTranslation 失败: $bookId chapter $chapterIndex to $targetLang', e, stackTrace);
       return null;
     }
   }
@@ -656,9 +655,9 @@ class SummaryService {
       final filePath = await StorageConfig.getChapterTranslationPath(
           bookId, chapterIndex, targetLang);
       await _fileStorage.writeText(filePath, content);
-      _log.d('SummaryService', '译文已保存: ${bookId}_${chapterIndex}_$targetLang');
+      _log.fine('译文已保存: ${bookId}_${chapterIndex}_$targetLang');
     } catch (e, stackTrace) {
-      _log.e('SummaryService', 'saveTranslation 失败', e, stackTrace);
+      _log.severe('saveTranslation 失败', e, stackTrace);
     }
   }
 
@@ -680,7 +679,7 @@ class SummaryService {
 
     // 防止重复生成
     if (_generatingTranslationKeys.contains(key)) {
-      _log.d('SummaryService', '译文生成中，跳过重复请求: $key');
+      _log.fine('译文生成中，跳过重复请求: $key');
       return false;
     }
 
@@ -702,14 +701,14 @@ class SummaryService {
 
       if (translatedContent.isNotEmpty) {
         await saveTranslation(bookId, chapterIndex, targetLang, translatedContent);
-        _log.info('SummaryService', '译文生成成功: $key');
+        _log.info('译文生成成功: $key');
         return true;
       } else {
-        _log.w('SummaryService', 'AI返回空译文: $key');
+        _log.warning('AI返回空译文: $key');
         return false;
       }
     } catch (e, stackTrace) {
-      _log.e('SummaryService', '流式生成译文失败: $key', e, stackTrace);
+      _log.severe('流式生成译文失败: $key', e, stackTrace);
       return false;
     } finally {
       _generatingTranslationKeys.remove(key);

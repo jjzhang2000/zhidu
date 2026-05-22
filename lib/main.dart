@@ -6,7 +6,8 @@ import 'screens/home_screen.dart';
 import 'services/book_service.dart';
 import 'services/ai_service.dart';
 import 'services/summary_service.dart';
-import 'services/log_service.dart';
+import 'package:logging/logging.dart';
+import 'services/log_helper.dart';
 import 'services/parsers/book_format_parser.dart';
 import 'services/parsers/epub_parser.dart';
 import 'services/parsers/pdf_parser.dart';
@@ -21,12 +22,13 @@ void main() async {
   // 在桌面平台上初始化窗口管理（内部会检查平台）
   await initDesktopWindow();
 
-  await LogService().init(
-    minLevel: LogLevel.verbose,
+  await LogHelper.init(
+    minLevel: Level.ALL,
     writeToFile: true,
   );
 
-  LogService().info('Main', '应用启动');
+  final _mainLog = Logger('Main');
+  _mainLog.info('应用启动');
 
   _initializeFormatRegistry();
 
@@ -35,7 +37,7 @@ void main() async {
   await AIService().init();
   await SummaryService().init();
 
-  LogService().info('Main', '所有服务初始化完成');
+  _mainLog.info('所有服务初始化完成');
 
   runApp(
     const ZhiduApp(),
@@ -46,7 +48,8 @@ void main() async {
 void _initializeFormatRegistry() {
   FormatRegistry.register('.epub', EpubParser());
   FormatRegistry.register('.pdf', PdfParser());
-  LogService().info('Main', '格式注册表初始化完成，支持: epub, pdf');
+  final _mainLog = Logger('Main');
+  _mainLog.info('格式注册表初始化完成，支持: epub, pdf');
 }
 
 class ZhiduApp extends StatefulWidget {

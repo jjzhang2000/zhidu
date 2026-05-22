@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.10 | **更新日期**: 2026-05-22 | **基于代码版本**: v1.7
+> **文档版本**: v2.11 | **更新日期**: 2026-05-22 | **基于代码版本**: v1.8
 
 ---
 
@@ -9,9 +9,10 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           main.dart (入口)                               │
-│  _initWindowManager()  →  window_manager + screen_retriever              │
+│  initDesktopWindow()  →  window_manager + screen_retriever              │
+│  LogHelper.init(writeToFile: true) → package:logging + IOSink           │
 │  Service 初始化链:                                                        │
-│    LogService → SettingsService → FileStorageService → StorageConfig     │
+│    SettingsService → FileStorageService → StorageConfig                 │
 │    → BookService → AIService → AiPrompts → SummaryService                │
 │  FormatRegistry.register('.epub', EpubParser())                          │
 │  FormatRegistry.register('.pdf', PdfParser())                            │
@@ -36,7 +37,7 @@
 
 ## 二、模块间依赖矩阵
 
-| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | FormatReg | EpubPsr | PdfPsr | SetSvc | OpfRdr | LogSvc | FileSvc | WinUtils |
+| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | FormatReg | EpubPsr | PdfPsr | SetSvc | OpfRdr | LogHlp | FileSvc | WinUtils |
 |-------------------|:-----:|:-----:|:------:|:---------:|:-------:|:------:|:------:|:------:|:------:|:-------:|:--------:|
 | **main.dart**     |   ✓   |   ✓   |   ✓    |     ✓     |   ✓     |   ✓    |   ✓    |   —    |   ✓    |   ✓    |   ✓    |
 | **HomeScreen**    |   ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |
@@ -51,7 +52,7 @@
 | **EpubParser**    |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |
 | **PdfParser**     |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |
 
-> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, FormatReg=FormatRegistry, EpubPsr=EpubParser, PdfPsr=PdfParser, SetSvc=SettingsService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService
+> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, FormatReg=FormatRegistry, EpubPsr=EpubParser, PdfPsr=PdfParser, SetSvc=SettingsService, OpfRdr=OpfReaderService, LogHlp=LogHelper, FileSvc=FileStorageService
 
 ---
 
@@ -65,14 +66,14 @@ HomeScreen._importBook() / BookshelfScreen._importBook()
     ├── BookService().importBook(filePath)
     │       │
     │       ├── 识别格式 (扩展名)
-    │       │       ├── .epub → EpubService().parseEpubFile(filePath)
+    │       │       ├── .epub → EpubParser().parseMetadata(filePath, bookId)
     │       │       │           ├── EpubReader.readFromUri() (epub_plus库)
     │       │       │           ├── _extractChapters(epubBook)
     │       │       │           ├── _extractCover(epubBook, bookId)
     │       │       │           └── OpfReaderService.readFromSameDirectory()
     │       │       │               └── _parseOpfContent() → OpfMetadata
     │       │       │
-    │       │       └── .pdf → PdfService().parsePdfFile(filePath)
+    │       │       └── .pdf → PdfParser().parseMetadata(filePath, bookId)
     │       │                   ├── PdfDocument.openFile() (pdfrx库)
     │       │                   ├── _detectChapters(document)
     │       │                   ├── _extractCover(document, bookId)
