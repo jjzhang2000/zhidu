@@ -3,8 +3,23 @@
 ## 概述
 
 **文件**: `lib/services/parsers/book_format_parser.dart`
-**用途**: 书籍格式解析器抽象接口 + 格式注册表
+**用途**: 书籍格式解析器统一接口 + 格式注册表，元数据解析和内容解析归口到一组解析器
 **模式**: 策略模式 + 注册表模式
+
+---
+
+## BookMetadata 模型
+
+```
+class BookMetadata
+  final String title
+  final String author
+  final int totalChapters
+  final String? coverPath
+  final String? language
+```
+
+仅包含导入时需要的轻量信息，不包含章节内容。
 
 ---
 
@@ -12,10 +27,16 @@
 
 ```
 abstract class BookFormatParser
+  Future<BookMetadata?> parseMetadata(String filePath, String bookId)
   Future<List<Chapter>> getChapters(String filePath)
   Future<Chapter> getChapterContent(String filePath, Chapter chapter)
-  Future<String?> extractCover(String filePath)
 ```
+
+| 方法 | 用途 |
+|------|------|
+| `parseMetadata` | 轻量解析：标题、作者、封面、章节数、语言 |
+| `getChapters` | 提取章节列表（含 index、title、location、level） |
+| `getChapterContent` | 提取指定章节的完整 HTML 内容 |
 
 ### 实现类
 
@@ -57,6 +78,11 @@ main.dart
   → FormatRegistry.register('.epub', EpubParser())
   → FormatRegistry.register('.pdf', PdfParser())
 
+BookService.importBookFromPath()
+  → parser = FormatRegistry.getParser(extension)
+  → metadata = parser.parseMetadata(filePath, bookId)
+  → 构建 Book 对象
+
 BookScreen / ChapterScreen / SummaryService
   → parser = FormatRegistry.getParser('.epub')
   → parser.getChapters(filePath)
@@ -69,9 +95,9 @@ BookScreen / ChapterScreen / SummaryService
 
 | 方法 | 调用方 |
 |------|--------|
-| `getChapters` | BookScreen, ChapterScreen, SummaryService |
+| `parseMetadata` | BookService.importBookFromPath() |
+| `getChapters` | BookService, BookScreen, ChapterScreen, SummaryService |
 | `getChapterContent` | ChapterScreen, SummaryService |
-| `extractCover` | EpubService._extractCover(), PdfService._extractCover() |
 
 ---
 

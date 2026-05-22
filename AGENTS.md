@@ -20,7 +20,7 @@ lib/
 ├── main.dart                 # 入口，初始化所有Service
 ├── models/                   # app_settings, book, chapter, chapter_summary等
 ├── screens/                  # home, book, chapter, pdf_reader, settings系列页面
-├── services/                 # book, epub, pdf, ai, summary, storage_config, file_storage, settings, log
+├── services/                 # book, ai, summary, storage_config, file_storage, settings, log
 │   └── parsers/             # book_format_parser(接口+注册表), epub_parser, pdf_parser
 └── utils/                    # app_theme
 ```
@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-22**: 合并 EpubService/PdfService 到 EpubParser/PdfParser — 消除元数据解析和内容解析的代码重复（同一文件被 EpubReader → archive 回退 解析两次）；BookFormatParser 接口新增 `parseMetadata(String, String)` → `BookMetadata`，统一返回标题/作者/封面/章节数/语言；BookService 改用 FormatRegistry.getParser().parseMetadata() 替代硬编码的 _epubService/_pdfService 分支；删除 EpubService/PdfService 两文件及对应测试；EpubParser 新增 `_countChapters`/`_extractTitleFromPath`/`_parseOpfFile`/`_parseNavigationFile`/`_extractTextFromHtml`/`_extractCover`/`_extractCoverFromArchive` 7 个方法；PdfParser 新增 `_detectChapters`/`_extractCover` 2 个方法和 `_PdfChapter` 内部类；book_format_parser.md/epub_parser.md/pdf_parser.md/book_service.md/function_call_relationships.md 同步更新
 **2026-05-21**: EpubService/PdfService 僵尸代码清理 + 测试同步 — EpubService 删除 8 个公共方法（extractPrefaceContent/getHierarchicalChapterList/getSectionContent/getChapterContentFromHref/getChapterHtml/getSectionHtml/getSectionsInChapter/getChapterList）及 10+ 私有依赖方法、2 个内部类（ChapterInfo/SectionInfo），1265→422 行（-67%）；PdfService 删除 3 个公共方法（getChapterPages/getChapterPageRange/getPageContent）及 2 个内部类（PdfChapter/PdfPageContent 改为私有 _PdfChapter），472→189 行（-60%）；同步重写 epub_service_test.dart/pdf_service_test.dart（删除 80+ 条无效用例）；删除 epub_parser_test/pdf_parser_test 中 extractCover 用例；更新 epub_service.md/pdf_service.md/function_call_relationships.md/index.md
 **2026-05-21**: 删除 chapterTitles 持久化 — AI 从摘要内容推断的章节标题不属于书籍元数据，不应持久化到 metadata.json；删除 Book.chapterTitles 字段及全部序列化/反序列化逻辑、BookService.updateChapterTitle()、SummaryService 中调用方、BookScreen/ChapterScreen 中 chapterTitles 优先获取逻辑；_getChapterTitle() 简化为直接返回原始标题；book_test.dart / book_detail_screen_test.dart / chapter_screen_test.dart 同步删除 chapterTitles 用例；更新 book_service.md、summary_service.md
 **2026-05-21**: BookService 僵尸代码清理 + 注释精简 — 删除 `saveBooksIndex()` public 方法（无源码级别外部调用）；类级 15 行注释 → 1 行，删除所有字段注释、方法注释副文（流程步骤/设计考量/目录结构图）；删除 7 处内联注释；434→289 行（-33%）；更新 `book_service.md`、`function_call_relationships.md`、`index.md`

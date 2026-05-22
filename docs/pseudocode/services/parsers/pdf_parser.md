@@ -14,7 +14,7 @@
 │  PDF Structure:                                                  │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                                                          │   │
-│  │  Page 1 (Cover)          ← May contain only images      │   │
+│  │  Page 1 (Cover)          ← Rendered as cover image      │   │
 │  │  ┌─────────────────┐                                    │   │
 │  │  │ [Image]         │                                    │   │
 │  │  │ Title           │                                    │   │
@@ -47,12 +47,49 @@
 │  - No navigation file (NCX/NAV)                                 │
 │  - Content is page-based, not file-based                        │
 │  - Metadata often unreliable                                    │
-│  - Cover is typically first page                                │
+│  - Cover extracted by rendering first page to 600px-wide PNG    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## 核心解析流程
+
+### parseMetadata() - 元数据解析
+
+```
+FUNCTION parseMetadata(filePath: String, bookId: String) -> Future<BookMetadata?>
+    TRY:
+        // Step 1: 打开 PDF 文档
+        document = await PdfDocument.openFile(filePath)
+
+        // Step 2: 从文件路径提取标题（无元数据）
+        fileName = filePath.split('/').last.split('\\').last
+        title = fileName.substring(0, fileName.lastIndexOf('.'))
+
+        // Step 3: 检测章节结构
+        chapters = await _detectChapters(document)
+        LOG: '检测到 ${chapters.length} 个章节'
+
+        // Step 4: 提取封面（渲染第一页为图片）
+        coverPath = await _extractCover(document, bookId)
+
+        // Step 5: 释放文档资源
+        await document.dispose()
+
+        author = '未知作者'
+
+        RETURN BookMetadata(
+            title: title,
+            author: author,
+            totalChapters: chapters.length,
+            coverPath: coverPath
+        )
+
+    CATCH e, stackTrace:
+        LOG: '解析 PDF 元数据失败', e, stackTrace
+        RETURN null
+END FUNCTION
+```
 
 ### getChapters() - 章节列表提取
 
@@ -434,29 +471,63 @@ FUNCTION getChapterContent(filePath: String, chapter: Chapter) -> Future<Chapter
 END FUNCTION
 ```
 
-### extractCover() - 封面提取
+### _extractCover() - 封面提取（私有，渲染第一页为图片）
 
 ```
-FUNCTION extractCover(filePath: String) -> Future<String?>
-    LOG: 'extractCover 开始执行'
-    
-    // Step 1: 文件存在性检查
-    file = File(filePath)
-    IF NOT await file.exists():
+FUNCTION _extractCover(document: PdfDocument, bookId: String) -> Future<String?>
+    TRY:
+        IF document.pages.isEmpty:
+            LOG: 'PDF没有页面'
+            RETURN null
+
+        // Step 1: 获取第一页
+        firstPage = document.pages[0]
+
+        // Step 2: 计算缩放尺寸（目标宽度 600px）
+        pageWidth = firstPage.width
+        pageHeight = firstPage.height
+        targetWidth = 600
+        targetHeight = (pageHeight * targetWidth / pageWidth).round()
+
+        // Step 3: 渲染页面为图片
+        pdfImage = await firstPage.render(
+            width: targetWidth,
+            height: targetHeight,
+            backgroundColor: 0xFFFFFFFF
+        )
+
+        IF pdfImage == null:
+            LOG: '渲染返回空图片'
+            RETURN null
+
+        // Step 4: 转换为 PNG 格式
+        image = img.Image(width: targetWidth, height: targetHeight)
+        pixels = pdfImage.pixels
+
+        FOR y = 0 TO targetHeight - 1:
+            FOR x = 0 TO targetWidth - 1:
+                offset = (y * pdfImage.width + x) * 4
+                IF offset + 3 < pixels.length:
+                    r = pixels[offset]
+                    g = pixels[offset + 1]
+                    b = pixels[offset + 2]
+                    a = pixels[offset + 3]
+                    image.setPixelRgba(x, y, r, g, b, a)
+
+        pngBytes = Uint8List.fromList(img.encodePng(image))
+
+        // Step 5: 保存封面文件
+        coverPath = await StorageConfig.getCoverSavePath(bookId, 'png')
+        coverFile = File(coverPath)
+        await coverFile.writeAsBytes(pngBytes)
+
+        pdfImage.dispose()
+
+        RETURN coverPath
+
+    CATCH e, stackTrace:
+        LOG: '提取封面渲染失败', e, stackTrace
         RETURN null
-    
-    // Step 2: PDF封面提取说明
-    // PDF文件通常没有像EPUB那样的独立封面图片
-    // 第一页通常包含内容而非专门的封面设计
-    // 因此返回null，让UI层使用默认封面占位图
-    
-    LOG: 'PDF不支持封面提取，返回null'
-    RETURN null
-    
-    // 可能的增强方案（未来实现）：
-    // 1. 渲染第一页为图片并保存为封面
-    // 2. 使用PDF内嵌的缩略图（如果有）
-    // 3. 使用AI识别封面页并渲染
 END FUNCTION
 ```
 
@@ -798,6 +869,51 @@ END FUNCTION
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## 错误处理与回退策略
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Fallback Strategy Matrix                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ parseMetadata() Fallback Chain                            │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 1. Filename → Extract title from path                     │ │
+│  │ 2. _detectChapters() → Chapter structure analysis         │ │
+│  │ 3. _extractCover() → Render first page as 600px PNG       │ │
+│  │ 4. Default author '未知作者' → Always used                │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ getChapters() Fallback Chain                              │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 1. Cover detection → Skip page 0 if text < 50 chars       │ │
+│  │ 2. Pattern matching → Regex on first 5 lines per page     │ │
+│  │ 3. Duplicate prevention → lastChapterNum tracking         │ │
+│  │ 4. Single chapter → Entire document as one chapter        │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ getChapterContent() Fallback Chain                        │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 1. Page range extraction → startPage to endPage           │ │
+│  │ 2. Plain text to HTML → <p> wrapping                      │ │
+│  │ 3. Return unchanged chapter → Final fallback              │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ _extractCover() Fallback Chain                            │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 1. Render first page → 600px width, proportional height   │ │
+│  │ 2. Convert to PNG → image library encoding                │ │
+│  │ 3. Save to StorageConfig path → {bookId}/cover.png        │ │
+│  │ 4. Return null → If rendering fails or empty pages        │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ## 边界情况处理
 
 | 边界情况 | 处理方式 |
@@ -825,7 +941,7 @@ END FUNCTION
 | 章节来源 | NCX/NAV导航文件 | 页面内容分析 |
 | 层级支持 | 多层级目录 | 无层级（level=0） |
 | 内容格式 | HTML | 纯文本 |
-| 封面提取 | 图片文件 | 不支持 |
+| 封面提取 | 图片文件 | 渲染第一页为600px宽PNG |
 | 元数据来源 | OPF文件 | 文件名 |
 | 锚点处理 | 支持 | 不适用 |
 | 页码系统 | 不适用 | 1-based/0-based转换 |

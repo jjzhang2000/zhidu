@@ -4,8 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../models/book.dart';
 import 'opf_reader_service.dart';
-import 'epub_service.dart';
-import 'pdf_service.dart';
+import 'parsers/book_format_parser.dart';
 import 'log_service.dart';
 import 'storage_config.dart';
 import 'file_storage_service.dart';
@@ -16,8 +15,6 @@ class BookService {
   factory BookService() => _instance;
   BookService._internal();
 
-  final _epubService = EpubService();
-  final _pdfService = PdfService();
   final _uuid = const Uuid();
   final _log = LogService();
   final _fileStorage = FileStorageService();
@@ -100,16 +97,29 @@ class BookService {
       final extension = p.extension(filePath).toLowerCase();
       final bookId = _uuid.v4();
 
-      Book? book;
-
-      if (extension == '.epub') {
-        book = await _epubService.parseEpubFile(filePath, bookId);
-      } else if (extension == '.pdf') {
-        book = await _pdfService.parsePdfFile(filePath, bookId);
-      } else {
+      final parser = FormatRegistry.getParser(extension);
+      if (parser == null) {
         _log.w('BookService', '不支持的文件格式: $extension');
         return null;
       }
+
+      final metadata = await parser.parseMetadata(filePath, bookId);
+      if (metadata == null) {
+        _log.w('BookService', '元数据解析失败: $filePath');
+        return null;
+      }
+
+      Book? book = Book(
+        id: bookId,
+        title: metadata.title,
+        author: metadata.author,
+        coverPath: metadata.coverPath,
+        filePath: filePath,
+        format: extension == '.epub' ? BookFormat.epub : BookFormat.pdf,
+        totalChapters: metadata.totalChapters,
+        addedAt: DateTime.now(),
+        language: metadata.language,
+      );
 
       if (book != null && opfMetadata != null) {
         String? finalCoverPath = book.coverPath;

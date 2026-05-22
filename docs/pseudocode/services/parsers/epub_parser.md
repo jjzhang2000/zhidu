@@ -42,6 +42,77 @@
 
 ## 核心解析流程
 
+### parseMetadata() - 元数据解析
+
+```
+FUNCTION parseMetadata(filePath: String, bookId: String) -> Future<BookMetadata?>
+    LOG: '开始解析元数据: $filePath'
+
+    // Step 1: 文件存在性检查
+    file = File(filePath)
+    IF NOT await file.exists():
+        LOG: '文件不存在'
+        RETURN null
+
+    bytes = await file.readAsBytes()
+
+    title = null
+    author = null
+    language = null
+    totalChapters = 0
+
+    // Step 2: 首选方案 - 使用 EpubReader 解析元数据
+    TRY:
+        epubBook = await EpubReader.readBook(bytes)
+
+        title = epubBook.title
+
+        IF epubBook.authors?.isNotEmpty:
+            author = epubBook.authors.join(', ')
+
+        IF epubBook.chapters?.isNotEmpty:
+            totalChapters = _countChapters(epubBook.chapters)
+
+    CATCH:
+        LOG: 'EpubReader 解析失败，回退到 archive 方案'
+
+        // Step 3: 回退方案 - 使用 archive 解析 OPF + 导航文件
+        archive = ZipDecoder().decodeBytes(bytes)
+
+        opfInfo = _parseOpfFile(archive)
+        IF opfInfo != null:
+            title ??= opfInfo['title']
+            author ??= opfInfo['author']
+            language ??= opfInfo['language']
+
+        navChapters = _parseNavigationFile(archive)
+        totalChapters = navChapters.length
+
+    // Step 4: 标题回退 - 从文件路径提取
+    IF title == null OR title.isEmpty:
+        title = _extractTitleFromPath(filePath)
+
+    // Step 5: 作者默认值
+    IF author == null OR author.isEmpty:
+        author = '未知作者'
+
+    // Step 6: 封面提取
+    coverPath = null
+    TRY:
+        coverPath = await _extractCover(bytes, bookId)
+    CATCH e:
+        LOG: '封面提取失败: $e'
+
+    RETURN BookMetadata(
+        title: title,
+        author: author,
+        totalChapters: totalChapters,
+        coverPath: coverPath,
+        language: language
+    )
+END FUNCTION
+```
+
 ### getChapters() - 章节列表提取
 
 ```
@@ -332,56 +403,54 @@ FUNCTION _extractChapterByAnchor(fullHtml: String, anchor: String) -> String?
 END FUNCTION
 ```
 
-### extractCover() - 封面提取
+### extractCover() - 封面提取（已删除，已合并到 parseMetadata 作为私有方法 _extractCover）
+
+> **注意**: 原 `extractCover()` 公共方法已被删除，封面提取功能已整合为私有方法 `_extractCover()` 在 `parseMetadata()` 中调用。
+
+### _extractCover() - 封面提取（私有，EpubReader 优先 → archive 回退）
 
 ```
-FUNCTION extractCover(filePath: String) -> Future<String?>
-    LOG: 'extractCover 开始执行'
-    
-    // Step 1: 文件存在性检查
-    file = File(filePath)
-    IF NOT await file.exists():
-        RETURN null
-    
-    bytes = await file.readAsBytes()
-    
+FUNCTION _extractCover(bytes: Uint8List, bookId: String) -> Future<String?>
     TRY:
-        // Step 2: 首选方案 - 使用EpubReader提取封面
+        // Step 1: 首选方案 - 使用EpubReader提取封面
         epubBook = await EpubReader.readBook(bytes)
-        
+
         IF epubBook.content?.images?.isNotEmpty:
             coverImage = null
-            
-            // Step 3: 查找包含cover或title的图片
+
+            // Step 2: 查找包含cover或title的图片
             FOR entry IN epubBook.content!.images!.entries:
                 name = entry.key.toLowerCase()
                 IF name.contains('cover') OR name.contains('title'):
                     coverImage = entry.value
                     LOG: '找到封面图片: ${entry.key}'
                     BREAK
-            
-            // Step 4: 若未找到，使用第一张图片
+
+            // Step 3: 若未找到，使用第一张图片
             IF coverImage == null:
-                coverImage = epubBook.content!.images!.values.first
+                coverImage = epubBook.content!.images.values.first
                 LOG: '使用第一张图片作为封面'
-            
+
             IF coverImage != null AND coverImage.content != null:
-                RETURN await _saveCoverImage(
-                    coverImage.content!,
-                    coverImage.contentMimeType
-                )
-    
+                extension = coverImage.contentMimeType?.contains('png') ? 'png' : 'jpg'
+                coverPath = await StorageConfig.getCoverSavePath(bookId, extension)
+
+                coverOutputFile = File(coverPath)
+                await coverOutputFile.writeAsBytes(coverImage.content)
+                RETURN coverPath
+
     CATCH e:
-        LOG: '使用EpubReader提取封面失败'
-    
-    // Step 5: 回退方案 - 从archive查找
-    RETURN await _extractCoverFromArchive(bytes)
+        LOG: 'EpubReader 提取封面失败，回退到 archive 方案'
+
+    // Step 4: 回退方案 - 从archive查找
+    RETURN await _extractCoverFromArchive(bytes, bookId)
 END FUNCTION
 ```
 
 ```
-FUNCTION _extractCoverFromArchive(bytes: Uint8List) -> Future<String?>
-    archive = ZipDecoder().decodeBytes(bytes)
+FUNCTION _extractCoverFromArchive(bytes: Uint8List, bookId: String) -> Future<String?>
+    TRY:
+        archive = ZipDecoder().decodeBytes(bytes)
     
     // Step 1: 定义封面文件名模式
     coverPatterns = [
@@ -411,10 +480,16 @@ FUNCTION _extractCoverFromArchive(bytes: Uint8List) -> Future<String?>
     
     // Step 4: 保存封面图片
     IF coverFile != null:
-        imageBytes = coverFile.content
-        mimeType = coverFile.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'
-        RETURN await _saveCoverImage(imageBytes, mimeType)
-    
+        extension = coverFile.name.toLowerCase().endsWith('.png') ? 'png' : 'jpg'
+        coverPath = await StorageConfig.getCoverSavePath(bookId, extension)
+        coverOutputFile = File(coverPath)
+        await coverOutputFile.writeAsBytes(coverFile.content)
+        RETURN coverPath
+
+    RETURN null
+
+    CATCH e:
+        LOG: 'archive 回退方案也未找到封面'
     RETURN null
 END FUNCTION
 ```
@@ -745,13 +820,27 @@ END CLASS
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌───────────────────────────────────────────────────────────┐ │
+│  │ parseMetadata() Fallback Chain                            │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 1. EpubReader.title/authors/chapters → Direct metadata    │ │
+│  │ 2. archive → _parseOpfFile() + _parseNavigationFile()     │ │
+│  │ 3. _extractTitleFromPath() → Filename fallback            │ │
+│  │ 4. Default author '未知作者' → If author empty            │ │
+│  │                                                            │ │
+│  │ Cover Extraction:                                          │ │
+│  │ 1. EpubReader.content.images → Find cover/title image     │ │
+│  │ 2. First image → If no cover found                        │ │
+│  │ 3. _extractCoverFromArchive() → Direct file search        │ │
+│  │ 4. Return null → No cover available                       │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
 │  │ getChapters() Fallback Chain                              │ │
 │  ├───────────────────────────────────────────────────────────┤ │
 │  │ 1. navigation.navMap → Most accurate                      │ │
-│  │ 2. epubBook.chapters → Medium accuracy                    │ │
-│  │ 3. content.html + spine → Lower accuracy                  │ │
-│  │ 4. _extractChapterInfosFromNcxArchive() → Direct XML      │ │
-│  │ 5. _extractChapterInfosFromArchive() → File list          │ │
+│  │ 2. content.html + spine → Lower accuracy                  │ │
+│  │ 3. _extractChapterInfosFromNcxArchive() → Direct XML      │ │
+│  │ 4. _extractChapterInfosFromArchive() → File list          │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                                                                  │
 │  ┌───────────────────────────────────────────────────────────┐ │
@@ -759,16 +848,7 @@ END CLASS
 │  ├───────────────────────────────────────────────────────────┤ │
 │  │ 1. _getChapterHtmlFromArchive() → Direct href lookup      │ │
 │  │ 2. EpubReader.chapters[index] → Index-based lookup        │ │
-│  │ 3. Return empty content → Final fallback                  │ │
-│  └───────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │ extractCover() Fallback Chain                             │ │
-│  ├───────────────────────────────────────────────────────────┤ │
-│  │ 1. EpubReader.content.images → Find cover/title image     │ │
-│  │ 2. First image → If no cover found                        │ │
-│  │ 3. _extractCoverFromArchive() → Direct file search        │ │
-│  │ 4. Return null → No cover available                       │ │
+│  │ 3. Return unchanged chapter → Final fallback              │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘

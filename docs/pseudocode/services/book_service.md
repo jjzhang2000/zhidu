@@ -14,8 +14,6 @@ CLASS BookService:
     PUBLIC STATIC FACTORY BookService():
         RETURN _instance
     PRIVATE CONSTRUCTOR _internal():
-        _epubService = EpubService()
-        _pdfService = PdfService()
         _uuid = Uuid()
         _log = LogService()
         _fileStorage = FileStorageService()
@@ -28,8 +26,6 @@ CLASS BookService:
 
 ```pseudocode
 PRIVATE PROPERTIES:
-    _epubService: EpubService
-    _pdfService: PdfService
     _uuid: Uuid
     _log: LogService
     _fileStorage: FileStorageService
@@ -193,18 +189,32 @@ ASYNC METHOD importBookFromPath(filePath: String) -> Book?:
         
         extension = getExtension(filePath).toLowerCase()
         bookId = _uuid.v4()
-        book: Book?
         
-        IF extension == '.epub':
-            book = await _epubService.parseEpubFile(filePath, bookId)
-        ELSE IF extension == '.pdf':
-            book = await _pdfService.parsePdfFile(filePath, bookId)
-        ELSE:
+        // 通过 FormatRegistry 获取格式解析器
+        parser = FormatRegistry.getParser(extension)
+        IF parser == null:
             _log.w('BookService', '不支持的文件格式: {extension}')
             RETURN null
         
+        metadata = await parser.parseMetadata(filePath, bookId)
+        IF metadata == null:
+            _log.w('BookService', '元数据解析失败: {filePath}')
+            RETURN null
+        
+        book = Book(
+            id: bookId,
+            title: metadata.title,
+            author: metadata.author,
+            coverPath: metadata.coverPath,
+            filePath: filePath,
+            format: extension == '.epub' ? BookFormat.epub : BookFormat.pdf,
+            totalChapters: metadata.totalChapters,
+            addedAt: DateTime.now(),
+            language: metadata.language,
+        )
+        
         // 合并 OPF 元数据
-        IF book != null AND opfMetadata != null:
+        IF opfMetadata != null:
             finalCoverPath = book.coverPath
             IF opfMetadata.coverPath != null:
                 // 复制外部封面文件
@@ -222,21 +232,18 @@ ASYNC METHOD importBookFromPath(filePath: String) -> Book?:
             )
         
         // 标题+作者去重
-        IF book != null:
-            existingBook = _books.where((b) =>
-                b.title == book.title AND b.author == book.author
-            ).firstOrNull
-            IF existingBook != null:
-                _log.info('BookService', '书籍已存在: {book.title}')
-                RETURN existingBook
-            
-            _books.add(book)
-            await _saveBooksIndex()
-            await _saveBookMetadata(book)
-            _log.info('BookService', '书籍导入成功: {book.title}')
-            RETURN book
+        existingBook = _books.where((b) =>
+            b.title == book.title AND b.author == book.author
+        ).firstOrNull
+        IF existingBook != null:
+            _log.info('BookService', '书籍已存在: {book.title}')
+            RETURN existingBook
         
-        RETURN null
+        _books.add(book)
+        await _saveBooksIndex()
+        await _saveBookMetadata(book)
+        _log.info('BookService', '书籍导入成功: {book.title}')
+        RETURN book
     
     CATCH e, stackTrace:
         _log.e('BookService', '导入书籍失败: {filePath}', e, stackTrace)

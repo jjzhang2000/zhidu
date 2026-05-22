@@ -48,11 +48,9 @@ docs/pseudocode/
 │   ├── ai_prompts.md             # AI 提示词模板
 │   ├── ai_service.md             # AI服务
 │   ├── book_service.md           # 书籍管理服务
-│   ├── epub_service.md           # EPUB解析服务
 │   ├── file_storage_service.md   # 文件存储服务
 │   ├── log_service.md            # 日志服务
 │   ├── opf_reader_service.md     # OPF元数据读取服务
-│   ├── pdf_service.md            # PDF解析服务
 │   ├── settings_service.md       # 设置管理服务
 │   ├── storage_config.md         # 存储路径配置
 │   ├── summary_service.md        # 摘要管理服务
@@ -114,11 +112,9 @@ docs/pseudocode/
 | `ai_service.dart` | `AIService` | AI API交互：流式摘要生成、翻译、语言检测、连接测试 |
 | `ai_prompts.dart` | `AiPrompts` | 静态提示词模板：章节摘要/全书摘要/翻译（通过 AppLocalizations l10n） |
 | `book_service.dart` | `BookService` | 书籍CRUD：导入、存储、查询、删除、搜索 |
-| `epub_service.dart` | `EpubService` | EPUB文件解析：元数据提取/章节标题计数/封面提取 |
 | `file_storage_service.dart` | `FileStorageService` | 文件系统操作：JSON/文本读写、文件删除 |
 | `log_service.dart` | `LogService` | 分级别日志：verbose/debug/info/warning/error |
 | `opf_reader_service.dart` | `OpfReaderService` | Calibre OPF文件读取与解析 |
-| `pdf_service.dart` | `PdfService` | PDF文件解析：元数据提取/章节检测/封面渲染 |
 | `settings_service.dart` | `SettingsService` | 统一设置管理：AI/主题/语言，ValueNotifier响应式 |
 | `storage_config.dart` | `StorageConfig` | 存储路径配置：统一路径管理 |
 | `summary_service.dart` | `SummaryService` + `Semaphore` | 摘要生成/存储/并发控制/流式回调 |
@@ -161,7 +157,9 @@ docs/pseudocode/
     ↓
 BookService.importBook()
     ↓
-EpubService.parseEpubFile() / PdfService.parsePdfFile()
+FormatRegistry.getParser(extension)
+    ↓
+EpubParser/PdfParser.parseMetadata() → 提取标题/作者/封面/章节数
     ↓
 OpfReaderService.readFromSameDirectory() → 读取 metadata.opf（Calibre）
     ↓
@@ -211,7 +209,7 @@ SSE 流式响应 → 实时回调 → UI 实时显示
 
 所有 Service 使用单例模式：
 - `LogService` / `SettingsService` / `AIService` / `BookService`
-- `SummaryService` / `EpubService` / `PdfService` / `FileStorageService`
+- `SummaryService` / `FileStorageService`
 - `FormatRegistry`
 
 ### 工厂模式 / 注册表模式 (Factory + Registry)
@@ -316,9 +314,8 @@ Documents/zhidu/                   (可自定义)
 
 ### 添加新文件格式
 
-1. 实现 `BookFormatParser` 接口（parse/getChapters/getChapterContent/extractCover）
-2. 创建对应的 Service（如 MobiService）
-3. 在 `main.dart` 中注册解析器 `FormatRegistry.register('.mobi', MobiParser())`
+1. 实现 `BookFormatParser` 接口（parseMetadata/getChapters/getChapterContent）
+2. 在 `main.dart` 中注册解析器 `FormatRegistry.register('.mobi', MobiParser())`
 
 ### 添加新语言
 

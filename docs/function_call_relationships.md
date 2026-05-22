@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.8 | **更新日期**: 2026-05-21 | **基于代码版本**: v1.5
+> **文档版本**: v2.9 | **更新日期**: 2026-05-22 | **基于代码版本**: v1.6
 
 ---
 
@@ -13,7 +13,6 @@
 │  Service 初始化链:                                                        │
 │    LogService → SettingsService → FileStorageService → StorageConfig     │
 │    → BookService → AIService → AiPrompts → SummaryService                │
-│    → EpubService → PdfService → FormatRegistry     │
 │  FormatRegistry.register('.epub', EpubParser())                          │
 │  FormatRegistry.register('.pdf', PdfParser())                            │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -37,24 +36,22 @@
 
 ## 二、模块间依赖矩阵
 
-| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | EpubSvc | PdfSvc | SetSvc | OpfRdr | LogSvc | FileSvc |
-|-------------------|:-----:|:-----:|:------:|:-------:|:------:|:------:|:------:|:------:|:-------:|
-| **main.dart**     |   ✓   |   ✓   |   ✓    |    ✓    |   ✓    |   ✓    |   —    |   ✓    |   ✓    |
-| **HomeScreen**    |   ✓   |   —   |   —    |    —    |   —    |   —    |   —    |   —    |   —    |
-| **BookScreen**    |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —    |   ✓    |   —    |
-| **ChapterScreen** |   ✓   |   ✓   |   ✓    |    —    |   —    |   —    |   —    |   ✓    |   —    |
-| **PdfReaderScreen**|  ✓   |   —   |   —    |    —    |   ✓    |   —    |   —    |   —    |   —    |
-| **AiConfigScreen**|  —   |   ✓   |   —    |    —    |   —    |   ✓    |   —    |   ✓    |   —    |
-| **BookService**   |  —   |   —   |   ✓    |    ✓    |   ✓    |   —    |   —    |   ✓    |   ✓    |
-| **AIService**     |  ✓   |   —   |   —    |    —    |   —    |   ✓    |   —    |   ✓    |   —    |
-| **SummaryService**|  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
-| **EpubService**   |  —   |   —   |   —    |    —    |   —    |   —    |   ✓    |   ✓    |   —    |
-| **PdfService**    |  —   |   —   |   —    |    —    |   —    |   —    |   ✓    |   ✓    |   —    |
-| **SettingsSvc**   |  ✓   |   ✓   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
-| **EpubParser**    |  —   |   —   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
-| **PdfParser**     |  —   |   —   |   —    |    —    |   —    |   —    |   —    |   ✓    |   ✓    |
+| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | FormatReg | EpubPsr | PdfPsr | SetSvc | OpfRdr | LogSvc | FileSvc |
+|-------------------|:-----:|:-----:|:------:|:---------:|:-------:|:------:|:------:|:------:|:------:|:-------:|
+| **main.dart**     |   ✓   |   ✓   |   ✓    |     ✓     |   ✓     |   ✓    |   ✓    |   —    |   ✓    |   ✓    |
+| **HomeScreen**    |   ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |
+| **BookScreen**    |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |
+| **ChapterScreen** |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |
+| **PdfReaderScreen**|  ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |
+| **AiConfigScreen**|  —   |   ✓   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |
+| **BookService**   |  —   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
+| **AIService**     |  ✓   |   —   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |
+| **SummaryService**|  ✓   |   ✓   |   —    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
+| **SettingsSvc**   |  ✓   |   ✓   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
+| **EpubParser**    |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |
+| **PdfParser**     |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |
 
-> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, SetSvc=SettingsService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService
+> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, FormatReg=FormatRegistry, EpubPsr=EpubParser, PdfPsr=PdfParser, SetSvc=SettingsService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService
 
 ---
 

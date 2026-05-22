@@ -1,10 +1,39 @@
+import '../../models/book.dart';
 import '../../models/chapter.dart';
+
+/// 书籍元数据解析结果（parseMetadata 返回值）
+///
+/// 仅包含导入时需要的轻量信息，不包含章节内容。
+class BookMetadata {
+  final String title;
+  final String author;
+  final int totalChapters;
+  final String? coverPath;
+  final String? language;
+
+  BookMetadata({
+    required this.title,
+    required this.author,
+    required this.totalChapters,
+    this.coverPath,
+    this.language,
+  });
+}
 
 /// 书籍格式解析器抽象接口（策略模式）
 ///
 /// 实现类：EpubParser / PdfParser
-/// 调用方：FormatRegistry、BookScreen、ChapterScreen、SummaryService
+/// 调用方：FormatRegistry、BookService（parseMetadata）、BookScreen、ChapterScreen、SummaryService（getChapters/getChapterContent）
 abstract class BookFormatParser {
+  /// 解析书籍元数据（轻量导入阶段）
+  ///
+  /// 提取标题、作者、封面、章节数等基本信息，不读取章节内容。
+  ///
+  /// [filePath] 文件本地路径
+  /// [bookId] 书籍唯一标识符（用于封面保存路径）
+  /// 返回 [BookMetadata]，解析失败返回 null
+  Future<BookMetadata?> parseMetadata(String filePath, String bookId);
+
   /// 获取所有章节列表（含 index、title、location、level）
   Future<List<Chapter>> getChapters(String filePath);
 

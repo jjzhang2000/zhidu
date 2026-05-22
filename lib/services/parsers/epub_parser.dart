@@ -4,18 +4,94 @@ import 'dart:convert';
 import 'package:archive/archive.dart';
 import 'package:epub_plus/epub_plus.dart';
 import 'package:html/parser.dart' as html_parser;
+import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
+import '../../models/book.dart';
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
+import '../storage_config.dart';
 
 /// EPUB 格式解析器
 ///
 /// 章节提取优先级：NCX 导航 → content.html（spine 顺序）→ archive NCX → 扁平文件列表
 /// 章节内容提取：archive 直读 href → epub_plus 按 index 回退
+/// 元数据解析：EpubReader → archive 回退（container.xml + OPF + 导航文件）
 class EpubParser implements BookFormatParser {
   final LogService _log = LogService();
+
+  @override
+  Future<BookMetadata?> parseMetadata(String filePath, String bookId) async {
+    try {
+      _log.d('EpubParser', '开始解析元数据: $filePath');
+      final file = File(filePath);
+      if (!await file.exists()) {
+        _log.w('EpubParser', '文件不存在: $filePath');
+        return null;
+      }
+
+      final bytes = await file.readAsBytes();
+
+      String? title;
+      String? author;
+      String? language;
+      int totalChapters = 0;
+
+      try {
+        final epubBook = await EpubReader.readBook(bytes);
+
+        title = epubBook.title;
+
+        if (epubBook.authors?.isNotEmpty == true) {
+          author = epubBook.authors!.join(', ');
+        }
+
+        if (epubBook.chapters?.isNotEmpty == true) {
+          totalChapters = _countChapters(epubBook.chapters!);
+        }
+      } catch (_) {
+        _log.w('EpubParser', 'EpubReader 解析失败，回退到 archive 方案');
+
+        final archive = ZipDecoder().decodeBytes(bytes);
+
+        final opfInfo = _parseOpfFile(archive);
+        if (opfInfo != null) {
+          title ??= opfInfo['title'];
+          author ??= opfInfo['author'];
+          language ??= opfInfo['language'];
+        }
+
+        final navChapters = _parseNavigationFile(archive);
+        totalChapters = navChapters.length;
+      }
+
+      if (title == null || title.isEmpty) {
+        title = _extractTitleFromPath(filePath);
+      }
+      if (author == null || author.isEmpty) {
+        author = '未知作者';
+      }
+
+      String? coverPath;
+      try {
+        coverPath = await _extractCover(bytes, bookId);
+      } catch (e) {
+        _log.w('EpubParser', '封面提取失败: $e');
+      }
+
+      return BookMetadata(
+        title: title,
+        author: author,
+        totalChapters: totalChapters,
+        coverPath: coverPath,
+        language: language,
+      );
+    } catch (e, stackTrace) {
+      _log.e('EpubParser', '解析 EPUB 元数据失败', e, stackTrace);
+      return null;
+    }
+  }
 
   @override
   Future<List<Chapter>> getChapters(String filePath) async {
@@ -60,6 +136,259 @@ class EpubParser implements BookFormatParser {
 
     final flatChapters = _extractChapterInfosFromArchive(archive);
     return _convertToChapters(flatChapters);
+  }
+
+  /// 统计章节数量（递归遍历 subChapters）
+  int _countChapters(List<EpubChapter> chapters) {
+    int count = 0;
+    for (final chapter in chapters) {
+      count++;
+      if (chapter.subChapters?.isNotEmpty == true) {
+        count += _countChapters(chapter.subChapters!);
+      }
+    }
+    return count;
+  }
+
+  /// 从文件路径提取书籍标题（回退方案）
+  String _extractTitleFromPath(String filePath) {
+    final fileName = p.basenameWithoutExtension(filePath);
+    return fileName.replaceAll('_', ' ').replaceAll('-', ' ');
+  }
+
+  /// 解析 OPF 包文件，提取标题、作者、语言（archive 回退方案）
+  Map<String, String?>? _parseOpfFile(Archive archive) {
+    try {
+      ArchiveFile? opfFile;
+      for (final file in archive.files) {
+        if (file.name.toLowerCase().endsWith('.opf')) {
+          opfFile = file;
+          break;
+        }
+      }
+
+      if (opfFile == null) {
+        return null;
+      }
+
+      final content = utf8.decode(opfFile.content as List<int>);
+      final document = XmlDocument.parse(content);
+
+      String? title;
+      String? author;
+      String? language;
+
+      final titleElements = document.findAllElements('dc:title');
+      if (titleElements.isNotEmpty) {
+        title = titleElements.first.innerText.trim();
+      }
+
+      final creatorElements = document.findAllElements('dc:creator');
+      if (creatorElements.isNotEmpty) {
+        author = creatorElements.map((e) => e.innerText.trim()).join(', ');
+      }
+
+      final languageElements = document.findAllElements('dc:language');
+      if (languageElements.isNotEmpty) {
+        language = languageElements.first.innerText.trim();
+      }
+
+      return {'title': title, 'author': author, 'language': language};
+    } catch (e) {
+      _log.e('EpubParser', '解析 OPF 文件失败', e);
+      return null;
+    }
+  }
+
+  /// 解析导航文件（NCX 或 NAV），提取章节标题列表（archive 回退方案）
+  List<String> _parseNavigationFile(Archive archive) {
+    try {
+      ArchiveFile? navFile;
+      String? navFileType;
+
+      for (final file in archive.files) {
+        final name = file.name.toLowerCase();
+        if (name.endsWith('.ncx')) {
+          navFile = file;
+          navFileType = 'ncx';
+          break;
+        }
+      }
+
+      if (navFile == null) {
+        for (final file in archive.files) {
+          final name = file.name.toLowerCase();
+          if ((name.contains('nav.') && name.endsWith('.html')) ||
+              name.endsWith('.xhtml')) {
+            if (name.contains('nav')) {
+              navFile = file;
+              navFileType = 'nav';
+              break;
+            }
+          }
+        }
+      }
+
+      if (navFile == null) {
+        return [];
+      }
+
+      final content = utf8.decode(navFile.content as List<int>);
+      final chapters = <String>[];
+
+      if (navFileType == 'ncx') {
+        final document = XmlDocument.parse(content);
+        final navPoints = document.findAllElements('navPoint');
+
+        for (final navPoint in navPoints) {
+          final textElements = navPoint.findElements('text');
+          if (textElements.isNotEmpty) {
+            final text = textElements.first.innerText.trim();
+            if (text.isNotEmpty) {
+              chapters.add(text);
+            }
+          }
+        }
+      } else {
+        final h1Pattern = RegExp(r'<h[1-6][^>]*>(.*?)</h[1-6]>', caseSensitive: false);
+        final liPattern = RegExp(r'<li[^>]*>(.*?)</li>', caseSensitive: false);
+        final aPattern = RegExp(r'<a[^>]*>(.*?)</a>', caseSensitive: false);
+
+        final liMatches = liPattern.allMatches(content);
+        for (final match in liMatches) {
+          final liContent = match.group(1) ?? '';
+          final aMatch = aPattern.firstMatch(liContent);
+          if (aMatch != null) {
+            final text = _extractTextFromHtml(aMatch.group(1) ?? '').trim();
+            if (text.isNotEmpty) {
+              chapters.add(text);
+            }
+          } else {
+            final text = _extractTextFromHtml(liContent).trim();
+            if (text.isNotEmpty) {
+              chapters.add(text);
+            }
+          }
+        }
+
+        if (chapters.isEmpty) {
+          final hMatches = h1Pattern.allMatches(content);
+          for (final match in hMatches) {
+            final text = _extractTextFromHtml(match.group(1) ?? '').trim();
+            if (text.isNotEmpty) {
+              chapters.add(text);
+            }
+          }
+        }
+      }
+
+      return chapters;
+    } catch (e) {
+      _log.e('EpubParser', '解析导航文件失败', e);
+      return [];
+    }
+  }
+
+  /// 从 HTML 内容提取纯文本（用于导航文件解析）
+  String _extractTextFromHtml(String html) {
+    return html
+        .replaceAll(RegExp(r'<script[^>]*>[\s\S]*?</script>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<style[^>]*>[\s\S]*?</style>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'&nbsp;'), ' ')
+        .replaceAll(RegExp(r'&[a-z]+;'), '')
+        .trim();
+  }
+
+  /// 提取 EPUB 封面图片（EpubReader 优先 → archive 回退）
+  Future<String?> _extractCover(Uint8List bytes, String bookId) async {
+    try {
+      final epubBook = await EpubReader.readBook(bytes);
+
+      if (epubBook.content?.images?.isNotEmpty == true) {
+        EpubByteContentFile? coverImage;
+
+        for (final entry in epubBook.content!.images!.entries) {
+          final name = entry.key.toLowerCase();
+          if (name.contains('cover') || name.contains('title')) {
+            coverImage = entry.value;
+            break;
+          }
+        }
+
+        if (coverImage == null) {
+          coverImage = epubBook.content!.images.values.first;
+        }
+
+        if (coverImage.content != null) {
+          final extension = coverImage.contentMimeType?.contains('png') == true ? 'png' : 'jpg';
+          final coverPath = await StorageConfig.getCoverSavePath(bookId, extension);
+
+          final coverOutputFile = File(coverPath);
+          await coverOutputFile.writeAsBytes(coverImage.content!);
+          return coverPath;
+        }
+      }
+    } catch (e, _) {
+      _log.w('EpubParser', 'EpubReader 提取封面失败，回退到 archive 方案');
+    }
+
+    return await _extractCoverFromArchive(bytes, bookId);
+  }
+
+  /// 提取 EPUB 封面图片（archive 回退方案）
+  Future<String?> _extractCoverFromArchive(Uint8List bytes, String bookId) async {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+
+      final coverPatterns = [
+        'cover.jpg',
+        'cover.jpeg',
+        'cover.png',
+        'Cover.jpg',
+        'Cover.jpeg',
+        'Cover.png',
+      ];
+
+      ArchiveFile? coverFile;
+
+      for (final pattern in coverPatterns) {
+        for (final file in archive.files) {
+          if (file.name.toLowerCase().endsWith(pattern.toLowerCase())) {
+            coverFile = file;
+            break;
+          }
+        }
+        if (coverFile != null) break;
+      }
+
+      if (coverFile == null) {
+        for (final file in archive.files) {
+          final name = file.name.toLowerCase();
+          if ((name.contains('cover') || name.contains('image')) &&
+              (name.endsWith('.jpg') ||
+                  name.endsWith('.jpeg') ||
+                  name.endsWith('.png'))) {
+            coverFile = file;
+            break;
+          }
+        }
+      }
+
+      if (coverFile != null) {
+        final extension = coverFile.name.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+
+        final coverPath = await StorageConfig.getCoverSavePath(bookId, extension);
+        final coverOutputFile = File(coverPath);
+        await coverOutputFile.writeAsBytes(coverFile.content as List<int>);
+
+        return coverPath;
+      }
+    } catch (e) {
+      _log.w('EpubParser', 'archive 回退方案也未找到封面');
+    }
+    return null;
   }
 
   /// 内部章节信息 → Chapter 列表，顶层章节分配递增 index，子章节 index=-1
