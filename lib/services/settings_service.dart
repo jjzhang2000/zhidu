@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:logger/logger.dart';
-import 'log_helper.dart';
 
 import '../models/app_settings.dart';
 import 'file_storage_service.dart';
@@ -23,7 +22,7 @@ class SettingsService {
   SettingsService._internal();
 
   /// 日志服务实例
-  final _log = createLogger('SettingsService');
+  final _log = Logger();
 
   /// 设置文件路径
   String? _settingsFilePath;

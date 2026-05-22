@@ -8,16 +8,14 @@ import 'opf_reader_service.dart';
 import 'parsers/book_format_parser.dart';
 import 'storage_config.dart';
 import 'file_storage_service.dart';
-import 'log_helper.dart';
 
-/// 书籍管理服务 - 导入、存储、查询和删除
 class BookService {
   static final BookService _instance = BookService._internal();
   factory BookService() => _instance;
   BookService._internal();
 
   final _uuid = const Uuid();
-  final _log = createLogger('BookService');
+  final _log = Logger();
   final _fileStorage = FileStorageService();
 
   final List<Book> _books = [];

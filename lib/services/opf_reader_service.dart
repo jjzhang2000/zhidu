@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 import 'package:logger/logger.dart';
-import 'log_helper.dart';
 import '../models/book.dart';
 
 /// OPF读取服务
@@ -10,7 +9,7 @@ import '../models/book.dart';
 /// 用于从外部metadata.opf文件读取书籍元数据
 /// 支持Calibre生成的OPF文件格式
 class OpfReaderService {
-  static final _log = createLogger('OpfReaderService');
+  static final _log = Logger();
 
   /// 从指定的OPF文件路径读取元数据
   ///

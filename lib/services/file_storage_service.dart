@@ -30,7 +30,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:logger/logger.dart';
-import 'log_helper.dart';
 
 /// 文件存储服务
 ///
@@ -62,7 +61,7 @@ class FileStorageService {
   FileStorageService._internal();
 
   /// 日志服务实例
-  final _log = createLogger('FileStorageService');
+  final _log = Logger();
 
   /// 读取JSON文件
   ///

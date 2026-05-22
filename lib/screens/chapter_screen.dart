@@ -24,7 +24,6 @@ import '../services/summary_service.dart';
 import '../services/book_service.dart';
 import '../services/parsers/book_format_parser.dart';
 import 'package:logger/logger.dart';
-import '../services/log_helper.dart';
 import '../services/settings_service.dart';
 
 /// 滚动位置锚点
@@ -77,7 +76,7 @@ class _ChapterScreenState extends State<ChapterScreen>
   final _aiService = AIService();
 
   /// 日志服务
-  final _log = createLogger('ChapterScreen');
+  final _log = Logger();
 
   /// 摘要服务（用于加载/生成摘要）
   final _summaryService = SummaryService();

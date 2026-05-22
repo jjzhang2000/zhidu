@@ -16,7 +16,6 @@ import 'ai_service.dart';
 import 'settings_service.dart';
 import 'parsers/book_format_parser.dart';
 import 'storage_config.dart';
-import 'log_helper.dart';
 
 /// 信号量类，用于控制并发数
 class Semaphore {
@@ -70,7 +69,7 @@ class SummaryService {
   final _bookService = BookService();
 
   /// 日志服务
-  final _log = createLogger('SummaryService');
+  final _log = Logger();
 
   /// 文件存储服务，用于读写摘要文件
   final _fileStorage = FileStorageService();

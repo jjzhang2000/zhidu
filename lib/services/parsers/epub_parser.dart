@@ -7,12 +7,12 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
+import 'package:logger/logger.dart';
+
 import '../../models/book.dart';
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
 import '../storage_config.dart';
-import 'package:logger/logger.dart';
-import '../log_helper.dart';
 
 /// EPUB 格式解析器
 ///
@@ -20,7 +20,7 @@ import '../log_helper.dart';
 /// 章节内容提取：archive 直读 href → epub_plus 按 index 回退
 /// 元数据解析：EpubReader → archive 回退（container.xml + OPF + 导航文件）
 class EpubParser implements BookFormatParser {
-  final _log = createLogger('EpubParser');
+  final _log = Logger();
 
   @override
   Future<BookMetadata?> parseMetadata(String filePath, String bookId) async {

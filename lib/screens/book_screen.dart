@@ -31,7 +31,6 @@ import '../models/chapter.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import 'package:logger/logger.dart';
-import '../services/log_helper.dart';
 import 'chapter_screen.dart';
 
 /// 书籍详情页面的StatefulWidget
@@ -57,7 +56,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   final _summaryService = SummaryService();
 
   /// 日志服务
-  final _log = createLogger('BookScreen');
+  final _log = Logger();
 
   /// 当前书籍（可能被刷新更新）
   late Book _book;

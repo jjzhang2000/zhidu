@@ -24,7 +24,6 @@ import 'settings_service.dart';
 import 'book_service.dart';
 import '../models/app_settings.dart';
 import '../l10n/app_localizations.dart';
-import 'log_helper.dart';
 
 
 /// 功能：AI服务单例类，封装与大语言模型API的所有交互
@@ -51,7 +50,7 @@ class AIService {
   AiSettings? _config;
 
   /// 日志服务实例
-  final _log = createLogger('AIService');
+  final _log = Logger();
 
   // ==========================================================================
   // 区域1：生命周期管理

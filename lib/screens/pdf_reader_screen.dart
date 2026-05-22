@@ -18,7 +18,6 @@ import 'package:pdfrx/pdfrx.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
 import 'package:logger/logger.dart';
-import '../services/log_helper.dart';
 
 /// PDF阅读器Widget
 ///
@@ -93,10 +92,7 @@ class PdfReaderScreen extends StatefulWidget {
 /// 管理PDF阅读器的状态，包括当前页码、PDF查看器控制器等。
 /// 使用pdfrx库提供的PdfViewer组件进行PDF渲染。
 class _PdfReaderScreenState extends State<PdfReaderScreen> {
-  /// 日志服务实例
-  ///
-  /// 用于记录调试信息和错误日志，便于问题排查。
-  final _log = createLogger('PdfReaderScreen');
+  final _log = Logger();
 
   /// 当前阅读页码
   ///

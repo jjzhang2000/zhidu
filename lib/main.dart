@@ -7,7 +7,6 @@ import 'services/book_service.dart';
 import 'services/ai_service.dart';
 import 'services/summary_service.dart';
 import 'package:logger/logger.dart';
-import 'services/log_helper.dart';
 import 'services/parsers/book_format_parser.dart';
 import 'services/parsers/epub_parser.dart';
 import 'services/parsers/pdf_parser.dart';
@@ -15,6 +14,22 @@ import 'utils/app_theme.dart';
 import 'utils/window_utils.dart';
 import 'services/settings_service.dart';
 import '../models/app_settings.dart' as AppModels;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+
+Future<void> _initLogger() async {
+  final appDir = await getApplicationDocumentsDirectory();
+  final logDir = Directory('${appDir.path}/logs');
+  if (!await logDir.exists()) await logDir.create(recursive: true);
+
+  Logger.level = Level.trace;
+  Logger.defaultOutput = () => AdvancedFileOutput(
+    path: logDir.path,
+    latestFileName: 'app.log',
+    maxFileSizeKB: 1024,
+    maxRotatedFilesCount: 2,
+  );
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,9 +37,9 @@ void main() async {
   // 在桌面平台上初始化窗口管理（内部会检查平台）
   await initDesktopWindow();
 
-  await initLogger();
+  await _initLogger();
 
-  final _mainLog = createLogger('Main');
+  final _mainLog = Logger();
   _mainLog.i('应用启动');
 
   _initializeFormatRegistry();
@@ -45,7 +60,7 @@ void main() async {
 void _initializeFormatRegistry() {
   FormatRegistry.register('.epub', EpubParser());
   FormatRegistry.register('.pdf', PdfParser());
-  final _mainLog = createLogger('Main');
+  final _mainLog = Logger();
   _mainLog.i('格式注册表初始化完成，支持: epub, pdf');
 }
 

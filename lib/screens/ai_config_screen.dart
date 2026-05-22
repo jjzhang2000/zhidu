@@ -18,7 +18,6 @@ import '../models/app_settings.dart';
 import '../services/settings_service.dart';
 import '../services/ai_service.dart';
 import 'package:logger/logger.dart';
-import '../services/log_helper.dart';
 
 /// AI配置页面组件
 ///
@@ -44,7 +43,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   final _aiService = AIService();
 
   /// 日志服务实例
-  final _log = createLogger('AiConfigScreen');
+  final _log = Logger();
 
   /// 表单Key，用于验证
   final _formKey = GlobalKey<FormState>();

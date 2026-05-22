@@ -7,14 +7,13 @@ import '../../models/chapter.dart';
 import 'book_format_parser.dart';
 import '../storage_config.dart';
 import 'package:logger/logger.dart';
-import '../log_helper.dart';
 
 /// PDF 格式解析器
 ///
 /// 章节检测：逐页匹配中英文章节标题正则，自动跳过封面页（首页文字 < 50 字符）。
 /// 封面提取：渲染第一页为 600px 宽 PNG 图片。
 class PdfParser implements BookFormatParser {
-  final _log = createLogger('PdfParser');
+  final _log = Logger();
 
   @override
   Future<BookMetadata?> parseMetadata(String filePath, String bookId) async {
