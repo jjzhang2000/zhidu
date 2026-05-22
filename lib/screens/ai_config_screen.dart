@@ -44,7 +44,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   final _aiService = AIService();
 
   /// 日志服务实例
-  final _log = Logger(output: LogHelper.output);
+  final _log = Logger(tag: 'AiConfigScreen', output: LogHelper.output);
 
   /// 表单Key，用于验证
   final _formKey = GlobalKey<FormState>();

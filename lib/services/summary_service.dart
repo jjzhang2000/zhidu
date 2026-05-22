@@ -70,7 +70,7 @@ class SummaryService {
   final _bookService = BookService();
 
   /// 日志服务
-  final _log = Logger(output: LogHelper.output);
+  final _log = Logger(tag: 'SummaryService', output: LogHelper.output);
 
   /// 文件存储服务，用于读写摘要文件
   final _fileStorage = FileStorageService();

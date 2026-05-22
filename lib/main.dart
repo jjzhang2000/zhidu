@@ -24,7 +24,7 @@ void main() async {
 
   await LogHelper.init();
 
-  final _mainLog = Logger(output: LogHelper.output);
+  final _mainLog = Logger(tag: 'Main', output: LogHelper.output);
   _mainLog.i('应用启动');
 
   _initializeFormatRegistry();
@@ -45,7 +45,7 @@ void main() async {
 void _initializeFormatRegistry() {
   FormatRegistry.register('.epub', EpubParser());
   FormatRegistry.register('.pdf', PdfParser());
-  final _mainLog = Logger(output: LogHelper.output);
+  final _mainLog = Logger(tag: 'Main', output: LogHelper.output);
   _mainLog.i('格式注册表初始化完成，支持: epub, pdf');
 }
 

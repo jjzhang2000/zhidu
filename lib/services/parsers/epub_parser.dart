@@ -20,7 +20,7 @@ import '../log_helper.dart';
 /// 章节内容提取：archive 直读 href → epub_plus 按 index 回退
 /// 元数据解析：EpubReader → archive 回退（container.xml + OPF + 导航文件）
 class EpubParser implements BookFormatParser {
-  final _log = Logger(output: LogHelper.output);
+  final _log = Logger(tag: 'EpubParser', output: LogHelper.output);
 
   @override
   Future<BookMetadata?> parseMetadata(String filePath, String bookId) async {

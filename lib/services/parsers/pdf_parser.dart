@@ -14,7 +14,7 @@ import '../log_helper.dart';
 /// 章节检测：逐页匹配中英文章节标题正则，自动跳过封面页（首页文字 < 50 字符）。
 /// 封面提取：渲染第一页为 600px 宽 PNG 图片。
 class PdfParser implements BookFormatParser {
-  final _log = Logger(output: LogHelper.output);
+  final _log = Logger(tag: 'PdfParser', output: LogHelper.output);
 
   @override
   Future<BookMetadata?> parseMetadata(String filePath, String bookId) async {

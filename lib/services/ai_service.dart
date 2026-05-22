@@ -51,7 +51,7 @@ class AIService {
   AiSettings? _config;
 
   /// 日志服务实例
-  final _log = Logger(output: LogHelper.output);
+  final _log = Logger(tag: 'AIService', output: LogHelper.output);
 
   // ==========================================================================
   // 区域1：生命周期管理

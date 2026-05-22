@@ -10,7 +10,7 @@ import '../models/book.dart';
 /// 用于从外部metadata.opf文件读取书籍元数据
 /// 支持Calibre生成的OPF文件格式
 class OpfReaderService {
-  static final _log = Logger(output: LogHelper.output);
+  static final _log = Logger(tag: 'OpfReaderService', output: LogHelper.output);
 
   /// 从指定的OPF文件路径读取元数据
   ///

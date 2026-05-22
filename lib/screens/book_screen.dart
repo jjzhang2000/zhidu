@@ -57,7 +57,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   final _summaryService = SummaryService();
 
   /// 日志服务
-  final _log = Logger(output: LogHelper.output);
+  final _log = Logger(tag: 'BookScreen', output: LogHelper.output);
 
   /// 当前书籍（可能被刷新更新）
   late Book _book;
