@@ -222,11 +222,11 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   }
 
   /// 更新 AI 语言模式
-  ///
-  /// copyWith 天然保留未传字段，无需显式回填当前值
   Future<void> _updateAiLanguageMode(String mode) async {
     if (mode != 'book' && mode != 'system' && mode != 'manual') return;
-    final newSettings = _settingsService.languageSettings.value.copyWith(
+    final currentSettings = _settingsService.languageSettings.value;
+    if (currentSettings.aiLanguageMode == mode) return;
+    final newSettings = currentSettings.copyWith(
       aiLanguageMode: mode,
     );
     await _settingsService.updateLanguageSettings(newSettings);
@@ -234,18 +234,20 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
 
   /// 更新 AI 输出语言
   Future<void> _updateAiOutputLanguage(String language) async {
-    final newSettings = _settingsService.languageSettings.value.copyWith(
+    final currentSettings = _settingsService.languageSettings.value;
+    if (currentSettings.aiOutputLanguage == language) return;
+    final newSettings = currentSettings.copyWith(
       aiOutputLanguage: language,
     );
     await _settingsService.updateLanguageSettings(newSettings);
   }
 
   /// 更新界面语言模式
-  ///
-  /// copyWith 天然保留未传字段，无需显式回填当前值
   Future<void> _updateUiLanguageMode(String mode) async {
     if (mode != 'system' && mode != 'manual') return;
-    final newSettings = _settingsService.languageSettings.value.copyWith(
+    final currentSettings = _settingsService.languageSettings.value;
+    if (currentSettings.uiLanguageMode == mode) return;
+    final newSettings = currentSettings.copyWith(
       uiLanguageMode: mode,
     );
     await _settingsService.updateLanguageSettings(newSettings);
@@ -253,7 +255,9 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
 
   /// 更新界面语言
   Future<void> _updateUiLanguage(String language) async {
-    final newSettings = _settingsService.languageSettings.value.copyWith(
+    final currentSettings = _settingsService.languageSettings.value;
+    if (currentSettings.uiLanguage == language) return;
+    final newSettings = currentSettings.copyWith(
       uiLanguage: language,
     );
     await _settingsService.updateLanguageSettings(newSettings);

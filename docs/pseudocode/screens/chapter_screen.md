@@ -214,7 +214,7 @@ ASYNC PROCEDURE _initializeLanguageSettings():
     preResolvedLanguage: _sourceLang,
   )
   _summaryLang = _targetLang ?? 'zh'
-  _translationTabDisabled = !(await _aiService.needsTranslation(_sourceLang!))
+  _translationTabDisabled = (_sourceLang == _targetLang)
 END PROCEDURE
 ```
 

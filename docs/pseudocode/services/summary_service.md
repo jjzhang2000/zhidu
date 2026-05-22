@@ -455,11 +455,14 @@ ASYNC METHOD generateSingleSummary(
 ### generateSummariesForBook() - 为整本书生成摘要
 
 ```pseudocode
-ASYNC METHOD generateSummariesForBook(book: Book):
-    _log.d('SummaryService', '开始为书籍生成摘要: {book.title}')
+ASYNC METHOD generateSummariesForBook(book: Book, chapters: List<Chapter>):
+    IF chapters.isEmpty:
+        _log.w('SummaryService', '章节列表为空: {book.title}')
+        RETURN
+    
+    _log.d('SummaryService', '使用已有的 {chapters.length} 个章节')
     
     TRY:
-        // 使用 FormatRegistry 获取解析器
         extension = IF book.format == BookFormat.epub THEN '.epub' ELSE '.pdf'
         parser = FormatRegistry.getParser(extension)
         
@@ -467,20 +470,11 @@ ASYNC METHOD generateSummariesForBook(book: Book):
             _log.w('SummaryService', '不支持的格式: {book.format}')
             RETURN
         
-        // 获取章节列表
-        chapters = await parser.getChapters(book.filePath)
-        _log.d('SummaryService', '获取到 {chapters.length} 个章节')
-        
-        // 根据格式选择生成策略
         IF book.format == BookFormat.epub:
-            // EPUB：先生成全书摘要，再生成章节摘要
-            _log.d('SummaryService', 'EPUB格式：先生成全书摘要')
             await _generateBookSummaryFromPreface(book, chapters, parser)
             await _generateChapterSummaries(book, chapters, parser)
         
         ELSE:
-            // PDF：先生成章节摘要，再生成全书摘要
-            _log.d('SummaryService', 'PDF格式：先生成章节摘要')
             await _generateChapterSummaries(book, chapters, parser)
             await _generateBookSummaryFromChapters(book, chapters)
         

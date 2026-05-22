@@ -133,13 +133,12 @@ END PROCEDURE
 ### `_updateAiLanguageMode(mode)`
 
 ```
-// copyWith 天然保留未传字段，无需显式回填当前值
 ASYNC PROCEDURE _updateAiLanguageMode(mode):
   IF mode not in ['book', 'system', 'manual']: RETURN
-
-  newSettings = _settingsService.languageSettings.value.copyWith(
-    aiLanguageMode: mode
-  )
+  currentSettings = _settingsService.languageSettings.value
+  IF currentSettings.aiLanguageMode == mode: RETURN
+  
+  newSettings = currentSettings.copyWith(aiLanguageMode: mode)
   AWAIT _settingsService.updateLanguageSettings(newSettings)
 END PROCEDURE
 ```
@@ -149,9 +148,9 @@ END PROCEDURE
 ```
 ASYNC PROCEDURE _updateAiOutputLanguage(language):
   currentSettings = _settingsService.languageSettings.value
+  IF currentSettings.aiOutputLanguage == language: RETURN
   
   newSettings = currentSettings.copyWith(aiOutputLanguage: language)
-  
   AWAIT _settingsService.updateLanguageSettings(newSettings)
 END PROCEDURE
 ```
@@ -159,13 +158,12 @@ END PROCEDURE
 ### `_updateUiLanguageMode(mode)`
 
 ```
-// copyWith 天然保留未传字段，无需显式回填当前值
 ASYNC PROCEDURE _updateUiLanguageMode(mode):
   IF mode not in ['system', 'manual']: RETURN
-
-  newSettings = _settingsService.languageSettings.value.copyWith(
-    uiLanguageMode: mode
-  )
+  currentSettings = _settingsService.languageSettings.value
+  IF currentSettings.uiLanguageMode == mode: RETURN
+  
+  newSettings = currentSettings.copyWith(uiLanguageMode: mode)
   AWAIT _settingsService.updateLanguageSettings(newSettings)
 END PROCEDURE
 ```
@@ -175,9 +173,9 @@ END PROCEDURE
 ```
 ASYNC PROCEDURE _updateUiLanguage(language):
   currentSettings = _settingsService.languageSettings.value
+  IF currentSettings.uiLanguage == language: RETURN
   
   newSettings = currentSettings.copyWith(uiLanguage: language)
-  
   AWAIT _settingsService.updateLanguageSettings(newSettings)
 END PROCEDURE
 ```

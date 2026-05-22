@@ -160,7 +160,7 @@ FUNCTION getChapters(filePath: String) -> Future<List<Chapter>>
                 RETURN _convertToChapters(chapterInfos)
     
     CATCH e:
-        LOG: 'EpubReader解析失败，使用archive回退方案'
+        LOG_WARNING: 'EpubReader解析失败，使用archive回退方案'
     
     // Step 6: 回退方案 - 使用archive解析ZIP结构
     archive = ZipDecoder().decodeBytes(bytes)
@@ -267,7 +267,7 @@ FUNCTION getChapterContent(filePath: String, chapter: Chapter) -> Future<Chapter
             LOG: '从 archive 提取的内容为空'
     
     CATCH e:
-        LOG: '从 archive 提取章节内容失败'
+        LOG_WARNING: '从 archive 提取章节内容失败'
     
     // Step 5: 回退方案 - 使用EpubReader查找章节内容
     TRY:
@@ -288,7 +288,7 @@ FUNCTION getChapterContent(filePath: String, chapter: Chapter) -> Future<Chapter
                 )
     
     CATCH e:
-        LOG: '使用 EpubReader 获取章节内容失败'
+        LOG_WARNING: '使用 EpubReader 获取章节内容失败'
     
     // Step 6: 无法获取内容
     LOG: '无法获取章节内容'

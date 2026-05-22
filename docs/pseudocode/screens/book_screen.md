@@ -156,14 +156,11 @@ PROCEDURE _startPreGeneration():
     TRY:
       _log.d('BookScreen', '开始后台预生成摘要')
 
-      // Refresh first to avoid duplicate generation
       _refreshBookIfNeeded()
 
-      // Generate book summary + all chapter summaries
-      AWAIT _summaryService.generateSummariesForBook(_book)
+      AWAIT _summaryService.generateSummariesForBook(_book, _flatChapters)
       _log.d('BookScreen', '后台预生成摘要完成')
 
-      // Refresh again after completion
       _refreshBookIfNeeded()
     CATCH e, stackTrace:
       _log.e('BookScreen', '后台预生成摘要失败', e, stackTrace)
@@ -417,7 +414,7 @@ Set _isPreGenerating = true
     ↓
 Async execution:
     ├── Refresh book state
-    ├── Call SummaryService.generateSummariesForBook()
+    ├── Call SummaryService.generateSummariesForBook(book, chapters)
     ├── Generate book summary + all chapter summaries
     └── Refresh book state again
     ↓
@@ -489,7 +486,7 @@ List<Chapter> with:
 ```
 _startPreGeneration():
     ↓
-SummaryService.generateSummariesForBook(book)
+SummaryService.generateSummariesForBook(book, chapters)
     ↓
 EPUB: _generateBookSummaryFromPreface() → book summary
       + generateSingleSummary() × N → chapter summaries
@@ -567,7 +564,7 @@ READ: _bookService.getBookById(id)
 ### SummaryService
 
 ```
-GENERATE: _summaryService.generateSummariesForBook(book)
+GENERATE: _summaryService.generateSummariesForBook(book, chapters)
   - Generates book summary + all chapter summaries
   - Streaming callbacks for real-time UI updates
   - Async, non-blocking

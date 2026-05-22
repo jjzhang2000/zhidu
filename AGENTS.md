@@ -77,55 +77,24 @@ lib/
 
 ### 版本历史
 
-**2026-05-22**: 日志路径修复 — `Documents/logs` → `Documents/zhidu/logs`，日志文件与书籍/配置等数据保持在同一 zhidu 目录下
-**2026-05-22**: 简化日志架构 — 删除 LogHelper 薄封装层，日志初始化移至 main.dart `_initLogger()` 函数；所有 13 个模块 `LogHelper.createLogger(tag)` → `Logger()`，PrettyPrinter 自动输出调用位置（文件名+行号）不再需要手动标注模块名；删除 log_helper.dart + _TaggedPrinter；更新 main.md 伪代码，删除 log_helper.md
-**2026-05-22**: logging 官方库替换为 logger 第三方库 + 日志文件 1MB 轮转 — pubspec.yaml 替换 `logging` → `logger ^2.5.0`；LogHelper 重写为自定义 LogOutput（_FileRotatingOutput），同时输出控制台和文件；日志文件固定为 app.log，达到 1MB 自动清空轮转，只保留最近一份；所有模块 Logger(tag: 'Name', output: LogHelper.output) 共享文件输出；日志方法签名: info()→i(), warning()→w(), severe()→e(), fine()→d()；main.dart 简化 init() 调用为无参数 LogHelper.init()
-**2026-05-22**: LogService 替换为 logging 官方库 — 删除完全手写的 LogService（单例 + 分级输出 + 文件写入），改用 Dart 官方 `logging` 库；新增 `LogHelper` 封装 `Logger.root.onRecord` 监听器 + 文件持久化（IOSink）；所有模块改用 `Logger('ClassName')` 创建实例，`_log.info()`/`_log.warning()`/`_log.severe()` 替代原 `_log.d()`/`_log.w()`/`_log.e()`；日志级别映射：verbose→FINE, debug→INFO, info→INFO, warning→WARNING, error→SEVERE；删除 `log_service.dart`/`log_service_test.dart`，新增 `log_helper.dart`；pubspec.yaml 新增 `logging: ^1.3.0`；更新 `log_helper.md`/`main.md`/`function_call_relationships.md`/`index.md`
-**2026-05-22**: 合并 EpubService/PdfService 到 EpubParser/PdfParser — 消除元数据解析和内容解析的代码重复（同一文件被 EpubReader → archive 回退 解析两次）；BookFormatParser 接口新增 `parseMetadata(String, String)` → `BookMetadata`，统一返回标题/作者/封面/章节数/语言；BookService 改用 FormatRegistry.getParser().parseMetadata() 替代硬编码的 _epubService/_pdfService 分支；删除 EpubService/PdfService 两文件及对应测试；EpubParser 新增 `_countChapters`/`_extractTitleFromPath`/`_parseOpfFile`/`_parseNavigationFile`/`_extractTextFromHtml`/`_extractCover`/`_extractCoverFromArchive` 7 个方法；PdfParser 新增 `_detectChapters`/`_extractCover` 2 个方法和 `_PdfChapter` 内部类；book_format_parser.md/epub_parser.md/pdf_parser.md/book_service.md/function_call_relationships.md 同步更新
-**2026-05-21**: EpubService/PdfService 僵尸代码清理 + 测试同步 — EpubService 删除 8 个公共方法（extractPrefaceContent/getHierarchicalChapterList/getSectionContent/getChapterContentFromHref/getChapterHtml/getSectionHtml/getSectionsInChapter/getChapterList）及 10+ 私有依赖方法、2 个内部类（ChapterInfo/SectionInfo），1265→422 行（-67%）；PdfService 删除 3 个公共方法（getChapterPages/getChapterPageRange/getPageContent）及 2 个内部类（PdfChapter/PdfPageContent 改为私有 _PdfChapter），472→189 行（-60%）；同步重写 epub_service_test.dart/pdf_service_test.dart（删除 80+ 条无效用例）；删除 epub_parser_test/pdf_parser_test 中 extractCover 用例；更新 epub_service.md/pdf_service.md/function_call_relationships.md/index.md
-**2026-05-21**: 删除 chapterTitles 持久化 — AI 从摘要内容推断的章节标题不属于书籍元数据，不应持久化到 metadata.json；删除 Book.chapterTitles 字段及全部序列化/反序列化逻辑、BookService.updateChapterTitle()、SummaryService 中调用方、BookScreen/ChapterScreen 中 chapterTitles 优先获取逻辑；_getChapterTitle() 简化为直接返回原始标题；book_test.dart / book_detail_screen_test.dart / chapter_screen_test.dart 同步删除 chapterTitles 用例；更新 book_service.md、summary_service.md
-**2026-05-21**: BookService 僵尸代码清理 + 注释精简 — 删除 `saveBooksIndex()` public 方法（无源码级别外部调用）；类级 15 行注释 → 1 行，删除所有字段注释、方法注释副文（流程步骤/设计考量/目录结构图）；删除 7 处内联注释；434→289 行（-33%）；更新 `book_service.md`、`function_call_relationships.md`、`index.md`
-**2026-05-21**: AI 语言检测 + 合并 resolveOutputLanguage — `detectLanguageFromContent` 改为 AI 流式识别（截取前 2000 字符），消除中/日文汉字误判（75行字符统计→18行 AI 委托）；`detectSourceLanguage` 新增 `bookId` 参数 + `_persistDetectedLanguage`，AI 检测后回写 `Book.language` 持久化避免重复检测；合并 `getTargetLanguage` 至 `resolveOutputLanguage`（public，新增 `preResolvedLanguage` 快路径）；4 个方法签名 sync→async；更新 `ai_service.md`、`chapter_screen.md`、`function_call_relationships.md`、`index.md`
-**2026-05-21**: 消除 systemMessage + AiPrompts 精简 — 删除 `_callAIStream`/`_callAI`/`_buildMessages` 的 `systemMessage` 参数；删除 `AiPrompts.getLanguageInstruction()`/`_outputInstruction()`/`_langName()` 及 `_getLanguageInstructionForModel()`/`_getLanguageInstructionForLanguage()`；新增 `_resolveOutputLanguage()` 统一解析 AI 输出语言、`_getPromptLoc(languageCode)` 按目标语言获取 AppLocalizations；`translateHtml` 硬编码三语提示词迁移至 l10n `promptTranslateHtml`；回复语言指令直接嵌入各 l10n 模板首行（"请用中文回复。" / "Please respond in English." / "日本語で回答してください。"）；更新 `ai_prompts.md`、`ai_service.md`、`function_call_relationships.md`、`index.md`
-**2026-05-20**: AiPrompts 提示词 l10n 化 + 占位符消除 — 全部提示词文本委托 AppLocalizations 三语翻译；删除 `_englishBookSummary`/`_englishBookSummaryFromPreface`/`_englishChapterSummary`/`_englishTranslateHtml`/`_getLanguageName` 5 个死方法（~315行）；消除 `languageInstruction`（仅作为 systemMessage）、`sourceLangName`/`targetLangName`、`promptLanguageReqLabel`、`langName*` 全部动态占位符；`getLanguageInstruction` 简化签名为 `(languageCode)`；`translateHtml` 从 l10n 移回 AiPrompts 内部按目标语言分支；ai_prompts.dart 457→128 行；更新 `ai_prompts.md` 伪代码文档
-**2026-05-20**: epub_parser 重构精简 — 删除 extractCover 接口+3个实现（死代码链）；删除 Level 2 冗余分支 `_extractChapterInfos`（与 NCX 同源）；`_extractTextFromHtml`+`_extractTitleFromHtmlContent` 手写正则→`package:html` DOM 查询（新增依赖）；epub_parser 647→436 行
-**2026-05-20**: bookId 提炼 + OPF 读取去重 — `_uuid.v4()` 从 EpubService/PdfService 收归 BookService；删除两 Service 内部 OPF 读取块（之前每次导入读 3 遍，现只读 1 遍）；删除 `OpfReaderService` import + `language` 构造参数
-**2026-05-20**: epub_service 封面提取日志降级 — `_extractCover`/`_extractCoverFromArchive`/`parseEpubFile` 回退路径 catch 从 `_log.e`+堆栈降为 `_log.w`（无异常dump）；EpubReader 解析失败属可恢复回退，不应报 error
-**2026-05-19**: epub_parser + pdf_parser 僵尸代码清理 — epub 删除 6 个死方法 `_extractChapterTitles`/`_extractTitleFromPath`/`_parseContainerXml`/`_parseOpfFile`/`_parseNavigationFile`/`_findEpubChapterByIndex`+2个未用 import（1139→629 行）；pdf 删除冗余文件头/分节符/内联注释、死代码 `extractCover` 文件检查、3个未用 import（438→208 行）
-**2026-05-19**: book_format_parser.dart 格式整理 — 抽象方法补一行 `///` 注释，两方法间隔统一，类属性与后续方法统一间距
-**2026-05-19**: format_registry 合并到 book_format_parser — FormatRegistry 类合并入接口文件，删除死代码 `initialize()`；删除 `format_registry.dart`；更新 4 处 import + 3 处测试引用 + 文档；去掉冗余注释（286→42 行）
-**2026-05-19**: settings_screen 僵尸代码清理 + loc getter 复用 — 删除 `_buildSection` 两个未使用参数 `title`/`icon`（全部3处调用白传）；`AppLocalizations.of(context)!` 提取为 getter，删除7处重复声明；注释精简（过时版本号、冗余内联）；theme_settings_screen 合并重复文件级/类级注释；更新 `settings_screen.md`、`index.md`
-**2026-05-19**: language_settings_screen.dart 冗余清理 — switch → copyWith 简化 `_updateAiLanguageMode`/`_updateUiLanguageMode`（省 ~40 行）；`_buildLanguageSelector` 中 `_getLanguages` 提取为局部变量避免重复调用；删除 `_getLanguages` 中冗余 `??` fallback 及 `app_settings.dart` import
-**2026-05-19**: fix — 删除失败 SnackBar 硬编码中文改为 i18n key `loc.failed`；原 `const Text('删除失败…')` 在 en/ja 界面下遗留中文且 `const` 导致语言切换不更新
-**2026-05-19**: fix — BookCard 删除时检查 deleteBook() 返回值防止目录残留；`deleteBook()` 返回 `bool` 但此前不检查，磁盘 IO 失败（文件被占用/权限不足）时目录残留但卡片被移除；修复后仅成功才 `onDeleted`，失败显示错误 SnackBar
-**2026-05-19**: HomeScreen + BookshelfScreen 合并 — 两个组件合并为单层 Scaffold；消除 GlobalKey `_bookshelfKey` + `refresh()` 方法；删除嵌套 Scaffold + 重复 `BookService` 实例化；import 后直接 `setState` 刷新书架；更新 `home_screen.md`、`function_call_relationships.md`
-**2026-05-19**: HomeScreen 僵尸代码清理与冗余日志删除 — 删除 `_BookCardState._summaryService` 僵尸字段（从未调用）及 `SummaryService` import；删除 `_HomeScreenState`/`_BookshelfScreenState` 中 `_log` 字段及4条冗余日志 + `LogService` import；更新 `home_screen.md`、`function_call_relationships.md`、`index.md`
-**2026-05-18**: ChapterScreen 重构为 BookScreen 模式 — SummaryService 新增章节级流式回调 + `ensureChapterSummary()` / `ensureChapterTranslation()`；ChapterScreen 删除 `_loadSummary`(`_generateSummaryWithStreaming()`)/`_loadTranslation`/`_generateTranslationWithStreaming()` 四个方法(~170行)，改为两个 `_ensureXxx()` 各 ~25 行；删除 `_hasLoadedSummary`/`_listeningChapterKey` 字段；所有摘要/翻译编排逻辑归口 SummaryService
-**2026-05-18**: AIService 新增 `needsTranslation()` + 删除 `_resolveTargetLang()` — 所有语言判断统一归口到 AIService；`needsTranslation(sourceLang)` 判断源/目标语言是否需要翻译；ChapterScreen 删除 `_resolveTargetLang()`（16行），改为 `_aiService.getTargetLanguage()` + `_aiService.needsTranslation()`
-**2026-05-18**: 全项目日志精简 — 397→212条(-47%)：删除 `_log.v` 追踪日志、chunk级流式日志、冗余入口/进度/确认日志；合并相邻重复日志；保留所有 error/warning；epub_service(107→42)、summary_service(51→37)、ai_service(42→27)、chapter_screen(20→9) 等全面清理
-**2026-05-18**: AIService 新增 `detectSourceLanguage()` 统一源语言检测 — 合并 ChapterScreen 和 `_detectLanguageFromMetadataAndContentWithBookId` 两处重复的「元数据→convert/内容→detect」模式(~22行)；`_detectLanguageFromMetadataAndContentWithBookId` 简化为 3 行委托；ChapterScreen `_initializeLanguageSettings` 省 7 行；更新 `ai_service.md`、`chapter_screen.md`
-**2026-05-18**: ChapterScreen detectSystemLanguage 合并与 Tab 顺序调整 — `_detectSystemLanguage()` 合并到 `AIService.detectSystemLanguage()`（public），删除 ChapterScreen 副本(~27行)及 `import 'dart:io'`；删除 `_updateTargetLanguage()`（用户进入 ChapterScreen 后不可能变语言）；Tab 顺序调整为 0=摘要/1=原文/2=译文；更新 `ai_service.md`、`chapter_screen.md`
-**2026-05-18**: ChapterScreen 僵尸代码清理与重复代码提取 — 删除 `_generateSummary()`（阻塞版）、`_uiRefreshTimer`、`_getCurrentSummaryLanguage()` 三处僵尸代码(~87行)；提取 `_htmlStyle` getter、`_buildTypingIndicator()`+`_typingDot()`、`_resolveTargetLang()` 三处重复代码(~118行)；更新 `chapter_screen.md` 伪代码文档
-**2026-05-18**: BookScreen 日志修正与重复代码提取 — 修正`_startPreGeneration`日志（"章节摘要"→"摘要"）；提取`_htmlStyle` getter和`_buildSummaryWithMarkdown()`，消除约120行重复代码；更新`book_screen.md`伪代码文档
-**2026-05-18**: AiConfigScreen 注释规范化与死代码清理 — 删除`_recommendedModels`（冗余getter）和内联`_getLocalizedProviders`；修正`_buildModelSection`过时注释；所有字段/方法doc注释格式统一；更新伪代码文档新增5个方法
-**2026-05-17**: AI配置页面模型选择改进 — 改为联网动态获取模型列表，纯下拉框选择，模型名称按字母排序；新增`fetchAvailableModels`方法；删除`cachedModels`缓存机制
-**2026-05-17**: OpfMetadata类合并 — OpfMetadata类从opf_metadata.dart移动到book.dart文件末尾，删除独立的opf_metadata.dart文件，更新所有导入引用和文档
-**2026-05-17**: Book模型清理 — 删除aiIntroduction字段（改用summary-zh.md独立文件存储全书摘要），删除publisher/description/subjects僵尸字段（OPF元数据从未被读取使用）
-**2026-05-17**: Chapter类合并 — ChapterContent/ChapterSummary类合并到Chapter类，删除bookId以外所有JSON序列化方法，删除chapter.id字段（改用bookId），删除ChapterSummary的aiInsight/keyPoints/createdAt死字段，删除chapter_content.md/chapter_summary.md/chapter_location.md文档，getChapterContent返回类型改为Chapter
-**2026-05-16**: SummaryService清理与回调合并 — 删除`_generatingBookSummaryKeys`/`_generatingFutures`等6个方法，合并回调Map；删除TranslationService文档引用
-**2026-05-16**: AIService重构 — 删除韩语支持、阻塞版摘要方法(~250行)，统一配置检查，提取`_buildMessages()`
-**2026-05-15**: 章节摘要文件名改为`Summary-{index}-{lang}.md`
-**2026-05-15**: 统一JSON写入逻辑 — SettingsService委托FileStorageService
-**2026-05-15**: 版本号动态获取 — `package_info_plus`
-**2026-05-15**: 存储层清理 — 消除SettingsService/StorageConfig重复目录创建
-**2026-05-15**: SettingsService死代码清理 — 378→217行，添加dispose()
-**2026-05-15**: 删除AIConfig类 — 统一使用AiSettings
-**2026-05-14**: 多平台构建修复 — pdfrx 2.x API适配、Android窗口管理检测、日志路径修复
-**2026-05-11**: 多显示器DPI窗口定位 — `getAllDisplays()`+窗口中心匹配
-**2026-05-05**: 窗口DPI双重缩放修复 — `screen_retriever`+`waitUntilReadyToShow`
-**2026-04-26**: UI垂直Tab布局 — TabController管理章节/全书摘要页
-**2026-04-24**: 流式显示 — HttpClient+SSE实时显示AI生成内容
-**2026-04-20**: 国际化 — flutter_localizations，zh/en/ja
-**2026-04-15**: SettingsService统一设置管理
-**2026-04-14**: 代码审查清理 — 删除SectionSummaryService等死代码(853行)
-**2026-04-09**: 修复章节摘要无法进入阅读界面死循环
+**2026-05-22**: 合并 EpubService/PdfService 到 EpubParser/PdfParser，统一元数据解析接口，删除两服务文件
+**2026-05-21**: 僵尸代码清理 — EpubService(-67%)、PdfService(-60%)、BookService(-33%)；删除 chapterTitles 持久化；AI语言检测改用流式识别
+**2026-05-21**: AiPrompts 精简 — 提示词 l10n 化，消除占位符和死方法，删除 systemMessage 参数
+**2026-05-20**: epub_parser 重构 — extractCover 接口删除，改用 package:html DOM 查询
+**2026-05-20**: bookId 收归 BookService，OPF 读取去重（从3遍→1遍）
+**2026-05-19**: epub/pdf_parser 僵尸代码清理；format_registry 合并到 book_format_parser；settings_screen 冗余清理
+**2026-05-19**: HomeScreen + BookshelfScreen 合并，修复删除失败 SnackBar i18n 和 BookCard 返回值检查
+**2026-05-18**: ChapterScreen 重构为 BookScreen 模式，SummaryService 新增章节级流式回调
+**2026-05-18**: AIService 统一语言检测，新增 needsTranslation()；全项目日志精简(-47%)
+**2026-05-17**: AI配置页面动态获取模型列表；OpfMetadata/Book/Chapter 类合并清理
+**2026-05-16**: SummaryService 回调合并；AIService 重构删除韩语支持
+**2026-05-15**: 章节摘要文件名规范化；SettingsService 精简；统一 JSON 写入逻辑
+**2026-05-14**: 多平台构建修复
+**2026-05-11**: 多显示器 DPI 窗口定位
+**2026-05-05**: 窗口 DPI 双重缩放修复
+**2026-04-26**: UI 垂直 Tab 布局
+**2026-04-24**: 流式显示
+**2026-04-20**: 国际化 zh/en/ja
+**2026-04-15**: SettingsService 统一设置管理
+**2026-04-14**: 代码审查清理(853行)
+**2026-04-09**: 修复章节摘要死循环

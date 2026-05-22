@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
-import 'package:logger/logger.dart';
 
 import '../models/app_settings.dart';
 import 'file_storage_service.dart';
+import 'log_service.dart';
 import 'storage_config.dart';
 
 /// 设置服务 - 管理应用所有配置设置
@@ -22,7 +22,7 @@ class SettingsService {
   SettingsService._internal();
 
   /// 日志服务实例
-  final _log = Logger();
+  final _log = LogService();
 
   /// 设置文件路径
   String? _settingsFilePath;
@@ -77,7 +77,7 @@ class SettingsService {
       await _migrateCurrentAiSettingsToSaved();
       _syncNotifiersWithSettings();
     } catch (e, stackTrace) {
-      _log.e('初始化设置服务失败', error: e, stackTrace: stackTrace);
+      _log.e('SettingsService', '初始化设置服务失败', e, stackTrace);
       _settings = AppSettings();
       _syncNotifiersWithSettings();
     }
@@ -91,7 +91,7 @@ class SettingsService {
       updatedConfigs[current.provider] = current;
       _settings = _settings.copyWith(savedAiConfigs: updatedConfigs);
       await _saveSettings();
-      _log.d('自动将当前 AI 配置 (${current.provider}) 添加到已保存列表');
+      _log.d('SettingsService', '自动将当前 AI 配置 (${current.provider}) 添加到已保存列表');
     }
   }
 
@@ -145,7 +145,7 @@ class SettingsService {
     _settings = _settings.copyWith(aiSettings: newSettings);
     aiSettings.value = newSettings;
     await _saveAiConfigForProvider(newSettings.provider, newSettings);
-    _log.i('AI设置已更新: provider=${newSettings.provider}');
+    _log.info('SettingsService', 'AI设置已更新: provider=${newSettings.provider}');
   }
 
   /// 更新主题设置
@@ -153,7 +153,7 @@ class SettingsService {
     _settings = _settings.copyWith(themeSettings: newSettings);
     themeMode.value = newSettings.mode;
     await _saveSettings();
-    _log.i('主题设置已更新: mode=${newSettings.mode.name}');
+    _log.info('SettingsService', '主题设置已更新: mode=${newSettings.mode.name}');
   }
 
   /// 设置主题模式（便捷方法）
@@ -163,10 +163,11 @@ class SettingsService {
 
   /// 更新语言设置
   Future<void> updateLanguageSettings(LanguageSettings newSettings) async {
+    if (_settings.languageSettings == newSettings) return;
     _settings = _settings.copyWith(languageSettings: newSettings);
     languageSettings.value = newSettings;
     await _saveSettings();
-    _log.i('语言设置已更新: aiOutput=${newSettings.aiOutputLanguage}');
+    _log.info('SettingsService', '语言设置已更新');
   }
 
   /// 释放资源

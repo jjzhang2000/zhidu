@@ -185,6 +185,26 @@ class LanguageSettings {
     );
   }
 
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is LanguageSettings &&
+        other.aiLanguageMode == aiLanguageMode &&
+        other.aiOutputLanguage == aiOutputLanguage &&
+        other.uiLanguageMode == uiLanguageMode &&
+        other.uiLanguage == uiLanguage;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      aiLanguageMode,
+      aiOutputLanguage,
+      uiLanguageMode,
+      uiLanguage,
+    );
+  }
+
   /// 序列化为 JSON
   Map<String, dynamic> toJson() {
     return {

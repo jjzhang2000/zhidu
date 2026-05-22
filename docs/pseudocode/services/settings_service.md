@@ -292,6 +292,9 @@ PUBLIC ASYNC METHOD setThemeMode(mode: ThemeMode):
 
 ```pseudocode
 PUBLIC ASYNC METHOD updateLanguageSettings(newSettings: LanguageSettings):
+    // 如果设置未变化则跳过
+    IF _settings.languageSettings == newSettings: RETURN
+    
     // 更新设置对象
     _settings = _settings.copyWith(languageSettings: newSettings)
     
@@ -301,7 +304,7 @@ PUBLIC ASYNC METHOD updateLanguageSettings(newSettings: LanguageSettings):
     // 保存到文件
     await _saveSettings()
     
-    _log.info('SettingsService', '语言设置已更新: aiOutput={newSettings.aiOutputLanguage}')
+    _log.info('SettingsService', '语言设置已更新')
 ```
 
 ---
