@@ -59,7 +59,8 @@ docs/pseudocode/
 │       ├── epub_parser.md        # EPUB解析器
 │       └── pdf_parser.md         # PDF 解析器
 └── utils/
-    └── app_theme.md              # 应用主题配置
+    ├── app_theme.md              # 应用主题配置
+    └── window_utils.md           # 窗口管理工具（桌面平台）
 ```
 
 ---

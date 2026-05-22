@@ -13,13 +13,18 @@ bool isDesktopPlatform() {
 /// 初始化桌面平台窗口
 /// 在移动平台上调用此函数会立即返回，不会执行任何操作
 Future<void> initDesktopWindow() async {
-  // 非桌面平台直接返回，不会调用任何window_manager方法
   if (!isDesktopPlatform()) {
     return;
   }
 
   await windowManager.ensureInitialized();
-  await windowManager.waitUntilReadyToShow();
+  await windowManager.waitUntilReadyToShow(
+    WindowOptions(
+      title: '智读',
+      titleBarStyle: TitleBarStyle.normal,
+      windowButtonVisibility: true,
+    ),
+  );
 
   try {
     final display = await screenRetriever.getPrimaryDisplay();

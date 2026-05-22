@@ -17,8 +17,8 @@ FUNCTION main() ASYNC:
     // 1. 确保 Flutter 绑定已初始化
     CALL WidgetsFlutterBinding.ensureInitialized()
 
-    // 2. 初始化窗口管理器（桌面版，设置窗口尺寸和位置）
-    AWAIT _initWindowManager()
+    // 2. 初始化桌面窗口（标题、尺寸、位置、最小尺寸）
+    AWAIT initDesktopWindow()
 
     // 3. 初始化日志服务
     AWAIT LogService().init(
@@ -46,111 +46,15 @@ END FUNCTION
 
 ---
 
-## 函数：_initWindowManager()
+## 窗口初始化 (window_utils.dart)
 
-**功能**：初始化桌面窗口管理器，处理多显示器 DPI 适配，设置窗口尺寸和位置
+窗口初始化已提取到独立模块。详见 [window_utils.md](utils/window_utils.md)。
 
-**伪代码**：
-
-```
-FUNCTION _initWindowManager() ASYNC:
-    // 1. 确保窗口管理器已初始化
-    AWAIT windowManager.ensureInitialized()
-
-    // 2. 等待窗口准备就绪（阻止窗口在设置好之前闪现）
-    AWAIT windowManager.waitUntilReadyToShow()
-
-    // 3. 多显示器 DPI 适配
-    TRY:
-        // 3a. 获取所有显示器信息（支持多显示器 + 不同 DPI）
-        displays = AWAIT screenRetriever.getAllDisplays()
-
-        // 3b. 获取窗口当前实际位置（Windows 默认放置位置）
-        windowBounds = AWAIT windowManager.getBounds()
-
-        // 3c. 计算窗口中心点
-        windowCenterX = windowBounds.x + windowBounds.width / 2
-        windowCenterY = windowBounds.y + windowBounds.height / 2
-
-        // 3d. 遍历所有显示器，找到包含窗口中心点的目标显示器
-        targetDisplay = displays.first  // 默认第一个
-        FOR EACH display IN displays:
-            displayLeft = display.visiblePosition?.dx ?? 0
-            displayTop = display.visiblePosition?.dy ?? 0
-            displayRight = displayLeft + display.size.width
-            displayBottom = displayTop + display.size.height
-
-            IF windowCenterX >= displayLeft
-               AND windowCenterX <= displayRight
-               AND windowCenterY >= displayTop
-               AND windowCenterY <= displayBottom THEN
-                targetDisplay = display
-                BREAK
-            END IF
-        END FOR
-
-        // 3e. 基于目标显示器的工作区计算窗口尺寸
-        displayPos = targetDisplay.visiblePosition ?? Offset(0, 0)
-        visibleSize = targetDisplay.visibleSize ?? targetDisplay.size
-        screenHeight = visibleSize.height
-        screenWidth = visibleSize.width
-
-        // 3f. 计算窗口尺寸：高度=屏幕高，宽度=高度×0.75（3:4比例）
-        windowHeight = screenHeight
-        windowWidth = windowHeight * 0.75
-
-        IF windowWidth > screenWidth THEN
-            windowWidth = screenWidth
-        END IF
-
-        // 3g. 在目标显示器上居中
-        windowLeft = displayPos.dx + (screenWidth - windowWidth) / 2
-        windowTop = displayPos.dy + (screenHeight - windowHeight) / 2
-
-        AWAIT windowManager.setBounds(Rect.fromLTWH(
-            windowLeft, windowTop, windowWidth, windowHeight
-        ))
-
-    CATCH (e):
-        // 3h. 获取屏幕信息失败时使用默认尺寸
-        LOG WARNING "获取屏幕尺寸失败，使用默认窗口大小: {e}"
-        AWAIT windowManager.setSize(Size(960, 720))
-        AWAIT windowManager.center()
-    END TRY
-
-    // 4. 设置窗口最小尺寸
-    AWAIT windowManager.setMinimumSize(Size(600, 400))
-
-    // 5. 显示窗口（所有设置完成后才显示，避免闪烁）
-    AWAIT windowManager.show()
-END FUNCTION
-```
-
-**关键设计点**：
-
-- **多显示器支持**: 使用 `getAllDisplays()` 而非 `getPrimaryDisplay()`，支持多显示器不同 DPI 的环境
-- **窗口中心点匹配**: 通过窗口中心坐标找到窗口实际所在的显示器（而非假设在主显示器）
-- **visiblePosition**: 工作区在虚拟桌面上的坐标位置，用于精确计算窗口在目标显示器上的位置
-- **visibleSize vs size**: `visibleSize` 排除任务栏，`size` 是完整屏幕尺寸
-- **waitUntilReadyToShow**: 阻止窗口在设置好之前闪现，避免用户看到窗口从默认位置跳到目标位置
-- **异常回退**: 如果 `screen_retriever` 获取失败（如非桌面平台），使用默认 960×720
-- **show() 最后调用**: 确保所有尺寸和位置设置完成后再显示窗口
-
-**窗口尺寸策略**：
-
-- 高度 = 目标显示器工作区高度（全屏高，不含任务栏）
-- 宽度 = 高度 × 0.75（3:4 宽高比）
-- 如果计算宽度超过屏幕宽度，则宽度回退为屏幕宽度
-- 窗口在目标显示器上居中显示
-
-**screen_retriever Display 字段**：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `visiblePosition` | `Offset?` | 工作区在虚拟桌面上的位置 (逻辑像素) |
-| `visibleSize` | `Size?` | 工作区尺寸 (逻辑像素，排除任务栏) |
-| `size` | `Size` | 显示器总分辨率 (逻辑像素) |
-| `scaleFactor` | `num?` | DPI 缩放因子 |
+核心流程：
+- 平台检测（Windows/macOS/Linux）
+- `windowManager.waitUntilReadyToShow(WindowOptions(title: '智读'))` 设置窗口标题
+- 获取主显示器可见区域，计算 4:3 比例窗口尺寸并居中
+- 设置最小尺寸 600×400，最后调用 `show()` 显示窗口
 
 ---
 
@@ -362,12 +266,11 @@ END METHOD
     ↓
 main()
     ↓
-初始化窗口管理器 (_initWindowManager)
+初始化桌面窗口 (initDesktopWindow)
     ├─ windowManager.ensureInitialized()
-    ├─ windowManager.waitUntilReadyToShow()
-    ├─ screenRetriever.getAllDisplays() → 获取所有显示器
-    ├─ windowManager.getBounds() → 窗口中心点匹配目标显示器
-    ├─ 基于目标显示器计算窗口尺寸和居中位置
+    ├─ windowManager.waitUntilReadyToShow(WindowOptions(title: '智读'))
+    ├─ screenRetriever.getPrimaryDisplay() → 获取显示器信息
+    ├─ 计算窗口尺寸和居中位置
     ├─ windowManager.setBounds() → 精确设置位置和尺寸
     ├─ windowManager.setMinimumSize(600, 400)
     └─ windowManager.show()
@@ -387,12 +290,11 @@ build() 创建 MaterialApp
 
 ## 关键设计点
 
-1. **窗口初始化优先**: `_initWindowManager()` 在所有服务初始化之前执行，确保窗口尺寸和位置在应用启动时就正确设置
-2. **双层窗口管理**: C++ 原生层（main.cpp）负责创建默认窗口，Dart 层（window_manager）负责精确尺寸和位置调整
-3. **多显示器 DPI 适配**: Dart 层通过 `getAllDisplays()` + 窗口中心点匹配，自动适配多显示器不同 DPI 环境
-4. **防闪烁**: `waitUntilReadyToShow()` + `show()` 确保窗口在所有设置完成后再显示
-5. **服务初始化顺序**：SettingsService 优先初始化，其他服务依赖它
-6. **响应式更新**：使用 ValueNotifier 监听设置变化，自动重建 UI
-7. **国际化支持**：支持中文、英文、日文三种语言
-8. **主题管理**：支持亮色、暗色、跟随系统三种主题模式
-9. **单例模式**：所有 Service 使用单例模式，全局共享状态
+1. **窗口初始化优先**: `initDesktopWindow()` 在所有服务初始化之前执行，通过 `WindowOptions(title: '智读')` 显式设置窗口标题，确保中文正确显示
+2. **独立窗口模块**: 窗口逻辑提取到 `window_utils.dart`，支持桌面平台检测（Windows/macOS/Linux），非桌面平台自动跳过
+3. **防闪烁**: `waitUntilReadyToShow()` + `show()` 确保窗口在所有设置完成后再显示
+4. **服务初始化顺序**：SettingsService 优先初始化，其他服务依赖它
+5. **响应式更新**：使用 ValueNotifier 监听设置变化，自动重建 UI
+6. **国际化支持**：支持中文、英文、日文三种语言
+7. **主题管理**：支持亮色、暗色、跟随系统三种主题模式
+8. **单例模式**：所有 Service 使用单例模式，全局共享状态
