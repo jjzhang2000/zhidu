@@ -77,7 +77,7 @@ class _ChapterScreenState extends State<ChapterScreen>
   final _aiService = AIService();
 
   /// 日志服务
-  final _log = LogHelper.createLogger('ChapterScreen');
+  final _log = createLogger('ChapterScreen');
 
   /// 摘要服务（用于加载/生成摘要）
   final _summaryService = SummaryService();

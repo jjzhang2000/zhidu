@@ -22,9 +22,9 @@ void main() async {
   // 在桌面平台上初始化窗口管理（内部会检查平台）
   await initDesktopWindow();
 
-  await LogHelper.init();
+  await initLogger();
 
-  final _mainLog = LogHelper.createLogger('Main');
+  final _mainLog = createLogger('Main');
   _mainLog.i('应用启动');
 
   _initializeFormatRegistry();
@@ -45,7 +45,7 @@ void main() async {
 void _initializeFormatRegistry() {
   FormatRegistry.register('.epub', EpubParser());
   FormatRegistry.register('.pdf', PdfParser());
-  final _mainLog = LogHelper.createLogger('Main');
+  final _mainLog = createLogger('Main');
   _mainLog.i('格式注册表初始化完成，支持: epub, pdf');
 }
 

@@ -62,7 +62,7 @@ class FileStorageService {
   FileStorageService._internal();
 
   /// 日志服务实例
-  final _log = LogHelper.createLogger('FileStorageService');
+  final _log = createLogger('FileStorageService');
 
   /// 读取JSON文件
   ///

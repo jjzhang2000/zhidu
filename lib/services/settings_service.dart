@@ -23,7 +23,7 @@ class SettingsService {
   SettingsService._internal();
 
   /// 日志服务实例
-  final _log = LogHelper.createLogger('SettingsService');
+  final _log = createLogger('SettingsService');
 
   /// 设置文件路径
   String? _settingsFilePath;

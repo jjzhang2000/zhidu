@@ -96,7 +96,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   /// 日志服务实例
   ///
   /// 用于记录调试信息和错误日志，便于问题排查。
-  final _log = LogHelper.createLogger('PdfReaderScreen');
+  final _log = createLogger('PdfReaderScreen');
 
   /// 当前阅读页码
   ///

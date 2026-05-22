@@ -11,54 +11,53 @@ import 'package:path_provider/path_provider.dart';
 ///
 /// 初始化（通常在 main.dart 中调用）：
 /// ```dart
-/// await LogHelper.init();
+/// await initLogger();
 /// ```
 ///
 /// 使用（各模块内部创建 Logger 实例）：
 /// ```dart
 /// import 'package:logger/logger.dart';
 ///
-/// final _log = LogHelper.createLogger('EpubParser');
+/// final _log = createLogger('EpubParser');
 /// _log.i('开始解析: $filePath');
 /// _log.w('解析失败，使用回退方案');
 /// _log.e('致命错误', error: error, stackTrace: stackTrace);
 /// ```
-class LogHelper {
-  static const int _maxFileSizeKB = 1024; // 1MB
-  static const int _maxRotatedFilesCount = 2;
-  static const String _logFileName = 'app.log';
 
-  static AdvancedFileOutput? _output;
+const int _maxFileSizeKB = 1024; // 1MB
+const int _maxRotatedFilesCount = 2;
+const String _logFileName = 'app.log';
 
-  /// 创建带模块标签的 Logger 实例
-  ///
-  /// 标签会显示在每条日志输出中，方便区分来源模块。
-  static Logger createLogger(String tag) {
-    return Logger(
-      printer: _TaggedPrinter(tag),
-      output: _output ?? ConsoleOutput(),
-    );
+AdvancedFileOutput? _output;
+
+/// 初始化日志服务
+///
+/// 同时输出到控制台和文件。文件达到 1MB 时自动轮转。
+Future<void> initLogger() async {
+  final appDir = await getApplicationDocumentsDirectory();
+  final logDir = Directory('${appDir.path}/logs');
+  if (!await logDir.exists()) {
+    await logDir.create(recursive: true);
   }
 
-  /// 初始化日志服务
-  ///
-  /// 同时输出到控制台和文件。文件达到 1MB 时自动轮转。
-  static Future<void> init() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final logDir = Directory('${appDir.path}/logs');
-    if (!await logDir.exists()) {
-      await logDir.create(recursive: true);
-    }
+  Logger.level = Level.trace;
+  _output = AdvancedFileOutput(
+    path: logDir.path,
+    latestFileName: _logFileName,
+    maxFileSizeKB: _maxFileSizeKB,
+    maxRotatedFilesCount: _maxRotatedFilesCount,
+  );
+  Logger.defaultOutput = () => _output!;
+}
 
-    Logger.level = Level.trace;
-    _output = AdvancedFileOutput(
-      path: logDir.path,
-      latestFileName: _logFileName,
-      maxFileSizeKB: _maxFileSizeKB,
-      maxRotatedFilesCount: _maxRotatedFilesCount,
-    );
-    Logger.defaultOutput = () => _output!;
-  }
+/// 创建带模块标签的 Logger 实例
+///
+/// 标签会显示在每条日志输出中，方便区分来源模块。
+Logger createLogger(String tag) {
+  return Logger(
+    printer: _TaggedPrinter(tag),
+    output: _output ?? ConsoleOutput(),
+  );
 }
 
 /// 自定义日志打印机：在 PrettyPrinter 输出前加上模块标签
