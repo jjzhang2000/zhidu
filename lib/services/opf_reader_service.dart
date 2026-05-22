@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
-import 'package:logging/logging.dart';
+import 'package:logger/logger.dart';
+import 'log_helper.dart';
 import '../models/book.dart';
 
 /// OPF读取服务
@@ -9,7 +10,7 @@ import '../models/book.dart';
 /// 用于从外部metadata.opf文件读取书籍元数据
 /// 支持Calibre生成的OPF文件格式
 class OpfReaderService {
-  static final _log = Logger('OpfReaderService');
+  static final _log = Logger(output: LogHelper.output);
 
   /// 从指定的OPF文件路径读取元数据
   ///
@@ -27,7 +28,7 @@ class OpfReaderService {
       final content = await File(opfPath).readAsString();
       return _parseOpfContent(content);
     } catch (e) {
-      _log.warning('读取OPF文件失败: $opfPath, 错误: $e');
+      _log.w('读取OPF文件失败: $opfPath, 错误: $e');
       return null;
     }
   }
@@ -44,7 +45,7 @@ class OpfReaderService {
     final opfPath = p.join(bookDir, 'metadata.opf');
 
     if (await File(opfPath).exists()) {
-      _log.fine('找到OPF文件: $opfPath');
+      _log.d('找到OPF文件: $opfPath');
       return await readFromOpfFile(opfPath);
     }
 
@@ -65,7 +66,7 @@ class OpfReaderService {
       // 提取metadata部分
       final metadataElement = document.findAllElements('metadata').firstOrNull;
       if (metadataElement == null) {
-        _log.warning('OPF文件中未找到metadata元素');
+        _log.w('OPF文件中未找到metadata元素');
         return null;
       }
 
@@ -117,7 +118,7 @@ class OpfReaderService {
         coverPath: coverPath,
       );
     } catch (e) {
-      _log.warning('解析OPF内容失败, 错误: $e');
+      _log.w('解析OPF内容失败, 错误: $e');
       return null;
     }
   }

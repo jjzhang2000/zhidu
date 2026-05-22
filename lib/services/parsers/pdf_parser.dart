@@ -6,14 +6,15 @@ import 'package:image/image.dart' as img;
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
 import '../storage_config.dart';
-import 'package:logging/logging.dart';
+import 'package:logger/logger.dart';
+import '../log_helper.dart';
 
 /// PDF 格式解析器
 ///
 /// 章节检测：逐页匹配中英文章节标题正则，自动跳过封面页（首页文字 < 50 字符）。
 /// 封面提取：渲染第一页为 600px 宽 PNG 图片。
 class PdfParser implements BookFormatParser {
-  final _log = Logger('PdfParser');
+  final _log = Logger(output: LogHelper.output);
 
   @override
   Future<BookMetadata?> parseMetadata(String filePath, String bookId) async {
@@ -24,7 +25,7 @@ class PdfParser implements BookFormatParser {
       var title = fileName.substring(0, fileName.lastIndexOf('.'));
 
       final chapters = await _detectChapters(document);
-      _log.info('检测到 ${chapters.length} 个章节');
+      _log.i('检测到 ${chapters.length} 个章节');
 
       final String? coverPath = await _extractCover(document, bookId);
 
@@ -39,7 +40,7 @@ class PdfParser implements BookFormatParser {
         coverPath: coverPath,
       );
     } catch (e, stackTrace) {
-      _log.severe('解析 PDF 元数据失败', e, stackTrace);
+      _log.e('解析 PDF 元数据失败', error: e, stackTrace: stackTrace);
       return null;
     }
   }
@@ -49,7 +50,7 @@ class PdfParser implements BookFormatParser {
   Future<List<Chapter>> getChapters(String filePath) async {
     final file = File(filePath);
     if (!await file.exists()) {
-      _log.warning('文件不存在: $filePath');
+      _log.w('文件不存在: $filePath');
       return [];
     }
 
@@ -81,7 +82,7 @@ class PdfParser implements BookFormatParser {
 
       final effectivePages = totalPages - startOffset;
       if (effectivePages <= 0) {
-        _log.info('跳过封面后无有效页面');
+        _log.i('跳过封面后无有效页面');
         return [];
       }
 
@@ -128,7 +129,7 @@ class PdfParser implements BookFormatParser {
       }
 
       if (chapterBoundaries.length == 1) {
-        _log.info('未检测到章节结构，将有效文档视为一个章节');
+        _log.i('未检测到章节结构，将有效文档视为一个章节');
         return [
           Chapter(
             index: 0,
@@ -165,10 +166,10 @@ class PdfParser implements BookFormatParser {
         ));
       }
 
-      _log.info('检测到 ${chapters.length} 个章节');
+      _log.i('检测到 ${chapters.length} 个章节');
       return chapters;
     } catch (e, stackTrace) {
-      _log.severe('获取章节列表失败', e, stackTrace);
+      _log.e('获取章节列表失败', error: e, stackTrace: stackTrace);
       return [];
     }
   }
@@ -179,7 +180,7 @@ class PdfParser implements BookFormatParser {
       String filePath, Chapter chapter) async {
     final file = File(filePath);
     if (!await file.exists()) {
-      _log.warning('文件不存在: $filePath');
+      _log.w('文件不存在: $filePath');
       throw Exception('PDF file not found: $filePath');
     }
 
@@ -191,7 +192,7 @@ class PdfParser implements BookFormatParser {
 
       if (startPage == null || endPage == null) {
         await document.dispose();
-        _log.warning('章节缺少页面范围信息: ${chapter.title}');
+        _log.w('章节缺少页面范围信息: ${chapter.title}');
         return chapter;
       }
 
@@ -213,7 +214,7 @@ class PdfParser implements BookFormatParser {
       final plainText = buffer.toString().trim();
 
       if (plainText.isEmpty) {
-        _log.warning('章节内容为空: ${chapter.title}');
+        _log.w('章节内容为空: ${chapter.title}');
         return chapter;
       }
 
@@ -231,7 +232,7 @@ class PdfParser implements BookFormatParser {
         htmlContent: htmlContent,
       );
     } catch (e, stackTrace) {
-      _log.severe('获取章节内容失败', e, stackTrace);
+      _log.e('获取章节内容失败', error: e, stackTrace: stackTrace);
       return chapter;
     }
   }
@@ -306,7 +307,7 @@ class PdfParser implements BookFormatParser {
   Future<String?> _extractCover(PdfDocument document, String bookId) async {
     try {
       if (document.pages.isEmpty) {
-        _log.warning('PDF没有页面');
+        _log.w('PDF没有页面');
         return null;
       }
 
@@ -324,7 +325,7 @@ class PdfParser implements BookFormatParser {
       );
 
       if (pdfImage == null) {
-        _log.warning('渲染返回空图片');
+        _log.w('渲染返回空图片');
         return null;
       }
 
@@ -356,7 +357,7 @@ class PdfParser implements BookFormatParser {
 
       return coverPath;
     } catch (e, stackTrace) {
-      _log.severe('提取封面渲染失败', e, stackTrace);
+      _log.e('提取封面渲染失败', error: e, stackTrace: stackTrace);
       return null;
     }
   }

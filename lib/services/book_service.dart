@@ -2,12 +2,13 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
-import 'package:logging/logging.dart';
+import 'package:logger/logger.dart';
 import '../models/book.dart';
 import 'opf_reader_service.dart';
 import 'parsers/book_format_parser.dart';
 import 'storage_config.dart';
 import 'file_storage_service.dart';
+import 'log_helper.dart';
 
 /// 书籍管理服务 - 导入、存储、查询和删除
 class BookService {
@@ -16,7 +17,7 @@ class BookService {
   BookService._internal();
 
   final _uuid = const Uuid();
-  final _log = Logger('BookService');
+  final _log = Logger(output: LogHelper.output);
   final _fileStorage = FileStorageService();
 
   final List<Book> _books = [];
@@ -48,13 +49,13 @@ class BookService {
       if (metadata != null) {
         try {
           _books.add(Book.fromJson(metadata));
-        } catch (e) {
-          _log.severe('解析书籍元数据失败: $bookId', e);
+        } catch (e, stackTrace) {
+          _log.e('解析书籍元数据失败: $bookId', error: e, stackTrace: stackTrace);
         }
       }
     }
 
-    _log.info('从文件加载了 ${_books.length} 本书');
+    _log.i('从文件加载了 ${_books.length} 本书');
   }
 
   Future<void> _saveBooksIndex() async {
@@ -91,7 +92,7 @@ class BookService {
       try {
         opfMetadata = await OpfReaderService.readFromSameDirectory(filePath);
       } catch (e) {
-        _log.warning('读取外部OPF元数据失败，继续使用原解析逻辑: $e');
+        _log.w('读取外部OPF元数据失败，继续使用原解析逻辑: $e');
       }
 
       final extension = p.extension(filePath).toLowerCase();
@@ -99,13 +100,13 @@ class BookService {
 
       final parser = FormatRegistry.getParser(extension);
       if (parser == null) {
-        _log.warning('不支持的文件格式: $extension');
+        _log.w('不支持的文件格式: $extension');
         return null;
       }
 
       final metadata = await parser.parseMetadata(filePath, bookId);
       if (metadata == null) {
-        _log.warning('元数据解析失败: $filePath');
+        _log.w('元数据解析失败: $filePath');
         return null;
       }
 
@@ -136,7 +137,7 @@ class BookService {
               await File(coverAbsolutePath).copy(coverDestPath);
               finalCoverPath = coverDestPath;
             } catch (e) {
-              _log.warning('复制外部OPF封面文件失败: $e，使用原封面');
+              _log.w('复制外部OPF封面文件失败: $e，使用原封面');
             }
           }
         }
@@ -155,7 +156,7 @@ class BookService {
             .firstOrNull;
 
         if (existingBook != null) {
-          _log.info('书籍已存在: ${book.title}');
+          _log.i('书籍已存在: ${book.title}');
           return existingBook;
         }
 
@@ -163,13 +164,13 @@ class BookService {
         await _saveBooksIndex();
         await _saveBookMetadata(book);
 
-        _log.info('书籍导入成功: ${book.title}');
+        _log.i('书籍导入成功: ${book.title}');
         return book;
       }
 
       return null;
     } catch (e, stackTrace) {
-      _log.severe('导入书籍失败: $filePath', e, stackTrace);
+      _log.e('导入书籍失败: $filePath', error: e, stackTrace: stackTrace);
       return null;
     }
   }
@@ -189,13 +190,13 @@ class BookService {
 
       final filePath = result.files.first.path;
       if (filePath == null) {
-        _log.warning('文件路径为空');
+        _log.w('文件路径为空');
         return null;
       }
 
       return await importBookFromPath(filePath);
     } catch (e, stackTrace) {
-      _log.severe('导入书籍失败', e, stackTrace);
+      _log.e('导入书籍失败', error: e, stackTrace: stackTrace);
       return null;
     }
   }
@@ -206,11 +207,11 @@ class BookService {
 
   /// 删除书籍及其所有数据（不可逆）
   Future<bool> deleteBook(String id) async {
-    _log.info('删除书籍: $id');
+    _log.i('删除书籍: $id');
     try {
       final book = getBookById(id);
       if (book == null) {
-        _log.warning('要删除的书籍不存在: $id');
+        _log.w('要删除的书籍不存在: $id');
         return false;
       }
 
@@ -220,7 +221,7 @@ class BookService {
       if (await bookDir.exists()) {
         final deleted = await _fileStorage.deleteDirectory(bookDirPath);
         if (!deleted) {
-          _log.severe('删除书籍目录失败: ${book.title} ($id)');
+          _log.e('删除书籍目录失败: ${book.title} ($id)');
           return false;
         }
       }
@@ -228,17 +229,17 @@ class BookService {
       _books.removeWhere((b) => b.id == id);
       await _saveBooksIndex();
 
-      _log.info('书籍删除成功: ${book.title}');
+      _log.i('书籍删除成功: ${book.title}');
       return true;
     } catch (e, stackTrace) {
-      _log.severe('删除书籍失败: $id', e, stackTrace);
+      _log.e('删除书籍失败: $id', error: e, stackTrace: stackTrace);
       return false;
     }
   }
 
   /// 替换内存中的书并同步持久化
   Future<void> updateBook(Book book) async {
-    _log.info('更新书籍: ${book.title}');
+    _log.i('更新书籍: ${book.title}');
     try {
       final index = _books.indexWhere((b) => b.id == book.id);
       if (index >= 0) {
@@ -247,7 +248,7 @@ class BookService {
         await _saveBookMetadata(book);
       }
     } catch (e, stackTrace) {
-      _log.severe('更新书籍失败: ${book.id}', e, stackTrace);
+      _log.e('更新书籍失败: ${book.id}', error: e, stackTrace: stackTrace);
     }
   }
 

@@ -18,12 +18,13 @@ import 'dart:io';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:logging/logging.dart';
+import 'package:logger/logger.dart';
 import 'ai_prompts.dart';
 import 'settings_service.dart';
 import 'book_service.dart';
 import '../models/app_settings.dart';
 import '../l10n/app_localizations.dart';
+import 'log_helper.dart';
 
 
 /// 功能：AI服务单例类，封装与大语言模型API的所有交互
@@ -50,7 +51,7 @@ class AIService {
   AiSettings? _config;
 
   /// 日志服务实例
-  final _log = Logger('AIService');
+  final _log = Logger(output: LogHelper.output);
 
   // ==========================================================================
   // 区域1：生命周期管理
@@ -105,13 +106,13 @@ class AIService {
 
       if (aiSettings.isValid) {
         _config = aiSettings;
-        _log.info('AI配置加载成功: ${_config?.provider}, model: ${_config?.model}');
+        _log.i('AI配置加载成功: ${_config?.provider}, model: ${_config?.model}');
       } else {
-        _log.warning('AI配置无效，请检查设置');
+        _log.w('AI配置无效，请检查设置');
         _config = null;
       }
     } catch (e) {
-      _log.severe('从SettingsService加载AI配置失败', e);
+      _log.e('从SettingsService加载AI配置失败', error: e);
     }
   }
 
@@ -129,7 +130,7 @@ class AIService {
   /// - 生成摘要前检查服务可用性
   bool get isConfigured => _config?.isValid ?? false;
 
-  /// 获取当前AI提供商（如 'zhipu', 'qwen', 'ollama' 等）
+  /// 获取当前AI提供商（如 'zhipu', stackTrace: 'qwen', 'ollama' 等）
   String get currentProvider => _config?.provider ?? '';
 
   /// 方法名：updateConfig
@@ -154,7 +155,7 @@ class AIService {
   /// - false: 连接失败，配置可能不正确
   Future<bool> testConnection() async {
     if (!isConfigured) {
-      _log.warning('测试连接失败：配置无效');
+      _log.w('测试连接失败：配置无效');
       return false;
     }
 
@@ -164,7 +165,7 @@ class AIService {
       }
       return false;
     } catch (e) {
-      _log.severe('测试连接异常', e);
+      _log.e('测试连接异常', error: e);
       return false;
     }
   }
@@ -208,14 +209,14 @@ class AIService {
               .cast<String>()
               .toList();
 
-          _log.info('获取到 ${models.length} 个可用模型');
+          _log.i('获取到 ${models.length} 个可用模型');
           return models;
         }
       } else {
-        _log.warning('获取模型列表失败：${response.statusCode}');
+        _log.w('获取模型列表失败：${response.statusCode}');
       }
     } catch (e) {
-      _log.severe('获取模型列表异常', e);
+      _log.e('获取模型列表异常', error: e);
     }
 
     return [];
@@ -362,7 +363,7 @@ class AIService {
                 yield content;
               }
             } catch (e) {
-              _log.warning('解析SSE数据失败: $e, line: $line');
+              _log.w('解析SSE数据失败: $e, line: $line');
             }
 
             // 重置状态
@@ -371,10 +372,10 @@ class AIService {
           }
         }
       } else {
-        _log.severe('AI API 流式调用失败：${response.statusCode}');
+        _log.e('AI API 流式调用失败：${response.statusCode}');
       }
     } catch (e) {
-      _log.severe('流式请求异常', e);
+      _log.e('流式请求异常', error: e);
     } finally {
       httpClient.close();
     }
@@ -404,7 +405,7 @@ class AIService {
     String? bookId,
   }) async* {
     if (!isConfigured) {
-      _log.warning('AI 配置未设置或 API Key 无效');
+      _log.w('AI 配置未设置或 API Key 无效');
       return;
     }
 
@@ -427,7 +428,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.severe('生成章节摘要流失败', e);
+      _log.e('生成章节摘要流失败', error: e);
     }
   }
 
@@ -452,7 +453,7 @@ class AIService {
     String? bookId,
   }) async* {
     if (!isConfigured) {
-      _log.warning('AI 服务未配置或 API Key 无效');
+      _log.w('AI 服务未配置或 API Key 无效');
       return;
     }
 
@@ -477,7 +478,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.severe('生成全书摘要流失败', e);
+      _log.e('生成全书摘要流失败', error: e);
     }
   }
 
@@ -502,7 +503,7 @@ class AIService {
     String? bookId,
   }) async* {
     if (!isConfigured) {
-      _log.warning('AI 服务未配置或 API Key 无效');
+      _log.w('AI 服务未配置或 API Key 无效');
       return;
     }
 
@@ -527,7 +528,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.severe('基于前言生成全书摘要流失败', e);
+      _log.e('基于前言生成全书摘要流失败', error: e);
     }
   }
 
@@ -544,7 +545,7 @@ class AIService {
     required String targetLang,
   }) async* {
     if (!isConfigured) {
-      _log.warning('AI 配置未设置或 API Key 无效');
+      _log.w('AI 配置未设置或 API Key 无效');
       return;
     }
 
@@ -561,7 +562,7 @@ class AIService {
         yield chunk;
       }
     } catch (e) {
-      _log.severe('翻译HTML流失败', e);
+      _log.e('翻译HTML流失败', error: e);
     }
   }
 
@@ -584,7 +585,7 @@ class AIService {
     Function(String)? onProgress,
   }) async {
     if (!isConfigured) {
-      _log.warning('AI服务未配置，无法翻译');
+      _log.w('AI服务未配置，无法翻译');
       return '';
     }
 
@@ -657,7 +658,7 @@ class AIService {
       if (result.contains('en')) return 'en';
       return 'zh';
     } catch (e) {
-      _log.warning('AI 语言检测失败，默认中文: $e');
+      _log.w('AI 语言检测失败，默认中文: $e');
       return 'zh';
     }
   }
@@ -704,7 +705,7 @@ class AIService {
   String detectSystemLanguage() {
     try {
       final locale = Platform.localeName;
-      _log.fine('系统 locale: $locale');
+      _log.d('系统 locale: $locale');
       
       if (locale.startsWith('zh') || locale.contains('_CN') || locale.contains('_TW') || locale.contains('_HK')) {
         return 'zh';
@@ -716,7 +717,7 @@ class AIService {
       
       return 'zh';
     } catch (e) {
-      _log.warning('检测系统语言失败: $e，使用默认中文');
+      _log.w('检测系统语言失败: $e，使用默认中文');
       return 'zh';
     }
   }
@@ -731,7 +732,7 @@ class AIService {
   /// 返回语言代码：'zh'、'en'、'ja' 等
   Future<String> detectSourceLanguage({String? bookLanguage, String? content, String? bookId}) async {
     if (bookLanguage != null && bookLanguage.isNotEmpty) {
-      _log.fine('从元数据获取语言: $bookLanguage');
+      _log.d('从元数据获取语言: $bookLanguage');
       return convertLanguageCodeToStandard(bookLanguage);
     }
     if (content != null && content.isNotEmpty) {
@@ -748,7 +749,7 @@ class AIService {
     final book = BookService().getBookById(bookId);
     if (book != null && book.language != language) {
       await BookService().updateBook(book.copyWith(language: language));
-      _log.fine('已保存 AI 检测的语言到 Book: $language');
+      _log.d('已保存 AI 检测的语言到 Book: $language');
     }
   }
 

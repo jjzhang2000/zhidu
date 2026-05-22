@@ -30,7 +30,8 @@ import '../services/parsers/book_format_parser.dart';
 import '../models/chapter.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
-import 'package:logging/logging.dart';
+import 'package:logger/logger.dart';
+import '../services/log_helper.dart';
 import 'chapter_screen.dart';
 
 /// 书籍详情页面的StatefulWidget
@@ -56,7 +57,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   final _summaryService = SummaryService();
 
   /// 日志服务
-  final _log = Logger('BookScreen');
+  final _log = Logger(output: LogHelper.output);
 
   /// 当前书籍（可能被刷新更新）
   late Book _book;
@@ -160,7 +161,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
       // 根据书籍格式获取对应的解析器
       final parser = FormatRegistry.getParser('.${_book.format.name}');
       if (parser == null) {
-        _log.severe('不支持的格式: ${_book.format}');
+        _log.e('不支持的格式: ${_book.format}');
         setState(() => _isLoadingChapters = false);
         return;
       }
@@ -173,9 +174,9 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
         _isLoadingChapters = false;
       });
 
-      _log.info('章节加载完成: ${chapters.length} 个章节');
+      _log.i('章节加载完成: ${chapters.length} 个章节');
     } catch (e, stackTrace) {
-      _log.severe('加载章节列表失败', e, stackTrace);
+      _log.e('加载章节列表失败', error: e, stackTrace: stackTrace);
       if (mounted) {
         setState(() {
           _isLoadingChapters = false;
@@ -196,7 +197,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
         });
       }
     } catch (e, stackTrace) {
-      _log.severe('加载全书摘要失败', e, stackTrace);
+      _log.e('加载全书摘要失败', error: e, stackTrace: stackTrace);
     }
   }
 
@@ -229,7 +230,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     // 异步执行，不阻塞UI
     Future(() async {
       try {
-        _log.info('开始后台预生成摘要');
+        _log.i('开始后台预生成摘要');
 
         // 先刷新一次，因为 generateSummariesForBook 可能在前台已完成前言摘要
         // 避免重复生成或状态不一致
@@ -239,7 +240,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
         await _summaryService.generateSummariesForBook(_book);
         _refreshBookIfNeeded();
       } catch (e, stackTrace) {
-        _log.severe('后台预生成摘要失败', e, stackTrace);
+        _log.e('后台预生成摘要失败', error: e, stackTrace: stackTrace);
       } finally {
         _isPreGenerating = false;
       }
@@ -277,7 +278,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
-      _log.warning('刷新书籍摘要失败: $e');
+      _log.w('刷新书籍摘要失败: $e');
     }
   }
 
