@@ -53,7 +53,7 @@ END FUNCTION
 FUNCTION _initLogger() ASYNC:
     // 1. 获取应用文档目录
     appDir = AWAIT getApplicationDocumentsDirectory()
-    logDir = Directory('${appDir.path}/logs')
+    logDir = Directory('${appDir.path}/zhidu/logs')
 
     // 2. 确保日志目录存在
     IF NOT logDir EXISTS:

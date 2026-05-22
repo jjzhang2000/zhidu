@@ -19,7 +19,7 @@ import 'package:path_provider/path_provider.dart';
 
 Future<void> _initLogger() async {
   final appDir = await getApplicationDocumentsDirectory();
-  final logDir = Directory('${appDir.path}/logs');
+  final logDir = Directory('${appDir.path}/zhidu/logs');
   if (!await logDir.exists()) await logDir.create(recursive: true);
 
   Logger.level = Level.trace;
