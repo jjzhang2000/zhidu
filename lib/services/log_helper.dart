@@ -18,7 +18,7 @@ import 'package:path_provider/path_provider.dart';
 /// ```dart
 /// import 'package:logger/logger.dart';
 ///
-/// final _log = Logger(tag: 'EpubParser', output: LogHelper.output);
+/// final _log = LogHelper.createLogger('EpubParser');
 /// _log.i('开始解析: $filePath');
 /// _log.w('解析失败，使用回退方案');
 /// _log.e('致命错误', error: error, stackTrace: stackTrace);
@@ -29,6 +29,16 @@ class LogHelper {
 
   /// 全局日志输出器，所有 Logger 实例共享
   static LogOutput? output;
+
+  /// 创建带模块标签的 Logger 实例
+  ///
+  /// 标签会显示在每条日志输出中，方便区分来源模块。
+  static Logger createLogger(String tag) {
+    return Logger(
+      printer: _TaggedPrinter(tag),
+      output: output,
+    );
+  }
 
   /// 初始化日志服务
   ///
@@ -48,6 +58,20 @@ class LogHelper {
   static Future<void> dispose() async {
     await output?.destroy();
     output = null;
+  }
+}
+
+/// 自定义日志打印机：在 PrettyPrinter 输出前加上模块标签
+class _TaggedPrinter extends LogPrinter {
+  final String _tag;
+  final PrettyPrinter _printer;
+
+  _TaggedPrinter(this._tag) : _printer = PrettyPrinter(methodCount: 0);
+
+  @override
+  List<String> log(LogEvent event) {
+    final lines = _printer.log(event);
+    return lines.map((line) => '[$_tag] $line').toList();
   }
 }
 

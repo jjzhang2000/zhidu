@@ -17,7 +17,7 @@ class BookService {
   BookService._internal();
 
   final _uuid = const Uuid();
-  final _log = Logger(tag: 'BookService', output: LogHelper.output);
+  final _log = LogHelper.createLogger('BookService');
   final _fileStorage = FileStorageService();
 
   final List<Book> _books = [];
