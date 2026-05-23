@@ -5,22 +5,6 @@ import '../l10n/app_localizations.dart';
 /// 所有方法接收 [AppLocalizations] 实例，将提示词文本委托给 l10n 框架，
 /// 使提示词语言与 AI 输出语言自动保持一致。
 class AiPrompts {
-  /// 基于前言/序言内容生成全书摘要提示词
-  ///
-  /// [totalChapters] 可选，传入时会在提示词中附带"章节数：N"信息。
-  static String bookSummaryFromPreface({
-    required AppLocalizations loc,
-    required String title,
-    required String author,
-    required String prefaceContent,
-    int? totalChapters,
-  }) {
-    final chaptersLine = totalChapters != null
-        ? '- ${loc.promptBookChaptersLabel}$totalChapters'
-        : '';
-    return loc.promptPrefaceSummary(title, author, prefaceContent, chaptersLine);
-  }
-
   /// 基于章节摘要汇总生成全书摘要提示词
   ///
   /// [totalChapters] 可选，传入时会在提示词中附带"章节数：N"信息。

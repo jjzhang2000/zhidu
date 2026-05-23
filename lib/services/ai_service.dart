@@ -498,59 +498,8 @@ class AIService {
     }
   }
 
-  /// 方法名：generateBookSummaryFromPrefaceStream
-  /// 功能：基于前言/序言内容生成全书摘要（流式）
-  ///
-  /// 参数：
-  /// - title: 书籍标题
-  /// - author: 书籍作者
-  /// - prefaceContent: 前言/序言正文内容
-  /// - totalChapters: 总章节数（可选，用于提示词模板）
-  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的内容流
-  /// - 失败时返回空流
-  Stream<String> generateBookSummaryFromPrefaceStream({
-    required String title,
-    required String author,
-    required String prefaceContent,
-    int? totalChapters,
-    String? bookId,
-    String? language,
-  }) async* {
-    if (!isConfigured) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
-      return;
-    }
-
-    final outputLanguage = language ?? await resolveOutputLanguage(
-      SettingsService().settings.languageSettings,
-      content: prefaceContent,
-      bookId: bookId,
-    );
-
-    final loc = _getPromptLoc(outputLanguage);
-
-    final prompt = AiPrompts.bookSummaryFromPreface(
-      loc: loc,
-      title: title,
-      author: author,
-      prefaceContent: prefaceContent,
-      totalChapters: totalChapters,
-    );
-
-    try {
-      await for (final chunk in _callAIStream(prompt, language: outputLanguage)) {
-        yield chunk;
-      }
-    } catch (e) {
-      _log.e('AIService', '基于前言生成全书摘要流失败', e);
-    }
-  }
-
   // ==========================================================================
-  // 区域5：翻译
+  // 区域5：翻译服务 - 非流式封装
   // ==========================================================================
 
   /// 方法名：translateHtmlStream
