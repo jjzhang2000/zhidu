@@ -236,9 +236,9 @@ class AIService {
     final actualLanguage = language ?? 'zh';
     final lengthRatio = isChapterSummary ? '1/10' : '1/100';
     final systemPrompt = switch (actualLanguage) {
-      'en' => 'You are a professional book summary assistant. Language requirement: You MUST output ONLY in English. Do not use any other language. Generate a book summary that is approximately $lengthRatio of the original text length (character count). The summary should cover: 1) Main theme and purpose, 2) Key concepts and theories, 3) Important chapters and their content, 4) Practical applications, 5) Target audience. IMPORTANT: Do NOT output any title or heading. Start directly with the summary content.',
-      'ja' => 'あなたは専門家の書籍要約アシスタントです。言語要件：あなたは必ず日本語でのみ出力してください。他言語は使用禁止です。原文の$lengthRatioの長さ（文字数）の書籍要約を生成してください：1）主なテーマと目的、2）重要な概念と理論、3）重要な章とその内容、4）実践的な応用、5）対象読者。重要：タイトルや見出しを決して出力しないでください。直接要約コンテンツを開始してください。',
-      _ => '你是一个专业的书籍摘要助手。语言要求：你必须只使用中文输出，禁止使用其他语言。请生成一份约为原文$lengthRatio长度（字符数）的书籍摘要，内容包括：1）主要主题和目的，2）重要概念和理论，3）重要章节及其内容，4）实践应用，5）目标读者。重要：请不要输出任何标题或标题行。直接开始描述摘要内容。',
+      'en' => 'You are a professional book summary assistant. Language requirement: You MUST output ONLY in English. Do not use any other language. IMPORTANT: Your summary MUST be approximately $lengthRatio of the original text CHARACTER COUNT. For example, if the original is 5000 characters, your summary must be about ${isChapterSummary ? '500' : '50'} characters. Include: 1) Main theme and purpose, 2) Key concepts and theories, 3) Important details, 4) Practical applications. Do NOT output any title or heading. Start directly with the summary.',
+      'ja' => 'あなたは専門家の書籍要約アシスタントです。言語要件：あなたは必ず日本語でのみ出力してください。他言語は使用禁止です。重要：あなたの要約は原文の$lengthRatioの文字数である必要があります。例えば、原稿が5000文字の場合、要約は${isChapterSummary ? '約500' : '約50'}文字である必要があります。含むべき内容：1）主なテーマと目的、2）重要な概念と理論、3）重要な詳細、4）実践的な応用。タイトルや見出しを決して出力しないでください。直接要約コンテンツを開始してください。',
+      _ => '你是一个专业的书籍摘要助手。语言要求：你必须只使用中文输出，禁止使用其他语言。重要：你的摘要必须是原文的$lengthRatio字符数。例如，如果原文是5000字，你的摘要必须大约${isChapterSummary ? '500' : '50'}字。应包含：1）主要主题和目的，2）重要概念和理论，3）重要细节，4）实践应用。请不要输出任何标题或标题行。直接开始描述摘要内容。',
     };
     _log.d('AIService', 'systemPrompt[$actualLanguage]: $systemPrompt');
     final messages = <Map<String, String>>[];

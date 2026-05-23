@@ -297,19 +297,24 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 确定源语言和目标语言，判断译文Tab是否禁用
   Future<void> _initializeLanguageSettings() async {
+    final langSettings = SettingsService().settings.languageSettings;
+
     _sourceLang = await _aiService.detectSourceLanguage(bookLanguage: widget.book?.language, content: _content, bookId: widget.book?.id);
 
-    final lang = SettingsService().settings.languageSettings;
-    _targetLang = await _aiService.resolveOutputLanguage(
-      lang,
-      content: _content,
-      preResolvedLanguage: _sourceLang,
-    );
+    if (langSettings.aiLanguageMode == 'book') {
+      _targetLang = widget.book?.language ?? _sourceLang;
+    } else {
+      _targetLang = await _aiService.resolveOutputLanguage(
+        langSettings,
+        content: _content,
+        preResolvedLanguage: _sourceLang,
+      );
+    }
 
     _summaryLang = _targetLang ?? 'zh';
     _translationTabDisabled = _sourceLang == _targetLang;
 
-    _log.d('ChapterScreen', '源语言=$_sourceLang, 目标语言=$_targetLang, 译文Tab禁用=$_translationTabDisabled');
+    _log.d('ChapterScreen', '源语言=$_sourceLang, 目标语言=$_targetLang, 摘要语言=$_summaryLang, 译文Tab禁用=$_translationTabDisabled');
   }
 
   /// 从文件加载章节内容

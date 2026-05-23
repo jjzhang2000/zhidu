@@ -210,11 +210,14 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   ///
   /// - 'manual'：用户自选语言（[aiOutputLanguage]）
   /// - 'system'：跟随系统语言（通过 [PlatformDispatcher] 获取）
-  /// - 'book'：跟随书籍内容（由 AI 自动检测，这里返回系统语言作为默认值）
+  /// - 'book'：跟随书籍内容（使用书籍元数据中的语言作为默认值）
   String _getAiSummaryLanguage() {
     final langSettings = SettingsService().settings.languageSettings;
     if (langSettings.aiLanguageMode == 'manual') {
       return langSettings.aiOutputLanguage;
+    }
+    if (langSettings.aiLanguageMode == 'book') {
+      return _book.language ?? PlatformDispatcher.instance.locale.languageCode;
     }
     return PlatformDispatcher.instance.locale.languageCode;
   }
