@@ -217,7 +217,8 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
       return langSettings.aiOutputLanguage;
     }
     if (langSettings.aiLanguageMode == 'book') {
-      return _book.language ?? PlatformDispatcher.instance.locale.languageCode;
+      final bookLang = _aiService.convertLanguageCodeToStandard(_book.language ?? '');
+      return bookLang.isEmpty ? PlatformDispatcher.instance.locale.languageCode : bookLang;
     }
     return PlatformDispatcher.instance.locale.languageCode;
   }
