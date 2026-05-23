@@ -1,20 +1,10 @@
-/// ============================================================================
-/// 文件名：app_settings.dart
-/// 功能：应用设置数据模型定义
-/// ============================================================================
-
-/// 枚举：主题模式
-///
-/// 定义应用支持的三种主题模式：
-/// - [system]: 跟随系统设置
-/// - [light]: 强制使用浅色主题
-/// - [dark]: 强制使用深色主题
+/// 主题模式枚举，支持系统/浅色/深色三种模式
 enum ThemeMode {
   system,
   light,
   dark;
 
-  /// 从字符串解析主题模式
+  /// 从字符串解析主题模式，无法匹配时返回 [system]
   static ThemeMode fromString(String? value) {
     switch (value) {
       case 'light':
@@ -27,22 +17,21 @@ enum ThemeMode {
   }
 }
 
-/// 类名：AiSettings
-/// 功能：AI服务设置数据模型
-///
-/// 主要用途：
-/// - 存储AI服务提供商配置（智谱/通义千问等）
-/// - 管理API Key、模型、Base URL等参数
-/// - 提供配置有效性验证
+/// AI 服务配置，存储提供商、密钥、模型及接口地址
 class AiSettings {
+  /// AI 提供商标识，如 'qwen'、'zhipu'、'deepseek'、'ollama' 等
   final String provider;
 
+  /// API 密钥，本地部署提供商可为空
   final String apiKey;
 
+  /// 模型名称，如 'qwen-plus'、'glm-4' 等
   final String model;
 
+  /// API 接口地址
   final String baseUrl;
 
+  /// 是否需要 API Key（本地部署提供商不需要）
   bool get requiresApiKey {
     const localProviders = {'ollama', 'lmstudio'};
     return !localProviders.contains(provider);
@@ -88,6 +77,7 @@ class AiSettings {
     );
   }
 
+  /// 配置是否有效：云服务需要非空且非占位符的 API Key，本地服务需要非空 baseUrl
   bool get isValid {
     if (requiresApiKey) {
       return apiKey.isNotEmpty && !_isPlaceholderApiKey(apiKey);
@@ -96,26 +86,21 @@ class AiSettings {
     }
   }
 
+  /// 判断是否为占位符 API Key（如 YOUR_KEY_HERE）
   bool _isPlaceholderApiKey(String key) {
     return key.startsWith('YOUR_') && key.endsWith('_HERE');
   }
 }
 
-/// 类名：ThemeSettings
-/// 功能：主题设置数据模型
-///
-/// 主要用途：
-/// - 存储主题模式偏好（系统/浅色/深色）
+/// 主题设置，存储主题模式偏好
 class ThemeSettings {
   /// 主题模式
   final ThemeMode mode;
 
-  /// 构造函数
   ThemeSettings({
     this.mode = ThemeMode.system,
   });
 
-  /// 创建副本
   ThemeSettings copyWith({
     ThemeMode? mode,
   }) {
@@ -124,14 +109,12 @@ class ThemeSettings {
     );
   }
 
-  /// 序列化为JSON
   Map<String, dynamic> toJson() {
     return {
       'mode': mode.name,
     };
   }
 
-  /// 从JSON反序列化
   factory ThemeSettings.fromJson(Map<String, dynamic> json) {
     return ThemeSettings(
       mode: ThemeMode.fromString(json['mode']),
@@ -139,30 +122,20 @@ class ThemeSettings {
   }
 }
 
-/// 类名：LanguageSettings
-/// 功能：语言设置数据模型
-///
-/// 主要用途：
-/// - 配置 AI 输出语言偏好（跟随书籍/跟随系统/用户自选）
-/// - 配置界面语言偏好（跟随系统/用户自选）
+/// 语言设置，配置 AI 输出语言和界面语言的偏好模式
 class LanguageSettings {
-  /// AI 输出语言模式
-  /// 可选值：'book'（跟随书籍）、'system'（跟随系统）、'manual'（用户自选）
+  /// AI 输出语言模式：'book'（跟随书籍）、'system'（跟随系统）、'manual'（用户自选）
   final String aiLanguageMode;
 
-  /// AI 输出语言（当 aiLanguageMode 为'manual'时使用）
-  /// 可选值：'zh'（中文）、'en'（英文）、'ja'（日文）等
+  /// AI 输出语言，仅当 [aiLanguageMode] 为 'manual' 时生效，如 'zh'、'en'、'ja'
   final String aiOutputLanguage;
 
-  /// 界面语言模式
-  /// 可选值：'system'（跟随系统）、'manual'（用户自选）
+  /// 界面语言模式：'system'（跟随系统）、'manual'（用户自选）
   final String uiLanguageMode;
 
-  /// 界面语言（当 uiLanguageMode 为'manual'时使用）
-  /// 可选值：'zh'（中文）、'en'（英文）、'ja'（日文）等
+  /// 界面语言，仅当 [uiLanguageMode] 为 'manual' 时生效，如 'zh'、'en'、'ja'
   final String uiLanguage;
 
-  /// 构造函数
   LanguageSettings({
     this.aiLanguageMode = 'book',
     this.aiOutputLanguage = 'zh',
@@ -170,7 +143,6 @@ class LanguageSettings {
     this.uiLanguage = 'zh',
   });
 
-  /// 创建副本
   LanguageSettings copyWith({
     String? aiLanguageMode,
     String? aiOutputLanguage,
@@ -205,7 +177,6 @@ class LanguageSettings {
     );
   }
 
-  /// 序列化为 JSON
   Map<String, dynamic> toJson() {
     return {
       'aiLanguageMode': aiLanguageMode,
@@ -215,7 +186,6 @@ class LanguageSettings {
     };
   }
 
-  /// 从 JSON 反序列化
   factory LanguageSettings.fromJson(Map<String, dynamic> json) {
     return LanguageSettings(
       aiLanguageMode: json['aiLanguageMode'] ?? 'book',
@@ -226,20 +196,12 @@ class LanguageSettings {
   }
 }
 
-/// 类名：AppSettings
-/// 功能：应用完整设置数据模型
-///
-/// 主要用途：
-/// - 聚合所有设置类别（AI、主题、语言）
-/// - 提供统一的序列化/反序列化接口
-/// - 作为SettingsService的数据载体
+/// 应用完整设置，聚合 AI、主题、语言三类配置，作为 SettingsService 的数据载体
 class AppSettings {
-  /// AI设置
+  /// AI 设置
   final AiSettings aiSettings;
 
-  /// 已保存的AI配置列表
-  /// 用于保存用户曾经配置过的所有AI提供商配置，方便下次直接使用
-  /// key 为 provider，value 为该提供商的完整AiSettings配置
+  /// 已保存的 AI 配置映射，key 为 provider，value 为对应完整配置
   final Map<String, AiSettings> savedAiConfigs;
 
   /// 主题设置
@@ -248,10 +210,9 @@ class AppSettings {
   /// 语言设置
   final LanguageSettings languageSettings;
 
-  /// 设置版本号（用于未来迁移）
+  /// 设置版本号，用于未来数据迁移
   final int version;
 
-  /// 构造函数
   AppSettings({
     AiSettings? aiSettings,
     Map<String, AiSettings>? savedAiConfigs,
@@ -263,7 +224,6 @@ class AppSettings {
         themeSettings = themeSettings ?? ThemeSettings(),
         languageSettings = languageSettings ?? LanguageSettings();
 
-  /// 创建副本
   AppSettings copyWith({
     AiSettings? aiSettings,
     Map<String, AiSettings>? savedAiConfigs,
@@ -280,7 +240,6 @@ class AppSettings {
     );
   }
 
-  /// 序列化为JSON
   Map<String, dynamic> toJson() {
     return {
       'aiSettings': aiSettings.toJson(),
@@ -293,7 +252,6 @@ class AppSettings {
     };
   }
 
-  /// 从JSON反序列化
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     Map<String, AiSettings> savedAiConfigs = {};
     if (json['savedAiConfigs'] != null) {
