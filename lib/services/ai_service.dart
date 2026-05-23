@@ -233,13 +233,14 @@ class AIService {
 
   /// 构建 AI 请求消息列表
   List<Map<String, String>> _buildMessages(String prompt, String? language) {
-    final systemPrompt = switch (language) {
+    final actualLanguage = language ?? 'zh';
+    final systemPrompt = switch (actualLanguage) {
       'en' => 'You are a professional book summary assistant. You MUST respond in English. Generate a book summary that is approximately 1/100 of the original text length. The summary should cover: 1) Main theme and purpose, 2) Key concepts and theories, 3) Important chapters and their content, 4) Practical applications, 5) Target audience. IMPORTANT: Do NOT output any title or heading. Start directly with the summary content in plain text format.',
       'ja' => 'あなたは専門家の書籍要約アシスタントです。必ず日本語で応答してください。原文の約1/100の長さの書籍要約を生成してください：1）主なテーマと目的、2）重要な概念と理論、3）重要な章とその内容、4）実践的な応用、5）対象読者。重要：タイトルや見出しを決して出力しないでください。直接要約コンテンツを開始してください。',
       _ => '你是一个专业的书籍摘要助手。请生成一份约为原文1/100长度的书籍摘要，内容包括：1）主要主题和目的，2）重要概念和理论，3）重要章节及其内容，4）实践应用，5）目标读者。重要：请不要输出任何标题或标题行。直接开始描述摘要内容。',
     };
-    _log.d('AIService', 'systemPrompt[$language]: $systemPrompt');
-    _log.d('AIService', 'userPrompt[$language]: $prompt');
+    _log.d('AIService', 'systemPrompt[$actualLanguage]: $systemPrompt');
+    _log.d('AIService', 'userPrompt[$actualLanguage]: $prompt');
     final messages = <Map<String, String>>[];
     messages.add({'role': 'system', 'content': systemPrompt});
     messages.add({'role': 'user', 'content': prompt});
