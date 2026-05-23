@@ -274,7 +274,6 @@ class SummaryService {
     String language = 'zh',  // 语言代码
   }) async {
     final key = _key(bookId, chapterIndex);
-    _log.d('SummaryService', 'generateSingleSummary: key=$key, language=$language');
 
     // 并发控制：检查是否正在生成
     if (_generatingKeys.contains(key)) {

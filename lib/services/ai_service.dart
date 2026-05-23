@@ -240,7 +240,6 @@ class AIService {
       _ => '你是一个专业的书籍摘要助手。语言要求：你必须只使用中文输出，禁止使用其他语言。请生成一份约为原文1/100长度的书籍摘要，内容包括：1）主要主题和目的，2）重要概念和理论，3）重要章节及其内容，4）实践应用，5）目标读者。重要：请不要输出任何标题或标题行。直接开始描述摘要内容。',
     };
     _log.d('AIService', 'systemPrompt[$actualLanguage]: $systemPrompt');
-    _log.d('AIService', 'userPrompt[$actualLanguage]: $prompt');
     final messages = <Map<String, String>>[];
     messages.add({'role': 'system', 'content': systemPrompt});
     final userPromptWithLanguage = switch (actualLanguage) {
