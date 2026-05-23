@@ -109,49 +109,49 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsTitle;
 
-  /// AI Configuration page title
+  /// AI config section title
   ///
   /// In en, this message translates to:
   /// **'AI Configuration'**
   String get aiConfigTitle;
 
-  /// No description provided for @aiConfigScreenTitle.
+  /// AI config page title
   ///
   /// In en, this message translates to:
   /// **'AI Configuration'**
   String get aiConfigScreenTitle;
 
-  /// No description provided for @readThinThick.
+  /// App subtitle
   ///
   /// In en, this message translates to:
   /// **'Read Thin First, Then Thick'**
   String get readThinThick;
 
-  /// Appearance Settings title
+  /// Appearance settings title
   ///
   /// In en, this message translates to:
   /// **'Appearance Settings'**
   String get appearanceSettingTitle;
 
-  /// Theme Settings title
+  /// Theme settings section title
   ///
   /// In en, this message translates to:
   /// **'Theme Settings'**
   String get themeSettingTitle;
 
-  /// No description provided for @themeSettingsScreenTitle.
+  /// Theme settings page title
   ///
   /// In en, this message translates to:
   /// **'Theme Settings'**
   String get themeSettingsScreenTitle;
 
-  /// Language Settings title
+  /// Language settings section title
   ///
   /// In en, this message translates to:
   /// **'Language Settings'**
   String get languageSettingTitle;
 
-  /// No description provided for @languageSettingsScreenTitle.
+  /// Language settings page title
   ///
   /// In en, this message translates to:
   /// **'Language Settings'**
@@ -163,367 +163,367 @@ abstract class AppLocalizations {
   /// **'About'**
   String get aboutTitle;
 
-  /// No description provided for @themeModeSystem.
+  /// Theme mode - system
   ///
   /// In en, this message translates to:
   /// **'System'**
   String get themeModeSystem;
 
-  /// No description provided for @themeModeLight.
+  /// Theme mode - light
   ///
   /// In en, this message translates to:
   /// **'Light'**
   String get themeModeLight;
 
-  /// No description provided for @themeModeDark.
+  /// Theme mode - dark
   ///
   /// In en, this message translates to:
   /// **'Dark'**
   String get themeModeDark;
 
-  /// No description provided for @aiLanguageFollowBook.
+  /// AI language mode - follow book
   ///
   /// In en, this message translates to:
   /// **'Follow Book'**
   String get aiLanguageFollowBook;
 
-  /// No description provided for @aiLanguageFollowSystem.
+  /// AI language mode - follow system
   ///
   /// In en, this message translates to:
   /// **'Follow System'**
   String get aiLanguageFollowSystem;
 
-  /// No description provided for @aiLanguageManualSelect.
+  /// AI language mode - manual select
   ///
   /// In en, this message translates to:
   /// **'Manual Select'**
   String get aiLanguageManualSelect;
 
-  /// No description provided for @uiLanguageFollowSystem.
+  /// UI language mode - follow system
   ///
   /// In en, this message translates to:
   /// **'Follow System'**
   String get uiLanguageFollowSystem;
 
-  /// No description provided for @uiLanguageManualSelect.
+  /// UI language mode - manual select
   ///
   /// In en, this message translates to:
   /// **'Manual Select'**
   String get uiLanguageManualSelect;
 
-  /// No description provided for @selectAiOutputLanguage.
+  /// AI output language picker title
   ///
   /// In en, this message translates to:
   /// **'Select AI Output Language'**
   String get selectAiOutputLanguage;
 
-  /// No description provided for @selectUiLanguage.
+  /// UI language picker title
   ///
   /// In en, this message translates to:
   /// **'Select UI Language'**
   String get selectUiLanguage;
 
-  /// No description provided for @aiOutputLanguage.
+  /// AI output language label
   ///
   /// In en, this message translates to:
   /// **'AI Output Language'**
   String get aiOutputLanguage;
 
-  /// No description provided for @uiDisplayLanguage.
+  /// UI display language label
   ///
   /// In en, this message translates to:
   /// **'Interface Language'**
   String get uiDisplayLanguage;
 
-  /// No description provided for @aiLanguageSetting.
+  /// AI language setting section title
   ///
   /// In en, this message translates to:
   /// **'AI Language Setting'**
   String get aiLanguageSetting;
 
-  /// No description provided for @uiLanguageSetting.
+  /// UI language setting section title
   ///
   /// In en, this message translates to:
   /// **'Interface Language Setting'**
   String get uiLanguageSetting;
 
-  /// No description provided for @aiLanguageControl.
+  /// AI language setting description
   ///
   /// In en, this message translates to:
   /// **'Controls the language of AI-generated content'**
   String get aiLanguageControl;
 
-  /// No description provided for @uiLanguageControl.
+  /// UI language setting description
   ///
   /// In en, this message translates to:
   /// **'Controls the display language of the app interface'**
   String get uiLanguageControl;
 
-  /// No description provided for @aiLayeredReader.
+  /// App name description
   ///
   /// In en, this message translates to:
   /// **'AI Layered Reader'**
   String get aiLayeredReader;
 
-  /// No description provided for @search.
+  /// Search hint
   ///
   /// In en, this message translates to:
   /// **'Search'**
   String get search;
 
-  /// No description provided for @bookshelfEmpty.
+  /// Empty bookshelf hint
   ///
   /// In en, this message translates to:
   /// **'Bookshelf is empty'**
   String get bookshelfEmpty;
 
-  /// No description provided for @noRelatedBooks.
+  /// No search results hint
   ///
   /// In en, this message translates to:
   /// **'No related books found'**
   String get noRelatedBooks;
 
-  /// No description provided for @tryOtherKeywords.
+  /// No search results suggestion
   ///
   /// In en, this message translates to:
   /// **'Please try other keywords'**
   String get tryOtherKeywords;
 
-  /// No description provided for @clickToAddBooks.
+  /// Add book guidance
   ///
   /// In en, this message translates to:
   /// **'Click button at bottom right to add books'**
   String get clickToAddBooks;
 
-  /// No description provided for @confirmRemoval.
+  /// Removal confirm dialog title
   ///
   /// In en, this message translates to:
   /// **'Confirm removal'**
   String get confirmRemoval;
 
-  /// No description provided for @removeConfirmation.
+  /// Removal confirm dialog message
   ///
   /// In en, this message translates to:
   /// **'Are you sure you want to remove《{bookTitle}》?'**
   String removeConfirmation(String bookTitle);
 
-  /// No description provided for @cancel.
+  /// Cancel button
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get cancel;
 
-  /// No description provided for @remove.
+  /// Remove button
   ///
   /// In en, this message translates to:
   /// **'Remove'**
   String get remove;
 
-  /// No description provided for @zhipuProvider.
+  /// AI provider - Zhipu
   ///
   /// In en, this message translates to:
   /// **'Zhipu'**
   String get zhipuProvider;
 
-  /// No description provided for @qwenProvider.
+  /// AI provider - Qwen
   ///
   /// In en, this message translates to:
   /// **'Qwen'**
   String get qwenProvider;
 
-  /// No description provided for @deepseekProvider.
+  /// AI provider - DeepSeek
   ///
   /// In en, this message translates to:
   /// **'DeepSeek'**
   String get deepseekProvider;
 
-  /// No description provided for @minimaxProvider.
+  /// AI provider - MiniMax
   ///
   /// In en, this message translates to:
   /// **'MiniMax'**
   String get minimaxProvider;
 
-  /// No description provided for @ollamaProvider.
+  /// AI provider - Ollama local
   ///
   /// In en, this message translates to:
   /// **'Ollama (Local)'**
   String get ollamaProvider;
 
-  /// No description provided for @lmstudioProvider.
+  /// AI provider - LM Studio local
   ///
   /// In en, this message translates to:
   /// **'LM Studio (Local)'**
   String get lmstudioProvider;
 
-  /// No description provided for @chineseLanguage.
+  /// Language option - Chinese
   ///
   /// In en, this message translates to:
   /// **'Simplified Chinese'**
   String get chineseLanguage;
 
-  /// No description provided for @englishLanguage.
+  /// Language option - English
   ///
   /// In en, this message translates to:
   /// **'English'**
   String get englishLanguage;
 
-  /// No description provided for @japaneseLanguage.
+  /// Language option - Japanese
   ///
   /// In en, this message translates to:
   /// **'Japanese'**
   String get japaneseLanguage;
 
-  /// No description provided for @notConfiguredClickToSet.
+  /// AI not configured hint
   ///
   /// In en, this message translates to:
   /// **'Not configured (click to set)'**
   String get notConfiguredClickToSet;
 
-  /// No description provided for @addedSuccessfully.
+  /// Book added success message
   ///
   /// In en, this message translates to:
   /// **'Added: {bookTitle}'**
   String addedSuccessfully(String bookTitle);
 
-  /// No description provided for @removedSuccessfully.
+  /// Book removed success message
   ///
   /// In en, this message translates to:
   /// **'Removed《{bookTitle}》'**
   String removedSuccessfully(String bookTitle);
 
-  /// No description provided for @themeModeSystemSubtitle.
+  /// Theme mode - system description
   ///
   /// In en, this message translates to:
   /// **'Automatically follow system theme settings'**
   String get themeModeSystemSubtitle;
 
-  /// No description provided for @themeModeLightSubtitle.
+  /// Theme mode - light description
   ///
   /// In en, this message translates to:
   /// **'Always use light theme'**
   String get themeModeLightSubtitle;
 
-  /// No description provided for @themeModeDarkSubtitle.
+  /// Theme mode - dark description
   ///
   /// In en, this message translates to:
   /// **'Always use dark theme'**
   String get themeModeDarkSubtitle;
 
-  /// No description provided for @aiLanguageModeBookSubtitle.
+  /// AI language mode - follow book description
   ///
   /// In en, this message translates to:
   /// **'Automatically detect language from book content'**
   String get aiLanguageModeBookSubtitle;
 
-  /// No description provided for @aiLanguageModeSystemSubtitle.
+  /// AI language mode - follow system description
   ///
   /// In en, this message translates to:
   /// **'Use system language settings'**
   String get aiLanguageModeSystemSubtitle;
 
-  /// No description provided for @aiLanguageModeManualSubtitle.
+  /// AI language mode - manual select description
   ///
   /// In en, this message translates to:
   /// **'Manually specify AI output language'**
   String get aiLanguageModeManualSubtitle;
 
-  /// No description provided for @uiLanguageModeSystemSubtitle.
+  /// UI language mode - follow system description
   ///
   /// In en, this message translates to:
   /// **'Use system language settings'**
   String get uiLanguageModeSystemSubtitle;
 
-  /// No description provided for @uiLanguageModeManualSubtitle.
+  /// UI language mode - manual select description
   ///
   /// In en, this message translates to:
   /// **'Manually specify interface display language'**
   String get uiLanguageModeManualSubtitle;
 
-  /// No description provided for @testing.
+  /// Connection testing status
   ///
   /// In en, this message translates to:
   /// **'Testing...'**
   String get testing;
 
-  /// No description provided for @saving.
+  /// Saving status
   ///
   /// In en, this message translates to:
   /// **'Saving...'**
   String get saving;
 
-  /// No description provided for @failed.
+  /// Operation failed message
   ///
   /// In en, this message translates to:
   /// **'Failed'**
   String get failed;
 
-  /// No description provided for @version.
+  /// Version label
   ///
   /// In en, this message translates to:
   /// **'Version'**
   String get version;
 
-  /// No description provided for @aiServiceSettings.
+  /// AI service settings section title
   ///
   /// In en, this message translates to:
   /// **'AI Service Settings'**
   String get aiServiceSettings;
 
-  /// No description provided for @importBook.
+  /// Import book button
   ///
   /// In en, this message translates to:
   /// **'Import Book'**
   String get importBook;
 
-  /// No description provided for @aiProvider.
+  /// AI provider label
   ///
   /// In en, this message translates to:
   /// **'AI Provider'**
   String get aiProvider;
 
-  /// No description provided for @apiKey.
+  /// API key label
   ///
   /// In en, this message translates to:
   /// **'API Key'**
   String get apiKey;
 
-  /// No description provided for @model.
+  /// Model label
   ///
   /// In en, this message translates to:
   /// **'Model'**
   String get model;
 
-  /// No description provided for @baseUrl.
+  /// Base URL label
   ///
   /// In en, this message translates to:
   /// **'Base URL'**
   String get baseUrl;
 
-  /// Prompt - Chapters label
+  /// Prompt - chapters label
   ///
   /// In en, this message translates to:
   /// **'Chapters: '**
   String get promptBookChaptersLabel;
 
-  /// Prompt - Book Summary template
+  /// Prompt - book summary template
   ///
   /// In en, this message translates to:
   /// **'{title}|{author}|{chapterSummaries}|{chaptersLine}'**
   String promptBookSummary(String title, String author, String chapterSummaries, String chaptersLine);
 
-  /// Prompt - Preface Summary template
+  /// Prompt - preface summary template
   ///
   /// In en, this message translates to:
   /// **'{title}|{author}|{prefaceContent}|{chaptersLine}'**
   String promptPrefaceSummary(String title, String author, String prefaceContent, String chaptersLine);
 
-  /// Prompt - Chapter Summary template
+  /// Prompt - chapter summary template
   ///
   /// In en, this message translates to:
   /// **'{chapterTitle}|{content}'**
   String promptChapterSummary(String chapterTitle, String content);
 
-  /// Prompt - HTML Translation template
+  /// Prompt - HTML translation template
   ///
   /// In en, this message translates to:
   /// **'{content}|{chapterTitle}'**

@@ -2,13 +2,13 @@
   "appTitle": "智读",
   "settingsTitle": "设置",
   "aiConfigTitle": "AI配置",
-  "aiConfigScreenTitle": "AI配置",
+  "aiConfigScreenTitle": "AI配置页面标题",
   "readThinThick": "先读薄，再读厚",
   "appearanceSettingTitle": "外观设置",
   "themeSettingTitle": "主题设置",
-  "themeSettingsScreenTitle": "主题设置",
+  "themeSettingsScreenTitle": "主题设置页面标题",
   "languageSettingTitle": "语言设置",
-  "languageSettingsScreenTitle": "语言设置",
+  "languageSettingsScreenTitle": "语言设置页面标题",
   "aboutTitle": "关于",
   "themeModeSystem": "跟随系统",
   "themeModeLight": "浅色",
@@ -72,25 +72,214 @@
   "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
   "@appTitle": {
-    "description": "App的标题"
+    "description": "应用标题"
   },
   "@settingsTitle": {
     "description": "设置页面标题"
   },
   "@aiConfigTitle": {
+    "description": "AI配置分组标题"
+  },
+  "@aiConfigScreenTitle": {
     "description": "AI配置页面标题"
+  },
+  "@readThinThick": {
+    "description": "应用副标题"
   },
   "@appearanceSettingTitle": {
     "description": "外观设置标题"
   },
   "@themeSettingTitle": {
-    "description": "主题设置标题"
+    "description": "主题设置分组标题"
+  },
+  "@themeSettingsScreenTitle": {
+    "description": "主题设置页面标题"
   },
   "@languageSettingTitle": {
-    "description": "语言设置标题"
+    "description": "语言设置分组标题"
+  },
+  "@languageSettingsScreenTitle": {
+    "description": "语言设置页面标题"
   },
   "@aboutTitle": {
     "description": "关于标题"
+  },
+  "@themeModeSystem": {
+    "description": "主题模式-跟随系统"
+  },
+  "@themeModeLight": {
+    "description": "主题模式-浅色"
+  },
+  "@themeModeDark": {
+    "description": "主题模式-深色"
+  },
+  "@aiLanguageFollowBook": {
+    "description": "AI语言模式-跟随书籍"
+  },
+  "@aiLanguageFollowSystem": {
+    "description": "AI语言模式-跟随系统"
+  },
+  "@aiLanguageManualSelect": {
+    "description": "AI语言模式-用户自选"
+  },
+  "@uiLanguageFollowSystem": {
+    "description": "界面语言模式-跟随系统"
+  },
+  "@uiLanguageManualSelect": {
+    "description": "界面语言模式-用户自选"
+  },
+  "@selectAiOutputLanguage": {
+    "description": "AI输出语言选择对话框标题"
+  },
+  "@selectUiLanguage": {
+    "description": "界面语言选择对话框标题"
+  },
+  "@aiOutputLanguage": {
+    "description": "AI输出语言标签"
+  },
+  "@uiDisplayLanguage": {
+    "description": "界面显示语言标签"
+  },
+  "@aiLanguageSetting": {
+    "description": "AI语言设置分组标题"
+  },
+  "@uiLanguageSetting": {
+    "description": "界面语言设置分组标题"
+  },
+  "@aiLanguageControl": {
+    "description": "AI语言设置说明"
+  },
+  "@uiLanguageControl": {
+    "description": "界面语言设置说明"
+  },
+  "@aiLayeredReader": {
+    "description": "应用名称描述"
+  },
+  "@search": {
+    "description": "搜索提示文本"
+  },
+  "@bookshelfEmpty": {
+    "description": "书架为空提示"
+  },
+  "@noRelatedBooks": {
+    "description": "搜索无结果提示"
+  },
+  "@tryOtherKeywords": {
+    "description": "搜索无结果建议"
+  },
+  "@clickToAddBooks": {
+    "description": "添加书籍引导"
+  },
+  "@confirmRemoval": {
+    "description": "移除确认对话框标题"
+  },
+  "@removeConfirmation": {
+    "description": "移除确认对话框内容",
+    "placeholders": {
+      "bookTitle": { "type": "String" }
+    }
+  },
+  "@cancel": {
+    "description": "取消按钮"
+  },
+  "@remove": {
+    "description": "移除按钮"
+  },
+  "@zhipuProvider": {
+    "description": "AI提供商-智谱"
+  },
+  "@qwenProvider": {
+    "description": "AI提供商-通义千问"
+  },
+  "@deepseekProvider": {
+    "description": "AI提供商-DeepSeek"
+  },
+  "@minimaxProvider": {
+    "description": "AI提供商-MiniMax"
+  },
+  "@ollamaProvider": {
+    "description": "AI提供商-Ollama本地部署"
+  },
+  "@lmstudioProvider": {
+    "description": "AI提供商-LM Studio本地部署"
+  },
+  "@chineseLanguage": {
+    "description": "语言选项-简体中文"
+  },
+  "@englishLanguage": {
+    "description": "语言选项-English"
+  },
+  "@japaneseLanguage": {
+    "description": "语言选项-日本語"
+  },
+  "@notConfiguredClickToSet": {
+    "description": "AI未配置状态提示"
+  },
+  "@addedSuccessfully": {
+    "description": "书籍添加成功提示",
+    "placeholders": {
+      "bookTitle": { "type": "String" }
+    }
+  },
+  "@removedSuccessfully": {
+    "description": "书籍移除成功提示",
+    "placeholders": {
+      "bookTitle": { "type": "String" }
+    }
+  },
+  "@themeModeSystemSubtitle": {
+    "description": "主题模式-跟随系统说明"
+  },
+  "@themeModeLightSubtitle": {
+    "description": "主题模式-浅色说明"
+  },
+  "@themeModeDarkSubtitle": {
+    "description": "主题模式-深色说明"
+  },
+  "@aiLanguageModeBookSubtitle": {
+    "description": "AI语言模式-跟随书籍说明"
+  },
+  "@aiLanguageModeSystemSubtitle": {
+    "description": "AI语言模式-跟随系统说明"
+  },
+  "@aiLanguageModeManualSubtitle": {
+    "description": "AI语言模式-用户自选说明"
+  },
+  "@uiLanguageModeSystemSubtitle": {
+    "description": "界面语言模式-跟随系统说明"
+  },
+  "@uiLanguageModeManualSubtitle": {
+    "description": "界面语言模式-用户自选说明"
+  },
+  "@testing": {
+    "description": "连接测试中状态"
+  },
+  "@saving": {
+    "description": "保存中状态"
+  },
+  "@failed": {
+    "description": "操作失败提示"
+  },
+  "@version": {
+    "description": "版本号标签"
+  },
+  "@aiServiceSettings": {
+    "description": "AI服务设置分组标题"
+  },
+  "@importBook": {
+    "description": "导入书籍按钮"
+  },
+  "@aiProvider": {
+    "description": "AI提供商标签"
+  },
+  "@apiKey": {
+    "description": "API密钥标签"
+  },
+  "@model": {
+    "description": "模型标签"
+  },
+  "@baseUrl": {
+    "description": "基础URL标签"
   },
   "@promptBookChaptersLabel": {
     "description": "提示词-章节数标签"
@@ -125,21 +314,6 @@
     "placeholders": {
       "content": { "type": "String" },
       "chapterTitle": { "type": "String" }
-    }
-  },
-  "@removeConfirmation": {
-    "placeholders": {
-      "bookTitle": { "type": "String" }
-    }
-  },
-  "@addedSuccessfully": {
-    "placeholders": {
-      "bookTitle": { "type": "String" }
-    }
-  },
-  "@removedSuccessfully": {
-    "placeholders": {
-      "bookTitle": { "type": "String" }
     }
   }
 }

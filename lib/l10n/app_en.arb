@@ -78,25 +78,214 @@
     "description": "Settings page title"
   },
   "@aiConfigTitle": {
-    "description": "AI Configuration page title"
+    "description": "AI config section title"
+  },
+  "@aiConfigScreenTitle": {
+    "description": "AI config page title"
+  },
+  "@readThinThick": {
+    "description": "App subtitle"
   },
   "@appearanceSettingTitle": {
-    "description": "Appearance Settings title"
+    "description": "Appearance settings title"
   },
   "@themeSettingTitle": {
-    "description": "Theme Settings title"
+    "description": "Theme settings section title"
+  },
+  "@themeSettingsScreenTitle": {
+    "description": "Theme settings page title"
   },
   "@languageSettingTitle": {
-    "description": "Language Settings title"
+    "description": "Language settings section title"
+  },
+  "@languageSettingsScreenTitle": {
+    "description": "Language settings page title"
   },
   "@aboutTitle": {
     "description": "About title"
   },
+  "@themeModeSystem": {
+    "description": "Theme mode - system"
+  },
+  "@themeModeLight": {
+    "description": "Theme mode - light"
+  },
+  "@themeModeDark": {
+    "description": "Theme mode - dark"
+  },
+  "@aiLanguageFollowBook": {
+    "description": "AI language mode - follow book"
+  },
+  "@aiLanguageFollowSystem": {
+    "description": "AI language mode - follow system"
+  },
+  "@aiLanguageManualSelect": {
+    "description": "AI language mode - manual select"
+  },
+  "@uiLanguageFollowSystem": {
+    "description": "UI language mode - follow system"
+  },
+  "@uiLanguageManualSelect": {
+    "description": "UI language mode - manual select"
+  },
+  "@selectAiOutputLanguage": {
+    "description": "AI output language picker title"
+  },
+  "@selectUiLanguage": {
+    "description": "UI language picker title"
+  },
+  "@aiOutputLanguage": {
+    "description": "AI output language label"
+  },
+  "@uiDisplayLanguage": {
+    "description": "UI display language label"
+  },
+  "@aiLanguageSetting": {
+    "description": "AI language setting section title"
+  },
+  "@uiLanguageSetting": {
+    "description": "UI language setting section title"
+  },
+  "@aiLanguageControl": {
+    "description": "AI language setting description"
+  },
+  "@uiLanguageControl": {
+    "description": "UI language setting description"
+  },
+  "@aiLayeredReader": {
+    "description": "App name description"
+  },
+  "@search": {
+    "description": "Search hint"
+  },
+  "@bookshelfEmpty": {
+    "description": "Empty bookshelf hint"
+  },
+  "@noRelatedBooks": {
+    "description": "No search results hint"
+  },
+  "@tryOtherKeywords": {
+    "description": "No search results suggestion"
+  },
+  "@clickToAddBooks": {
+    "description": "Add book guidance"
+  },
+  "@confirmRemoval": {
+    "description": "Removal confirm dialog title"
+  },
+  "@removeConfirmation": {
+    "description": "Removal confirm dialog message",
+    "placeholders": {
+      "bookTitle": { "type": "String" }
+    }
+  },
+  "@cancel": {
+    "description": "Cancel button"
+  },
+  "@remove": {
+    "description": "Remove button"
+  },
+  "@zhipuProvider": {
+    "description": "AI provider - Zhipu"
+  },
+  "@qwenProvider": {
+    "description": "AI provider - Qwen"
+  },
+  "@deepseekProvider": {
+    "description": "AI provider - DeepSeek"
+  },
+  "@minimaxProvider": {
+    "description": "AI provider - MiniMax"
+  },
+  "@ollamaProvider": {
+    "description": "AI provider - Ollama local"
+  },
+  "@lmstudioProvider": {
+    "description": "AI provider - LM Studio local"
+  },
+  "@chineseLanguage": {
+    "description": "Language option - Chinese"
+  },
+  "@englishLanguage": {
+    "description": "Language option - English"
+  },
+  "@japaneseLanguage": {
+    "description": "Language option - Japanese"
+  },
+  "@notConfiguredClickToSet": {
+    "description": "AI not configured hint"
+  },
+  "@addedSuccessfully": {
+    "description": "Book added success message",
+    "placeholders": {
+      "bookTitle": { "type": "String" }
+    }
+  },
+  "@removedSuccessfully": {
+    "description": "Book removed success message",
+    "placeholders": {
+      "bookTitle": { "type": "String" }
+    }
+  },
+  "@themeModeSystemSubtitle": {
+    "description": "Theme mode - system description"
+  },
+  "@themeModeLightSubtitle": {
+    "description": "Theme mode - light description"
+  },
+  "@themeModeDarkSubtitle": {
+    "description": "Theme mode - dark description"
+  },
+  "@aiLanguageModeBookSubtitle": {
+    "description": "AI language mode - follow book description"
+  },
+  "@aiLanguageModeSystemSubtitle": {
+    "description": "AI language mode - follow system description"
+  },
+  "@aiLanguageModeManualSubtitle": {
+    "description": "AI language mode - manual select description"
+  },
+  "@uiLanguageModeSystemSubtitle": {
+    "description": "UI language mode - follow system description"
+  },
+  "@uiLanguageModeManualSubtitle": {
+    "description": "UI language mode - manual select description"
+  },
+  "@testing": {
+    "description": "Connection testing status"
+  },
+  "@saving": {
+    "description": "Saving status"
+  },
+  "@failed": {
+    "description": "Operation failed message"
+  },
+  "@version": {
+    "description": "Version label"
+  },
+  "@aiServiceSettings": {
+    "description": "AI service settings section title"
+  },
+  "@importBook": {
+    "description": "Import book button"
+  },
+  "@aiProvider": {
+    "description": "AI provider label"
+  },
+  "@apiKey": {
+    "description": "API key label"
+  },
+  "@model": {
+    "description": "Model label"
+  },
+  "@baseUrl": {
+    "description": "Base URL label"
+  },
   "@promptBookChaptersLabel": {
-    "description": "Prompt - Chapters label"
+    "description": "Prompt - chapters label"
   },
   "@promptBookSummary": {
-    "description": "Prompt - Book Summary template",
+    "description": "Prompt - book summary template",
     "placeholders": {
       "title": { "type": "String" },
       "author": { "type": "String" },
@@ -105,7 +294,7 @@
     }
   },
   "@promptPrefaceSummary": {
-    "description": "Prompt - Preface Summary template",
+    "description": "Prompt - preface summary template",
     "placeholders": {
       "title": { "type": "String" },
       "author": { "type": "String" },
@@ -114,32 +303,17 @@
     }
   },
   "@promptChapterSummary": {
-    "description": "Prompt - Chapter Summary template",
+    "description": "Prompt - chapter summary template",
     "placeholders": {
       "chapterTitle": { "type": "String" },
       "content": { "type": "String" }
     }
   },
   "@promptTranslateHtml": {
-    "description": "Prompt - HTML Translation template",
+    "description": "Prompt - HTML translation template",
     "placeholders": {
       "content": { "type": "String" },
       "chapterTitle": { "type": "String" }
-    }
-  },
-  "@removeConfirmation": {
-    "placeholders": {
-      "bookTitle": { "type": "String" }
-    }
-  },
-  "@addedSuccessfully": {
-    "placeholders": {
-      "bookTitle": { "type": "String" }
-    }
-  },
-  "@removedSuccessfully": {
-    "placeholders": {
-      "bookTitle": { "type": "String" }
     }
   }
 }

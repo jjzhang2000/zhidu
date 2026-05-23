@@ -77,6 +77,7 @@ lib/
 
 ### 版本历史
 
+**2026-05-23**: l10n 注释统一 — 补全 55 个缺失的 @key 描述，消除所有 "No description provided"；统一注释风格（分类+用途）
 **2026-05-23**: l10n 僵尸字符串清理 — 删除 43 个未使用 key，消除重复键，补齐跨语言缺失；arb 文件精简约 100 行
 **2026-05-23**: LogService 日志路径添加 zhidu，移除文件名时间戳，1MB 自动滚动；消除重复解析（generateSummariesForBook 接收 chapters 参数）；语言设置防重更新
 **2026-05-22**: 合并 EpubService/PdfService 到 EpubParser/PdfParser，统一元数据解析接口，删除两服务文件

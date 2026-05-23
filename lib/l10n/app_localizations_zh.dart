@@ -18,7 +18,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiConfigTitle => 'AI配置';
 
   @override
-  String get aiConfigScreenTitle => 'AI配置';
+  String get aiConfigScreenTitle => 'AI配置页面标题';
 
   @override
   String get readThinThick => '先读薄，再读厚';
@@ -30,13 +30,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeSettingTitle => '主题设置';
 
   @override
-  String get themeSettingsScreenTitle => '主题设置';
+  String get themeSettingsScreenTitle => '主题设置页面标题';
 
   @override
   String get languageSettingTitle => '语言设置';
 
   @override
-  String get languageSettingsScreenTitle => '语言设置';
+  String get languageSettingsScreenTitle => '语言设置页面标题';
 
   @override
   String get aboutTitle => '关于';
