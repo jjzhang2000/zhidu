@@ -77,6 +77,8 @@ lib/
 
 ### 版本历史
 
+**2026-05-23**: l10n 僵尸字符串清理 — 删除 43 个未使用 key，消除重复键，补齐跨语言缺失；arb 文件精简约 100 行
+**2026-05-23**: LogService 日志路径添加 zhidu，移除文件名时间戳，1MB 自动滚动；消除重复解析（generateSummariesForBook 接收 chapters 参数）；语言设置防重更新
 **2026-05-22**: 合并 EpubService/PdfService 到 EpubParser/PdfParser，统一元数据解析接口，删除两服务文件
 **2026-05-21**: 僵尸代码清理 — EpubService(-67%)、PdfService(-60%)、BookService(-33%)；删除 chapterTitles 持久化；AI语言检测改用流式识别
 **2026-05-21**: AiPrompts 精简 — 提示词 l10n 化，消除占位符和死方法，删除 systemMessage 参数

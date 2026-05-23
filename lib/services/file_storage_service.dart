@@ -29,7 +29,7 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:logger/logger.dart';
+import 'log_service.dart';
 
 /// 文件存储服务
 ///
@@ -61,7 +61,7 @@ class FileStorageService {
   FileStorageService._internal();
 
   /// 日志服务实例
-  final _log = Logger();
+  final _log = LogService();
 
   /// 读取JSON文件
   ///
@@ -100,7 +100,8 @@ class FileStorageService {
       final content = await file.readAsString();
       return jsonDecode(content) as Map<String, dynamic>;
     } catch (e, stackTrace) {
-      _log.e('读取JSON失败: $filePath', error: e, stackTrace: stackTrace);
+      // 捕获所有异常（文件读取错误、JSON解析错误等）
+      _log.e('FileStorageService', '读取JSON失败: $filePath', e, stackTrace);
       return null;
     }
   }
@@ -156,7 +157,7 @@ class FileStorageService {
       await file.writeAsString(content, flush: true);
       return true;
     } catch (e, stackTrace) {
-      _log.e('写入JSON失败: $filePath', error: e, stackTrace: stackTrace);
+      _log.e('FileStorageService', '写入JSON失败: $filePath', e, stackTrace);
       return false;
     }
   }
@@ -192,7 +193,7 @@ class FileStorageService {
       }
       return await file.readAsString();
     } catch (e, stackTrace) {
-      _log.e('读取文本失败: $filePath', error: e, stackTrace: stackTrace);
+      _log.e('FileStorageService', '读取文本失败: $filePath', e, stackTrace);
       return null;
     }
   }
@@ -238,7 +239,7 @@ class FileStorageService {
       await file.writeAsString(content, flush: true);
       return true;
     } catch (e, stackTrace) {
-      _log.e('写入文本失败: $filePath', error: e, stackTrace: stackTrace);
+      _log.e('FileStorageService', '写入文本失败: $filePath', e, stackTrace);
       return false;
     }
   }
@@ -273,7 +274,7 @@ class FileStorageService {
       }
       return true;
     } catch (e, stackTrace) {
-      _log.e('删除文件失败: $filePath', error: e, stackTrace: stackTrace);
+      _log.e('FileStorageService', '删除文件失败: $filePath', e, stackTrace);
       return false;
     }
   }
@@ -312,7 +313,7 @@ class FileStorageService {
       }
       return true;
     } catch (e, stackTrace) {
-      _log.e('删除目录失败: $dirPath', error: e, stackTrace: stackTrace);
+      _log.e('FileStorageService', '删除目录失败: $dirPath', e, stackTrace);
       return false;
     }
   }
@@ -372,7 +373,7 @@ class FileStorageService {
 
       return files;
     } catch (e, stackTrace) {
-      _log.e('列出文件失败: $dirPath', error: e, stackTrace: stackTrace);
+      _log.e('FileStorageService', '列出文件失败: $dirPath', e, stackTrace);
       return [];
     }
   }

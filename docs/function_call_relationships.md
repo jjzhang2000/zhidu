@@ -215,7 +215,7 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `detectLanguageFromContent()` | `detectSourceLanguage()`, `resolveOutputLanguage()` |
 | `detectSourceLanguage()` | `_detectLanguageFromMetadataAndContentWithBookId()`, ChapterScreen._initializeLanguageSettings() |
 | `detectSystemLanguage()` | `resolveOutputLanguage()`, `_getPromptLoc()` |
-| `needsTranslation()` | ChapterScreen._initializeLanguageSettings() |
+| `needsTranslation()` | (已废弃，ChapterScreen 改用源语言==目标语言判断) |
 | `convertLanguageCodeToStandard()` | `detectSourceLanguage()` |
 | `_callAIStream()` (内部) | 所有流式方法 |
 | `get config` | SummaryService, SettingsScreen |

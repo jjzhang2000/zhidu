@@ -60,27 +60,26 @@ PRIVATE PROPERTIES:
 
 ```pseudocode
 ASYNC METHOD init(minLevel: LogLevel = verbose, writeToFile: Boolean = false):
-    // 设置最低日志级别
     _minLevel = minLevel
-    
-    // 设置文件写入标志
     _writeToFile = writeToFile
     
-    // 如果启用文件写入
     IF _writeToFile:
-        // 生成时间戳格式的文件名
-        timestamp = formatDateTime(now(), 'yyyyMMdd_HHmmss')
-        _logFilePath = '{currentDirectory}/logs/app_{timestamp}.log'
+        // 固定文件名，自动滚动
+        _logFilePath = '{appDocDir}/zhidu/logs/app.log'
+        
+        // 检查文件大小，超过阈值则删除
+        logFile = File(_logFilePath)
+        IF await logFile.exists():
+            length = await logFile.length()
+            IF length > _maxLogSizeBytes:
+                await logFile.delete()
         
         // 创建日志目录（如果不存在）
-        logDir = Directory('{currentDirectory}/logs')
+        logDir = Directory('{appDocDir}/zhidu/logs')
         IF NOT await logDir.exists():
             await logDir.create(recursive: true)
         
-        // 打开文件写入流
         _logSink = File(_logFilePath).openWrite(mode: append)
-        
-        // 记录初始化完成日志
         info('LogService', '日志服务初始化完成，日志文件: {_logFilePath}')
 ```
 
@@ -95,8 +94,9 @@ ASYNC METHOD init(minLevel: LogLevel = verbose, writeToFile: Boolean = false):
 │  设置 _writeToFile = writeToFile                            │
 │                                                             │
 │  IF _writeToFile:                                           │
-│      ├─ 生成时间戳: yyyyMMdd_HHmmss                         │
-│      ├─ 构建路径: logs/app_{timestamp}.log                  │
+│      ├─ 构建路径: zhidu/logs/app.log (固定文件名)           │
+│      ├─ 检查文件是否存在                                     │
+│      │   └─ 存在 → 检查大小 > 1MB → 删除                    │
 │      ├─ 检查目录是否存在                                     │
 │      │   └─ 不存在 → 创建目录 (recursive)                   │
 │      ├─ 打开文件写入流 (append mode)                         │
@@ -318,13 +318,10 @@ CATCH e:
 ### 文件存储
 
 ```
-存储位置: {工作目录}/logs/
-文件名格式: app_yyyyMMdd_HHmmss.log
+存储位置: {appDocDir}/zhidu/logs/
+文件名: app.log（固定文件名，单份日志）
 写入模式: append（追加模式）
-
-示例文件:
-  logs/app_20260422_103015.log
-  logs/app_20260422_143052.log
+自动滚动: 文件超过 1MB 时自动删除重建
 ```
 
 ### 文件生命周期

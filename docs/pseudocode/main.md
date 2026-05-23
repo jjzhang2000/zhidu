@@ -20,8 +20,11 @@ FUNCTION main() ASYNC:
     // 2. 初始化桌面窗口（标题、尺寸、位置、最小尺寸）
     AWAIT initDesktopWindow()
 
-    // 3. 初始化日志服务（logger 库 + AdvancedFileOutput 文件轮转）
-    AWAIT _initLogger()
+    // 3. 初始化日志服务（logging 官方库 + 文件持久化）
+    AWAIT LogHelper.init(
+        minLevel = Level.ALL,
+        writeToFile = true
+    )
     LOG "应用启动"
 
     // 4. 初始化格式注册表（注册 EPUB 和 PDF 解析器）
@@ -38,37 +41,6 @@ FUNCTION main() ASYNC:
 
     // 7. 启动 Flutter 应用
     CALL runApp(ZhiduApp())
-END FUNCTION
-```
-
----
-
-## 函数：_initLogger()
-
-**功能**：初始化 logger 库 + AdvancedFileOutput 文件轮转
-
-**伪代码**：
-
-```
-FUNCTION _initLogger() ASYNC:
-    // 1. 获取应用文档目录
-    appDir = AWAIT getApplicationDocumentsDirectory()
-    logDir = Directory('${appDir.path}/zhidu/logs')
-
-    // 2. 确保日志目录存在
-    IF NOT logDir EXISTS:
-        AWAIT logDir.create(recursive: true)
-
-    // 3. 设置全局日志级别
-    Logger.level = Level.trace
-
-    // 4. 配置 AdvancedFileOutput 文件输出
-    Logger.defaultOutput = () => AdvancedFileOutput(
-        path = logDir.path,
-        latestFileName = 'app.log',
-        maxFileSizeKB = 1024,
-        maxRotatedFilesCount = 2
-    )
 END FUNCTION
 ```
 
