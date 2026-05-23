@@ -382,8 +382,8 @@ class SummaryService {
       }
 
       if (book.format == BookFormat.epub) {
-        await _generateBookSummaryFromPreface(book, chapters, parser, language: language);
         await _generateChapterSummaries(book, chapters, parser, language: language);
+        await _generateBookSummaryFromChapters(book, chapters, language: language);
       } else {
         await _generateChapterSummaries(book, chapters, parser, language: language);
         await _generateBookSummaryFromChapters(book, chapters, language: language);
@@ -566,12 +566,12 @@ class SummaryService {
       final chapterSummaries = <String>[];
       final contentSamples = <String>[];
 
-      for (int i = 0; i < chapters.length && i < 10; i++) {
+      for (int i = 0; i < chapters.length && i < 30; i++) {
         final summary = await getSummary(book.id, i, language: language);
         if (summary != null && summary.objectiveSummary != null && summary.objectiveSummary!.isNotEmpty) {
-          // 截取前200字避免内容过长
-          final shortSummary = summary.objectiveSummary!.length > 200
-              ? summary.objectiveSummary!.substring(0, 200)
+          // 截取前400字保持摘要完整性
+          final shortSummary = summary.objectiveSummary!.length > 400
+              ? summary.objectiveSummary!.substring(0, 400)
               : summary.objectiveSummary!;
           chapterSummaries.add('第${i + 1}章：$shortSummary...');
         }
