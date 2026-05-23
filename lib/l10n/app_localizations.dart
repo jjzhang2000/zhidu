@@ -63,14 +63,18 @@ import 'app_localizations_zh.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
+  /// Creates an AppLocalizations instance for the given [locale].
   AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
+  /// Canonicalized locale name used by intl message lookup.
   final String localeName;
 
+  /// Retrieves the AppLocalizations instance from the given [context].
   static AppLocalizations? of(BuildContext context) {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
+  /// Localizations delegate for loading AppLocalizations.
   static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
@@ -314,6 +318,7 @@ abstract class AppLocalizations {
   String promptTranslateHtml(String content, String chapterTitle);
 }
 
+/// Delegate for loading AppLocalizations based on locale.
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
@@ -329,9 +334,8 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
+/// Returns the AppLocalizations implementation for the given [locale].
 AppLocalizations lookupAppLocalizations(Locale locale) {
-
-
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'en': return AppLocalizationsEn();
