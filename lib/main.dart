@@ -1,31 +1,77 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'l10n/app_localizations.dart';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:screen_retriever/screen_retriever.dart';
+import 'package:window_manager/window_manager.dart';
+
+import 'models/app_settings.dart' as models;
+import 'l10n/app_localizations.dart';
 import 'screens/home_screen.dart';
-import 'services/book_service.dart';
 import 'services/ai_service.dart';
-import 'services/summary_service.dart';
+import 'services/book_service.dart';
 import 'services/log_service.dart';
 import 'services/parsers/book_format_parser.dart';
 import 'services/parsers/epub_parser.dart';
 import 'services/parsers/pdf_parser.dart';
-import 'utils/app_theme.dart';
-import 'utils/window_utils.dart';
 import 'services/settings_service.dart';
-import '../models/app_settings.dart' as AppModels;
+import 'services/summary_service.dart';
+import 'utils/app_theme.dart';
 
+/// 判断当前是否为桌面平台（Windows/macOS/Linux）
+bool isDesktopPlatform() {
+  if (kIsWeb) return false;
+  return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+}
+
+/// 初始化桌面窗口：设置标题、居中、显示
+///
+/// 移动/Web 平台直接返回，不执行任何操作。
+Future<void> initDesktopWindow() async {
+  if (!isDesktopPlatform()) return;
+
+  await windowManager.ensureInitialized();
+  await windowManager.waitUntilReadyToShow(
+    const WindowOptions(
+      title: '智读',
+      titleBarStyle: TitleBarStyle.normal,
+      windowButtonVisibility: true,
+    ),
+  );
+
+  try {
+    final display = await screenRetriever.getPrimaryDisplay();
+    final displayPos = display.visiblePosition ?? const Offset(0, 0);
+    final visibleSize = display.visibleSize ?? display.size;
+    final double screenHeight = visibleSize.height;
+    final double screenWidth = visibleSize.width;
+
+    final double windowHeight = screenHeight;
+    double windowWidth = windowHeight * 0.75;
+    if (windowWidth > screenWidth) windowWidth = screenWidth;
+
+    final double windowLeft = displayPos.dx + (screenWidth - windowWidth) / 2;
+    final double windowTop = displayPos.dy + (screenHeight - windowHeight) / 2;
+
+    await windowManager.setBounds(
+      Rect.fromLTWH(windowLeft, windowTop, windowWidth, windowHeight),
+    );
+  } catch (e) {
+    await windowManager.setSize(const Size(960, 720));
+    await windowManager.center();
+  }
+
+  await windowManager.setMinimumSize(const Size(600, 400));
+  await windowManager.show();
+}
+
+/// 应用入口，初始化窗口、日志、服务后启动 ZhiduApp
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 在桌面平台上初始化窗口管理（内部会检查平台）
   await initDesktopWindow();
 
-  await LogService().init(
-    minLevel: LogLevel.verbose,
-    writeToFile: true,
-  );
-
+  await LogService().init(writeToFile: true);
   LogService().info('Main', '应用启动');
 
   _initializeFormatRegistry();
@@ -37,18 +83,17 @@ void main() async {
 
   LogService().info('Main', '所有服务初始化完成');
 
-  runApp(
-    const ZhiduApp(),
-  );
+  runApp(const ZhiduApp());
 }
 
-/// 初始化格式注册表，注册所有支持的解析器
+/// 注册所有支持的书籍格式解析器
 void _initializeFormatRegistry() {
   FormatRegistry.register('.epub', EpubParser());
   FormatRegistry.register('.pdf', PdfParser());
   LogService().info('Main', '格式注册表初始化完成，支持: epub, pdf');
 }
 
+/// 应用根 Widget，监听设置变化驱动主题和语言切换
 class ZhiduApp extends StatefulWidget {
   const ZhiduApp({super.key});
 
@@ -56,6 +101,7 @@ class ZhiduApp extends StatefulWidget {
   State<ZhiduApp> createState() => _ZhiduAppState();
 }
 
+/// 根状态，管理主题和语言 Locale，通过监听 SettingsService 响应设置变更
 class _ZhiduAppState extends State<ZhiduApp> {
   late final SettingsService _settingsService;
   Locale? _currentLocale;
@@ -66,7 +112,6 @@ class _ZhiduAppState extends State<ZhiduApp> {
     _settingsService = SettingsService();
     _settingsService.themeMode.addListener(_onAppSettingsChanged);
     _settingsService.languageSettings.addListener(_onAppSettingsChanged);
-
     _updateLocaleFromSettings();
   }
 
@@ -79,35 +124,23 @@ class _ZhiduAppState extends State<ZhiduApp> {
     super.dispose();
   }
 
+  /// 设置变更时触发重建，以更新主题和语言
   void _onAppSettingsChanged() {
-    setState(() {
-      _updateLocaleFromSettings();
-    });
+    setState(_updateLocaleFromSettings);
   }
 
+  /// 根据语言设置计算当前 Locale（跟随系统或用户自选）
   void _updateLocaleFromSettings() {
     final languageSettings = _settingsService.settings.languageSettings;
-    String languageCode = 'zh';
+    final String languageCode = languageSettings.uiLanguageMode == 'manual'
+        ? languageSettings.uiLanguage
+        : WidgetsBinding.instance.window.locale.languageCode;
 
-    if (languageSettings.uiLanguageMode == 'manual') {
-      languageCode = languageSettings.uiLanguage;
-    } else {
-      languageCode = WidgetsBinding.instance.window.locale.languageCode;
-    }
-
-    Locale newLocale;
-    switch (languageCode) {
-      case 'en':
-        newLocale = const Locale('en', 'US');
-        break;
-      case 'ja':
-        newLocale = const Locale('ja', 'JP');
-        break;
-      case 'zh':
-      default:
-        newLocale = const Locale('zh', 'CN');
-        break;
-    }
+    final Locale newLocale = switch (languageCode) {
+      'en' => const Locale('en', 'US'),
+      'ja' => const Locale('ja', 'JP'),
+      _ => const Locale('zh', 'CN'),
+    };
 
     if (_currentLocale?.languageCode != newLocale.languageCode) {
       _currentLocale = newLocale;
@@ -116,24 +149,14 @@ class _ZhiduAppState extends State<ZhiduApp> {
 
   @override
   Widget build(BuildContext context) {
-    ThemeMode flutterThemeMode =
-        _mapToFlutterThemeMode(_settingsService.themeMode.value);
-
     return MaterialApp(
-      title: _currentLocale != null
-          ? AppLocalizations.of(context)?.appTitle ?? '智读'
-          : '智读',
+      onGenerateTitle: (context) => AppLocalizations.of(context)?.appTitle ?? '智读',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: flutterThemeMode,
+      themeMode: _mapToFlutterThemeMode(_settingsService.themeMode.value),
       home: const HomeScreen(),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: const [
         Locale('zh', 'CN'),
         Locale('en', 'US'),
@@ -143,15 +166,12 @@ class _ZhiduAppState extends State<ZhiduApp> {
     );
   }
 
-  ThemeMode _mapToFlutterThemeMode(AppModels.ThemeMode appThemeMode) {
-    switch (appThemeMode) {
-      case AppModels.ThemeMode.light:
-        return ThemeMode.light;
-      case AppModels.ThemeMode.dark:
-        return ThemeMode.dark;
-      case AppModels.ThemeMode.system:
-      default:
-        return ThemeMode.system;
-    }
+  /// 将自定义 ThemeMode 映射为 Flutter ThemeMode
+  ThemeMode _mapToFlutterThemeMode(models.ThemeMode appThemeMode) {
+    return switch (appThemeMode) {
+      models.ThemeMode.light => ThemeMode.light,
+      models.ThemeMode.dark => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
   }
 }
