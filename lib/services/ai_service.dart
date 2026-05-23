@@ -418,13 +418,14 @@ class AIService {
     String content, {
     String? chapterTitle,
     String? bookId,
+    String? language,
   }) async* {
     if (!isConfigured) {
       _log.w('AIService', 'AI 配置未设置或 API Key 无效');
       return;
     }
 
-    final outputLanguage = await resolveOutputLanguage(
+    final outputLanguage = language ?? await resolveOutputLanguage(
       SettingsService().settings.languageSettings,
       content: content,
       bookId: bookId,

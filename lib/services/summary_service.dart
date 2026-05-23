@@ -293,6 +293,7 @@ class SummaryService {
         content,
         chapterTitle: chapterTitle,
         bookId: bookId,
+        language: language,
       );
 
       String accumulatedContent = '';
