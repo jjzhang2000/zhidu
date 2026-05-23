@@ -80,24 +80,24 @@ class SummaryService {
   late Semaphore _concurrentRequestSemaphore;
 
   /// 流式内容回调映射表
-  /// Key: bookId
-  /// Value: 回调函数
+  /// Key: {bookId}_{language}，支持同一本书不同语言同时生成
   final Map<String, Function(String)> _streamingCallbacks = {};
 
-  /// 注册全书摘要流式内容回调
-  void registerBookStreamingCallback(String bookId, Function(String) callback) {
-    _streamingCallbacks[bookId] = callback;
-    _log.d('SummaryService', '注册全书摘要流式回调: $bookId');
+  /// 注册全书摘要流式回调
+  void registerBookStreamingCallback(String bookId, String language, Function(String) callback) {
+    final key = '${bookId}_$language';
+    _streamingCallbacks[key] = callback;
+    _log.d('SummaryService', '注册全书摘要流式回调: $key, 当前回调数: ${_streamingCallbacks.length}');
   }
 
-  /// 取消全书摘要流式内容回调
-  void unregisterBookStreamingCallback(String bookId) {
-    _streamingCallbacks.remove(bookId);
-    _log.d('SummaryService', '取消全书摘要流式回调: $bookId');
+  /// 取消全书摘要流式回调
+  void unregisterBookStreamingCallback(String bookId, String language) {
+    _streamingCallbacks.remove('${bookId}_$language');
+    _log.d('SummaryService', '取消全书摘要流式回调: $bookId [$language]');
   }
 
   /// 章节摘要流式回调映射表
-  /// Key: {bookId}_{chapterIndex}
+  /// Key: {bookId}_{chapterIndex}_{language}
   final Map<String, Function(String)> _chapterCallbacks = {};
 
   /// 注册章节摘要流式回调
@@ -132,10 +132,14 @@ class SummaryService {
   }
 
   /// 触发全书摘要流式内容更新
-  void _notifyBookStreamingContent(String bookId, String content) {
-    final callback = _streamingCallbacks[bookId];
+  void _notifyBookStreamingContent(String bookId, String language, String content) {
+    final key = '${bookId}_$language';
+    final callback = _streamingCallbacks[key];
     if (callback != null) {
+      _log.d('SummaryService', '触发流式回调: $key, 内容长度: ${content.length}');
       callback(content);
+    } else {
+      _log.w('SummaryService', '未找到流式回调: $key');
     }
   }
 
@@ -356,14 +360,18 @@ class SummaryService {
   }
 
   /// 为整本书生成摘要（主入口）
-  Future<void> generateSummariesForBook(Book book, List<Chapter> chapters) async {
+  Future<void> generateSummariesForBook(
+    Book book,
+    List<Chapter> chapters, {
+    String language = 'zh',
+  }) async {
     try {
       if (chapters.isEmpty) {
         _log.w('SummaryService', '章节列表为空: ${book.title}');
         return;
       }
 
-      _log.d('SummaryService', '使用已有的 ${chapters.length} 个章节');
+      _log.d('SummaryService', '使用已有的 ${chapters.length} 个章节，语言: $language');
 
       final extension = book.format == BookFormat.epub ? '.epub' : '.pdf';
       final parser = FormatRegistry.getParser(extension);
@@ -374,11 +382,11 @@ class SummaryService {
       }
 
       if (book.format == BookFormat.epub) {
-        await _generateBookSummaryFromPreface(book, chapters, parser);
-        await _generateChapterSummaries(book, chapters, parser);
+        await _generateBookSummaryFromPreface(book, chapters, parser, language: language);
+        await _generateChapterSummaries(book, chapters, parser, language: language);
       } else {
-        await _generateChapterSummaries(book, chapters, parser);
-        await _generateBookSummaryFromChapters(book, chapters);
+        await _generateChapterSummaries(book, chapters, parser, language: language);
+        await _generateBookSummaryFromChapters(book, chapters, language: language);
       }
 
       _log.info('SummaryService', '书籍摘要生成完成: ${book.title}');
@@ -391,8 +399,9 @@ class SummaryService {
   Future<void> _generateChapterSummaries(
     Book book,
     List<Chapter> chapters,
-    dynamic parser,
-  ) async {
+    dynamic parser, {
+    String language = 'zh',
+  }) async {
     // 只为顶层章节（level==0）生成摘要
     final topLevelChapters = chapters.where((c) => c.level == 0).toList();
 
@@ -406,7 +415,7 @@ class SummaryService {
       if (chapterIndex < 0) continue; // 跳过无效index
 
       // 跳过已有摘要的章节
-      final existingSummary = await getSummary(book.id, chapterIndex, language: 'zh');
+      final existingSummary = await getSummary(book.id, chapterIndex, language: language);
       if (existingSummary != null) {
         continue;
       }
@@ -418,6 +427,7 @@ class SummaryService {
         chapterIndex,
         parser,
         semaphore,
+        language,
       );
 
       futures.add(future);
@@ -434,6 +444,7 @@ class SummaryService {
     int chapterIndex,
     dynamic parser,
     Semaphore semaphore,
+    String language,
   ) async {
     // 等待信号量许可
     await semaphore.acquire();
@@ -449,7 +460,7 @@ class SummaryService {
           chapterIndex,
           chapter.title,
           chapterContent,
-          language: 'zh',
+          language: language,
         );
       }
     } catch (e, stackTrace) {
@@ -464,13 +475,14 @@ class SummaryService {
   Future<void> _generateBookSummaryFromPreface(
     Book book,
     List<Chapter> chapters,
-    dynamic parser,
-  ) async {
+    dynamic parser, {
+    String language = 'zh',
+  }) async {
     try {
-      // 检查是否已有全书摘要
-      final existingSummary = await getBookSummary(book.id);
+      // 检查是否已有本书当前语言的摘要
+      final existingSummary = await getBookSummary(book.id, language: language);
       if (existingSummary != null && existingSummary.isNotEmpty) {
-        _log.d('SummaryService', '已有全书摘要，跳过: ${book.title}');
+        _log.d('SummaryService', '已有全书摘要[$language]，跳过: ${book.title}');
         return;
       }
 
@@ -515,18 +527,18 @@ class SummaryService {
         prefaceContent: prefaceContent.toString(),
         totalChapters: chapters.length,
         bookId: book.id,
+        language: language,
       );
 
       String accumulatedContent = '';
 
       await for (final chunk in stream) {
         accumulatedContent += chunk;
-        // 触发流式内容更新
-        _notifyBookStreamingContent(book.id, accumulatedContent);
+        _notifyBookStreamingContent(book.id, language, accumulatedContent);
       }
 
       if (accumulatedContent.isNotEmpty) {
-        await saveBookSummary(book.id, accumulatedContent, language: 'zh');
+        await saveBookSummary(book.id, accumulatedContent, language: language);
         _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
       } else {
         _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
@@ -539,13 +551,14 @@ class SummaryService {
   /// 从章节摘要生成全书摘要（用于PDF等无目录结构的文件）
   Future<void> _generateBookSummaryFromChapters(
     Book book,
-    List<Chapter> chapters,
-  ) async {
+    List<Chapter> chapters, {
+    String language = 'zh',
+  }) async {
     try {
-      // 检查是否已有全书摘要
-      final existingSummary = await getBookSummary(book.id);
+      // 检查是否已有本书当前语言的摘要
+      final existingSummary = await getBookSummary(book.id, language: language);
       if (existingSummary != null && existingSummary.isNotEmpty) {
-        _log.d('SummaryService', '已有全书摘要，跳过: ${book.title}');
+        _log.d('SummaryService', '已有全书摘要[$language]，跳过: ${book.title}');
         return;
       }
 
@@ -554,7 +567,7 @@ class SummaryService {
       final contentSamples = <String>[];
 
       for (int i = 0; i < chapters.length && i < 10; i++) {
-        final summary = await getSummary(book.id, i, language: 'zh');
+        final summary = await getSummary(book.id, i, language: language);
         if (summary != null && summary.objectiveSummary != null && summary.objectiveSummary!.isNotEmpty) {
           // 截取前200字避免内容过长
           final shortSummary = summary.objectiveSummary!.length > 200
@@ -608,19 +621,19 @@ class SummaryService {
         chapterSummaries: combinedContent,
         totalChapters: chapters.length,
         bookId: book.id,
+        language: language,
       );
 
       String accumulatedContent = '';
 
       await for (final chunk in stream) {
         accumulatedContent += chunk;
-        // 触发流式内容更新
-        _notifyBookStreamingContent(book.id, accumulatedContent);
+        _notifyBookStreamingContent(book.id, language, accumulatedContent);
       }
 
       if (accumulatedContent.isNotEmpty) {
-        await saveBookSummary(book.id, accumulatedContent, language: 'zh');
-        _log.info('SummaryService', '全书摘要生成成功: ${book.title}');
+        await saveBookSummary(book.id, accumulatedContent, language: language);
+        _log.info('SummaryService', '全书摘要生成成功: ${book.title} [$language]');
       } else {
         _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
       }

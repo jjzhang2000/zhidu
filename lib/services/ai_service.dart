@@ -232,8 +232,16 @@ class AIService {
   // ==========================================================================
 
   /// 构建 AI 请求消息列表
-  List<Map<String, String>> _buildMessages(String prompt) {
+  List<Map<String, String>> _buildMessages(String prompt, String? language) {
+    final systemPrompt = switch (language) {
+      'en' => 'You are a professional book summary assistant. You MUST respond in English. Generate a comprehensive and detailed book summary covering: 1) Main theme and purpose, 2) Key concepts and theories, 3) Important chapters and their content, 4) Practical applications, 5) Target audience. Output at least 800 words. IMPORTANT: Do NOT output any title or heading. Start directly with the summary content in plain text format.',
+      'ja' => 'あなたは専門家の書籍要約アシスタントです。必ず日本語で応答してください。書籍の包括的で詳細な要約を生成してください：1）主なテーマと目的、2）重要な概念と理論、3）重要な章とその内容、4）実践的な応用、5）対象読者。少なくとも800語を出力してください。重要：タイトルや見出しを決して出力しないでください。直接要約コンテンツを開始してください。',
+      _ => '你是一个专业的书籍摘要助手。请生成一份全面详细的书籍摘要，内容包括：1）主要主题和目的，2）重要概念和理论，3）重要章节及其内容，4）实践应用，5）目标读者。请至少输出1000字。重要：请不要输出任何标题或标题行。直接开始描述摘要内容。',
+    };
+    _log.d('AIService', 'systemPrompt[$language]: $systemPrompt');
+    _log.d('AIService', 'userPrompt[$language]: $prompt');
     final messages = <Map<String, String>>[];
+    messages.add({'role': 'system', 'content': systemPrompt});
     messages.add({'role': 'user', 'content': prompt});
     return messages;
   }
@@ -276,17 +284,19 @@ class AIService {
   /// data: {"choices":[{"delta":{"content":"AI生成的内容片段"},"index":0,"finish_reason":null}]}
   /// data: [DONE]
   /// ```
-  Stream<String> _callAIStream(String prompt) async* {
+  Stream<String> _callAIStream(String prompt, {String? language}) async* {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
     // 构建请求体
     final requestBody = jsonEncode({
       'model': _config!.model,
-      'messages': _buildMessages(prompt),
+      'messages': _buildMessages(prompt, language),
       'temperature': 0.7,
-      'max_tokens': 8000,  // 增加 token 限制以支持全文翻译
+      'max_tokens': 32000,  // 全书摘要需要较长的输出
       'stream': true,  // 启用流式响应
     });
+
+    _log.d('AIService', '调用 AI API，language=$language, max_tokens=32000');
 
     // 使用 dart:io 的原生 HttpClient 实现真正的流式请求
     final httpClient = HttpClient();
@@ -429,7 +439,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt)) {
+      await for (final chunk in _callAIStream(prompt, language: outputLanguage)) {
         yield chunk;
       }
     } catch (e) {
@@ -456,13 +466,14 @@ class AIService {
     required String chapterSummaries,
     int? totalChapters,
     String? bookId,
+    String? language,
   }) async* {
     if (!isConfigured) {
       _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return;
     }
 
-    final outputLanguage = await resolveOutputLanguage(
+    final outputLanguage = language ?? await resolveOutputLanguage(
       SettingsService().settings.languageSettings,
       content: chapterSummaries,
       bookId: bookId,
@@ -479,7 +490,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt)) {
+      await for (final chunk in _callAIStream(prompt, language: outputLanguage)) {
         yield chunk;
       }
     } catch (e) {
@@ -506,13 +517,14 @@ class AIService {
     required String prefaceContent,
     int? totalChapters,
     String? bookId,
+    String? language,
   }) async* {
     if (!isConfigured) {
       _log.w('AIService', 'AI 服务未配置或 API Key 无效');
       return;
     }
 
-    final outputLanguage = await resolveOutputLanguage(
+    final outputLanguage = language ?? await resolveOutputLanguage(
       SettingsService().settings.languageSettings,
       content: prefaceContent,
       bookId: bookId,
@@ -529,7 +541,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt)) {
+      await for (final chunk in _callAIStream(prompt, language: outputLanguage)) {
         yield chunk;
       }
     } catch (e) {
@@ -563,7 +575,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt)) {
+      await for (final chunk in _callAIStream(prompt, language: targetLang)) {
         yield chunk;
       }
     } catch (e) {

@@ -19,7 +19,8 @@
 /// - [_getChapterTitle] 优先显示提取的章节标题
 
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' show Platform, File;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
@@ -31,6 +32,7 @@ import '../models/chapter.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import '../services/log_service.dart';
+import '../services/settings_service.dart';
 import 'chapter_screen.dart';
 
 /// 书籍详情页面的StatefulWidget
@@ -86,6 +88,9 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 从文件加载的全书摘要内容
   String? _bookSummaryFromFile;
 
+  /// 当前摘要语言（跟随 AI 语言设置，切换语言时触发重新摘要）
+  late String _summaryLang;
+
   /// 定时刷新计时器
   ///
   /// 每3秒检查一次书籍状态，用于：
@@ -100,14 +105,17 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     // 获取最新的书籍数据（可能已在其他地方更新）
     _book = _bookService.getBookById(widget.book.id) ?? widget.book;
 
+    // 根据 AI 语言设置确定摘要语言
+    _summaryLang = _getAiSummaryLanguage();
+
     // 加载章节列表
     _loadChapters();
 
-    // 从文件加载全书摘要
+    // 从文件加载本书当前语言的全书摘要
     _loadBookSummary();
 
-    // 注册全书摘要流式回调
-    _summaryService.registerBookStreamingCallback(_book.id, (content) {
+    // 注册本书当前语言的全书摘要流式回调
+    _summaryService.registerBookStreamingCallback(_book.id, _summaryLang, (content) {
       if (mounted) {
         setState(() {
           _streamingBookSummary = content;
@@ -140,8 +148,8 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     _tabController?.dispose();
     // 清理定时器，防止内存泄漏
     _refreshTimer?.cancel();
-    // 取消全书摘要流式回调
-    _summaryService.unregisterBookStreamingCallback(_book.id);
+    // 取消本书当前语言的全书摘要流式回调
+    _summaryService.unregisterBookStreamingCallback(_book.id, _summaryLang);
     super.dispose();
   }
 
@@ -184,12 +192,10 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// 从文件加载全书摘要
-  ///
-  /// 全书摘要存储在 books/{bookId}/summary-zh.md 文件中。
+  /// 从文件加载本书当前语言的全书摘要
   Future<void> _loadBookSummary() async {
     try {
-      final summary = await _summaryService.getBookSummary(_book.id);
+      final summary = await _summaryService.getBookSummary(_book.id, language: _summaryLang);
       if (mounted) {
         setState(() {
           _bookSummaryFromFile = summary;
@@ -198,6 +204,19 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     } catch (e, stackTrace) {
       _log.e('BookScreen', '加载全书摘要失败', e, stackTrace);
     }
+  }
+
+  /// 根据 AI 语言设置获取摘要语言
+  ///
+  /// - 'manual'：用户自选语言（[aiOutputLanguage]）
+  /// - 'system'：跟随系统语言（通过 [PlatformDispatcher] 获取）
+  /// - 'book'：跟随书籍内容（由 AI 自动检测，这里返回系统语言作为默认值）
+  String _getAiSummaryLanguage() {
+    final langSettings = SettingsService().settings.languageSettings;
+    if (langSettings.aiLanguageMode == 'manual') {
+      return langSettings.aiOutputLanguage;
+    }
+    return PlatformDispatcher.instance.locale.languageCode;
   }
 
   /// 后台预生成摘要（全书 + 章节）
@@ -215,32 +234,48 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// - 用户无需等待，摘要提前准备好
   /// - 不影响页面加载速度
   /// - 静默执行，无侵入性
-  void _startPreGeneration() {
+  void _startPreGeneration() async {
+    // 等待章节加载完成，确保 _flatChapters 已就绪
+    while (_flatChapters.isEmpty && _isLoadingChapters) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (_flatChapters.isEmpty) {
+      _log.d('BookScreen', '章节列表为空，跳过后台预生成');
+      return;
+    }
+
+    _log.d('BookScreen', '_startPreGeneration 被调用');
+
     if (!_aiService.isConfigured) {
+      _log.d('BookScreen', 'AI服务未配置，跳过后台预生成');
       return;
     }
 
     if (_isPreGenerating) {
+      _log.d('BookScreen', '正在预生成中，跳过重复调用');
       return;
     }
 
     _isPreGenerating = true;
+    _log.d('BookScreen', '开始后台预生成摘要');
 
-    // 异步执行，不阻塞UI
-    Future(() async {
-      try {
-        _log.d('BookScreen', '开始后台预生成摘要');
+    try {
+      _log.d('BookScreen', '后台预生成任务启动');
 
-        _refreshBookIfNeeded();
+      _refreshBookIfNeeded();
 
-        await _summaryService.generateSummariesForBook(_book, _flatChapters);
-        _refreshBookIfNeeded();
-      } catch (e, stackTrace) {
-        _log.e('BookScreen', '后台预生成摘要失败', e, stackTrace);
-      } finally {
-        _isPreGenerating = false;
-      }
-    });
+      _log.d('BookScreen', '调用 SummaryService.generateSummariesForBook, 章节数: ${_flatChapters.length}');
+      await _summaryService.generateSummariesForBook(_book, _flatChapters, language: _summaryLang);
+      _log.d('BookScreen', 'SummaryService.generateSummariesForBook 完成');
+
+      _refreshBookIfNeeded();
+    } catch (e, stackTrace) {
+      _log.e('BookScreen', '后台预生成摘要失败', e, stackTrace);
+    } finally {
+      _isPreGenerating = false;
+      _log.d('BookScreen', '后台预生成任务结束');
+    }
   }
 
   /// 按需刷新书籍数据
@@ -257,7 +292,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 这种设计避免了频繁setState，只在真正需要时更新UI。
   void _refreshBookIfNeeded() async {
     try {
-      final summary = await _summaryService.getBookSummary(_book.id);
+      final summary = await _summaryService.getBookSummary(_book.id, language: _summaryLang);
       if (mounted) {
         final hasNewSummary = summary != null && summary.isNotEmpty;
         final hadOldSummary =
