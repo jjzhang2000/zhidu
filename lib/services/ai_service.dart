@@ -232,12 +232,13 @@ class AIService {
   // ==========================================================================
 
   /// 构建 AI 请求消息列表
-  List<Map<String, String>> _buildMessages(String prompt, String? language) {
+  List<Map<String, String>> _buildMessages(String prompt, String? language, {bool isChapterSummary = false}) {
     final actualLanguage = language ?? 'zh';
+    final lengthRatio = isChapterSummary ? '1/10' : '1/100';
     final systemPrompt = switch (actualLanguage) {
-      'en' => 'You are a professional book summary assistant. Language requirement: You MUST output ONLY in English. Do not use any other language. Generate a book summary that is approximately 1/100 of the original text length. The summary should cover: 1) Main theme and purpose, 2) Key concepts and theories, 3) Important chapters and their content, 4) Practical applications, 5) Target audience. IMPORTANT: Do NOT output any title or heading. Start directly with the summary content.',
-      'ja' => 'あなたは専門家の書籍要約アシスタントです。言語要件：あなたは必ず日本語でのみ出力してください。他言語は使用禁止です。原文の約1/100の長さの書籍要約を生成してください：1）主なテーマと目的、2）重要な概念と理論、3）重要な章とその内容、4）実践的な応用、5）対象読者。重要：タイトルや見出しを決して出力しないでください。直接要約コンテンツを開始してください。',
-      _ => '你是一个专业的书籍摘要助手。语言要求：你必须只使用中文输出，禁止使用其他语言。请生成一份约为原文1/100长度的书籍摘要，内容包括：1）主要主题和目的，2）重要概念和理论，3）重要章节及其内容，4）实践应用，5）目标读者。重要：请不要输出任何标题或标题行。直接开始描述摘要内容。',
+      'en' => 'You are a professional book summary assistant. Language requirement: You MUST output ONLY in English. Do not use any other language. Generate a book summary that is approximately $lengthRatio of the original text length (character count). The summary should cover: 1) Main theme and purpose, 2) Key concepts and theories, 3) Important chapters and their content, 4) Practical applications, 5) Target audience. IMPORTANT: Do NOT output any title or heading. Start directly with the summary content.',
+      'ja' => 'あなたは専門家の書籍要約アシスタントです。言語要件：あなたは必ず日本語でのみ出力してください。他言語は使用禁止です。原文の$lengthRatioの長さ（文字数）の書籍要約を生成してください：1）主なテーマと目的、2）重要な概念と理論、3）重要な章とその内容、4）実践的な応用、5）対象読者。重要：タイトルや見出しを決して出力しないでください。直接要約コンテンツを開始してください。',
+      _ => '你是一个专业的书籍摘要助手。语言要求：你必须只使用中文输出，禁止使用其他语言。请生成一份约为原文$lengthRatio长度（字符数）的书籍摘要，内容包括：1）主要主题和目的，2）重要概念和理论，3）重要章节及其内容，4）实践应用，5）目标读者。重要：请不要输出任何标题或标题行。直接开始描述摘要内容。',
     };
     _log.d('AIService', 'systemPrompt[$actualLanguage]: $systemPrompt');
     final messages = <Map<String, String>>[];
@@ -289,13 +290,13 @@ class AIService {
   /// data: {"choices":[{"delta":{"content":"AI生成的内容片段"},"index":0,"finish_reason":null}]}
   /// data: [DONE]
   /// ```
-  Stream<String> _callAIStream(String prompt, {String? language}) async* {
+  Stream<String> _callAIStream(String prompt, {String? language, bool isChapterSummary = false}) async* {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
     // 构建请求体
     final requestBody = jsonEncode({
       'model': _config!.model,
-      'messages': _buildMessages(prompt, language),
+      'messages': _buildMessages(prompt, language, isChapterSummary: isChapterSummary),
       'temperature': 0.7,
       'max_tokens': 32000,  // 全书摘要需要较长的输出
       'stream': true,  // 启用流式响应
@@ -445,7 +446,7 @@ class AIService {
     );
 
     try {
-      await for (final chunk in _callAIStream(prompt, language: outputLanguage)) {
+      await for (final chunk in _callAIStream(prompt, language: outputLanguage, isChapterSummary: true)) {
         yield chunk;
       }
     } catch (e) {
