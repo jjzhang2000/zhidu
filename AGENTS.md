@@ -78,7 +78,7 @@ lib/
 
 ### 版本历史
 
-**2026-05-23**: AI摘要语言支持 — 全书/章节摘要按语言分别生成存储（zh/en/ja）；BookScreen 语言跟随修复（`PlatformDispatcher`获取系统语言）；全书摘要长度优化（max_tokens=32000，system prompt 明确要求最少字数/禁止标题）
+**2026-05-23**: AI摘要语言支持 — 全书/章节摘要按语言分别生成存储（zh/en/ja）；BookScreen 语言跟随修复（`PlatformDispatcher`获取系统语言）；摘要长度优化改为按比例（原文1/100），替代固定字数要求；system prompt 明确禁止标题输出
 **2026-05-23**: window_utils 合并到 main.dart，删除 `lib/utils/window_utils.dart`；setState 单行格式统一（book_screen 3处、chapter_screen 3处）
 **2026-05-23**: models 注释精简 — app_settings 补全缺失字段注释统一风格；chapter 从108行精简至52行
 **2026-05-23**: l10n 注释统一 — 补全 55 个缺失的 @key 描述，消除所有 "No description provided"；统一注释风格（分类+用途）
