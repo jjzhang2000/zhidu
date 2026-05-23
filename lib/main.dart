@@ -150,7 +150,8 @@ class _ZhiduAppState extends State<ZhiduApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      onGenerateTitle: (context) => AppLocalizations.of(context)?.appTitle ?? '智读',
+      onGenerateTitle: (context) =>
+          AppLocalizations.of(context)?.appTitle ?? '智读',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

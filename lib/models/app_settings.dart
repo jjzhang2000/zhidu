@@ -257,7 +257,8 @@ class AppSettings {
     if (json['savedAiConfigs'] != null) {
       final configsMap = json['savedAiConfigs'] as Map<String, dynamic>;
       configsMap.forEach((key, value) {
-        savedAiConfigs[key] = AiSettings.fromJson(value as Map<String, dynamic>);
+        savedAiConfigs[key] =
+            AiSettings.fromJson(value as Map<String, dynamic>);
       });
     }
 

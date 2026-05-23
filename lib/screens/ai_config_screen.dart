@@ -141,8 +141,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     _apiKeyController = TextEditingController(
       text: needsApiKey ? aiSettings.apiKey : '',
     );
-    _modelController =
-        TextEditingController(text: aiSettings.model);
+    _modelController = TextEditingController(text: aiSettings.model);
     _baseUrlController = TextEditingController(
       text: aiSettings.baseUrl.isNotEmpty
           ? aiSettings.baseUrl
@@ -181,7 +180,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       _selectedProvider = newProvider;
       _testResultMessage = null;
 
-      final savedConfig = _settingsService.getSavedAiConfigForProvider(newProvider);
+      final savedConfig =
+          _settingsService.getSavedAiConfigForProvider(newProvider);
       final currentAiSettings = _settingsService.settings.aiSettings;
       final isCurrentConfig = newProvider == currentAiSettings.provider &&
           currentAiSettings.isValid;
@@ -385,9 +385,11 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
           items: _getCurrentProviders().map((entry) {
-            final isSavedConfig = _settingsService.hasSavedAiConfigForProvider(entry.key);
-            final isCurrentValidConfig = entry.key == currentAiSettings.provider &&
-                currentAiSettings.isValid;
+            final isSavedConfig =
+                _settingsService.hasSavedAiConfigForProvider(entry.key);
+            final isCurrentValidConfig =
+                entry.key == currentAiSettings.provider &&
+                    currentAiSettings.isValid;
             final hasConfig = isSavedConfig || isCurrentValidConfig;
 
             final displayText = hasConfig ? '${entry.value} ✓' : entry.value;
@@ -555,13 +557,13 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    hasSelectedModel
-                        ? _modelController.text
-                        : '请选择模型',
+                    hasSelectedModel ? _modelController.text : '请选择模型',
                     style: TextStyle(
                       color: hasSelectedModel
                           ? Theme.of(context).colorScheme.onSurface
-                          : Theme.of(context).colorScheme.onSurface
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSurface
                               .withOpacity(0.6),
                     ),
                   ),
@@ -580,14 +582,16 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// 根据 _modelBoxKey 对应 Widget 的实际位置和尺寸，
   /// 返回菜单应显示的 RelativeRect（紧贴其下方、等宽）。
   Future<RelativeRect> _getMenuPosition() async {
-    final RenderBox? renderBox = _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
+    final RenderBox? renderBox =
+        _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) {
       return RelativeRect.fromLTRB(0, 0, 0, 0);
     }
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
-    final screenHeight = MediaQuery.of(_modelBoxKey.currentContext!).size.height;
-    
+    final screenHeight =
+        MediaQuery.of(_modelBoxKey.currentContext!).size.height;
+
     return RelativeRect.fromLTRB(
       position.dx,
       position.dy + size.height,
@@ -602,9 +606,10 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// 选中后将模型名写入 _modelController。
   Future<void> _showModelMenu() async {
     final position = await _getMenuPosition();
-    final renderBox = _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
     final width = renderBox?.size.width ?? 200;
-    
+
     final selected = await showMenu<String>(
       context: context,
       position: position,
@@ -612,7 +617,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
         minWidth: width,
         maxWidth: width,
       ),
-      items: (_availableModels.toList()..sort((a, b) => a.compareTo(b))).map((model) {
+      items: (_availableModels.toList()..sort((a, b) => a.compareTo(b)))
+          .map((model) {
         return PopupMenuItem<String>(
           value: model,
           child: Text(model),

@@ -567,9 +567,7 @@ class _ChapterScreenState extends State<ChapterScreen>
       _summaryService.registerTranslationCallback(widget.bookId, widget.chapterIndex, (content) {
         if (mounted) {
           _captureScrollAnchor(2);
-          setState(() {
-            _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks);
-          });
+          setState(() { _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks); });
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _syncScrollToTab(2);
           });
@@ -1315,9 +1313,7 @@ class _ChapterScreenState extends State<ChapterScreen>
               child: IconButton(
                 onPressed: canPrevPage
                     ? () {
-                        setState(() {
-                          _pdfCurrentPage--;
-                        });
+                        setState(() { _pdfCurrentPage--; });
                       }
                     : null,
                 icon: Icon(
@@ -1341,9 +1337,7 @@ class _ChapterScreenState extends State<ChapterScreen>
               child: IconButton(
                 onPressed: canNextPage
                     ? () {
-                        setState(() {
-                          _pdfCurrentPage++;
-                        });
+                        setState(() { _pdfCurrentPage++; });
                       }
                     : null,
                 icon: Icon(
