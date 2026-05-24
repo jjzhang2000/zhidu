@@ -234,21 +234,20 @@ class AIService {
   /// 构建 AI 请求消息列表
   List<Map<String, String>> _buildMessages(String prompt, String? language, {bool isChapterSummary = false}) {
     final actualLanguage = language ?? 'zh';
-    final lengthRatio = isChapterSummary ? '1/10' : '1/100';
     final systemPrompt = switch (actualLanguage) {
-      'en' => 'You are a professional book summary assistant. Language requirement: You MUST output ONLY in English. Do not use any other language. IMPORTANT: Your summary MUST be approximately $lengthRatio of the original text CHARACTER COUNT. For example, if the original is 5000 characters, your summary must be about ${isChapterSummary ? '500' : '50'} characters. Include: 1) Main theme and purpose, 2) Key concepts and theories, 3) Important details, 4) Practical applications. Do NOT output any title or heading. Start directly with the summary.',
-      'ja' => 'あなたは専門家の書籍要約アシスタントです。言語要件：あなたは必ず日本語でのみ出力してください。他言語は使用禁止です。重要：あなたの要約は原文の$lengthRatioの文字数である必要があります。例えば、原稿が5000文字の場合、要約は${isChapterSummary ? '約500' : '約50'}文字である必要があります。含むべき内容：1）主なテーマと目的、2）重要な概念と理論、3）重要な詳細、4）実践的な応用。タイトルや見出しを決して出力しないでください。直接要約コンテンツを開始してください。',
-      _ => '你是一个专业的书籍摘要助手。语言要求：你必须只使用中文输出，禁止使用其他语言。重要：你的摘要必须是原文的$lengthRatio字符数。例如，如果原文是5000字，你的摘要必须大约${isChapterSummary ? '500' : '50'}字。应包含：1）主要主题和目的，2）重要概念和理论，3）重要细节，4）实践应用。请不要输出任何标题或标题行。直接开始描述摘要内容。',
+      'en' => 'Write a book summary in English. Write plain text only, no markdown, no code blocks, no lists, no headers, no XML/HTML tags. Do not include any thinking process, reasoning, or explanation tags such as <thinking>, <think>, or <think>. Do not write any introduction or explanation. Start writing the summary content immediately, without any preamble.',
+      'ja' => '日本語で書籍要約を書いてください。プレーンテキストのみ、マークダウン、コードブロック、リスト、ヘッダー、XML/HTMLタグは不要です。<thinking>、<think>、または <think> などの思考過程、推論、説明タグを含めないでください。導入や説明を書かないでください。要約内容を前置きなしで直に書き始めてください。',
+      _ => '用中文写书籍摘要。只写纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程、推理或解释标签，如 <thinking>、<think> 或 <think>。不要写任何前言或解释。立即开始写摘要内容，不要任何开场白。',
     };
     _log.d('AIService', 'systemPrompt[$actualLanguage]: $systemPrompt');
     final messages = <Map<String, String>>[];
     messages.add({'role': 'system', 'content': systemPrompt});
-    final userPromptWithLanguage = switch (actualLanguage) {
-      'en' => 'Please generate a book summary in English only. Content: $prompt',
-      'ja' => '日本語のみで書籍要約を生成してください。内容：$prompt',
-      _ => '请用中文生成书籍摘要。内容：$prompt',
+    final userPrompt = switch (actualLanguage) {
+      'en' => 'Summarize this in English:\n$prompt',
+      'ja' => '日本語で要約してください：\n$prompt',
+      _ => '请用中文摘要：\n$prompt',
     };
-    messages.add({'role': 'user', 'content': userPromptWithLanguage});
+    messages.add({'role': 'user', 'content': userPrompt});
     return messages;
   }
 

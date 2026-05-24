@@ -195,12 +195,15 @@ class SummaryService {
         return null;
       }
 
+      // 清理可能残留的AI思考过程标签
+      final cleanContent = removeThinkingProcess(content);
+
       final chapter = Chapter(
         bookId: bookId,
         index: chapterIndex,
         title: '',
         location: ChapterLocation(),
-        objectiveSummary: content,
+        objectiveSummary: cleanContent,
       );
 
       return chapter;
@@ -309,8 +312,10 @@ class SummaryService {
 
       // 生成完成，处理最终内容
       if (accumulatedContent.isNotEmpty) {
-        final extractedTitle = extractTitleFromSummary(accumulatedContent);
-        final cleanSummary = removeTitleLineFromSummary(accumulatedContent);
+        // 先清理思考过程标签，再清理标题行
+        final noThinkingContent = removeThinkingProcess(accumulatedContent);
+        final extractedTitle = extractTitleFromSummary(noThinkingContent);
+        final cleanSummary = removeTitleLineFromSummary(noThinkingContent);
 
         final chapterSummary = Chapter(
           bookId: bookId,
@@ -556,7 +561,8 @@ class SummaryService {
       }
 
       if (accumulatedContent.isNotEmpty) {
-        await saveBookSummary(book.id, accumulatedContent, language: language);
+        final cleanContent = removeThinkingProcess(accumulatedContent);
+        await saveBookSummary(book.id, cleanContent, language: language);
         _log.info('SummaryService', '全书摘要生成成功: ${book.title} [$language]');
       } else {
         _log.w('SummaryService', 'AI返回空的全书摘要: ${book.title}');
@@ -677,6 +683,47 @@ class SummaryService {
 
   // ==================== 标题提取工具方法 ====================
 
+  /// 从内容中移除 AI 思考过程标签
+  ///
+  /// 支持的格式：
+  /// - `<thinking>...</thinking>`
+  /// - `<think>...</think>`
+  /// - 以代码块或空行结尾的思考块
+  String removeThinkingProcess(String content) {
+    // 移除 <thinking>...</thinking> 块
+    final thinkingPattern = RegExp(r'<thinking>[\s\S]*?</thinking>', multiLine: true, dotAll: true);
+    content = content.replaceAll(thinkingPattern, '').trim();
+
+    // 移除 <think>...</think> 块
+    final thinkPattern = RegExp(r'<think>[\s\S]*?</think>', multiLine: true, dotAll: true);
+    content = content.replaceAll(thinkPattern, '').trim();
+
+    // 处理未闭合的 <thinking> 或 <think> 标签（直到下一个空行或代码块结束）
+    final lines = content.split('\n');
+    if (lines.isNotEmpty && (lines[0].trim().startsWith('<thinking') || lines[0].trim().startsWith('<think'))) {
+      int startIndex = 0;
+      final unclosedPattern = RegExp(r'^```\s*$|^\s*$');
+      int thinkEndIndex = -1;
+      for (int i = 1; i < lines.length; i++) {
+        if (unclosedPattern.hasMatch(lines[i].trim())) {
+          thinkEndIndex = i;
+          break;
+        }
+      }
+      if (thinkEndIndex >= 0) {
+        startIndex = thinkEndIndex + 1;
+        while (startIndex < lines.length && lines[startIndex].trim().isEmpty) {
+          startIndex++;
+        }
+      }
+      if (startIndex > 0 && startIndex < lines.length) {
+        content = lines.skip(startIndex).join('\n').trim();
+      }
+    }
+
+    return content;
+  }
+
   /// 从摘要内容中提取章节标题
   String? extractTitleFromSummary(String summary) {
     final lines = summary.split('\n');
@@ -707,24 +754,41 @@ class SummaryService {
     return null;
   }
 
-  /// 从摘要内容中移除标题行
+  /// 从摘要内容中移除标题行和AI思考过程
   String removeTitleLineFromSummary(String summary) {
     final lines = summary.split('\n');
     if (lines.isEmpty) return summary;
 
+    int startIndex = 0;
     final firstLine = lines[0].trim();
+
     // 匹配格式：## 章节标题：xxx 或 ## 第X章：xxx 或 ## 前言 等章节标题格式
     final titlePattern = RegExp(r'^##\s*(章节标题[：:]\s*.+|第[一二三四五六七八九十0-9]+章[：:]\s*.+|前言|序言|引言|序|跋|后记|附录.*)$');
-
     if (titlePattern.hasMatch(firstLine)) {
-      // 如果第二行是空行，跳过前两行
+      startIndex = 1;
       if (lines.length > 1 && lines[1].trim().isEmpty) {
-        return lines.skip(2).join('\n').trim();
+        startIndex = 2;
       }
-      // 否则只跳过第一行
-      return lines.skip(1).join('\n').trim();
+    }
+    // 跳过 AI 思考过程（<thinking>...</thinking> 或 <think>... 标签）
+    else if (firstLine.startsWith('<think>')) {
+      final thinkEndPattern = RegExp(r'^```\s*$|^\s*$');
+      int thinkEndIndex = -1;
+      for (int i = 1; i < lines.length; i++) {
+        if (thinkEndPattern.hasMatch(lines[i].trim())) {
+          thinkEndIndex = i;
+          break;
+        }
+      }
+      if (thinkEndIndex >= 0) {
+        startIndex = thinkEndIndex + 1;
+        while (startIndex < lines.length && lines[startIndex].trim().isEmpty) {
+          startIndex++;
+        }
+      }
     }
 
-    return summary;
+    if (startIndex >= lines.length) return '';
+    return lines.skip(startIndex).join('\n').trim();
   }
 }

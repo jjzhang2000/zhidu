@@ -127,9 +127,11 @@ END PROCEDURE
 ```
 ASYNC PROCEDURE _loadBookSummary():
   TRY:
-    summary = AWAIT _summaryService.getBookSummary(_book.id)
+    summary = AWAIT _summaryService.getBookSummary(_book.id, language: _summaryLang)
     IF mounted:
-      setState(): _bookSummaryFromFile = summary
+      // 清理可能的AI思考过程
+      cleanSummary = IF summary != null: _summaryService.removeThinkingProcess(summary) ELSE: null
+      setState(): _bookSummaryFromFile = cleanSummary
   CATCH e, stackTrace:
     _log.e('BookScreen', '加载全书摘要失败', e, stackTrace)
 END PROCEDURE
@@ -174,15 +176,17 @@ END PROCEDURE
 ```
 ASYNC PROCEDURE _refreshBookIfNeeded():
   TRY:
-    summary = AWAIT _summaryService.getBookSummary(_book.id)
+    summary = AWAIT _summaryService.getBookSummary(_book.id, language: _summaryLang)
     IF mounted:
-      hasNewSummary = summary != null AND summary.isNotEmpty
+      // 清理可能的AI思考过程
+      cleanSummary = IF summary != null: _summaryService.removeThinkingProcess(summary) ELSE: null
+      hasNewSummary = cleanSummary != null AND cleanSummary.isNotEmpty
       hadOldSummary = _bookSummaryFromFile != null AND _bookSummaryFromFile.isNotEmpty
 
-      IF hasNewSummary != hadOldSummary OR summary != _bookSummaryFromFile:
+      IF hasNewSummary != hadOldSummary OR cleanSummary != _bookSummaryFromFile:
         setState():
-          _bookSummaryFromFile = summary
-          // If summary has content, generation is complete; clear streaming state
+          _bookSummaryFromFile = cleanSummary
+          // 如果文件摘要有内容，说明生成完成，清空流式状态，优先显示文件内容
           IF hasNewSummary:
             _streamingBookSummary = ''
   CATCH e:
@@ -584,9 +588,13 @@ READ: _summaryService.getBookSummary(bookId)
 GET PARSER: FormatRegistry.getParser(extension)
   - Returns EpubParser or PdfParser
   - Based on file extension
+```
 
 USE PARSER:
   - parser.getChapters(filePath) → List<Chapter>
-```
 
 ---
+
+## Changelog
+
+- **2026-05-24**: 全书摘要显示修复 + AI思考过程清理 — `_loadBookSummary()`/`_refreshBookIfNeeded()` 调用 `removeThinkingProcess()` 清理内容，文件摘要优先于流式内容显示；`getBookSummary` 新增 language 参数

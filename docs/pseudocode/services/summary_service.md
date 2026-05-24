@@ -219,12 +219,15 @@ ASYNC METHOD getSummary(
             _log.v('SummaryService', 'getSummary 加载完成, result: 空')
             RETURN null
         
+        // 清理可能残留的AI思考过程标签
+        cleanContent = removeThinkingProcess(content)
+        
         // 构建 ChapterSummary 对象
         summary = ChapterSummary(
             bookId: bookId,
             chapterIndex: chapterIndex,
             chapterTitle: '',  // 标题从章节列表获取
-            objectiveSummary: content,
+            objectiveSummary: cleanContent,
             aiInsight: '',
             keyPoints: [],
             createdAt: DateTime.now()
@@ -385,8 +388,10 @@ ASYNC METHOD generateSingleSummary(
         
         // 生成完成，处理最终内容
         IF accumulatedContent.isNotEmpty:
-            extractedTitle = extractTitleFromSummary(accumulatedContent)
-            cleanSummary = removeTitleLineFromSummary(accumulatedContent)
+            // 先清理思考过程标签，再清理标题行
+            noThinkingContent = removeThinkingProcess(accumulatedContent)
+            extractedTitle = extractTitleFromSummary(noThinkingContent)
+            cleanSummary = removeTitleLineFromSummary(noThinkingContent)
             
             chapterSummary = Chapter(
                 bookId: bookId,
@@ -669,7 +674,9 @@ PRIVATE ASYNC METHOD _generateBookSummaryFromPreface(
             _notifyBookStreamingContent(book.id, accumulatedContent)
         
         IF accumulatedContent.isNotEmpty:
-            await saveBookSummary(book.id, accumulatedContent, language: 'zh')
+            // 清理AI思考过程标签
+            cleanContent = removeThinkingProcess(accumulatedContent)
+            await saveBookSummary(book.id, cleanContent, language: 'zh')
             _log.info('SummaryService', '全书摘要生成成功: {book.title}')
         
         ELSE:
@@ -870,6 +877,40 @@ ASYNC METHOD generateTranslationStream({
     
     FINALLY:
         _generatingTranslationKeys.remove(key)
+```
+
+---
+
+### removeThinkingProcess() - 移除AI思考过程标签
+
+```pseudocode
+PUBLIC METHOD removeThinkingProcess(content: String) -> String:
+    // 移除 <thinking>...</thinking> 块
+    thinkingPattern = RegExp('<thinking>[\\s\\S]*?</thinking>', multiLine: true, dotAll: true)
+    content = content.replaceAll(thinkingPattern, '').trim()
+    
+    // 移除 <think>...</think> 块
+    thinkPattern = RegExp('<think>[\\s\\S]*?</think>', multiLine: true, dotAll: true)
+    content = content.replaceAll(thinkPattern, '').trim()
+    
+    // 处理未闭合的 <thinking> 或 <think> 标签
+    lines = content.split('\n')
+    IF lines.isNotEmpty AND (lines[0].trim().startsWith('<thinking') OR lines[0].trim().startsWith('<think')):
+        startIndex = 0
+        unclosedPattern = RegExp('^```\\s*$|^\\s*$')
+        thinkEndIndex = -1
+        FOR i = 1 TO lines.length - 1:
+            IF unclosedPattern.hasMatch(lines[i].trim()):
+                thinkEndIndex = i
+                BREAK
+        IF thinkEndIndex >= 0:
+            startIndex = thinkEndIndex + 1
+            WHILE startIndex < lines.length AND lines[startIndex].trim().isEmpty:
+                startIndex++
+        IF startIndex > 0 AND startIndex < lines.length:
+            content = lines.skip(startIndex).join('\n').trim()
+    
+    RETURN content
 ```
 
 ---
@@ -1133,6 +1174,8 @@ sampleLength = min(content.length, 500)
   - 新增 `ensureChapterSummary()` — 一站式：检查已有→流式生成→返回最终摘要
   - 新增 `ensureChapterTranslation()` — 同上，翻译版本
   - `generateSingleSummary` / `generateTranslationStream` 内部同步通知注册的回调
+
+- **2026-05-24**: AI思考过程清理 — 新增 `removeThinkingProcess()` 公共方法，清理 `<thinking>`/`<think>` 等标签；`getSummary()` 读取时自动清理；`generateSingleSummary()` 生成时先清理思考过程再提取标题；`_generateBookSummaryFromChapters()` 保存全书摘要前清理思考过程
 
 - **2026-04-24**: 添加流式显示功能
   - 新增流式回调注册/取消方法

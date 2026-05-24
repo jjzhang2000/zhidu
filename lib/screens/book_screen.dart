@@ -197,8 +197,10 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     try {
       final summary = await _summaryService.getBookSummary(_book.id, language: _summaryLang);
       if (mounted) {
+        // 清理可能的AI思考过程
+        final cleanSummary = summary != null ? _summaryService.removeThinkingProcess(summary) : null;
         setState(() {
-          _bookSummaryFromFile = summary;
+          _bookSummaryFromFile = cleanSummary;
         });
       }
     } catch (e, stackTrace) {
@@ -298,14 +300,16 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     try {
       final summary = await _summaryService.getBookSummary(_book.id, language: _summaryLang);
       if (mounted) {
-        final hasNewSummary = summary != null && summary.isNotEmpty;
+        // 清理可能的AI思考过程
+        final cleanSummary = summary != null ? _summaryService.removeThinkingProcess(summary) : null;
+        final hasNewSummary = cleanSummary != null && cleanSummary.isNotEmpty;
         final hadOldSummary =
             _bookSummaryFromFile != null && _bookSummaryFromFile!.isNotEmpty;
 
-        if (hasNewSummary != hadOldSummary || summary != _bookSummaryFromFile) {
+        if (hasNewSummary != hadOldSummary || cleanSummary != _bookSummaryFromFile) {
           setState(() {
-            _bookSummaryFromFile = summary;
-            // 如果新摘要有内容，说明生成完成，清空流式状态
+            _bookSummaryFromFile = cleanSummary;
+            // 如果文件摘要有内容，说明生成完成，清空流式状态，优先显示文件内容
             if (hasNewSummary) {
               _streamingBookSummary = '';
             }
