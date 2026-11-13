@@ -308,9 +308,6 @@ abstract class AppLocalizations {
   /// Prompt - book summary template
   String promptBookSummary(String title, String author, String chapterSummaries, String chaptersLine);
 
-  /// Prompt - preface summary template
-  String promptPrefaceSummary(String title, String author, String prefaceContent, String chaptersLine);
-
   /// Prompt - chapter summary template
   String promptChapterSummary(String chapterTitle, String content);
 

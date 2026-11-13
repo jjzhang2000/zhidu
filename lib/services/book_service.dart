@@ -109,7 +109,7 @@ class BookService {
         return null;
       }
 
-      Book? book = Book(
+      Book book = Book(
         id: bookId,
         title: metadata.title,
         author: metadata.author,
@@ -121,7 +121,7 @@ class BookService {
         language: metadata.language,
       );
 
-      if (book != null && opfMetadata != null) {
+      if (opfMetadata != null) {
         String? finalCoverPath = book.coverPath;
         if (opfMetadata.coverPath != null) {
           final bookDir = p.dirname(filePath);
@@ -149,25 +149,21 @@ class BookService {
         );
       }
 
-      if (book != null) {
-        final existingBook = _books
-            .where((b) => b.title == book!.title && b.author == book.author)
-            .firstOrNull;
+      final existingBook = _books
+          .where((b) => b.title == book.title && b.author == book.author)
+          .firstOrNull;
 
-        if (existingBook != null) {
-          _log.info('BookService', '书籍已存在: ${book.title}');
-          return existingBook;
-        }
-
-        _books.add(book);
-        await _saveBooksIndex();
-        await _saveBookMetadata(book);
-
-        _log.info('BookService', '书籍导入成功: ${book.title}');
-        return book;
+      if (existingBook != null) {
+        _log.info('BookService', '书籍已存在: ${book.title}');
+        return existingBook;
       }
 
-      return null;
+      _books.add(book);
+      await _saveBooksIndex();
+      await _saveBookMetadata(book);
+
+      _log.info('BookService', '书籍导入成功: ${book.title}');
+      return book;
     } catch (e, stackTrace) {
       _log.e('BookService', '导入书籍失败: $filePath', e, stackTrace);
       return null;

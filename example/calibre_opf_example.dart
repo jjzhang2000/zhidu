@@ -1,15 +1,12 @@
-/// Calibre OPF 集成示例
-/// 
-/// 此示例演示了如何使用新增的 Calibre OPF 集成功能
-/// 
-/// 使用方法:
-/// 1. 将此文件放在与项目根目录相同的目录下
-/// 2. 在书籍文件所在目录创建 metadata.opf 文件
-/// 3. 运行智读应用导入书籍
-/// 4. 应用将优先使用 OPF 中的元数据
-
-import 'package:zhidu/services/opf_reader_service.dart';
-import 'package:zhidu/models/book.dart';
+// Calibre OPF 集成示例
+//
+// 此示例演示了如何使用新增的 Calibre OPF 集成功能
+//
+// 使用方法:
+// 1. 将此文件放在与项目根目录相同的目录下
+// 2. 在书籍文件所在目录创建 metadata.opf 文件
+// 3. 运行智读应用导入书籍
+// 4. 应用将优先使用 OPF 中的元数据
 
 /// 这是一个示例 OPF 文件内容，展示了 Calibre 生成的典型格式
 const String sampleCalibreOpf = '''<?xml version="1.0" encoding="utf-8"?>

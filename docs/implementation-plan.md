@@ -299,8 +299,7 @@ class BookService {
   factory BookService() => _instance;
   BookService._internal();
 
-  final _epubService = EpubService();
-  final _pdfService = PdfService();
+  final _uuid = const Uuid();
   final _log = LogService();
   final _fileStorage = FileStorageService();
 
@@ -551,9 +550,6 @@ class SummaryService {
   SummaryService._internal();
 
   final _aiService = AIService();
-  final _epubService = EpubService();
-  final _pdfService = PdfService();
-  final _bookService = BookService();
   final _log = LogService();
   final _fileStorage = FileStorageService();
 

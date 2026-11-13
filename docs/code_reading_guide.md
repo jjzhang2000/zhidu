@@ -299,7 +299,7 @@ final languageInstruction = AiPrompts.getLanguageInstruction(
 #### 核心功能
 - **摘要生成**: 为书籍和章节生成AI摘要
 - **并发控制**: 防止重复生成同一内容
-- **格式适配**: 为EPUB和PDF提供不同的生成策略
+- **格式适配**: EPUB/PDF 统一生成策略（先章节摘要，再全书摘要）
 
 #### 生成策略
 ```dart
@@ -307,15 +307,9 @@ Future<void> generateSummariesForBook(Book book) async {
   final parser = FormatRegistry.getParser('.${book.format.name}');
   final chapters = await parser.getChapters(book.filePath);
 
-  if (book.format == BookFormat.pdf) {
-    // PDF策略：先生成章节摘要，再生成全书摘要
-    await _generateChapterSummaries(book, chapters);
-    await _generateBookSummaryFromChapterSummaries(book, chapters);
-  } else {
-    // EPUB策略：先尝试从前言生成全书摘要，再生成章节摘要
-    await _generateBookSummaryFromPreface(book);
-    await _generateChapterSummaries(book, chapters);
-  }
+  // EPUB/PDF 统一流程：先章节摘要，再全书摘要
+  await _generateChapterSummaries(book, chapters);
+  await _generateBookSummaryFromChapters(book, chapters);
 }
 ```
 
@@ -452,22 +446,24 @@ class PdfParser implements BookFormatParser {
 
 ### 3. AI摘要生成逻辑
 
-AI摘要生成采用分层策略：
+AI摘要生成采用分层策略（先章节摘要，再全书摘要）：
 
 ```dart
-// 全书摘要生成逻辑
-Future<String?> generateBookSummaryFromPreface({
-  required String title,
-  required String author,
-  required String prefaceContent,
-  int? totalChapters,
-}) async {
-  if (hasPreface) {
-    // 有前言：直接从前言生成全书摘要
-    return await _callAI(AiPrompts.bookSummaryFromPreface(/*...*/));
-  } else {
-    // 无前言：等待所有章节摘要完成后，基于章节摘要生成全书摘要
-    return await _callAI(AiPrompts.bookSummary(/*...*/));
+// 全书摘要生成逻辑（SummaryService 内部）
+Future<void> _generateBookSummaryFromChapters(
+    Book book, List<Chapter> chapters) async {
+  // 1. 收集各章节摘要
+  // 2. 基于章节摘要生成全书摘要
+  final stream = _aiService.generateBookSummaryStream(
+    title: book.title,
+    author: book.author,
+    chapterSummaries: collectedSummaries,
+    totalChapters: chapters.length,
+    bookId: book.id,
+  );
+  // 3. 流式接收并实时回调 UI
+  await for (final chunk in stream) {
+    // 累计内容 + _notifyBookStreamingContent(...)
   }
 }
 ```

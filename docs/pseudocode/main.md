@@ -46,12 +46,13 @@ END FUNCTION
 
 ---
 
-## 窗口初始化 (window_utils.dart)
+## 函数：initDesktopWindow()
 
-窗口初始化已提取到独立模块。详见 [window_utils.md](utils/window_utils.md)。
+窗口初始化函数，位于 main.dart 中（原 window_utils.dart 已合并入 main.dart）。
 
 核心流程：
-- 平台检测（Windows/macOS/Linux）
+- 平台检测（Windows/macOS/Linux），非桌面平台自动跳过
+- `windowManager.ensureInitialized()` 初始化窗口管理器
 - `windowManager.waitUntilReadyToShow(WindowOptions(title: '智读'))` 设置窗口标题
 - 获取主显示器可见区域，计算 4:3 比例窗口尺寸并居中
 - 设置最小尺寸 600×400，最后调用 `show()` 显示窗口
@@ -291,7 +292,7 @@ build() 创建 MaterialApp
 ## 关键设计点
 
 1. **窗口初始化优先**: `initDesktopWindow()` 在所有服务初始化之前执行，通过 `WindowOptions(title: '智读')` 显式设置窗口标题，确保中文正确显示
-2. **独立窗口模块**: 窗口逻辑提取到 `window_utils.dart`，支持桌面平台检测（Windows/macOS/Linux），非桌面平台自动跳过
+2. **窗口初始化封装**: 窗口逻辑封装在 `initDesktopWindow()` 中（位于 main.dart），支持桌面平台检测（Windows/macOS/Linux），非桌面平台自动跳过
 3. **防闪烁**: `waitUntilReadyToShow()` + `show()` 确保窗口在所有设置完成后再显示
 4. **服务初始化顺序**：SettingsService 优先初始化，其他服务依赖它
 5. **响应式更新**：使用 ValueNotifier 监听设置变化，自动重建 UI

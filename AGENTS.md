@@ -78,6 +78,8 @@ lib/
 
 ### 版本历史
 
+**2026-11-13**: 冗余代码清理、注释规整与文档同步 — 代码侧：删除未使用 import（book.dart 等多处）；删除未使用字段（`chapter_screen._bookService`、`summary_service._bookService`、`Semaphore._maxPermits`）；清理冗余空安全操作符（epub_parser 10处、book_service 2处、ai_service 1处）；删除死 l10n key `promptPrefaceSummary`；修复 stale 测试（`bookSummaryFromPreface` 用例等）；注释侧：文件头部 doc 注释 `///` → `//`（消除 dangling_library_doc_comments）、doc 注释尖括号加反引号（消除 unintended_html_in_doc_comment）；文档侧：删除 `window_utils.md`、`opf_metadata.md`；更新 `main.md`/`book.md`/`index.md`/`function_call_relationships.md`/`function_call_relationships_visual.md` 的 stale 引用（`EpubService`/`PdfService`/`TranslationService`、`chapterTitles`、`translateHtmlStream()`、`_generateBookSummaryFromPreface()` 等）
+
 **2026-05-24**: AI思考过程清理 — 新增 `removeThinkingProcess()` 方法清理 `<thinking>`/`<think>` 标签；`getSummary()` 读取章节摘要时自动清理；`generateSingleSummary()` 生成章节摘要时先清理再提取标题；`_generateBookSummaryFromChapters()` 保存全书摘要前清理；BookScreen 加载/刷新文件摘要时调用清理方法，文件摘要优先于流式内容显示；增强 `AIService` system prompt 明确禁止AI输出思考过程标签（中/英/日三语）
 
 **2026-05-23**: AI摘要语言支持 — 全书/章节摘要按语言分别生成存储（zh/en/ja）；BookScreen 语言跟随修复（`PlatformDispatcher`获取系统语言）；摘要长度优化改为按比例（原文1/100），替代固定字数要求；system prompt 明确禁止标题输出；统一EPUB/PDF生成流程为"先章节摘要→再全书摘要"，章节摘要上限30个，截取前400字；修复章节摘要language参数传递；强化system/user prompt语言约束（禁止使用其他语言）

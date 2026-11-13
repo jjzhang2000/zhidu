@@ -180,46 +180,6 @@ STREAM METHOD generateFullChapterSummaryStream(
 
 ---
 
-### generateBookSummaryFromPrefaceStream() - 基于前言生成全书摘要（流式）
-
-```pseudocode
-STREAM METHOD generateBookSummaryFromPrefaceStream(
-    title: String,
-    author: String,
-    prefaceContent: String,
-    totalChapters: int? = null,
-    bookId: String? = null
-) -> Stream<String>:
-    IF _config == null OR NOT _config.isValid:
-        _log.w('AIService', 'AI 服务未配置或 API Key 无效')
-        RETURN empty stream
-    
-    outputLanguage = await _resolveOutputLanguage(
-        SettingsService().settings.languageSettings,
-        content: prefaceContent,
-        bookId: bookId
-    )
-    
-    loc = _getPromptLoc(outputLanguage)
-    
-    prompt = AiPrompts.bookSummaryFromPreface(
-        loc: loc,
-        title: title,
-        author: author,
-        prefaceContent: prefaceContent,
-        totalChapters: totalChapters
-    )
-    
-    TRY:
-        AWAIT FOR chunk IN _callAIStream(prompt):
-            YIELD chunk
-    
-    CATCH e:
-        _log.e('AIService', '基于前言生成全书摘要流失败', e)
-```
-
----
-
 ### generateBookSummaryStream() - 基于章节摘要生成全书摘要（流式）
 
 ```pseudocode
@@ -328,7 +288,7 @@ PRIVATE METHOD _getPromptLoc(languageCode: String) -> AppLocalizations:
     RETURN lookupAppLocalizations(Locale(languageCode))
 ```
 
-被调用方: 所有生成方法 (`generateFullChapterSummaryStream`, `generateBookSummaryStream`, `generateBookSummaryFromPrefaceStream`, `translateHtmlStream`)
+被调用方: 所有生成方法 (`generateFullChapterSummaryStream`, `generateBookSummaryStream`, `translateContent`)
 
 ---
 
@@ -770,7 +730,6 @@ Body:
 - **2026-04-24**: 添加流式显示功能
   - 新增流式方法：generateFullChapterSummaryStream()
   - 新增流式方法：generateBookSummaryStream()
-  - 新增流式方法：generateBookSummaryFromPrefaceStream()
   - 新增内部方法：_callAIStream() 支持 SSE 数据解析
   - 新增语言检测方法：_detectLanguageFromMetadataAndContentWithBookId()
   - 新增语言代码转换方法：convertLanguageCodeToStandard()

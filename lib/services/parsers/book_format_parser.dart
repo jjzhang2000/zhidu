@@ -1,4 +1,3 @@
-import '../../models/book.dart';
 import '../../models/chapter.dart';
 
 /// 书籍元数据解析结果（parseMetadata 返回值）

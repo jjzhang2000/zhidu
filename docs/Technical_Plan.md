@@ -111,7 +111,7 @@ UI 实时显示流式内容
 1. **AI服务层** (`ai_service.dart`)
    - 使用 `dart:io` 的 `HttpClient` 替代 `package:http`，避免缓冲
    - 实现 SSE 数据解析，支持数据块被分割的情况
-   - 提供 `generateFullChapterSummaryStream`、`generateBookSummaryStream`、`generateBookSummaryFromPrefaceStream` 等流式方法
+   - 提供 `generateFullChapterSummaryStream`、`generateBookSummaryStream` 等流式方法
 
 2. **摘要服务层** (`summary_service.dart`)
    - 实现流式回调广播机制：

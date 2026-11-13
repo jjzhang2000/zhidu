@@ -68,7 +68,6 @@
   "baseUrl": "Base URL",
   "promptBookChaptersLabel": "Chapters: ",
   "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
-  "promptPrefaceSummary": "{title}|{author}|{prefaceContent}|{chaptersLine}",
   "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
   "@appTitle": {
@@ -290,15 +289,6 @@
       "title": { "type": "String" },
       "author": { "type": "String" },
       "chapterSummaries": { "type": "String" },
-      "chaptersLine": { "type": "String" }
-    }
-  },
-  "@promptPrefaceSummary": {
-    "description": "Prompt - preface summary template",
-    "placeholders": {
-      "title": { "type": "String" },
-      "author": { "type": "String" },
-      "prefaceContent": { "type": "String" },
       "chaptersLine": { "type": "String" }
     }
   },

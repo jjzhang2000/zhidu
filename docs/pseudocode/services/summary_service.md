@@ -475,13 +475,9 @@ ASYNC METHOD generateSummariesForBook(book: Book, chapters: List<Chapter>):
             _log.w('SummaryService', '不支持的格式: {book.format}')
             RETURN
         
-        IF book.format == BookFormat.epub:
-            await _generateBookSummaryFromPreface(book, chapters, parser)
-            await _generateChapterSummaries(book, chapters, parser)
-        
-        ELSE:
-            await _generateChapterSummaries(book, chapters, parser)
-            await _generateBookSummaryFromChapters(book, chapters)
+        // EPUB/PDF 统一流程：先章节摘要，再全书摘要
+        await _generateChapterSummaries(book, chapters, parser)
+        await _generateBookSummaryFromChapters(book, chapters)
         
         _log.info('SummaryService', '书籍摘要生成完成: {book.title}')
     
@@ -502,22 +498,14 @@ ASYNC METHOD generateSummariesForBook(book: Book, chapters: List<Chapter>):
 │      ↓                                                      │
 │  获取章节列表                                                │
 │      ↓                                                      │
-│  判断书籍格式                                                │
+│  EPUB / PDF 统一流程                                         │
+│      ├─ 先生成章节摘要                                       │
+│      │   └─ _generateChapterSummaries()                     │
+│      │       └─ 流式生成 + 实时回调 (max=3 并发)            │
 │      │                                                      │
-│      ├─ EPUB 格式                                            │
-│      │   ├─ 先生成全书摘要（基于目录）                       │
-│      │   │   └─ _generateBookSummaryFromPreface()            │
-│      │   │       └─ 流式生成 + 实时回调                      │
-│      │   └─ 再生成章节摘要                                   │
-│      │       └─ _generateChapterSummaries()                 │
-│      │                                                      │
-│      └─ PDF 格式                                             │
-│          ├─ 先生成章节摘要                                   │
-│          │   └─ _generateChapterSummaries()                  │
-│          │       └─ 流式生成 + 实时回调                      │
-│          └─ 再生成全书摘要（基于章节摘要）                   │
-│              └─ _generateBookSummaryFromChapters()           │
-│                  └─ 流式生成 + 实时回调                      │
+│      └─ 再生成全书摘要（基于章节摘要）                       │
+│          └─ _generateBookSummaryFromChapters()               │
+│              └─ 流式生成 + 实时回调                          │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -604,86 +592,6 @@ PRIVATE ASYNC METHOD _processChapterConcurrently(
     FINALLY:
         // 释放信号量许可
         semaphore.release()
-```
-
----
-
-### _generateBookSummaryFromPreface() - 从前言生成全书摘要（流式）
-
-```pseudocode
-PRIVATE ASYNC METHOD _generateBookSummaryFromPreface(
-    book: Book,
-    chapters: List<Chapter>,
-    parser: dynamic
-):
-    _log.d('SummaryService', '从前言/目录生成全书摘要: {book.title}')
-    
-    TRY:
-        // 检查是否已有全书摘要
-        existingSummary = await getBookSummary(book.id)
-        
-        IF existingSummary != null AND existingSummary.isNotEmpty:
-            _log.d('SummaryService', '已有全书摘要，跳过: {book.title}')
-            RETURN
-        
-        // 收集目录信息
-        prefaceContent = StringBuffer()
-        prefaceContent.writeln('本书目录结构：\n')
-        
-        // 添加前20章标题
-        FOR i = 0 TO min(chapters.length, 20) - 1:
-            prefaceContent.writeln('第{i+1}章：{chapters[i].title}')
-        
-        IF chapters.length > 20:
-            prefaceContent.writeln('... 等共 {chapters.length} 章')
-        
-        // 添加第一章内容样本用于语言检测
-        IF chapters.isNotEmpty:
-            TRY:
-                firstChapter = chapters[0]
-                chapterContent = await parser.getChapterContent(
-                    book.filePath, firstChapter)
-                contentSample = chapterContent.htmlContent
-                
-                IF contentSample != null AND contentSample.isNotEmpty:
-                    // 取前500字符作为语言检测样本
-                    sampleLength = min(contentSample.length, 500)
-                    prefaceContent.writeln(
-                        '\n\n第一章内容样本（用于语言识别）：\n' +
-                        contentSample.substring(0, sampleLength)
-                    )
-            
-            CATCH e:
-                _log.w('SummaryService', '获取第一章内容用于语言检测失败: {e}')
-        
-        // 调用 AI 流式生成全书摘要
-        stream = _aiService.generateBookSummaryFromPrefaceStream(
-            title: book.title,
-            author: book.author,
-            prefaceContent: prefaceContent.toString(),
-            totalChapters: chapters.length,
-            bookId: book.id
-        )
-        
-        accumulatedContent = ''
-        
-        // 实时接收流式内容
-        AWAIT FOR chunk IN stream:
-            accumulatedContent += chunk
-            // 触发流式内容更新
-            _notifyBookStreamingContent(book.id, accumulatedContent)
-        
-        IF accumulatedContent.isNotEmpty:
-            // 清理AI思考过程标签
-            cleanContent = removeThinkingProcess(accumulatedContent)
-            await saveBookSummary(book.id, cleanContent, language: 'zh')
-            _log.info('SummaryService', '全书摘要生成成功: {book.title}')
-        
-        ELSE:
-            _log.w('SummaryService', 'AI返回空的全书摘要: {book.title}')
-    
-    CATCH e, stackTrace:
-        _log.e('SummaryService', '从前言生成全书摘要失败: {book.title}', e, stackTrace)
 ```
 
 ---
@@ -1181,7 +1089,6 @@ sampleLength = min(content.length, 500)
   - 新增流式回调注册/取消方法
   - 新增 `_notifyStreamingContent` 和 `_notifyBookStreamingContent`
   - 更新 `generateSingleSummary` 支持流式生成
-  - 更新 `_generateBookSummaryFromPreface` 支持流式生成
   - 更新 `_generateBookSummaryFromChapters` 支持流式生成
   - 更新 `removeTitleLineFromSummary` 支持更多标题格式
 

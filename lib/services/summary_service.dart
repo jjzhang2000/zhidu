@@ -1,7 +1,7 @@
-/// 摘要服务
-///
-/// 负责管理章节摘要和全书摘要的生成、存储、读取和删除。
-/// 支持并发控制，防止同一章节被重复生成摘要。
+// 摘要服务
+//
+// 负责管理章节摘要和全书摘要的生成、存储、读取和删除。
+// 支持并发控制，防止同一章节被重复生成摘要。
 
 import 'dart:async';
 
@@ -11,7 +11,6 @@ import '../models/chapter.dart';
 import '../models/book.dart';
 import 'file_storage_service.dart';
 import 'log_service.dart';
-import 'book_service.dart';
 import 'ai_service.dart';
 import 'settings_service.dart';
 import 'parsers/book_format_parser.dart';
@@ -19,11 +18,10 @@ import 'storage_config.dart';
 
 /// 信号量类，用于控制并发数
 class Semaphore {
-  final int _maxPermits;
   int _availablePermits;
   final List<Completer<void>> _waitingQueue = [];
 
-  Semaphore(this._maxPermits) : _availablePermits = _maxPermits;
+  Semaphore(int maxPermits) : _availablePermits = maxPermits;
 
   /// 获取一个许可，如果没有可用许可则等待
   Future<void> acquire() async {
@@ -64,9 +62,6 @@ class SummaryService {
 
   /// AI服务，用于调用大模型生成摘要
   final _aiService = AIService();
-
-  /// 书籍服务，用于更新章节标题等元数据
-  final _bookService = BookService();
 
   /// 日志服务
   final _log = LogService();

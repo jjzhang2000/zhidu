@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.10 | **更新日期**: 2026-05-22 | **基于代码版本**: v1.7
+> **文档版本**: v2.11 | **更新日期**: 2026-11-13 | **基于代码版本**: v1.7
 
 ---
 
@@ -9,7 +9,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           main.dart (入口)                               │
-│  _initWindowManager()  →  window_manager + screen_retriever              │
+│  initDesktopWindow()  →  window_manager + screen_retriever               │
 │  Service 初始化链:                                                        │
 │    LogService → SettingsService → FileStorageService → StorageConfig     │
 │    → BookService → AIService → AiPrompts → SummaryService                │
@@ -28,23 +28,23 @@
                 │       ├── LanguageSettingsScreen
                 │
                 └── 全局监听 (ValueNotifier):
-                        ├── SettingsService.themeNotifier → AppTheme
-                        └── SettingsService.localeNotifier → AppLocalizations
+                        ├── SettingsService.themeMode → AppTheme
+                        └── SettingsService.languageSettings → AppLocalizations
 ```
 
 ---
 
 ## 二、模块间依赖矩阵
 
-| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | FormatReg | EpubPsr | PdfPsr | SetSvc | OpfRdr | LogSvc | FileSvc | WinUtils |
-|-------------------|:-----:|:-----:|:------:|:---------:|:-------:|:------:|:------:|:------:|:------:|:-------:|:--------:|
-| **main.dart**     |   ✓   |   ✓   |   ✓    |     ✓     |   ✓     |   ✓    |   ✓    |   —    |   ✓    |   ✓    |   ✓    |
+| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | FormatReg | EpubPsr | PdfPsr | SetSvc | OpfRdr | LogSvc | FileSvc |
+|-------------------|:-----:|:-----:|:------:|:---------:|:-------:|:------:|:------:|:------:|:------:|:-------:|
+| **main.dart**     |   ✓   |   ✓   |   ✓    |     ✓     |   ✓     |   ✓    |   ✓    |   —    |   ✓    |   ✓    |
 | **HomeScreen**    |   ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |
 | **BookScreen**    |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |
 | **ChapterScreen** |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |
 | **PdfReaderScreen**|  ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |
 | **AiConfigScreen**|  —   |   ✓   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |
-| **BookService**   |  —   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
+| **BookService**   |  —   |   —   |   —    |     ✓     |   —     |   —    |   —    |   ✓    |   ✓    |   ✓    |
 | **AIService**     |  ✓   |   —   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |
 | **SummaryService**|  ✓   |   ✓   |   —    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
 | **SettingsSvc**   |  ✓   |   ✓   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
@@ -60,34 +60,34 @@
 ### 3.1 书籍导入流程
 
 ```
-HomeScreen._importBook() / BookshelfScreen._importBook()
+HomeScreen._importBook()
     │
-    ├── BookService().importBook(filePath)
-    │       │
-    │       ├── 识别格式 (扩展名)
-    │       │       ├── .epub → EpubService().parseEpubFile(filePath)
-    │       │       │           ├── EpubReader.readFromUri() (epub_plus库)
-    │       │       │           ├── _extractChapters(epubBook)
-    │       │       │           ├── _extractCover(epubBook, bookId)
-    │       │       │           └── OpfReaderService.readFromSameDirectory()
-    │       │       │               └── _parseOpfContent() → OpfMetadata
-    │       │       │
-    │       │       └── .pdf → PdfService().parsePdfFile(filePath)
-    │       │                   ├── PdfDocument.openFile() (pdfrx库)
-    │       │                   ├── _detectChapters(document)
-    │       │                   ├── _extractCover(document, bookId)
-    │       │                   └── OpfReaderService.readFromSameDirectory()
-    │       │                       └── _parseOpfContent() → OpfMetadata
-    │       │
-    │       ├── 合并 OPF 元数据 → Book 对象
-    │       │       ├── opfMeta.title ?? 解析标题
-    │       │       ├── opfMeta.author ?? "Unknown"
-    │       │       ├── opfMeta.language
-    │       │       └── ...
-    │       │
-    │       ├── FileStorageService().writeJson(metadataPath, book.toJson())
-    │       ├── FileStorageService().writeJson(booksIndexPath, booksList)
-    │       └── 返回 Book 对象（摘要生成不在此处触发）
+    ├── BookService().importBook()
+    │       └── importBookFromPath(filePath)
+    │               │
+    │               ├── OpfReaderService.readFromSameDirectory(filePath)
+    │               │       └── _parseOpfContent() → OpfMetadata
+    │               │
+    │               ├── 识别格式 (扩展名) → FormatRegistry.getParser(extension)
+    │               │       ├── .epub → EpubParser().parseMetadata(filePath, bookId)
+    │               │       │           ├── EpubReader.readBook() (epub_plus库)
+    │               │       │           ├── _extractChapters(epubBook)
+    │               │       │           └── _extractCover(bytes, bookId)
+    │               │       │
+    │               │       └── .pdf → PdfParser().parseMetadata(filePath, bookId)
+    │               │                   ├── PdfDocument.openFile() (sync_pdf_renderer库)
+    │               │                   ├── _detectChapters(document)
+    │               │                   └── _extractCover(document, bookId)
+    │               │
+    │               ├── 合并 OPF 元数据 + 解析结果 → Book 对象
+    │               │       ├── opfMetadata.title ?? metadata.title
+    │               │       ├── opfMetadata.author ?? metadata.author
+    │               │       ├── opfMetadata.language
+    │               │       └── ...
+    │               │
+    │               ├── FileStorageService().writeJson(metadataPath, book.toJson())
+    │               ├── FileStorageService().writeJson(booksIndexPath, booksList)
+    │               └── 返回 Book 对象（摘要生成不在此处触发）
     │
     └── UI 刷新: setState() → 书架更新、新书显示
 
@@ -130,7 +130,7 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
     │                               ├── 摘要已缓存 → Markdown渲染章节摘要
     │                               │
     │                               └── 摘要不存在 → _generateSummaryWithStreaming()
-    │                                       └── SummaryService.generateSingleSummaryStream()
+    │                                       └── SummaryService.generateSingleSummary()
     │                                           └── AIService.generateFullChapterSummaryStream()
     │                                               └── _callAIStream() → SSE → onContentUpdate → UI实时显示
     │                                                   └── 生成完成 → 保存文件 → 切换最终 Markdown
@@ -139,15 +139,11 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
             │
             └── SummaryService.generateSummariesForBook()
                     │
-                    ├── [EPUB] _generateBookSummaryFromPreface()
-                    │           └── AIService.generateBookSummaryFromPrefaceStream()
-                    │               └── _callAIStream() → SSE → onChunk → _notifyBookStreamingContent()
-                    │
                     ├── [EPUB/PDF] generateSingleSummary() × N (并发控制: semaphore max=3)
                     │               └── AIService.generateFullChapterSummaryStream()
                     │                   └── _callAIStream() → SSE → onChunk → onContentUpdate回调
                     │
-                    └── [PDF] _generateBookSummaryFromChapters()
+                    └── [EPUB/PDF] _generateBookSummaryFromChapters()
                                 └── AIService.generateBookSummaryStream()
                                     └── _callAIStream() → SSE → onChunk → _notifyBookStreamingContent()
             │
@@ -209,7 +205,6 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `_loadConfig()` (内部) | 构造时、SettingsService 变更时 |
 | `generateFullChapterSummaryStream()` | SummaryService.generateSingleSummary() |
 | `generateBookSummaryStream()` | SummaryService._generateBookSummaryFromChapters() |
-| `generateBookSummaryFromPrefaceStream()` | SummaryService._generateBookSummaryFromPreface() |
 | `translateContent()` | SummaryService.generateTranslationStream() |
 | `testConnection()` | AiConfigScreen 测试按钮 |
 | `detectLanguageFromContent()` | `detectSourceLanguage()`, `resolveOutputLanguage()` |
@@ -229,8 +224,7 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `SummaryService()` (构造) | main.dart, BookScreen, ChapterScreen |
 | `generateSummariesForBook()` | BookScreen._startPreGeneration() |
 | `generateSingleSummary()` | ChapterScreen._loadSummary(), ChapterScreen._generateSummaryWithStreaming() |
-| `_generateBookSummaryFromPreface()` (内部) | generateSummariesForBook() (EPUB) |
-| `_generateBookSummaryFromChapters()` (内部) | generateSummariesForBook() (PDF) |
+| `_generateBookSummaryFromChapters()` (内部) | generateSummariesForBook() (EPUB/PDF) |
 | `registerBookStreamingCallback()` | BookScreen.initState() |
 | `unregisterBookStreamingCallback()` | BookScreen.dispose() |
 | `_notifyBookStreamingContent()` (内部) | 流式回调时 |
@@ -243,13 +237,13 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 |---|---|
 | `SettingsService()` (构造) | main.dart |
 | `init()` | main.dart |
-| `getAiConfig()` / `getAiSettings()` | AIService._loadConfig(), AiConfigScreen |
-| `updateAiSettings()` | AiConfigScreen._saveConfig() |
-| `updateThemeSettings()` | ThemeSettingsScreen |
+| `get settings` | AIService._loadConfig(), 各设置页面 |
+| `get aiSettings` (ValueNotifier) | AIService, AiConfigScreen |
+| `updateAiSettings()` | AiConfigScreen |
+| `setThemeMode()` | ThemeSettingsScreen |
 | `updateLanguageSettings()` | LanguageSettingsScreen |
-| `get themeSettings` / `themeNotifier` | ZhiduApp, AppTheme |
-| `get languageSettings` / `localeNotifier` | ZhiduApp |
-| `isAIEnabled()` | various screens |
+| `get themeMode` (ValueNotifier) | ZhiduApp, AppTheme |
+| `get languageSettings` (ValueNotifier) | ZhiduApp |
 
 ---
 
@@ -280,8 +274,8 @@ ZhiduApp (MaterialApp)
 
 ```
 BookService         → Book, Chapter
-EpubService         → Book, BookFormat
-PdfService          → Book, BookFormat
+EpubParser          → BookMetadata, Chapter
+PdfParser           → BookMetadata, Chapter
 AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 AiSettings)
 SummaryService      → Chapter, Book (通过summary-zh.md文件存储全书摘要)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings
@@ -299,12 +293,10 @@ Chapter 模型包含:
 Book 模型包含:
   ├── String id, title, author, filePath, coverPath
   ├── BookFormat format (epub/pdf)
-  ├── int totalChapters, currentChapterIndex
+  ├── int totalChapters, currentChapter
   ├── DateTime addedAt, lastReadAt
   ├── double readingProgress
-  ├── String? language (OPF 元数据字段)
-  ├── Map<int, String>? chapterTitles (AI 生成的章节标题)
-  └── Map<String, String>? translations (译文状态)
+  └── String? language (OPF 元数据字段)
 
 全书摘要独立存储在 books/{bookId}/summary-zh.md，不再使用 aiIntroduction 字段
 ```
@@ -318,14 +310,14 @@ Book 模型包含:
 SettingsService._saveSettings()
     → FileStorageService().writeJson(settings.json, appSettings.toJson())
 
-BookService._saveBooks()
+BookService._saveBooksIndex()
     → FileStorageService().writeJson(books.json, booksList)
 
-BookService._saveMetadata()
+BookService._saveBookMetadata()
     → FileStorageService().writeJson(metadata.json, book.toJson())
 
-SummaryService._saveSummary()
-    → FileStorageService().writeText(chapter-XXX-zh.md, markdownContent)
+SummaryService.saveSummary()
+    → FileStorageService().writeText(Summary-XXX-zh.md, markdownContent)
 
 SummaryService.saveTranslation()
     → FileStorageService().writeText(chapter-XXX-en.html, htmlContent)
@@ -340,10 +332,10 @@ BookService._loadBooks()
 BookService.getBook()
     → FileStorageService().readJson(metadata.json)
 
-SummaryService.getChapterSummaryContent()
-    → FileStorageService().readText(chapter-XXX-zh.md)
+SummaryService.getSummary()
+    → FileStorageService().readText(Summary-XXX-zh.md)
 
-SummaryService.getBookSummaryContent()
+SummaryService.getBookSummary()
     → FileStorageService().readText(summary-zh.md)
 ```
 
@@ -370,28 +362,28 @@ SummaryService.getBookSummaryContent()
 ┌──────────────────────────────────────────────────────────────────┐
 │                        MODELS (数据模型)                           │
 ├──────────────────────────────────────────────────────────────────┤
-│  Book                  Chapter              ChapterLocation       │
-│  - id: String          - bookId: String      - href: String?      │
-│  - title: String       - index: int          - startPage: int?    │
-│  - author: String      - title: String       - endPage: int?      │
-│  - filePath: String    - location: ChapterLoc│
-│  - coverPath: String?  - level: int                              │
-│  - format: BookFormat  - htmlContent: String?                    │
-│  - totalChapters: int  - objectiveSummary:                        │
-│  - currentChapter: int       String?                              │
+│  Book                      Chapter               ChapterLocation  │
+│  - id: String              - bookId: String       - href: String? │
+│  - title: String           - index: int           - startPage: int?│
+│  - author: String          - title: String        - endPage: int? │
+│  - coverPath: String?      - location: ChapterLocation            │
+│  - filePath: String        - level: int                           │
+│  - format: BookFormat      - htmlContent: String?                 │
+│  - totalChapters: int      - objectiveSummary: String?            │
+│  - currentChapter: int                                            │
 │  - readingProgress: double                                        │
+│  - addedAt: DateTime                                              │
+│  - lastReadAt: DateTime?                                          │
 │  - language: String?                                              │
-│  - chapterTitles: Map?  AppSettings           AiSettings          │
-│                          - ai: AiSettings      - provider: String   │
-│                          - theme: ThemeSettings- apiKey: String    │
-│                          - language: LangSettings- model: String   │
-│                                                - baseUrl: String   │
 │                                                                    │
-│  OpfMetadata (定义在 book.dart 末尾)                              │
-│  - title: String?                                                 │
-│  - author: String?                                                │
-│  - language: String?                                              │
-│  - coverPath: String?                                             │
+│  OpfMetadata (定义在 book.dart)   AppSettings     AiSettings       │
+│  - title: String?                 - ai: AiSettings - provider      │
+│  - author: String?                - theme         - apiKey         │
+│  - language: String?              - language      - model          │
+│  - coverPath: String?                             - baseUrl        │
+│                                                                    │
+│  BookMetadata (定义在 book_format_parser.dart)                    │
+│  - title / author / totalChapters / coverPath? / language?        │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -399,40 +391,41 @@ SummaryService.getBookSummaryContent()
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  BookService              AIService              SummaryService   │
-│  ─────────────────        ────────────           ───────────────  │
-│  + importBook()           + generate..Stream()   + generateSummaries│
-│  + getBooks()             + translateHtmlStream()+ generateSingle..│
-│  + getBook()              + testConnection()     + getSummary...()│
-│  + deleteBook()           + detectLanguage()     + _notifyBookSt..│
-│  + searchBooks()          + _callAIStream()      + Semaphore      │
-│  + _saveBooks()                                  - _generatingKeys│
-│  SettingsService     SummaryService       LogService        │
-│  ───────────────     ────────────────     ──────────        │
-│  + init()            + generateTranslationStream() + v() / d() │
-│  + getAiSettings()   + generateSingle..       + info() / w() │
-│  + updateAiSettings()+ getSummary...()         + e()         │
-│  + updateThemeSettings()                     + init()       │
-│  + updateLanguageSettings()                                  │
-│  + themeNotifier                                             │
-│  + localeNotifier         FileStorageService                  │
-│                             ──────────────────                  │
-│  EpubService   PdfService   + writeJson() / readJson()           │
-│  ────────────  ──────────── + writeText() / readText()           │
-│  + parseEpub.. + parsePdf.. + deleteFile() / deleteDirectory()   │
-│                             + fileExists()                       │
+│  ─────────────            ──────────             ───────────────  │
+│  + books (getter)         + generateFullChapterSummaryStream()    │
+│  + importBook()           + generateBookSummaryStream()           │
+│  + importBookFromPath()   + translateContent()   + generateSingleSummary()│
+│  + getBookById()          + testConnection()     + generateSummariesForBook()│
+│  + deleteBook()           + detectLanguageFromContent()           │
+│  + updateBook()           + detectSourceLanguage()                │
+│  + searchBooks()          + resolveOutputLanguage()               │
+│  + _saveBooksIndex()      + needsTranslation()   + getSummary()   │
+│  + _saveBookMetadata()    + fetchAvailableModels()+ saveSummary() │
+│                           + _callAIStream()      + getBookSummary()│
+│                                                  + saveBookSummary()│
+│  SettingsService          SummaryService(续)     + getTranslation()│
+│  ───────────────          ────────────────       + saveTranslation()│
+│  + init()                 + generateTranslationStream()           │
+│  + settings (getter)      + ensureChapterTranslation()            │
+│  + themeMode (getter)     + registerBookStreamingCallback()       │
+│  + aiSettings (getter)    + Semaphore (并发控制 max=3)            │
+│  + languageSettings      + _generatingKeys                        │
+│  + updateAiSettings()     LogService                               │
+│  + setThemeMode()         ──────────                               │
+│  + updateLanguageSettings() + v() / d() / info() / w() / e()      │
+│  + getSavedAiConfigForProvider()  + init()                        │
 │                                                                  │
-│  OpfReaderService          StorageConfig                         │
-│  ────────────────          ─────────────                         │
-│  + readFromOpfFile()       + getAppDirectory()                   │
-│  + readFromSameDirectory() + getBooksDirectory()                 │
-│  - _parseOpfContent()      + getBookDirectory()                  │
-│                            + getBooksIndexPath()                 │
-│                            + getBookMetadataPath()               │
-│                            + getBookSummaryPath()                │
-│                            + getChapterSummaryPath()             │
-│                            + getChapterTranslationPath()         │
-│                            + getCoverSavePath()                  │
-│                            + getCoverPath()                      │
+│  FileStorageService        OpfReaderService       StorageConfig   │
+│  ──────────────────        ────────────────       ─────────────   │
+│  + writeJson()/readJson()  + readFromOpfFile()    + getAppDirectory()│
+│  + writeText()/readText()  + readFromSameDirectory()+ getBooksIndexPath()│
+│  + deleteFile()            - _parseOpfContent()   + getBookDirectoryPath()│
+│  + deleteDirectory()                              + getBookDirectory()│
+│                                                   + getBookMetadataPath()│
+│                                                   + getBookSummaryPath()│
+│                                                   + getChapterSummaryPath()│
+│                                                   + getChapterTranslationPath()│
+│                                                   + getCoverSavePath()│
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -441,15 +434,18 @@ SummaryService.getBookSummaryContent()
 │                                                                  │
 │  <<interface>>               EpubParser        PdfParser         │
 │  BookFormatParser            ──────────        ─────────         │
-│  ────────────────            + getChapters()   + getChapters()   │
-│  + getChapters()             + getChapterContent() + getChapterContent│
-│  + getChapterContent()                                           │
+│  ────────────────            + parseMetadata() + parseMetadata() │
+│  + parseMetadata()           + getChapters()   + getChapters()   │
+│  + getChapters()             + getChapterContent()               │
+│  + getChapterContent()       + getChapterContent()               │
 │                                                                  │
 │  FormatRegistry                                                   │
 │  ──────────────                                                   │
 │  + static register(extension, parser)                            │
-│  + static getParser(extension)                                   │
-│  + static get supportedFormats                                  │
+│  + static getParser(extension) → BookFormatParser?               │
+│  + static isSupported(extension)                                 │
+│  + static getSupportedFormats()                                  │
+│  + static clear()                                                │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -461,14 +457,14 @@ SummaryService.getBookSummaryContent()
 │  - BookService            - BookService         - BookService    │
 │                           - SummaryService      - SummaryService │
 │                           - AIService           - AIService      │
-│  + _importBook()          + _startPreGeneration() - Translation..│
-│  + _buildEmptyState()     + _refreshBookIfNeeded()+ _loadSummary │
+│  + _importBook()          + _startPreGeneration()+ _loadSummary()│
+│  + _buildEmptyState()     + _refreshBookIfNeeded()+ _generateTranslationWithStreaming()│
 │  + _buildBookGrid()                                           │
 │                                                                    │
 │  SettingsScreen           AiConfigScreen        PdfReaderScreen  │
 │  ──────────────           ──────────────        ─────────────── │
 │  - SettingsService        - SettingsService     - BookService    │
-│  + 导航到各设置页         - AIService           - PdfService     │
+│  + 导航到各设置页         - AIService           - PdfParser      │
 │                           - LogService                           │
 │                           + _testConnection()                    │
 │                           + _fetchModelsForCurrentProvider()     │
@@ -485,6 +481,7 @@ SummaryService.getBookSummaryContent()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-13 | 冗余代码清理 + 注释规整 + 文档同步 — 代码侧：删除未使用 import/字段、清理冗余空安全操作符、删除死 l10n key `promptPrefaceSummary`、修复 stale 测试；文档侧：类图 UML 修复（删除 `chapterTitles`、`EpubService`/`PdfService` → `EpubParser`/`PdfParser`、删除 `fileExists()`/`getBooksDirectory()`/`getCoverPath()`、PdfReaderScreen `PdfService` → `PdfParser`、`translateHtmlStream()` → `translateContent()`、`_saveBooks()` → `_saveBooksIndex()`、`getBook()` → `getBookById()`）；`index.md` 修正章节摘要文件名 `Summary-{index}-{lang}.md` |
 | 2026-05-21 | EpubService/PdfService 僵尸代码清理 + 测试同步 — EpubService 删除 8 个公共方法（extractPrefaceContent/getHierarchicalChapterList/getSectionContent/getChapterContentFromHref/getChapterHtml/getSectionHtml/getSectionsInChapter/getChapterList）及 10+ 私有依赖方法、2 个内部类（ChapterInfo/SectionInfo），1265→422 行；PdfService 删除 3 个公共方法（getChapterPages/getChapterPageRange/getPageContent）及 2 个内部类（PdfChapter/PdfPageContent 改为私有 _PdfChapter），472→189 行；同步删除 epub_service_test.pdf_service_test 中对应用例、删除 epub_parser_test/pdf_parser_test 中 extractCover 用例；更新 epub_service.md/pdf_service.md/function_call_relationships.md/index.md |
 | 2026-05-21 | BookService: 删除僵尸方法 `saveBooksIndex()`（无外部调用），精简注释（434→289行，-33%），同步更新伪代码 |
 | 2026-05-21 | AI 语言检测：`detectLanguageFromContent` 改为 AI 识别；`detectSourceLanguage` 新增 bookId + 回写；合并 `getTargetLanguage` → `resolveOutputLanguage` |

@@ -304,7 +304,6 @@ ASYNC PROCEDURE _ensureSummary():
     _summaryChapter = summary
     _isGenerating = false
     _streamingSummary = ''
-    _title = book?.chapterTitles?[chapterIndex] ?? _title
 END PROCEDURE
 ```
 
@@ -342,10 +341,7 @@ END PROCEDURE
 
 ```
 PROCEDURE _getChapterTitle(index, defaultTitle):
-  IF widget.book != null:
-    titles = widget.book!.chapterTitles
-    IF titles != null AND titles.containsKey(index):
-      RETURN titles[index]
+  // 直接返回章节原始标题
   RETURN defaultTitle
 END PROCEDURE
 ```
@@ -780,7 +776,6 @@ READ TR: getTranslation(bookId, chapterIndex, targetLang) → String?
 ```
 READ: getBookById(bookId) → Book?
   - Get latest book data
-  - Includes chapterTitles (AI-updated titles)
 ```
 
 ### FormatRegistry
@@ -788,30 +783,6 @@ READ: getBookById(bookId) → Book?
 ```
 GET PARSER: FormatRegistry.getParser(extension)
 USE PARSER: getChapters(filePath) | getChapterContent(filePath, chapter)
-```
-
----
-
-## Title Update Mechanism
-
-```
-AI generates summary via _generateSummaryWithStreaming()
-    ↓
-May also generate better chapter title
-    ↓
-SummaryService updates book.chapterTitles
-    ↓
-BookService saves updated book
-    ↓
-_generateSummaryWithStreaming() checks for new title
-    ↓
-updatedBook = _bookService.getBookById(bookId)
-    ↓
-newTitle = updatedBook.chapterTitles?[chapterIndex]
-    ↓
-setState(): _title = newTitle ?? _title
-    ↓
-AppBar shows updated title
 ```
 
 ---

@@ -92,7 +92,7 @@ class FileStorageService {
 | `writeJson` | SettingsService | `settings.json` |
 | `writeJson` | BookService | `books.json`, `metadata.json` |
 | `writeText` | SummaryService | 章节摘要 `.md` 文件 |
-| `writeText` | TranslationService | 章节译文 `.html` 文件 |
+| `writeText` | SummaryService | 章节译文 `.html` 文件 |
 | `readText` | SummaryService | 读取已有摘要 |
 | `deleteFile` | BookService | 删除书籍文件和相关摘要 |
 | `deleteDirectory` | BookService | 删除整个书籍目录 |

@@ -1,16 +1,16 @@
-/// 章节摘要阅读界面
-///
-/// 这是应用的核心阅读界面，提供以下功能：
-/// 1. 显示AI生成的章节摘要（Markdown渲染）
-/// 2. 查看章节原文（EPUB: HTML渲染，PDF: 单页查看器）
-/// 3. 一键生成章节摘要
-/// 4. 章节导航（上一章/下一章）
-/// 5. PDF页码翻页（在原文模式下）
-///
-/// 界面切换逻辑：
-/// - 左侧图标按钮：切换"摘要视图"与"原文视图"
-/// - 摘要视图：显示AI生成的章节摘要
-/// - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
+// 章节摘要阅读界面
+//
+// 这是应用的核心阅读界面，提供以下功能：
+// 1. 显示AI生成的章节摘要（Markdown渲染）
+// 2. 查看章节原文（EPUB: HTML渲染，PDF: 单页查看器）
+// 3. 一键生成章节摘要
+// 4. 章节导航（上一章/下一章）
+// 5. PDF页码翻页（在原文模式下）
+//
+// 界面切换逻辑：
+// - 左侧图标按钮：切换"摘要视图"与"原文视图"
+// - 摘要视图：显示AI生成的章节摘要
+// - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -21,7 +21,6 @@ import '../models/chapter.dart';
 import '../models/book.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
-import '../services/book_service.dart';
 import '../services/parsers/book_format_parser.dart';
 import '../services/log_service.dart';
 import '../services/settings_service.dart';
@@ -80,9 +79,6 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// 摘要服务（用于加载/生成摘要）
   final _summaryService = SummaryService();
-
-  /// 书籍服务（用于获取更新后的书籍信息）
-  final _bookService = BookService();
 
   /// 当前章节的摘要数据
   Chapter? _summaryChapter;

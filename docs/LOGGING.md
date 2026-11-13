@@ -58,7 +58,7 @@ _log.e('Tag', '错误描述', error, stackTrace);
 ```
 [2024-01-15 10:30:45.123] INFO    [Main] 应用启动
 [2024-01-15 10:30:45.456] DEBUG   [BookService] 加载了 5 本书籍
-[2024-01-15 10:30:46.789] ERROR   [EpubService] 解析失败
+[2024-01-15 10:30:46.789] ERROR   [EpubParser] 解析失败
 Error: Exception: Invalid EPUB
 StackTrace:
 #0 ...

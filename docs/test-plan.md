@@ -293,13 +293,11 @@
 | deleteBook测试 | 正常删除、不存在书籍 | P0 |
 | updateBook测试 | 正常更新、不存在书籍 | P0 |
 | searchBooks测试 | 标题搜索、作者搜索、空结果 | P0 |
-| updateChapterTitle测试 | 标题更新、书籍不存在 | P0 |
 
 **测试用例数**: ~25个
 
 **Mock策略**:
 - Mock FileStorageService
-- Mock EpubService/PdfService
 - Mock FilePicker（文件选择器）
 
 #### 4.3.2 AIService测试
@@ -312,7 +310,6 @@
 | AiSettings验证测试 | 有效配置、占位符检测、本地模型 | P0 |
 | isConfigured测试 | 已配置、未配置 | P0 |
 | generateFullChapterSummary测试 | 正常生成、未配置返回null | P0 |
-| generateBookSummaryFromPreface测试 | 正常生成、未配置返回null | P0 |
 | generateBookSummary测试 | 正常生成、未配置返回null | P0 |
 | _callAI测试 | HTTP请求构造、响应解析 | P0 |
 | _callAI错误测试 | 非200状态码处理 | P0 |
@@ -434,7 +431,6 @@
 
 | 测试项 | 测试内容 | 优先级 |
 |--------|----------|--------|
-| bookSummaryFromPreface测试 | 提示词格式验证 | P0 |
 | bookSummary测试 | 提示词格式验证 | P0 |
 | chapterSummary测试 | 提示词格式验证 | P0 |
 | 参数嵌入测试 | title/author/content正确嵌入 | P0 |
@@ -442,44 +438,6 @@
 **测试用例数**: ~10个
 
 **Mock策略**: 无需Mock，纯函数测试
-
-#### 4.3.9 EpubService测试
-
-**文件**: `test/services/epub_service_test.dart`
-
-| 测试项 | 测试内容 | 优先级 |
-|--------|----------|--------|
-| parseEpubFile测试 | 正常解析、文件不存在 | P0 |
-| extractPrefaceContent测试 | 前言提取、回退策略 | P0 |
-| getChapterList测试 | 章节列表获取 | P0 |
-| getChapterContent测试 | 章节内容获取 | P0 |
-| getChapterHtml测试 | HTML获取 | P0 |
-| getSectionsInChapter测试 | 小节提取 | P1 |
-
-**测试用例数**: ~20个
-
-**Mock策略**:
-- Mock EpubReader（epub_plus）
-- Mock File、Archive
-
-#### 4.3.10 PdfService测试
-
-**文件**: `test/services/pdf_service_test.dart`
-
-| 测试项 | 测试内容 | 优先级 |
-|--------|----------|--------|
-| parsePdfFile测试 | 正常解析、文件不存在 | P0 |
-| _extractCover测试 | 封面渲染（或跳过） | P1 |
-| _detectChapters测试 | 章节检测、封面跳过 | P0 |
-| getChapterPages测试 | 页面内容获取 | P0 |
-| getChapterPageRange测试 | 页码范围 | P0 |
-| getPageContent测试 | 单页内容 | P0 |
-
-**测试用例数**: ~15个
-
-**Mock策略**:
-- Mock PdfDocument（pdfrx）
-- Mock File
 
 ---
 

@@ -198,12 +198,7 @@ END PROCEDURE
 
 ```
 PROCEDURE _getChapterTitle(index, chapter):
-  // Priority 1: AI-extracted title from book.chapterTitles
-  titles = _book.chapterTitles
-  IF titles != null AND titles.containsKey(index):
-    RETURN titles[index]
-
-  // Priority 2: Original chapter title from EPUB/PDF
+  // 直接返回章节原始标题
   RETURN chapter.title
 END PROCEDURE
 ```
@@ -492,10 +487,9 @@ _startPreGeneration():
     ↓
 SummaryService.generateSummariesForBook(book, chapters)
     ↓
-EPUB: _generateBookSummaryFromPreface() → book summary
-      + generateSingleSummary() × N → chapter summaries
-PDF:  generateSingleSummary() × N → chapter summaries
-      + _generateBookSummaryFromChapters() → book summary
+EPUB/PDF 统一流程:
+    generateSingleSummary() × N → chapter summaries
+    _generateBookSummaryFromChapters() → book summary
     ↓
 Streaming callbacks → real-time UI updates
     ↓
@@ -562,7 +556,7 @@ Benefit: User sees summary appear without manual refresh
 ```
 READ: _bookService.getBookById(id)
   - Returns latest Book object
-  - Includes chapterTitles, reading progress
+  - Includes reading progress
 ```
 
 ### SummaryService

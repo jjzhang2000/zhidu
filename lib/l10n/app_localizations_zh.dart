@@ -224,11 +224,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String promptPrefaceSummary(String title, String author, String prefaceContent, String chaptersLine) {
-    return '$title|$author|$prefaceContent|$chaptersLine';
-  }
-
-  @override
   String promptChapterSummary(String chapterTitle, String content) {
     return '$chapterTitle|$content';
   }

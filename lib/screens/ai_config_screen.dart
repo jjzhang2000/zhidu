@@ -1,16 +1,16 @@
-/// AI配置页面
-///
-/// 提供AI服务提供商的配置界面，包括：
-/// - 提供商选择（智谱/通义千问）
-/// - API Key输入（支持显示/隐藏切换）
-/// - 模型选择（根据提供商动态变化）
-/// - Base URL配置（带默认值）
-/// - 连接测试功能
-///
-/// 数据流向：
-/// - 读取：SettingsService().settings.ai
-/// - 保存：SettingsService().updateAiSettings(AiSettings)
-/// - 重载：AIService().reloadConfig()
+// AI配置页面
+//
+// 提供AI服务提供商的配置界面，包括：
+// - 提供商选择（智谱/通义千问）
+// - API Key输入（支持显示/隐藏切换）
+// - 模型选择（根据提供商动态变化）
+// - Base URL配置（带默认值）
+// - 连接测试功能
+//
+// 数据流向：
+// - 读取：SettingsService().settings.ai
+// - 保存：SettingsService().updateAiSettings(AiSettings)
+// - 重载：AIService().reloadConfig()
 
 import 'package:flutter/material.dart';
 import 'package:zhidu/l10n/app_localizations.dart';

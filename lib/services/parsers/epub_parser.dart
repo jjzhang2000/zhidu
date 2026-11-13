@@ -7,7 +7,6 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
-import '../../models/book.dart';
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
 import '../log_service.dart';
@@ -43,12 +42,12 @@ class EpubParser implements BookFormatParser {
 
         title = epubBook.title;
 
-        if (epubBook.authors?.isNotEmpty == true) {
-          author = epubBook.authors!.join(', ');
+        if (epubBook.authors.isNotEmpty) {
+          author = epubBook.authors.join(', ');
         }
 
-        if (epubBook.chapters?.isNotEmpty == true) {
-          totalChapters = _countChapters(epubBook.chapters!);
+        if (epubBook.chapters.isNotEmpty) {
+          totalChapters = _countChapters(epubBook.chapters);
         }
       } catch (_) {
         _log.w('EpubParser', 'EpubReader 解析失败，回退到 archive 方案');
@@ -117,9 +116,9 @@ class EpubParser implements BookFormatParser {
         }
       }
 
-      if (epubBook.content?.html?.isNotEmpty == true) {
+      if (epubBook.content?.html.isNotEmpty == true) {
         chapterInfos.addAll(_extractChapterInfosFromContent(
-            epubBook.content!.html!, epubBook.schema?.package?.spine?.items));
+            epubBook.content!.html, epubBook.schema?.package?.spine?.items));
         if (chapterInfos.isNotEmpty) {
           return _convertToChapters(chapterInfos);
         }
@@ -143,8 +142,8 @@ class EpubParser implements BookFormatParser {
     int count = 0;
     for (final chapter in chapters) {
       count++;
-      if (chapter.subChapters?.isNotEmpty == true) {
-        count += _countChapters(chapter.subChapters!);
+      if (chapter.subChapters.isNotEmpty) {
+        count += _countChapters(chapter.subChapters);
       }
     }
     return count;
@@ -306,10 +305,10 @@ class EpubParser implements BookFormatParser {
     try {
       final epubBook = await EpubReader.readBook(bytes);
 
-      if (epubBook.content?.images?.isNotEmpty == true) {
+      if (epubBook.content?.images.isNotEmpty == true) {
         EpubByteContentFile? coverImage;
 
-        for (final entry in epubBook.content!.images!.entries) {
+        for (final entry in epubBook.content!.images.entries) {
           final name = entry.key.toLowerCase();
           if (name.contains('cover') || name.contains('title')) {
             coverImage = entry.value;

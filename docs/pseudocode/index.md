@@ -59,8 +59,7 @@ docs/pseudocode/
 │       ├── epub_parser.md        # EPUB解析器
 │       └── pdf_parser.md         # PDF 解析器
 └── utils/
-    ├── app_theme.md              # 应用主题配置
-    └── window_utils.md           # 窗口管理工具（桌面平台）
+    └── app_theme.md              # 应用主题配置
 ```
 
 ---
@@ -171,21 +170,11 @@ OpfReaderService.readFromSameDirectory() → 读取 metadata.opf（Calibre）
 SummaryService.generateSummariesForBook()
     ↓
 ┌─────────────────────────────────────────────────────────┐
-│ EPUB 格式                                                │
-│ 1. 从前言/目录生成全书摘要（流式）                       │
-│    └─ _generateBookSummaryFromPreface()                 │
-│       └─ AIService.generateBookSummaryFromPrefaceStream()│
-│       └─ 实时更新到 UI (notifyBookStreamingContent)     │
-│ 2. 生成章节摘要（流式，并发控制 max=3）                 │
-│    └─ generateSingleSummary()                           │
-│       └─ AIService.generateFullChapterSummaryStream()   │
-│       └─ 实时更新到 UI (notifyStreamingContent)         │
-└─────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────┐
-│ PDF 格式                                                 │
+│ EPUB / PDF 统一流程                                      │
 │ 1. 生成章节摘要（流式，并发控制 max=3）                 │
 │    └─ generateSingleSummary()                           │
 │       └─ AIService.generateFullChapterSummaryStream()   │
+│       └─ 实时更新到 UI (onContentUpdate)                │
 │ 2. 从章节摘要生成全书摘要（流式）                       │
 │    └─ _generateBookSummaryFromChapters()                │
 │       └─ AIService.generateBookSummaryStream()          │
@@ -251,15 +240,15 @@ Documents/zhidu/                   (可自定义)
     └── {bookId}/
         ├── metadata.json          # 书籍完整元数据
         ├── summary-zh.md          # 全书摘要（中文）
-        ├── chapter-000-zh.md      # 章节摘要（中文）
+        ├── Summary-000-zh.md      # 章节摘要（中文）
         ├── chapter-000-en.html    # 章节译文（英文）
-        ├── chapter-001-zh.md
+        ├── Summary-001-zh.md
         └── cover.jpg/png          # 封面图片
 ```
 
 ### 命名规则
 
-- 章节摘要: `chapter-{index:3d}-{lang}.md`（如 `chapter-003-zh.md`）
+- 章节摘要: `Summary-{index:3d}-{lang}.md`（如 `Summary-003-zh.md`）
 - 书籍摘要: `summary-{lang}.md`（如 `summary-zh.md`）
 - 章节译文: `chapter-{index:3d}-{lang}.html`（如 `chapter-003-en.html`）
 
@@ -294,8 +283,8 @@ Documents/zhidu/                   (可自定义)
 
 ### 摘要生成
 
-- **章节摘要**: 200-300 字，提取核心内容+关键要点+总结
-- **全书摘要**: 400-600 字，综合各章节或基于前言
+- **章节摘要**: 按原文约 1/100 比例提取核心内容+关键要点+总结
+- **全书摘要**: 综合各章节摘要生成
 
 ### 翻译
 
@@ -306,8 +295,8 @@ Documents/zhidu/                   (可自定义)
 ### 语言检测
 
 - 优先使用 Calibre OPF 元数据中的语言
-- 回退到字符比例分析（支持中/英/日/韩/法/德/俄/西）
-- 系统语言检测（Platform.localeName）
+- 回退到 AI 流式识别（截取前 2000 字符）
+- 系统语言检测（PlatformDispatcher）
 
 ---
 
@@ -346,11 +335,18 @@ Documents/zhidu/                   (可自定义)
 
 ## 版本信息
 
-- **文档更新时间**: 2026-05-21
-- **项目版本**: v1.3
+- **文档更新时间**: 2026-11-13
+- **项目版本**: v1.7
 - **Flutter 版本**: >= 3.0.0
 
 ### 近期更新
+
+#### 2026-11-13: 冗余代码清理、注释规整与文档同步
+
+- **代码清理**: 修复测试 stale 引用（`AiPrompts.bookSummaryFromPreface` 已删除）；删除未使用 import（6处）；删除未使用字段（`chapter_screen._bookService`、`summary_service._bookService`、`Semaphore._maxPermits`）；清理冗余空安全操作符（epub_parser 10处、book_service 2处、ai_service 1处）；删除死 l10n key `promptPrefaceSummary`
+- **注释规整**: 文件头部 doc 注释 `///` → `//`（8处），消除 dangling_library_doc_comments；doc 注释中的尖括号加反引号（5处）
+- **文档删除**: `window_utils.md`（window_utils.dart 已删除）、`opf_metadata.md`（OpfMetadata 类已合并入 book.dart）
+- **文档更新**: `main.md` 窗口初始化归口 `initDesktopWindow()`；`book.md` 移除 chapterTitles、新增 OpfMetadata 章节；`index.md` 修正章节摘要文件名 `Summary-{index}-{lang}.md`
 
 #### 2026-05-21: 删除 chapterTitles 持久化
 

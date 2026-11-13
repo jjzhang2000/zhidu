@@ -757,7 +757,7 @@ class AIService {
     }
     switch (langSettings.aiLanguageMode) {
       case 'manual':
-        return langSettings.aiOutputLanguage ?? 'zh';
+        return langSettings.aiOutputLanguage;
       case 'system':
         return detectSystemLanguage();
       default:

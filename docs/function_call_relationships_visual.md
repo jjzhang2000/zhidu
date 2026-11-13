@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.3 | **更新日期**: 2026-05-18
+> **文档版本**: v2.4 | **更新日期**: 2026-11-13
 
 ---
 
@@ -9,7 +9,7 @@
 ```mermaid
 graph TB
     subgraph 入口层["main.dart"]
-        MAIN["main() 函数"] --> WM["_initWindowManager()"]
+        MAIN["main() 函数"] --> IW["initDesktopWindow()"]
         MAIN --> INIT["Service 初始化链"]
         MAIN --> ZHIDU["ZhiduApp"]
     end
@@ -23,9 +23,6 @@ graph TB
         AS["AIService"]
         AP["AiPrompts"]
         SuS["SummaryService"]
-        ES["EpubService"]
-        PS["PdfService"]
-        TS["TranslationService"]
         ORS["OpfReaderService"]
     end
 
@@ -41,6 +38,7 @@ graph TB
         CH["Chapter"]
         CL["ChapterLocation"]
         OM["OpfMetadata\n(定义在book.dart)"]
+        BM["BookMetadata\n(定义在book_format_parser.dart)"]
         AIS["AppSettings/AiSettings"]
     end
 
@@ -62,9 +60,6 @@ graph TB
     INIT --> BS
     INIT --> AS
     INIT --> SuS
-    INIT --> ES
-    INIT --> PS
-    INIT --> TS
     INIT --> FR
 
     FR --> EP
@@ -72,8 +67,8 @@ graph TB
     EP -.-> BFP
     PP -.-> BFP
 
-    BS --> ES
-    BS --> PS
+    BS --> FR
+    BS --> ORS
     BS --> FS
     BS --> SuS
 
@@ -85,15 +80,9 @@ graph TB
     SuS --> FS
     SuS --> BS
 
-    ES --> ORS
-    PS --> ORS
-    EP --> ORS
-    PP --> ORS
     ORS --> OM
-
-    TS --> AS
-    TS --> BS
-    TS --> FS
+    EP --> BM
+    PP --> BM
 
     SS --> FS
 
@@ -111,10 +100,9 @@ graph TB
     CHS --> BS
     CHS --> AS
     CHS --> SuS
-    CHS --> TS
 
     PDS --> BS
-    PDS --> PS
+    PDS --> PP
 
     ST --> AIC
     ST --> THS
@@ -133,14 +121,14 @@ graph TB
 
 ```mermaid
 flowchart TD
-    UI["HomeScreen / BookshelfScreen"] --> |"用户点击导入"| FP["file_picker 选择文件"]
-    FP --> |".epub"| EPUB["EpubService.parseEpubFile()"]
-    FP --> |".pdf"| PDF["PdfService.parsePdfFile()"]
+    UI["HomeScreen"] --> |"用户点击导入"| FP["file_picker 选择文件"]
+    FP --> |".epub"| EPUB["EpubParser.parseMetadata()"]
+    FP --> |".pdf"| PDF["PdfParser.parseMetadata()"]
 
     subgraph EPUB解析流程
-        EPUB --> E1["EpubReader.readFromUri()"]
+        EPUB --> E1["EpubReader.readBook()"]
         E1 --> E2["_extractChapters()"]
-        E1 --> E3["_extractCover()"]
+        EPUB --> E3["_extractCover()"]
         E1 --> E4["OpfReaderService.readFromSameDirectory()"]
         E4 --> E5["_parseOpfContent() XML解析"]
         E5 --> E6["OpfMetadata"]
@@ -149,7 +137,7 @@ flowchart TD
     subgraph PDF解析流程
         PDF --> P1["PdfDocument.openFile()"]
         P1 --> P2["_detectChapters() 正则匹配"]
-        P1 --> P3["_extractCover() 渲染PNG"]
+        PDF --> P3["_extractCover() 渲染PNG"]
         P1 --> P4["OpfReaderService.readFromSameDirectory()"]
         P4 --> P5["_parseOpfContent() XML解析"]
         P5 --> P6["OpfMetadata"]
@@ -166,16 +154,13 @@ flowchart TD
     SAVE --> SAVE2["writeJson(books.json)"]
 
     SAVE --> GEN["SummaryService.generateSummariesForBook()"]
-    GEN --> |EPUB| BSP["_generateBookSummaryFromPreface()"]
-    GEN --> |ALL| CSS["generateSingleSummary() × N 并发max=3"]
-    GEN --> |PDF| BSC["_generateBookSummaryFromChapters()"]
+    GEN --> CSS["generateSingleSummary() × N 并发max=3"]
+    GEN --> BSC["_generateBookSummaryFromChapters()"]
 
-    BSP --> AI1["AIService.generateBookSummaryFromPrefaceStream()"]
     CSS --> AI2["AIService.generateFullChapterSummaryStream()"]
     BSC --> AI3["AIService.generateBookSummaryStream()"]
 
-    AI1 --> SSE["_callAIStream() SSE流式"]
-    AI2 --> SSE
+    AI2 --> SSE["_callAIStream() SSE流式"]
     AI3 --> SSE
 
     SSE --> |"onChunk"| NOTIFY["_notifyBookStreamingContent()"]
@@ -201,7 +186,7 @@ flowchart TD
 
     subgraph "ChapterScreen 章节阅读页"
         CS_INIT --> LOAD["_loadSummary()"]
-        LOAD --> LOCAL["_loadFromLocal() → readText(summaryPath)"]
+        LOAD --> LOCAL["getSummary() → readText(summaryPath)"]
         LOCAL --> |"摘要不存在"| GEN["SummaryService.generateSingleSummary()"]
         GEN --> AI["AIService.generateFullChapterSummaryStream()"]
         AI --> STREAM["SSE流式 → onChunk → onContentUpdate回调 → UI实时显示"]
@@ -210,8 +195,8 @@ flowchart TD
         TAB_ORIG["Tab 1: 原文 (HTML/纯文本)"]
         TAB_TRANS["Tab 2: 译文"]
 
-        TAB_TRANS --> |"点击翻译"| TRANS["TranslationService.translateEpubContent()"]
-        TRANS --> TRANS_AI["AIService.translateHtmlStream()"]
+        TAB_TRANS --> |"点击翻译"| TRANS["SummaryService.generateTranslationStream()"]
+        TRANS --> TRANS_AI["AIService.translateContent()"]
         TRANS_AI --> |"SSE流式"| TRANS_UI["UI实时显示译文"]
     end
 
@@ -227,12 +212,13 @@ graph LR
     subgraph 核心服务
         BS["BookService<br/>书籍CRUD"]
         AS["AIService<br/>AI API交互"]
-        SuS["SummaryService<br/>摘要管理"]
+        SuS["SummaryService<br/>摘要/翻译管理"]
     end
 
     subgraph 文件解析
-        ES["EpubService<br/>EPUB解析"]
-        PS["PdfService<br/>PDF解析"]
+        FR["FormatRegistry<br/>解析器注册表"]
+        EP["EpubParser<br/>EPUB解析"]
+        PP["PdfParser<br/>PDF解析"]
     end
 
     subgraph 基础设施
@@ -243,37 +229,31 @@ graph LR
     end
 
     subgraph 扩展功能
-        TS["TranslationService<br/>翻译服务"]
         ORS["OpfReaderService<br/>OPF元数据"]
     end
 
-    BS -->|"导入"| ES
-    BS -->|"导入"| PS
+    BS -->|"注册表取解析器"| FR
     BS -->|"持久化"| FS
+    BS -->|"读取OPF"| ORS
     BS -->|"触发生成"| SuS
 
-    ES -->|"读取OPF"| ORS
-    PS -->|"读取OPF"| ORS
+    FR -->|"创建"| EP
+    FR -->|"创建"| PP
 
     SuS -->|"调用AI"| AS
-    SuS -->|"保存摘要"| FS
+    SuS -->|"保存摘要/译文"| FS
     SuS -->|"查询书籍"| BS
 
     AS -->|"读取配置"| SS
     AS -->|"日志"| LS
 
-    TS -->|"调用AI翻译"| AS
-    TS -->|"保存译文"| FS
-    TS -->|"查询书籍"| BS
-
     SS -->|"读/写设置"| FS
 
-    ES -.-> LS
-    PS -.-> LS
+    EP -.-> LS
+    PP -.-> LS
     BS -.-> LS
     AS -.-> LS
     SuS -.-> LS
-    TS -.-> LS
     ORS -.-> LS
 
     style BS fill:#4fc3f7,color:#000
@@ -282,9 +262,9 @@ graph LR
     style LS fill:#81c784,color:#000
     style FS fill:#81c784,color:#000
     style SS fill:#81c784,color:#000
-    style ES fill:#ffb74d,color:#000
-    style PS fill:#ffb74d,color:#000
-    style TS fill:#ce93d8,color:#000
+    style FR fill:#ffb74d,color:#000
+    style EP fill:#ffb74d,color:#000
+    style PP fill:#ffb74d,color:#000
     style ORS fill:#ce93d8,color:#000
 ```
 
@@ -296,8 +276,8 @@ graph LR
 erDiagram
   SettingsService ||--|| FileStorageService : "读/写 settings.json"
   BookService ||--|| FileStorageService : "读/写 books.json + metadata.json"
-  SummaryService ||--|| FileStorageService : "写 chapter-XXX-zh.md"
-  TranslationService ||--|| FileStorageService : "写 chapter-XXX-en.html"
+  SummaryService ||--|| FileStorageService : "写 Summary-XXX-zh.md"
+  SummaryService ||--|| FileStorageService : "写 chapter-XXX-en.html"
 
   FileStorageService ||--|| StorageConfig : "使用路径约定"
 
@@ -322,13 +302,12 @@ erDiagram
     string filePath
     string coverPath
     string format epub_or_pdf
-    string aiIntroduction
     int totalChapters
+    int currentChapter
+    double readingProgress
     datetime addedAt
+    datetime lastReadAt
     string language
-    string publisher
-    string description
-    array subjects
   }
 
   chapter_nnn_zh_md {
@@ -349,28 +328,27 @@ flowchart TD
     subgraph AIService内部
         CONFIG["_loadConfig()<br/>从SettingsService读取配置"]
         STREAM["_callAIStream()<br/>HttpClient SSE流式请求"]
-        DETECT["detectLanguage()<br/>语言检测"]
+        DETECT["detectLanguageFromContent()<br/>语言检测"]
+        RESOLVE["resolveOutputLanguage()<br/>输出语言解析"]
         TEST["testConnection()<br/>API连接测试"]
     end
 
     subgraph 流式公开方法
         FS["generateFullChapterSummaryStream()<br/>章节摘要流式生成"]
         BS["generateBookSummaryStream()<br/>全书摘要流式生成"]
-        BFP["generateBookSummaryFromPrefaceStream()<br/>基于前言的全书摘要"]
-        THS["translateHtmlStream()<br/>HTML格式保留流式翻译"]
+        TC["translateContent()<br/>HTML格式保留流式翻译"]
     end
 
     CONFIG --> FS
     CONFIG --> BS
-    CONFIG --> BFP
-    CONFIG --> THS
+    CONFIG --> TC
     CONFIG --> DETECT
+    CONFIG --> RESOLVE
     CONFIG --> TEST
 
     FS --> STREAM
     BS --> STREAM
-    BFP --> STREAM
-    THS --> STREAM
+    TC --> STREAM
 
     STREAM --> |"SSE onChunk"| CB["回调函数<br/>onChunk(String partialText)"]
 ```
@@ -417,15 +395,13 @@ flowchart LR
 
     subgraph SettingsService
         SAVE["_saveSettings()"]
-        AI_NF["_aiConfigNotifier"]
-        T_NF["_themeNotifier"]
-        L_NF["_localeNotifier"]
+        AI_NF["aiSettings (ValueNotifier)"]
+        T_NF["themeMode (ValueNotifier)"]
+        L_NF["languageSettings (ValueNotifier)"]
     end
 
     subgraph 监听者
-        Z_AI["ZhiduApp<br/>AIConfigScreen"]
-        Z_T["ZhiduApp<br/>_onThemeChanged()"]
-        Z_L["ZhiduApp<br/>_onLocaleChanged()"]
+        Z_APP["ZhiduApp<br/>_onAppSettingsChanged()"]
     end
 
     subgraph 文件系统
@@ -442,12 +418,11 @@ flowchart LR
     U2 --> T_NF
     U3 --> L_NF
 
-    AI_NF -.-> |"addListener"| Z_AI
-    T_NF -.-> |"addListener"| Z_T
-    L_NF -.-> |"addListener"| Z_L
+    AI_NF -.-> |"addListener"| Z_APP
+    T_NF -.-> |"addListener"| Z_APP
+    L_NF -.-> |"addListener"| Z_APP
 
-    Z_T --> |"rebuild MaterialApp"| APP["New MaterialApp<br/>with updated ThemeData"]
-    Z_L --> |"setState"| LOCALE["New locale + LocalizationsDelegates"]
+    Z_APP --> |"rebuild MaterialApp"| APP["New MaterialApp<br/>with updated ThemeData + locale"]
 ```
 
 ---
@@ -468,7 +443,7 @@ flowchart TD
     BS_NAV --> CS_NAV["Navigator.push(ChapterScreen)"]
     BS_NAV --> |"点击全书摘要"| CS_FIRST["Navigator.push(ChapterScreen<br/>chapterIndex=0)"]
 
-    CS_NAV --> |"Tab: 译文"| TRANS["TranslationService.translateEpubContent()"]
+    CS_NAV --> |"Tab: 译文"| TRANS["SummaryService.generateTranslationStream()"]
 
     CS_NAV --> |"返回"| POP["Navigator.pop()"]
     BS_NAV --> |"返回"| POP
@@ -485,28 +460,30 @@ flowchart TD
 classDiagram
     class BookFormatParser {
         <<interface>>
+        +parseMetadata(filePath, bookId) BookMetadata?
         +getChapters(filePath) List~Chapter~
         +getChapterContent(filePath, chapter) Chapter
-        +extractCover(filePath, bookId) String?
     }
 
     class EpubParser {
+        +parseMetadata()
         +getChapters()
         +getChapterContent()
-        +extractCover()
     }
 
     class PdfParser {
+        +parseMetadata()
         +getChapters()
         +getChapterContent()
-        +extractCover()
     }
 
     class FormatRegistry {
-        -static _registry: Map
+        -static _parsers: Map
         +static register(extension, parser)
-        +static getParser(extension) BookFormatParser
-        +static get supportedFormats List~String~
+        +static getParser(extension) BookFormatParser?
+        +static isSupported(extension) bool
+        +static getSupportedFormats() List~String~
+        +static clear()
     }
 
     BookFormatParser <|.. EpubParser : implements
@@ -531,9 +508,15 @@ erDiagram
         string id PK
         string title
         string author
+        string coverPath
         string filePath
         BookFormat format
         int totalChapters
+        int currentChapter
+        double readingProgress
+        datetime addedAt
+        datetime lastReadAt
+        string language
     }
 
     Chapter {
@@ -557,9 +540,14 @@ erDiagram
         string author
         string language
         string coverPath
-        string publisher
-        string description
-        array subjects
+    }
+
+    BookMetadata {
+        string title
+        string author
+        int totalChapters
+        string coverPath
+        string language
     }
 ```
 
@@ -569,4 +557,5 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-13 | 冗余代码清理同步 — 删除 `EpubService`/`PdfService`/`TranslationService`（已合并/删除），统一为 `EpubParser`/`PdfParser`/`SummaryService`；`_initWindowManager()` → `initDesktopWindow()`；`_onThemeChanged()`/`_onLocaleChanged()` → `_onAppSettingsChanged()`；删除 `_generateBookSummaryFromPreface()` 分支（统一章节摘要→全书摘要）；`translateHtmlStream()` → `translateContent()`；`TranslationService.translateEpubContent()` → `SummaryService.generateTranslationStream()`；解析器接口新增 `parseMetadata()`、删除 `extractCover()`；OpfMetadata 精简为 4 字段、新增 BookMetadata 实体；章节摘要文件名 `chapter-XXX-zh.md` → `Summary-XXX-zh.md` |
 | 2026-05-11 | 完整 Mermaid 可视化：全局架构图、导入/阅读/翻译流程图、Service交互图、并发控制图、ValueNotifier数据流图、导航图、解析器架构图、数据模型ER图 |

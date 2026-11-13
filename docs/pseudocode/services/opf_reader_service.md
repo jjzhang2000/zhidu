@@ -94,7 +94,7 @@ _parseOpfContent(XML 内容)
       ↓
 OpfMetadata { title, author, language, ... }
       ↓
-合并到 Book / PdfService 解析结果中
+合并到 Book / PdfParser 解析结果中
 ```
 
 ## 依赖

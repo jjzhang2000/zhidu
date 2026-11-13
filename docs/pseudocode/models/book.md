@@ -2,7 +2,7 @@
 
 ## Overview
 
-This file defines the book entity model and the book format enumeration. The Book class represents a complete book with all its metadata, reading progress, and AI-generated chapter titles.
+This file defines the book entity model, the book format enumeration, and the OPF metadata model. The Book class represents a complete book with all its metadata and reading progress.
 
 ---
 
@@ -38,7 +38,6 @@ Book entity class representing complete book information including metadata, rea
 | `readingProgress` | `double` | No | Reading progress percentage 0.0-1.0 (default: 0.0) |
 | `addedAt` | `DateTime` | Yes | Time added to bookshelf |
 | `lastReadAt` | `DateTime?` | No | Last reading time (nullable) |
-| `chapterTitles` | `Map<int, String>?` | No | Chapter index to title mapping (nullable) |
 | `language` | `String?` | No | Book language from OPF metadata (nullable) |
 
 ### Constructor
@@ -46,7 +45,7 @@ Book entity class representing complete book information including metadata, rea
 ```
 CONSTRUCTOR Book(id, title, author, coverPath, filePath, format, 
                  totalChapters, currentChapter, readingProgress, 
-                 addedAt, lastReadAt, chapterTitles, language):
+                 addedAt, lastReadAt, language):
     SET id = id                              // Required
     SET title = title                        // Required
     SET author = author                      // Required
@@ -58,7 +57,6 @@ CONSTRUCTOR Book(id, title, author, coverPath, filePath, format,
     SET readingProgress = readingProgress OR 0.0  // Default 0.0
     SET addedAt = addedAt                    // Required
     SET lastReadAt = lastReadAt              // Optional, default NULL
-    SET chapterTitles = chapterTitles        // Optional, default NULL
     SET language = language                  // Optional, default NULL
 END CONSTRUCTOR
 ```
@@ -75,7 +73,7 @@ END CONSTRUCTOR
 ```
 FUNCTION copyWith(id, title, author, coverPath, filePath, format,
                   totalChapters, currentChapter, readingProgress,
-                  addedAt, lastReadAt, chapterTitles, language):
+                  addedAt, lastReadAt, language):
     RETURN NEW Book(
         id = id OR this.id,
         title = title OR this.title,
@@ -88,7 +86,6 @@ FUNCTION copyWith(id, title, author, coverPath, filePath, format,
         readingProgress = readingProgress OR this.readingProgress,
         addedAt = addedAt OR this.addedAt,
         lastReadAt = lastReadAt OR this.lastReadAt,
-        chapterTitles = chapterTitles OR this.chapterTitles,
         language = language OR this.language
     )
 END FUNCTION
@@ -103,15 +100,6 @@ END FUNCTION
 **Pseudocode**:
 ```
 FUNCTION toJson():
-    // Convert chapterTitles map keys from int to String
-    chapterTitlesJson = NULL
-    IF this.chapterTitles IS NOT NULL:
-        chapterTitlesJson = {}
-        FOR EACH (key, value) IN this.chapterTitles:
-            chapterTitlesJson[key.toString()] = value
-        END FOR
-    END IF
-
     RETURN {
         'id': this.id,
         'title': this.title,
@@ -124,13 +112,12 @@ FUNCTION toJson():
         'readingProgress': this.readingProgress,
         'addedAt': this.addedAt.toIso8601String(),  // DateTime to ISO string
         'lastReadAt': this.lastReadAt?.toIso8601String(),  // Nullable
-        'chapterTitles': chapterTitlesJson,
         'language': this.language
     }
 END FUNCTION
 ```
 
-**Callers**: BookService (storage), ExportService (export)
+**Callers**: BookService (storage)
 
 #### `fromJson(Map<String, dynamic> json) -> Book` (Factory)
 
@@ -139,16 +126,6 @@ END FUNCTION
 **Pseudocode**:
 ```
 FUNCTION fromJson(json):
-    // Parse chapterTitles map keys from String to int
-    chapterTitlesRaw = json['chapterTitles'] AS Map<String, dynamic>?
-    chapterTitles = NULL
-    IF chapterTitlesRaw IS NOT NULL:
-        chapterTitles = {}
-        FOR EACH (key, value) IN chapterTitlesRaw:
-            chapterTitles[int.parse(key)] = value AS String
-        END FOR
-    END IF
-
     // Parse format enum from string
     formatString = json['format']
     format = BookFormat.values.FIRST_WHERE(
@@ -175,7 +152,6 @@ FUNCTION fromJson(json):
         readingProgress = json['readingProgress']?.toDouble() OR 0.0,
         addedAt = addedAt,
         lastReadAt = lastReadAt,
-        chapterTitles = chapterTitles,
         language = json['language']
     )
 END FUNCTION
@@ -200,15 +176,13 @@ Book
 ├── readingProgress: double              │
 ├── addedAt: DateTime                    │
 ├── lastReadAt: DateTime?                │
-├── chapterTitles: Map<int, String>?     │
 ├── language: String?                    │
                                          │
         Related Models:                  │
         ┌────────────────────────────────┘
         │
         ├── Chapter (chapter details)
-        ├── ChapterSummary (AI-generated summary)
-        └── ChapterContent (chapter text content)
+        └── OpfMetadata (OPF metadata, defined in same file)
 ```
 
 ---
@@ -279,21 +253,6 @@ updatedBook = book.copyWith(
 )
 ```
 
-### Updating Chapter Titles
-
-```
-// After parsing chapter structure
-chapterTitles = {
-    0: '第一章 科学边界',
-    1: '第二章 三体',
-    2: '第三章 人类落日'
-}
-updatedBook = book.copyWith(
-    chapterTitles = chapterTitles,
-    totalChapters = 3
-)
-```
-
 ### Serialization
 
 ```
@@ -320,14 +279,35 @@ restoredBook = Book.fromJson(json)
 
 2. **Progress Calculation**: `readingProgress` is a value between 0.0 and 1.0, typically calculated as `currentChapter / totalChapters`.
 
-3. **Chapter Titles Map**: The `chapterTitles` map uses integer keys (chapter index) for efficient lookup.
-
-4. **Nullable Fields**: `coverPath`, `lastReadAt`, `chapterTitles`, and `language` are nullable to handle cases where:
+3. **Nullable Fields**: `coverPath`, `lastReadAt`, and `language` are nullable to handle cases where:
    - Book has no cover image
    - Book has never been read
-   - Chapter titles haven't been parsed
    - OPF metadata is not available
 
-5. **Format Fallback**: When deserializing, if the format string doesn't match any enum value, it defaults to `BookFormat.epub`.
+4. **Format Fallback**: When deserializing, if the format string doesn't match any enum value, it defaults to `BookFormat.epub`.
 
-6. **全书摘要存储**: 全书摘要（summary-zh.md）不再存储在 metadata.json 中，而是以独立的 Markdown 文件存储在 `books/{bookId}/summary-zh.md`。这样避免了重复存储，同时方便用户直接查看和导出。
+5. **全书摘要存储**: 全书摘要（summary-zh.md）不再存储在 metadata.json 中，而是以独立的 Markdown 文件存储在 `books/{bookId}/summary-zh.md`。这样避免了重复存储，同时方便用户直接查看和导出。
+
+---
+
+## Class: OpfMetadata
+
+Calibre `metadata.opf` 文件的解析结果模型。用于在导入书籍时从同目录下的 OPF 文件获取更精确的元数据。
+
+### Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `title` | `String?` | No | Book title |
+| `author` | `String?` | No | Book author |
+| `language` | `String?` | No | Language code (e.g. zh, en, ja) |
+| `coverPath` | `String?` | No | Cover file path referenced in OPF |
+| `publisher` | `String?` | No | Publisher |
+| `description` | `String?` | No | Book description |
+| `subjects` | `List<String>` | No | Subject/tag list |
+
+### Data Source
+
+- 由 `OpfReaderService` 解析 `metadata.opf` 文件生成
+- 在 EPUB/PDF 导入时，`EpubParser`/`PdfParser` 调用 `OpfReaderService.readFromSameDirectory()` 获取
+- 解析结果的可空字段会优先覆盖解析器提取的默认元数据

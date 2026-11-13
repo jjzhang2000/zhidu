@@ -172,7 +172,6 @@ This document outlines the test coverage needed for the settings page features i
 
 **Prompt Injection Tests:**
 - `chapterSummary()` appends language instruction to prompt
-- `bookSummaryFromPreface()` appends language instruction to prompt
 - `bookSummary()` appends language instruction to prompt
 - Empty language instruction doesn't break prompt
 

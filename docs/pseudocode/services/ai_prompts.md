@@ -19,27 +19,6 @@ CLASS AiPrompts:
 
 ## 方法伪代码
 
-### bookSummaryFromPreface() - 基于前言生成全书摘要提示词
-
-```pseudocode
-PUBLIC STATIC METHOD bookSummaryFromPreface(
-    loc: AppLocalizations,
-    title: String,
-    author: String,
-    prefaceContent: String,
-    totalChapters: int? = null
-) -> String:
-    chaptersLine = totalChapters != null
-        ? '- {loc.promptBookChaptersLabel}{totalChapters}'
-        : ''
-
-    RETURN loc.promptPrefaceSummary(title, author, prefaceContent, chaptersLine)
-```
-
-`loc.promptPrefaceSummary()` 以简体中文为例，返回首行含 "请用中文回复。" 的完整模板文本。
-
----
-
 ### bookSummary() - 基于章节摘要生成全书摘要提示词
 
 ```pseudocode
