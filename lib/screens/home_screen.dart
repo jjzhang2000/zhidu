@@ -13,6 +13,8 @@ import 'package:flutter/services.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/book_service.dart';
 import '../services/library_import_service.dart';
+import '../services/settings_service.dart';
+import '../models/app_settings.dart';
 import '../models/book.dart';
 import 'book_screen.dart';
 import 'settings_screen.dart';
@@ -49,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _shelfFocusNode = FocusNode();
 
   String _searchQuery = '';
+  BookSortType _sortType = SettingsService().bookshelfSortType.value;
 
   @override
   void initState() {
@@ -70,18 +73,54 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
-  /// 按最后阅读时间降序排列书架书籍（未读过的排在后面）
+  /// 按当前排序方式排列书架书籍
   List<Book> _sortedBooks() {
     final books = List<Book>.from(_bookService.books);
     books.sort((a, b) {
-      final ta = a.lastReadAt;
-      final tb = b.lastReadAt;
-      if (ta == null && tb == null) return 0;
-      if (ta == null) return 1;
-      if (tb == null) return -1;
-      return tb.compareTo(ta);
+      switch (_sortType) {
+        case BookSortType.lastRead:
+          final ta = a.lastReadAt;
+          final tb = b.lastReadAt;
+          if (ta == null && tb == null) return 0;
+          if (ta == null) return 1;
+          if (tb == null) return -1;
+          return tb.compareTo(ta);
+        case BookSortType.addedAsc:
+          return a.addedAt.compareTo(b.addedAt);
+        case BookSortType.addedDesc:
+          return b.addedAt.compareTo(a.addedAt);
+        case BookSortType.titleAsc:
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        case BookSortType.titleDesc:
+          return b.title.toLowerCase().compareTo(a.title.toLowerCase());
+        case BookSortType.authorAsc:
+          return a.author.toLowerCase().compareTo(b.author.toLowerCase());
+        case BookSortType.authorDesc:
+          return b.author.toLowerCase().compareTo(a.author.toLowerCase());
+      }
     });
     return books;
+  }
+
+  /// 排序方式的显示名称
+  String _sortLabel(BuildContext context, BookSortType type) {
+    final loc = AppLocalizations.of(context);
+    switch (type) {
+      case BookSortType.lastRead:
+        return loc?.sortLastRead ?? '最近阅读时间';
+      case BookSortType.addedAsc:
+        return loc?.sortAddedAsc ?? '加入时间-递增';
+      case BookSortType.addedDesc:
+        return loc?.sortAddedDesc ?? '加入时间-递减';
+      case BookSortType.titleAsc:
+        return loc?.sortTitleAsc ?? '书名-递增';
+      case BookSortType.titleDesc:
+        return loc?.sortTitleDesc ?? '书名-递减';
+      case BookSortType.authorAsc:
+        return loc?.sortAuthorAsc ?? '作者-递增';
+      case BookSortType.authorDesc:
+        return loc?.sortAuthorDesc ?? '作者-递减';
+    }
   }
 
   @override
@@ -136,6 +175,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               },
             ),
+          ),
+          PopupMenuButton<BookSortType>(
+            icon: const Icon(Icons.sort),
+            tooltip: AppLocalizations.of(context)?.sortBy ?? '排序',
+            onSelected: (type) {
+              setState(() {
+                _sortType = type;
+              });
+              SettingsService().setBookshelfSortType(type);
+            },
+            itemBuilder: (context) => BookSortType.values.map((type) {
+              return CheckedPopupMenuItem(
+                value: type,
+                checked: type == _sortType,
+                child: Text(_sortLabel(context, type)),
+              );
+            }).toList(),
           ),
           IconButton(
             icon: const Icon(Icons.settings),

@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.7 | **更新日期**: 2026-11-17
+> **文档版本**: v2.8 | **更新日期**: 2026-11-17
 
 ---
 
@@ -402,6 +402,7 @@ flowchart LR
         AI_NF["aiSettings (ValueNotifier)"]
         T_NF["themeMode (ValueNotifier)"]
         L_NF["languageSettings (ValueNotifier)"]
+        BS_NF["bookshelfSortType (ValueNotifier)"]
     end
 
     subgraph 监听者
@@ -435,7 +436,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    APP["MaterialApp(ZhiduApp)"] --> HS["HomeScreen<br/>书架 + 导入按钮"]
+    APP["MaterialApp(ZhiduApp)"] --> HS["HomeScreen<br/>书架 + 导入按钮 + 排序按钮"]
 
     HS --> BS_NAV["Navigator.push(BookScreen)"]
     HS --> SET["设置 → SettingsScreen"]
@@ -561,6 +562,7 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-17 | 书架排序功能 — 新增 `BookSortType` 枚举（7 种排序）；`SettingsService` 新增 `bookshelfSortType` ValueNotifier + `setBookshelfSortType()`；HomeScreen 新增排序按钮，`_sortedBooks()` 按排序方式排序并持久化 |
 | 2026-11-17 | 阅读进度追踪：`BookScreen.initState` 新增 `_updateLastReadAt()`（打开书籍更新最后阅读时间并持久化）；`_loadChapters` 成功后保存 `totalChapters`；HomeScreen 书架按 `lastReadAt` 降序排序（新增 `_sortedBooks()`） |
 | 2026-11-17 | AI/界面语言设置合并为统一「语言」设置 — `LanguageSettings` 精简为 `languageMode`+`language`（删「跟随书籍」，仅「跟随系统/用户自选」）；`resolveOutputLanguage`/`needsTranslation` 简化、删除 `_detectLanguageFromMetadataAndContentWithBookId`；设置页语言 UI 合并为一组；清理 18 个 l10n 僵尸 key |
 | 2026-11-17 | 首页书架 UI 优化 — 移除底部状态栏（书籍总数移至 AppBar 标题）；搜索范围含书名+作者；卡片比例 3:4.5；封面 `fitWidth + topCenter` 兼容竖/横封面；书名/作者叠加封面底部半透明条；封面右上角格式徽章；书架键盘滚动（↑/↓/PgUp/PgDn） |

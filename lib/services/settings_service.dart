@@ -34,6 +34,8 @@ class SettingsService {
   ValueNotifier<AiSettings> _aiSettings = ValueNotifier(AiSettings());
   ValueNotifier<LanguageSettings> _languageSettings =
       ValueNotifier(LanguageSettings());
+  ValueNotifier<BookSortType> _bookshelfSortType =
+      ValueNotifier(BookSortType.lastRead);
   ValueNotifier<String?> _calibreLibraryPath = ValueNotifier(null);
 
   /// 主题模式ValueNotifier（用于响应式UI更新）
@@ -45,6 +47,9 @@ class SettingsService {
   /// 语言设置ValueNotifier
   ValueNotifier<LanguageSettings> get languageSettings => _languageSettings;
 
+  /// 书架排序方式ValueNotifier
+  ValueNotifier<BookSortType> get bookshelfSortType => _bookshelfSortType;
+
   /// 书库路径ValueNotifier
   ValueNotifier<String?> get calibreLibraryPath => _calibreLibraryPath;
 
@@ -54,11 +59,13 @@ class SettingsService {
     _instance._safeDispose(_instance._themeMode);
     _instance._safeDispose(_instance._aiSettings);
     _instance._safeDispose(_instance._languageSettings);
+    _instance._safeDispose(_instance._bookshelfSortType);
     _instance._safeDispose(_instance._calibreLibraryPath);
 
     _instance._themeMode = ValueNotifier(ThemeMode.system);
     _instance._aiSettings = ValueNotifier(AiSettings());
     _instance._languageSettings = ValueNotifier(LanguageSettings());
+    _instance._bookshelfSortType = ValueNotifier(BookSortType.lastRead);
     _instance._calibreLibraryPath = ValueNotifier(null);
 
     _instance._settings = AppSettings();
@@ -123,6 +130,7 @@ class SettingsService {
     themeMode.value = _settings.themeSettings.mode;
     aiSettings.value = _settings.aiSettings;
     languageSettings.value = _settings.languageSettings;
+    bookshelfSortType.value = _settings.bookshelfSortType;
     calibreLibraryPath.value = _settings.calibreLibraryPath;
   }
 
@@ -185,11 +193,21 @@ class SettingsService {
     _log.info('SettingsService', '已设置书库: $path');
   }
 
+  /// 设置书架书籍排序方式
+  Future<void> setBookshelfSortType(BookSortType type) async {
+    if (_settings.bookshelfSortType == type) return;
+    _settings = _settings.copyWith(bookshelfSortType: type);
+    bookshelfSortType.value = type;
+    await _saveSettings();
+    _log.info('SettingsService', '书架排序方式已更新: ${type.name}');
+  }
+
   /// 释放资源
   void dispose() {
     _safeDispose(_themeMode);
     _safeDispose(_aiSettings);
     _safeDispose(_languageSettings);
+    _safeDispose(_bookshelfSortType);
     _safeDispose(_calibreLibraryPath);
   }
 

@@ -17,6 +17,37 @@ enum ThemeMode {
   }
 }
 
+/// 书架书籍排序方式
+enum BookSortType {
+  lastRead,
+  addedAsc,
+  addedDesc,
+  titleAsc,
+  titleDesc,
+  authorAsc,
+  authorDesc;
+
+  /// 从字符串解析排序方式，无法匹配时返回 [lastRead]
+  static BookSortType fromString(String? value) {
+    switch (value) {
+      case 'addedAsc':
+        return BookSortType.addedAsc;
+      case 'addedDesc':
+        return BookSortType.addedDesc;
+      case 'titleAsc':
+        return BookSortType.titleAsc;
+      case 'titleDesc':
+        return BookSortType.titleDesc;
+      case 'authorAsc':
+        return BookSortType.authorAsc;
+      case 'authorDesc':
+        return BookSortType.authorDesc;
+      default:
+        return BookSortType.lastRead;
+    }
+  }
+}
+
 /// AI 服务配置，存储提供商、密钥、模型及接口地址
 class AiSettings {
   /// AI 提供商标识，如 'qwen'、'zhipu'、'deepseek'、'ollama' 等
@@ -204,6 +235,9 @@ class AppSettings {
   /// 语言设置
   final LanguageSettings languageSettings;
 
+  /// 书架书籍排序方式
+  final BookSortType bookshelfSortType;
+
   /// Calibre 书库文件夹路径（未设置时为 null）
   final String? calibreLibraryPath;
 
@@ -215,6 +249,7 @@ class AppSettings {
     Map<String, AiSettings>? savedAiConfigs,
     ThemeSettings? themeSettings,
     LanguageSettings? languageSettings,
+    this.bookshelfSortType = BookSortType.lastRead,
     this.calibreLibraryPath,
     this.version = 1,
   })  : aiSettings = aiSettings ?? AiSettings(),
@@ -227,6 +262,7 @@ class AppSettings {
     Map<String, AiSettings>? savedAiConfigs,
     ThemeSettings? themeSettings,
     LanguageSettings? languageSettings,
+    BookSortType? bookshelfSortType,
     String? calibreLibraryPath,
     int? version,
   }) {
@@ -235,6 +271,7 @@ class AppSettings {
       savedAiConfigs: savedAiConfigs ?? this.savedAiConfigs,
       themeSettings: themeSettings ?? this.themeSettings,
       languageSettings: languageSettings ?? this.languageSettings,
+      bookshelfSortType: bookshelfSortType ?? this.bookshelfSortType,
       calibreLibraryPath: calibreLibraryPath ?? this.calibreLibraryPath,
       version: version ?? this.version,
     );
@@ -248,6 +285,7 @@ class AppSettings {
       ),
       'themeSettings': themeSettings.toJson(),
       'languageSettings': languageSettings.toJson(),
+      'bookshelfSortType': bookshelfSortType.name,
       'calibreLibraryPath': calibreLibraryPath,
       'version': version,
     };
@@ -274,6 +312,8 @@ class AppSettings {
       languageSettings: json['languageSettings'] != null
           ? LanguageSettings.fromJson(json['languageSettings'])
           : null,
+      bookshelfSortType:
+          BookSortType.fromString(json['bookshelfSortType'] as String?),
       calibreLibraryPath: json['calibreLibraryPath'] as String?,
       version: json['version'] ?? 1,
     );

@@ -205,6 +205,54 @@ abstract class AppLocalizations {
   /// **'Search title/author'**
   String get search;
 
+  /// No description provided for @sortBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort'**
+  String get sortBy;
+
+  /// No description provided for @sortLastRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently read'**
+  String get sortLastRead;
+
+  /// No description provided for @sortAddedAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Added (oldest first)'**
+  String get sortAddedAsc;
+
+  /// No description provided for @sortAddedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Added (newest first)'**
+  String get sortAddedDesc;
+
+  /// No description provided for @sortTitleAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Title (A-Z)'**
+  String get sortTitleAsc;
+
+  /// No description provided for @sortTitleDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Title (Z-A)'**
+  String get sortTitleDesc;
+
+  /// No description provided for @sortAuthorAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Author (A-Z)'**
+  String get sortAuthorAsc;
+
+  /// No description provided for @sortAuthorDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Author (Z-A)'**
+  String get sortAuthorDesc;
+
   /// Empty bookshelf hint
   ///
   /// In en, this message translates to:

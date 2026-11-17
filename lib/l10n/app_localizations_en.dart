@@ -63,6 +63,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get search => 'Search title/author';
 
   @override
+  String get sortBy => 'Sort';
+
+  @override
+  String get sortLastRead => 'Recently read';
+
+  @override
+  String get sortAddedAsc => 'Added (oldest first)';
+
+  @override
+  String get sortAddedDesc => 'Added (newest first)';
+
+  @override
+  String get sortTitleAsc => 'Title (A-Z)';
+
+  @override
+  String get sortTitleDesc => 'Title (Z-A)';
+
+  @override
+  String get sortAuthorAsc => 'Author (A-Z)';
+
+  @override
+  String get sortAuthorDesc => 'Author (Z-A)';
+
+  @override
   String get bookshelfEmpty => 'Bookshelf is empty';
 
   @override

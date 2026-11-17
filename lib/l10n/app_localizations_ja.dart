@@ -63,6 +63,30 @@ class AppLocalizationsJa extends AppLocalizations {
   String get search => 'タイトル/著者を検索';
 
   @override
+  String get sortBy => '並び替え';
+
+  @override
+  String get sortLastRead => '最近読んだ順';
+
+  @override
+  String get sortAddedAsc => '追加日時（昇順）';
+
+  @override
+  String get sortAddedDesc => '追加日時（降順）';
+
+  @override
+  String get sortTitleAsc => 'タイトル（昇順）';
+
+  @override
+  String get sortTitleDesc => 'タイトル（降順）';
+
+  @override
+  String get sortAuthorAsc => '著者（昇順）';
+
+  @override
+  String get sortAuthorDesc => '著者（降順）';
+
+  @override
   String get bookshelfEmpty => '本棚は空です';
 
   @override

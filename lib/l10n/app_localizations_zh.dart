@@ -63,6 +63,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get search => '搜索书名/作者';
 
   @override
+  String get sortBy => '排序';
+
+  @override
+  String get sortLastRead => '最近阅读时间';
+
+  @override
+  String get sortAddedAsc => '加入时间-递增';
+
+  @override
+  String get sortAddedDesc => '加入时间-递减';
+
+  @override
+  String get sortTitleAsc => '书名-递增';
+
+  @override
+  String get sortTitleDesc => '书名-递减';
+
+  @override
+  String get sortAuthorAsc => '作者-递增';
+
+  @override
+  String get sortAuthorDesc => '作者-递减';
+
+  @override
   String get bookshelfEmpty => '书架空空如也';
 
   @override
