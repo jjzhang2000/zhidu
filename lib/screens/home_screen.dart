@@ -177,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           PopupMenuButton<BookSortType>(
-            icon: const Icon(Icons.sort),
+            icon: const Icon(Icons.swap_vert),
             tooltip: AppLocalizations.of(context)?.sortBy ?? '排序',
             onSelected: (type) {
               setState(() {
