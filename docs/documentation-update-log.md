@@ -1,5 +1,19 @@
 # 文档更新日志
 
+## 2026-11-17 - 语言设置合并文档更新
+
+### 更新的文档
+
+#### function_call_relationships.md / function_call_relationships_visual.md
+- 同步 AI/界面语言设置合并为统一「语言」设置
+- 删除 ThemeSettingsScreen/LanguageSettingsScreen 引用，更新语言检测方法调用关系
+
+#### internationalization-guide.md / code_reading_guide.md
+- 语言设置相关描述改为统一语言模型（languageMode/language）
+
+#### AGENTS.md
+- 版本历史新增语言设置合并条目
+
 ## 2026-04-20 - 国际化功能文档更新
 
 ### 更新的文档

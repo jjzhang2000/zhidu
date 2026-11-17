@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.12 | **更新日期**: 2026-11-16 | **基于代码版本**: v1.8
+> **文档版本**: v2.13 | **更新日期**: 2026-11-17 | **基于代码版本**: v1.8
 
 ---
 
@@ -25,9 +25,7 @@
                 │
                 ├── settings: SettingsScreen
                 │       ├── AiConfigScreen
-                │       ├── ThemeSettingsScreen
-                │       ├── LanguageSettingsScreen
-                │       └── 书库设置（内联：浏览/刷新/清空书架）
+                │       └── 主题/语言/书库设置（内联）
                 │
                 └── 全局监听 (ValueNotifier):
                         ├── SettingsService.themeMode → AppTheme
@@ -199,7 +197,7 @@ ChapterScreen._generateTranslationWithStreaming()
 ### 3.4 设置变更流程
 
 ```
-SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
+SettingsScreen / AiConfigScreen
     │
     └── SettingsService().updateXxxSettings(newValue)
             │
@@ -208,11 +206,11 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
             │       └── FileStorageService().writeJson(settingsPath, appSettings.toJson())
             │
             └── ValueNotifier 通知所有监听器
-                    ├── _themeNotifier → ZhiduApp._onThemeChanged()
+                    ├── themeMode → ZhiduApp._onAppSettingsChanged()
                     │       └── 重建 MaterialApp (全新主题)
-                    ├── _localeNotifier → ZhiduApp._onLocaleChanged()
-                    │       └── setState → rebuild with new localizationsDelegates
-                    └── AI Settings Notifier → AiConfigScreen._onAiConfigChanged()
+                    ├── languageSettings → ZhiduApp._onAppSettingsChanged()
+                    │       └── setState → 更新界面语言 Locale
+                    └── aiSettings → AIService._onAiSettingsChanged()
 ```
 
 ---
@@ -229,9 +227,10 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `generateBookSummaryStream()` | SummaryService._generateBookSummaryFromChapters() |
 | `translateContent()` | SummaryService.generateTranslationStream() |
 | `testConnection()` | AiConfigScreen 测试按钮 |
-| `detectLanguageFromContent()` | `detectSourceLanguage()`, `resolveOutputLanguage()` |
-| `detectSourceLanguage()` | `_detectLanguageFromMetadataAndContentWithBookId()`, ChapterScreen._initializeLanguageSettings() |
-| `detectSystemLanguage()` | `resolveOutputLanguage()`, `_getPromptLoc()` |
+| `detectLanguageFromContent()` | `detectSourceLanguage()` |
+| `detectSourceLanguage()` | ChapterScreen._initializeLanguageSettings() |
+| `detectSystemLanguage()` | `resolveOutputLanguage()` |
+| `resolveOutputLanguage()` | AIService 摘要生成方法, ChapterScreen._initializeLanguageSettings() |
 | `needsTranslation()` | (已废弃，ChapterScreen 改用源语言==目标语言判断) |
 | `convertLanguageCodeToStandard()` | `detectSourceLanguage()` |
 | `_callAIStream()` (内部) | 所有流式方法 |
@@ -262,10 +261,10 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `get settings` | AIService._loadConfig(), 各设置页面 |
 | `get aiSettings` (ValueNotifier) | AIService, AiConfigScreen |
 | `updateAiSettings()` | AiConfigScreen |
-| `setThemeMode()` | ThemeSettingsScreen |
-| `updateLanguageSettings()` | LanguageSettingsScreen |
+| `setThemeMode()` | SettingsScreen |
+| `updateLanguageSettings()` | SettingsScreen |
 | `get themeMode` (ValueNotifier) | ZhiduApp, AppTheme |
-| `get languageSettings` (ValueNotifier) | ZhiduApp |
+| `get languageSettings` (ValueNotifier) | ZhiduApp, SettingsScreen |
 | `get calibreLibraryPath` (ValueNotifier) | SettingsScreen |
 | `setCalibreLibraryPath()` | SettingsScreen._browseCalibreLibrary() |
 
@@ -517,14 +516,10 @@ SummaryService.getBookSummary()
 │  SettingsScreen           AiConfigScreen        PdfReaderScreen  │
 │  ──────────────           ──────────────        ─────────────── │
 │  - SettingsService        - SettingsService     - BookService    │
-│  + 导航到各设置页         - AIService           - PdfParser      │
+│  + 主题/语言/书库内联设置 - AIService           - PdfParser      │
 │                           - LogService                           │
 │                           + _testConnection()                    │
 │                           + _fetchModelsForCurrentProvider()     │
-│                                                                  │
-│  ThemeSettingsScreen      LanguageSettingsScreen                 │
-│  ──────────────────       ────────────────────                   │
-│  - SettingsService        - SettingsService                     │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -534,6 +529,7 @@ SummaryService.getBookSummary()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-17 | AI/界面语言设置合并为统一「语言」设置 — `LanguageSettings` 精简为 `languageMode`+`language`（删「跟随书籍」，仅「跟随系统/用户自选」）；`resolveOutputLanguage`/`needsTranslation` 简化、删除 `_detectLanguageFromMetadataAndContentWithBookId`；设置页语言 UI 合并为一组；清理 18 个 l10n 僵尸 key |
 | 2026-11-17 | 首页书架 UI 优化 — 移除底部状态栏（书籍总数移至 AppBar 标题括号内，搜索时显示命中/总数）；搜索框提示改"搜索书名/作者"、删除 l10n `bookCount`；卡片比例改 3:4.5；封面改 `fitWidth + topCenter`（竖/横封面均不裁左右）；书名/作者叠加封面底部半透明条；封面右上角格式徽章；书架支持键盘滚动（↑/↓/PgUp/PgDn） |
 | 2026-11-17 | 删除 `docs/pseudocode/` 伪代码文档目录 — 不再维护伪代码文档，提交前规则仅保留 function_call_relationships 与 AGENTS.md 版本历史同步 |
 | 2026-11-16 | Calibre 书库导入 + 首页书架优化 — 新增 `LibraryImportService`（后台导入、断点续传、refreshSignal）；导入改为 `extractBasicMetadata`（只读书名/作者/封面，不解析章节/摘要）；OPF 封面改从 `<guide>` 读；`scanCalibreOpfFiles` 跳过隐藏目录；退出 `onWindowClose` 用 `exit(0)`；首页书架网格自适应列数 + 底部状态栏 + 卡片 UI 优化 |

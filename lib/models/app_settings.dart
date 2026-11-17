@@ -122,38 +122,26 @@ class ThemeSettings {
   }
 }
 
-/// 语言设置，配置 AI 输出语言和界面语言的偏好模式
+/// 语言设置，统一控制 AI 输出语言与界面显示语言
 class LanguageSettings {
-  /// AI 输出语言模式：'book'（跟随书籍）、'system'（跟随系统）、'manual'（用户自选）
-  final String aiLanguageMode;
+  /// 语言模式：'system'（跟随系统）、'manual'（用户自选）
+  final String languageMode;
 
-  /// AI 输出语言，仅当 [aiLanguageMode] 为 'manual' 时生效，如 'zh'、'en'、'ja'
-  final String aiOutputLanguage;
-
-  /// 界面语言模式：'system'（跟随系统）、'manual'（用户自选）
-  final String uiLanguageMode;
-
-  /// 界面语言，仅当 [uiLanguageMode] 为 'manual' 时生效，如 'zh'、'en'、'ja'
-  final String uiLanguage;
+  /// 语言，仅当 [languageMode] 为 'manual' 时生效，如 'zh'、'en'、'ja'
+  final String language;
 
   LanguageSettings({
-    this.aiLanguageMode = 'book',
-    this.aiOutputLanguage = 'zh',
-    this.uiLanguageMode = 'system',
-    this.uiLanguage = 'zh',
+    this.languageMode = 'system',
+    this.language = 'zh',
   });
 
   LanguageSettings copyWith({
-    String? aiLanguageMode,
-    String? aiOutputLanguage,
-    String? uiLanguageMode,
-    String? uiLanguage,
+    String? languageMode,
+    String? language,
   }) {
     return LanguageSettings(
-      aiLanguageMode: aiLanguageMode ?? this.aiLanguageMode,
-      aiOutputLanguage: aiOutputLanguage ?? this.aiOutputLanguage,
-      uiLanguageMode: uiLanguageMode ?? this.uiLanguageMode,
-      uiLanguage: uiLanguage ?? this.uiLanguage,
+      languageMode: languageMode ?? this.languageMode,
+      language: language ?? this.language,
     );
   }
 
@@ -161,38 +149,44 @@ class LanguageSettings {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is LanguageSettings &&
-        other.aiLanguageMode == aiLanguageMode &&
-        other.aiOutputLanguage == aiOutputLanguage &&
-        other.uiLanguageMode == uiLanguageMode &&
-        other.uiLanguage == uiLanguage;
+        other.languageMode == languageMode &&
+        other.language == language;
   }
 
   @override
   int get hashCode {
-    return Object.hash(
-      aiLanguageMode,
-      aiOutputLanguage,
-      uiLanguageMode,
-      uiLanguage,
-    );
+    return Object.hash(languageMode, language);
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'aiLanguageMode': aiLanguageMode,
-      'aiOutputLanguage': aiOutputLanguage,
-      'uiLanguageMode': uiLanguageMode,
-      'uiLanguage': uiLanguage,
+      'languageMode': languageMode,
+      'language': language,
     };
   }
 
   factory LanguageSettings.fromJson(Map<String, dynamic> json) {
-    return LanguageSettings(
-      aiLanguageMode: json['aiLanguageMode'] ?? 'book',
-      aiOutputLanguage: json['aiOutputLanguage'] ?? 'zh',
-      uiLanguageMode: json['uiLanguageMode'] ?? 'system',
-      uiLanguage: json['uiLanguage'] ?? 'zh',
-    );
+    // 新版字段优先
+    if (json.containsKey('languageMode')) {
+      return LanguageSettings(
+        languageMode: json['languageMode'] ?? 'system',
+        language: json['language'] ?? 'zh',
+      );
+    }
+    // 迁移旧版字段：优先沿用界面语言手动选择，其次 AI 输出语言手动选择
+    if (json['uiLanguageMode'] == 'manual') {
+      return LanguageSettings(
+        languageMode: 'manual',
+        language: json['uiLanguage'] ?? 'zh',
+      );
+    }
+    if (json['aiLanguageMode'] == 'manual') {
+      return LanguageSettings(
+        languageMode: 'manual',
+        language: json['aiOutputLanguage'] ?? 'zh',
+      );
+    }
+    return LanguageSettings();
   }
 }
 

@@ -15,7 +15,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTitle => 'Settings';
 
   @override
-  String get aiConfigTitle => 'AI Configuration';
+  String get aiConfigTitle => 'AI';
 
   @override
   String get aiConfigScreenTitle => 'AI Configuration';
@@ -24,19 +24,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get readThinThick => 'Read Thin First, Then Thick';
 
   @override
-  String get appearanceSettingTitle => 'Appearance Settings';
+  String get themeSettingTitle => 'Theme';
 
   @override
-  String get themeSettingTitle => 'Theme Settings';
-
-  @override
-  String get themeSettingsScreenTitle => 'Theme Settings';
-
-  @override
-  String get languageSettingTitle => 'Language Settings';
-
-  @override
-  String get languageSettingsScreenTitle => 'Language Settings';
+  String get languageSettingTitle => 'Language';
 
   @override
   String get aboutTitle => 'About';
@@ -51,43 +42,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeModeDark => 'Dark';
 
   @override
-  String get aiLanguageFollowBook => 'Follow Book';
+  String get languageModeFollowSystem => 'Follow System';
 
   @override
-  String get aiLanguageFollowSystem => 'Follow System';
+  String get languageModeManualSelect => 'Manual Select';
 
   @override
-  String get aiLanguageManualSelect => 'Manual Select';
+  String get languageModeSystemSubtitle => 'Follow system language for AI summaries, translations and interface';
 
   @override
-  String get uiLanguageFollowSystem => 'Follow System';
+  String get languageModeManualSubtitle => 'Manually specify a unified AI and interface language';
 
   @override
-  String get uiLanguageManualSelect => 'Manual Select';
-
-  @override
-  String get selectAiOutputLanguage => 'Select AI Output Language';
-
-  @override
-  String get selectUiLanguage => 'Select UI Language';
-
-  @override
-  String get aiOutputLanguage => 'AI Output Language';
-
-  @override
-  String get uiDisplayLanguage => 'Interface Language';
-
-  @override
-  String get aiLanguageSetting => 'AI Language Setting';
-
-  @override
-  String get uiLanguageSetting => 'Interface Language Setting';
-
-  @override
-  String get aiLanguageControl => 'Controls the language of AI-generated content';
-
-  @override
-  String get uiLanguageControl => 'Controls the display language of the app interface';
+  String get selectLanguage => 'Select Language';
 
   @override
   String get aiLayeredReader => 'AI Layered Reader';
@@ -171,21 +138,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeModeDarkSubtitle => 'Always use dark theme';
 
   @override
-  String get aiLanguageModeBookSubtitle => 'Automatically detect language from book content';
-
-  @override
-  String get aiLanguageModeSystemSubtitle => 'Use system language settings';
-
-  @override
-  String get aiLanguageModeManualSubtitle => 'Manually specify AI output language';
-
-  @override
-  String get uiLanguageModeSystemSubtitle => 'Use system language settings';
-
-  @override
-  String get uiLanguageModeManualSubtitle => 'Manually specify interface display language';
-
-  @override
   String get testing => 'Testing...';
 
   @override
@@ -234,7 +186,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get librarySettingsTitle => 'Library Settings';
+  String get librarySettingsTitle => 'Library';
 
   @override
   String get calibreLibraryLocation => 'Calibre library location:';

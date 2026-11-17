@@ -152,8 +152,8 @@ class _ZhiduAppState extends State<ZhiduApp> with WindowListener {
   /// 根据语言设置计算当前 Locale（跟随系统或用户自选）
   void _updateLocaleFromSettings() {
     final languageSettings = _settingsService.settings.languageSettings;
-    final String languageCode = languageSettings.uiLanguageMode == 'manual'
-        ? languageSettings.uiLanguage
+    final String languageCode = languageSettings.languageMode == 'manual'
+        ? languageSettings.language
         : WidgetsBinding.instance.window.locale.languageCode;
 
     final Locale newLocale = switch (languageCode) {

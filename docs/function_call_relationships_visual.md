@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.5 | **更新日期**: 2026-11-16
+> **文档版本**: v2.6 | **更新日期**: 2026-11-17
 
 ---
 
@@ -50,8 +50,6 @@ graph TB
         PDS["PdfReaderScreen"]
         ST["SettingsScreen"]
         AIC["AiConfigScreen"]
-        THS["ThemeSettingsScreen"]
-        LAS["LanguageSettingsScreen"]
     end
 
     INIT --> LS
@@ -394,8 +392,8 @@ flowchart TD
 flowchart LR
     subgraph 用户操作
         U1["AiConfigScreen<br/>修改AI配置"]
-        U2["ThemeSettingsScreen<br/>修改主题"]
-        U3["LanguageSettingsScreen<br/>修改语言"]
+        U2["SettingsScreen<br/>修改主题"]
+        U3["SettingsScreen<br/>修改语言"]
     end
 
     subgraph SettingsService
@@ -442,8 +440,6 @@ flowchart TD
     HS --> SET["设置 → SettingsScreen"]
 
     SET --> AIC["AiConfigScreen"]
-    SET --> THS["ThemeSettingsScreen"]
-    SET --> LAS["LanguageSettingsScreen"]
     SET --> LIB["书库设置（内联：浏览/刷新/清空书架）"]
 
     BS_NAV --> CS_NAV["Navigator.push(ChapterScreen)"]
@@ -454,8 +450,6 @@ flowchart TD
     CS_NAV --> |"返回"| POP["Navigator.pop()"]
     BS_NAV --> |"返回"| POP
     AIC --> |"返回"| POP
-    THS --> |"返回"| POP
-    LAS --> |"返回"| POP
 ```
 
 ---
@@ -566,6 +560,7 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-17 | AI/界面语言设置合并为统一「语言」设置 — `LanguageSettings` 精简为 `languageMode`+`language`（删「跟随书籍」，仅「跟随系统/用户自选」）；`resolveOutputLanguage`/`needsTranslation` 简化、删除 `_detectLanguageFromMetadataAndContentWithBookId`；设置页语言 UI 合并为一组；清理 18 个 l10n 僵尸 key |
 | 2026-11-17 | 首页书架 UI 优化 — 移除底部状态栏（书籍总数移至 AppBar 标题）；搜索范围含书名+作者；卡片比例 3:4.5；封面 `fitWidth + topCenter` 兼容竖/横封面；书名/作者叠加封面底部半透明条；封面右上角格式徽章；书架键盘滚动（↑/↓/PgUp/PgDn） |
 | 2026-11-16 | Calibre 书库导入 + 首页书架优化 — 服务层新增 `LibraryImportService`（后台导入、断点续传、refreshSignal）；导入改为 `extractBasicMetadata`（只读书名/作者/封面，不解析章节）；`BookFormatParser`/`EpubParser`/`PdfParser` 新增 `extractBasicMetadata()`；导入阶段不再直接生成摘要；SettingsScreen 新增书库设置；OPF 封面改从 `<guide>` 读 |
 | 2026-11-13 | 冗余代码清理同步 — 删除 `EpubService`/`PdfService`/`TranslationService`（已合并/删除），统一为 `EpubParser`/`PdfParser`/`SummaryService`；`_initWindowManager()` → `initDesktopWindow()`；`_onThemeChanged()`/`_onLocaleChanged()` → `_onAppSettingsChanged()`；删除 `_generateBookSummaryFromPreface()` 分支（统一章节摘要→全书摘要）；`translateHtmlStream()` → `translateContent()`；`TranslationService.translateEpubContent()` → `SummaryService.generateTranslationStream()`；解析器接口新增 `parseMetadata()`、删除 `extractCover()`；OpfMetadata 精简为 4 字段、新增 BookMetadata 实体；章节摘要文件名 `chapter-XXX-zh.md` → `Summary-XXX-zh.md` |

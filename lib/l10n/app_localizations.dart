@@ -112,7 +112,7 @@ abstract class AppLocalizations {
   /// AI config section title
   ///
   /// In en, this message translates to:
-  /// **'AI Configuration'**
+  /// **'AI'**
   String get aiConfigTitle;
 
   /// AI config page title
@@ -127,35 +127,17 @@ abstract class AppLocalizations {
   /// **'Read Thin First, Then Thick'**
   String get readThinThick;
 
-  /// Appearance settings title
-  ///
-  /// In en, this message translates to:
-  /// **'Appearance Settings'**
-  String get appearanceSettingTitle;
-
   /// Theme settings section title
   ///
   /// In en, this message translates to:
-  /// **'Theme Settings'**
+  /// **'Theme'**
   String get themeSettingTitle;
-
-  /// Theme settings page title
-  ///
-  /// In en, this message translates to:
-  /// **'Theme Settings'**
-  String get themeSettingsScreenTitle;
 
   /// Language settings section title
   ///
   /// In en, this message translates to:
-  /// **'Language Settings'**
+  /// **'Language'**
   String get languageSettingTitle;
-
-  /// Language settings page title
-  ///
-  /// In en, this message translates to:
-  /// **'Language Settings'**
-  String get languageSettingsScreenTitle;
 
   /// About title
   ///
@@ -181,83 +163,35 @@ abstract class AppLocalizations {
   /// **'Dark'**
   String get themeModeDark;
 
-  /// AI language mode - follow book
-  ///
-  /// In en, this message translates to:
-  /// **'Follow Book'**
-  String get aiLanguageFollowBook;
-
-  /// AI language mode - follow system
+  /// Language mode - follow system
   ///
   /// In en, this message translates to:
   /// **'Follow System'**
-  String get aiLanguageFollowSystem;
+  String get languageModeFollowSystem;
 
-  /// AI language mode - manual select
+  /// Language mode - manual select
   ///
   /// In en, this message translates to:
   /// **'Manual Select'**
-  String get aiLanguageManualSelect;
+  String get languageModeManualSelect;
 
-  /// UI language mode - follow system
+  /// Language mode - follow system description
   ///
   /// In en, this message translates to:
-  /// **'Follow System'**
-  String get uiLanguageFollowSystem;
+  /// **'Follow system language for AI summaries, translations and interface'**
+  String get languageModeSystemSubtitle;
 
-  /// UI language mode - manual select
+  /// Language mode - manual select description
   ///
   /// In en, this message translates to:
-  /// **'Manual Select'**
-  String get uiLanguageManualSelect;
+  /// **'Manually specify a unified AI and interface language'**
+  String get languageModeManualSubtitle;
 
-  /// AI output language picker title
+  /// Unified language picker title
   ///
   /// In en, this message translates to:
-  /// **'Select AI Output Language'**
-  String get selectAiOutputLanguage;
-
-  /// UI language picker title
-  ///
-  /// In en, this message translates to:
-  /// **'Select UI Language'**
-  String get selectUiLanguage;
-
-  /// AI output language label
-  ///
-  /// In en, this message translates to:
-  /// **'AI Output Language'**
-  String get aiOutputLanguage;
-
-  /// UI display language label
-  ///
-  /// In en, this message translates to:
-  /// **'Interface Language'**
-  String get uiDisplayLanguage;
-
-  /// AI language setting section title
-  ///
-  /// In en, this message translates to:
-  /// **'AI Language Setting'**
-  String get aiLanguageSetting;
-
-  /// UI language setting section title
-  ///
-  /// In en, this message translates to:
-  /// **'Interface Language Setting'**
-  String get uiLanguageSetting;
-
-  /// AI language setting description
-  ///
-  /// In en, this message translates to:
-  /// **'Controls the language of AI-generated content'**
-  String get aiLanguageControl;
-
-  /// UI language setting description
-  ///
-  /// In en, this message translates to:
-  /// **'Controls the display language of the app interface'**
-  String get uiLanguageControl;
+  /// **'Select Language'**
+  String get selectLanguage;
 
   /// App name description
   ///
@@ -268,7 +202,7 @@ abstract class AppLocalizations {
   /// Search hint
   ///
   /// In en, this message translates to:
-  /// **'Search'**
+  /// **'Search title/author'**
   String get search;
 
   /// Empty bookshelf hint
@@ -409,36 +343,6 @@ abstract class AppLocalizations {
   /// **'Always use dark theme'**
   String get themeModeDarkSubtitle;
 
-  /// AI language mode - follow book description
-  ///
-  /// In en, this message translates to:
-  /// **'Automatically detect language from book content'**
-  String get aiLanguageModeBookSubtitle;
-
-  /// AI language mode - follow system description
-  ///
-  /// In en, this message translates to:
-  /// **'Use system language settings'**
-  String get aiLanguageModeSystemSubtitle;
-
-  /// AI language mode - manual select description
-  ///
-  /// In en, this message translates to:
-  /// **'Manually specify AI output language'**
-  String get aiLanguageModeManualSubtitle;
-
-  /// UI language mode - follow system description
-  ///
-  /// In en, this message translates to:
-  /// **'Use system language settings'**
-  String get uiLanguageModeSystemSubtitle;
-
-  /// UI language mode - manual select description
-  ///
-  /// In en, this message translates to:
-  /// **'Manually specify interface display language'**
-  String get uiLanguageModeManualSubtitle;
-
   /// Connection testing status
   ///
   /// In en, this message translates to:
@@ -526,7 +430,7 @@ abstract class AppLocalizations {
   /// Library settings section title
   ///
   /// In en, this message translates to:
-  /// **'Library Settings'**
+  /// **'Library'**
   String get librarySettingsTitle;
 
   /// Calibre library location label

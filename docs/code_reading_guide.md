@@ -276,20 +276,14 @@ Future<String?> _callAI(String prompt, {String? systemMessage}) async {
 ```
 
 #### 语言设置使用
-AI服务使用 SettingsService 中的语言设置来控制AI输出语言：
+AI服务使用 SettingsService 中的统一语言设置来控制AI输出语言（摘要/翻译与界面显示共用）：
 
 ```dart
-// 从 SettingsService 读取语言设置
+// 从 SettingsService 读取统一语言设置
 final langSettings = SettingsService().settings.languageSettings;
-_log.d('AIService',
-    '语言设置：aiLanguageMode=${langSettings.aiLanguageMode}, aiOutputLanguage=${langSettings.aiOutputLanguage}');
 
-final languageInstruction = AiPrompts.getLanguageInstruction(
-  langSettings.aiLanguageMode,
-  manualLanguage: langSettings.aiLanguageMode == 'manual'
-      ? langSettings.aiOutputLanguage  // 使用正确的属性名
-      : null,
-);
+// 解析输出语言：'manual' 返回用户自选语言，'system' 返回系统语言
+final outputLanguage = AIService().resolveOutputLanguage(langSettings);
 ```
 
 ### 3. SummaryService - 摘要服务
@@ -338,39 +332,25 @@ class SettingsService {
 
 #### LanguageSettings 详解
 
-`LanguageSettings` 类定义了语言相关的配置选项：
+`LanguageSettings` 类定义了统一的语言配置选项（AI 摘要/翻译与界面显示共用）：
 
 ```dart
 class LanguageSettings {
-  /// AI 输出语言模式
-  /// 可选值：'book'（跟随书籍）、'system'（跟随系统）、'manual'（用户自选）
-  final String aiLanguageMode;
-  
-  /// AI 输出语言（当 aiLanguageMode 为'manual'时使用）
-  /// 可选值：'zh'（中文）、'en'（英文）、'ja'（日文）等
-  final String aiOutputLanguage;
-  
-  /// 界面语言模式
+  /// 语言模式
   /// 可选值：'system'（跟随系统）、'manual'（用户自选）
-  final String uiLanguageMode;
-  
-  /// 界面语言（当 uiLanguageMode 为'manual'时使用）
+  final String languageMode;
+
+  /// 语言（当 languageMode 为 'manual' 时使用）
   /// 可选值：'zh'（中文）、'en'（英文）、'ja'（日文）等
-  final String uiLanguage;
+  final String language;
 }
 ```
 
-**注意**: 在AI服务中使用语言设置时，应当使用 `aiOutputLanguage` 属性，而不是 `manualLanguage`。
-AI服务的实现如下：
+AI 服务通过 `resolveOutputLanguage()` 解析输出语言：
 
 ```dart
 final langSettings = SettingsService().settings.languageSettings;
-final languageInstruction = AiPrompts.getLanguageInstruction(
-  langSettings.aiLanguageMode,
-  manualLanguage: langSettings.aiLanguageMode == 'manual'
-      ? langSettings.aiOutputLanguage  // 使用正确的属性名
-      : null,
-);
+final outputLanguage = AIService().resolveOutputLanguage(langSettings);
 ```
 
 ## 数据流与存储机制
@@ -520,20 +500,14 @@ class SummaryService {
 ### 重要注意事项
 
 在使用 LanguageSettings 时，请注意：
-- LanguageSettings 类中不存在名为 `manualLanguage` 的属性
-- 应当使用 `aiOutputLanguage` 属性来获取AI输出语言设置
-- 测试文件中对该属性的引用会导致编译错误，需要修正为正确的属性名
+- 语言设置统一为 `languageMode`（'system'/'manual'）与 `language` 两个字段
+- 统一语言同时作用于 AI 摘要/翻译与界面显示
+- 解析输出语言请使用 `AIService().resolveOutputLanguage(langSettings)`，不要直接读取字段
 
 ### 正确的使用方式
 
 ```dart
-// 正确的方式：使用 aiOutputLanguage 属性
+// 正确的方式：通过 resolveOutputLanguage 解析统一语言
 final langSettings = SettingsService().settings.languageSettings;
-if (langSettings.aiLanguageMode == 'manual') {
-  final languageCode = langSettings.aiOutputLanguage;
-  // 使用 languageCode
-}
-
-// 错误的方式：不存在 manualLanguage 属性
-// final languageCode = langSettings.manualLanguage; // 编译错误
+final languageCode = AIService().resolveOutputLanguage(langSettings);
 ```

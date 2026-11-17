@@ -297,16 +297,7 @@ class _ChapterScreenState extends State<ChapterScreen>
 
     _sourceLang = await _aiService.detectSourceLanguage(bookLanguage: widget.book?.language, content: _content, bookId: widget.book?.id);
 
-    if (langSettings.aiLanguageMode == 'book') {
-      final convertedLang = _aiService.convertLanguageCodeToStandard(widget.book?.language ?? '');
-      _targetLang = convertedLang.isEmpty ? _sourceLang : convertedLang;
-    } else {
-      _targetLang = await _aiService.resolveOutputLanguage(
-        langSettings,
-        content: _content,
-        preResolvedLanguage: _sourceLang,
-      );
-    }
+    _targetLang = _aiService.resolveOutputLanguage(langSettings);
 
     _summaryLang = _targetLang ?? 'zh';
     _translationTabDisabled = _sourceLang == _targetLang;

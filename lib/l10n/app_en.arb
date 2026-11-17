@@ -1,31 +1,20 @@
 {
   "appTitle": "ZhiDu",
   "settingsTitle": "Settings",
-  "aiConfigTitle": "AI Configuration",
+  "aiConfigTitle": "AI",
   "aiConfigScreenTitle": "AI Configuration",
   "readThinThick": "Read Thin First, Then Thick",
-  "appearanceSettingTitle": "Appearance Settings",
-  "themeSettingTitle": "Theme Settings",
-  "themeSettingsScreenTitle": "Theme Settings",
-  "languageSettingTitle": "Language Settings",
-  "languageSettingsScreenTitle": "Language Settings",
+  "themeSettingTitle": "Theme",
+  "languageSettingTitle": "Language",
   "aboutTitle": "About",
   "themeModeSystem": "System",
   "themeModeLight": "Light",
   "themeModeDark": "Dark",
-  "aiLanguageFollowBook": "Follow Book",
-  "aiLanguageFollowSystem": "Follow System",
-  "aiLanguageManualSelect": "Manual Select",
-  "uiLanguageFollowSystem": "Follow System",
-  "uiLanguageManualSelect": "Manual Select",
-  "selectAiOutputLanguage": "Select AI Output Language",
-  "selectUiLanguage": "Select UI Language",
-  "aiOutputLanguage": "AI Output Language",
-  "uiDisplayLanguage": "Interface Language",
-  "aiLanguageSetting": "AI Language Setting",
-  "uiLanguageSetting": "Interface Language Setting",
-  "aiLanguageControl": "Controls the language of AI-generated content",
-  "uiLanguageControl": "Controls the display language of the app interface",
+  "languageModeFollowSystem": "Follow System",
+  "languageModeManualSelect": "Manual Select",
+  "languageModeSystemSubtitle": "Follow system language for AI summaries, translations and interface",
+  "languageModeManualSubtitle": "Manually specify a unified AI and interface language",
+  "selectLanguage": "Select Language",
   "aiLayeredReader": "AI Layered Reader",
   "search": "Search title/author",
   "bookshelfEmpty": "Bookshelf is empty",
@@ -51,11 +40,6 @@
   "themeModeSystemSubtitle": "Automatically follow system theme settings",
   "themeModeLightSubtitle": "Always use light theme",
   "themeModeDarkSubtitle": "Always use dark theme",
-  "aiLanguageModeBookSubtitle": "Automatically detect language from book content",
-  "aiLanguageModeSystemSubtitle": "Use system language settings",
-  "aiLanguageModeManualSubtitle": "Manually specify AI output language",
-  "uiLanguageModeSystemSubtitle": "Use system language settings",
-  "uiLanguageModeManualSubtitle": "Manually specify interface display language",
   "testing": "Testing...",
   "saving": "Saving...",
   "failed": "Failed",
@@ -70,7 +54,7 @@
   "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
   "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
-  "librarySettingsTitle": "Library Settings",
+  "librarySettingsTitle": "Library",
   "calibreLibraryLocation": "Calibre library location:",
   "noLibraries": "Not set",
   "browse": "Browse",
@@ -93,20 +77,11 @@
   "@readThinThick": {
     "description": "App subtitle"
   },
-  "@appearanceSettingTitle": {
-    "description": "Appearance settings title"
-  },
   "@themeSettingTitle": {
     "description": "Theme settings section title"
   },
-  "@themeSettingsScreenTitle": {
-    "description": "Theme settings page title"
-  },
   "@languageSettingTitle": {
     "description": "Language settings section title"
-  },
-  "@languageSettingsScreenTitle": {
-    "description": "Language settings page title"
   },
   "@aboutTitle": {
     "description": "About title"
@@ -120,44 +95,20 @@
   "@themeModeDark": {
     "description": "Theme mode - dark"
   },
-  "@aiLanguageFollowBook": {
-    "description": "AI language mode - follow book"
+  "@languageModeFollowSystem": {
+    "description": "Language mode - follow system"
   },
-  "@aiLanguageFollowSystem": {
-    "description": "AI language mode - follow system"
+  "@languageModeManualSelect": {
+    "description": "Language mode - manual select"
   },
-  "@aiLanguageManualSelect": {
-    "description": "AI language mode - manual select"
+  "@languageModeSystemSubtitle": {
+    "description": "Language mode - follow system description"
   },
-  "@uiLanguageFollowSystem": {
-    "description": "UI language mode - follow system"
+  "@languageModeManualSubtitle": {
+    "description": "Language mode - manual select description"
   },
-  "@uiLanguageManualSelect": {
-    "description": "UI language mode - manual select"
-  },
-  "@selectAiOutputLanguage": {
-    "description": "AI output language picker title"
-  },
-  "@selectUiLanguage": {
-    "description": "UI language picker title"
-  },
-  "@aiOutputLanguage": {
-    "description": "AI output language label"
-  },
-  "@uiDisplayLanguage": {
-    "description": "UI display language label"
-  },
-  "@aiLanguageSetting": {
-    "description": "AI language setting section title"
-  },
-  "@uiLanguageSetting": {
-    "description": "UI language setting section title"
-  },
-  "@aiLanguageControl": {
-    "description": "AI language setting description"
-  },
-  "@uiLanguageControl": {
-    "description": "UI language setting description"
+  "@selectLanguage": {
+    "description": "Unified language picker title"
   },
   "@aiLayeredReader": {
     "description": "App name description"
@@ -242,21 +193,6 @@
   },
   "@themeModeDarkSubtitle": {
     "description": "Theme mode - dark description"
-  },
-  "@aiLanguageModeBookSubtitle": {
-    "description": "AI language mode - follow book description"
-  },
-  "@aiLanguageModeSystemSubtitle": {
-    "description": "AI language mode - follow system description"
-  },
-  "@aiLanguageModeManualSubtitle": {
-    "description": "AI language mode - manual select description"
-  },
-  "@uiLanguageModeSystemSubtitle": {
-    "description": "UI language mode - follow system description"
-  },
-  "@uiLanguageModeManualSubtitle": {
-    "description": "UI language mode - manual select description"
   },
   "@testing": {
     "description": "Connection testing status"

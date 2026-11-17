@@ -7,8 +7,6 @@ import '../services/library_import_service.dart';
 import '../services/book_service.dart';
 import '../models/app_settings.dart';
 import 'ai_config_screen.dart';
-import 'theme_settings_screen.dart';
-import 'language_settings_screen.dart';
 
 /// 设置页面 - 应用各项配置入口
 ///
@@ -79,8 +77,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader(loc.aiConfigTitle),
           _buildAiSection(),
           const SizedBox(height: 16),
-          _buildSectionHeader(loc.appearanceSettingTitle),
-          _buildAppearanceSection(),
+          _buildSectionHeader(loc.themeSettingTitle),
+          _buildThemeSection(),
+          const SizedBox(height: 16),
+          _buildSectionHeader(loc.languageSettingTitle),
+          _buildLanguageSection(),
           const SizedBox(height: 16),
           _buildSectionHeader(loc.librarySettingsTitle),
           _buildLibrarySection(),
@@ -150,50 +151,175 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 构建外观设置区块
+  /// 构建主题设置区块
   ///
-  /// 提供主题和语言设置入口
-  Widget _buildAppearanceSection() {
+  /// 直接内联三种主题模式单选，即时生效并自动保存
+  Widget _buildThemeSection() {
     return _buildSection(children: [
         ListenableBuilder(
           listenable: SettingsService().themeMode,
           builder: (context, _) {
-            return ListTile(
-              leading: const Icon(Icons.brightness_6),
-              title: Text(loc.themeSettingTitle),
-              subtitle: Text(_getThemeStatus()),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ThemeSettingsScreen(),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-        ListenableBuilder(
-          listenable: SettingsService().languageSettings,
-          builder: (context, _) {
-            return ListTile(
-              leading: const Icon(Icons.language),
-              title: Text(loc.languageSettingTitle),
-              subtitle: Text(_getLanguageStatus()),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LanguageSettingsScreen(),
-                  ),
-                );
-              },
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildThemeOption(
+                  mode: ThemeMode.system,
+                  title: loc.themeModeSystem,
+                  subtitle: loc.themeModeSystemSubtitle,
+                ),
+                _buildThemeOption(
+                  mode: ThemeMode.light,
+                  title: loc.themeModeLight,
+                  subtitle: loc.themeModeLightSubtitle,
+                ),
+                _buildThemeOption(
+                  mode: ThemeMode.dark,
+                  title: loc.themeModeDark,
+                  subtitle: loc.themeModeDarkSubtitle,
+                ),
+              ],
             );
           },
         ),
       ],
+    );
+  }
+
+  /// 构建语言设置区块
+  ///
+  /// 直接内联统一语言设置（AI 摘要/翻译与界面显示共用），即时生效并自动保存
+  Widget _buildLanguageSection() {
+    return _buildSection(children: [
+        ListenableBuilder(
+          listenable: SettingsService().languageSettings,
+          builder: (context, _) {
+            final settings = SettingsService().languageSettings.value;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RadioListTile<String>(
+                  value: 'system',
+                  groupValue: settings.languageMode,
+                  onChanged: (value) {
+                    if (value != null) _updateLanguageMode(value);
+                  },
+                  title: Text(loc.languageModeFollowSystem),
+                  subtitle: Text(loc.languageModeSystemSubtitle),
+                  activeColor: Theme.of(context).colorScheme.primary,
+                ),
+                RadioListTile<String>(
+                  value: 'manual',
+                  groupValue: settings.languageMode,
+                  onChanged: (value) {
+                    if (value != null) _updateLanguageMode(value);
+                  },
+                  title: Text(loc.languageModeManualSelect),
+                  subtitle: Text(loc.languageModeManualSubtitle),
+                  activeColor: Theme.of(context).colorScheme.primary,
+                ),
+                if (settings.languageMode == 'manual')
+                  _buildLanguageSelector(
+                    title: loc.selectLanguage,
+                    value: settings.language,
+                    onChanged: (value) {
+                      if (value != null) _updateLanguage(value);
+                    },
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  /// 手动语言选项
+  List<(String, String)> _getLanguages() {
+    return [
+      ('zh', loc.chineseLanguage),
+      ('en', loc.englishLanguage),
+      ('ja', loc.japaneseLanguage),
+    ];
+  }
+
+  /// 构建语言选择下拉框
+  Widget _buildLanguageSelector({
+    required String title,
+    required String value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final languages = _getLanguages();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8.0),
+              DropdownButtonFormField<String>(
+                value: languages.any((l) => l.$1 == value) ? value : 'zh',
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                ),
+                items: languages.map((lang) {
+                  return DropdownMenuItem<String>(
+                    value: lang.$1,
+                    child: Text(lang.$2),
+                  );
+                }).toList(),
+                onChanged: onChanged,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 更新语言模式
+  Future<void> _updateLanguageMode(String mode) async {
+    if (mode != 'system' && mode != 'manual') return;
+    final settings = SettingsService().languageSettings.value;
+    if (settings.languageMode == mode) return;
+    await SettingsService().updateLanguageSettings(
+      settings.copyWith(languageMode: mode),
+    );
+  }
+
+  /// 更新语言
+  Future<void> _updateLanguage(String language) async {
+    final settings = SettingsService().languageSettings.value;
+    if (settings.language == language) return;
+    await SettingsService().updateLanguageSettings(
+      settings.copyWith(language: language),
+    );
+  }
+
+  /// 构建主题选项（单选）
+  Widget _buildThemeOption({
+    required ThemeMode mode,
+    required String title,
+    required String subtitle,
+  }) {
+    return RadioListTile<ThemeMode>(
+      value: mode,
+      groupValue: SettingsService().themeMode.value,
+      onChanged: (selectedMode) {
+        if (selectedMode != null) {
+          SettingsService().setThemeMode(selectedMode);
+        }
+      },
+      title: Text(title),
+      subtitle: Text(subtitle),
+      activeColor: Theme.of(context).colorScheme.primary,
     );
   }
 
@@ -346,83 +472,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else {
       return loc.notConfiguredClickToSet;
     }
-  }
-
-  /// 获取主题状态显示文本
-  String _getThemeStatus() {
-    final mode = SettingsService().settings.themeSettings.mode;
-    switch (mode) {
-      case ThemeMode.system:
-        return loc.themeModeSystem;
-      case ThemeMode.light:
-        return loc.themeModeLight;
-      case ThemeMode.dark:
-        return loc.themeModeDark;
-    }
-  }
-
-  /// 获取语言状态显示文本
-  String _getLanguageStatus() {
-    final settings = SettingsService().settings.languageSettings;
-
-    String aiLanguageText;
-    switch (settings.aiLanguageMode) {
-      case 'book':
-        aiLanguageText = 'AI: ${loc.aiLanguageFollowBook}';
-        break;
-      case 'system':
-        aiLanguageText = 'AI: ${loc.aiLanguageFollowSystem}';
-        break;
-      case 'manual':
-        final lang = settings.aiOutputLanguage;
-        switch (lang) {
-          case 'zh':
-            aiLanguageText = 'AI: ${loc.chineseLanguage}';
-            break;
-          case 'en':
-            aiLanguageText = 'AI: ${loc.englishLanguage}';
-            break;
-          case 'ja':
-            aiLanguageText = 'AI: ${loc.japaneseLanguage}';
-            break;
-          default:
-            aiLanguageText = 'AI: ${loc.chineseLanguage}';
-            break;
-        }
-        break;
-      default:
-        aiLanguageText = 'AI: ${loc.aiLanguageFollowSystem}';
-        break;
-    }
-
-    String uiLanguageText;
-    switch (settings.uiLanguageMode) {
-      case 'system':
-        uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.uiLanguageFollowSystem}';
-        break;
-      case 'manual':
-        final lang = settings.uiLanguage;
-        switch (lang) {
-          case 'zh':
-            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.chineseLanguage}';
-            break;
-          case 'en':
-            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.englishLanguage}';
-            break;
-          case 'ja':
-            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.japaneseLanguage}';
-            break;
-          default:
-            uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.chineseLanguage}';
-            break;
-        }
-        break;
-      default:
-        uiLanguageText = '${loc.uiDisplayLanguage}: ${loc.uiLanguageFollowSystem}';
-        break;
-    }
-
-    return '$aiLanguageText, $uiLanguageText';
   }
 
 }

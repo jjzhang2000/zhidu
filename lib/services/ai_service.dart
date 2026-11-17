@@ -430,11 +430,8 @@ class AIService {
       return;
     }
 
-    final outputLanguage = language ?? await resolveOutputLanguage(
-      SettingsService().settings.languageSettings,
-      content: content,
-      bookId: bookId,
-    );
+    final outputLanguage = language ??
+        resolveOutputLanguage(SettingsService().settings.languageSettings);
 
     final loc = _getPromptLoc(outputLanguage);
 
@@ -479,11 +476,8 @@ class AIService {
       return;
     }
 
-    final outputLanguage = language ?? await resolveOutputLanguage(
-      SettingsService().settings.languageSettings,
-      content: chapterSummaries,
-      bookId: bookId,
-    );
+    final outputLanguage = language ??
+        resolveOutputLanguage(SettingsService().settings.languageSettings);
 
     final loc = _getPromptLoc(outputLanguage);
 
@@ -583,24 +577,6 @@ class AIService {
   // ==========================================================================
   // 区域6：语言检测与转换
   // ==========================================================================
-
-  /// 从书籍元数据和内容中检测语言
-  ///
-  /// 优先从书籍元数据中的语言信息，如果元数据中没有语言信息，则从内容中检测语言
-  /// 使用更精确的算法，考虑不同语言的字符比例和分布特点
-  ///
-  /// 参数:
-  /// - bookId: 书籍ID，用于获取元数据
-  /// - content: 文本内容，用于检测语言
-  ///
-  /// 返回:
-  /// - 检测到的语言代码 ('zh', 'en', 'ja'等)
-  /// - 如果无法确定则返回 'zh' (默认中文)
-  Future<String> _detectLanguageFromMetadataAndContentWithBookId(String bookId, String content) async {
-    final bookService = BookService();
-    final book = bookService.getBookById(bookId);
-    return await detectSourceLanguage(bookLanguage: book?.language, content: content, bookId: bookId);
-  }
 
   /// 从内容中检测语言
   ///
@@ -733,31 +709,15 @@ class AIService {
     return lookupAppLocalizations(Locale(languageCode));
   }
 
-  /// 解析 AI 输出语言
+  /// 解析输出语言
   ///
-  /// 根据语言设置决定 AI 输出语言代码。
-  /// - [langSettings]: 语言设置对象
-  /// - [content]: 用于 AI 检测的文本内容
-  /// - [bookId]: 书籍ID，book 模式时用于查元数据 + AI 检测 + 回写
-  /// - [preResolvedLanguage]: 已解析的语言代码，book 模式时直接使用（跳过检测）
-  Future<String> resolveOutputLanguage(
-    LanguageSettings langSettings, {
-    required String content,
-    String? bookId,
-    String? preResolvedLanguage,
-  }) async {
-    if (langSettings.aiLanguageMode == 'book' && preResolvedLanguage != null) {
-      return preResolvedLanguage;
-    }
-    if (langSettings.aiLanguageMode == 'book' && bookId != null) {
-      return await _detectLanguageFromMetadataAndContentWithBookId(bookId, content);
-    }
-    if (langSettings.aiLanguageMode == 'book') {
-      return await detectLanguageFromContent(content);
-    }
-    switch (langSettings.aiLanguageMode) {
+  /// 根据统一语言设置返回输出语言代码（AI 摘要与翻译共用）。
+  /// - 'manual'：使用用户自选语言
+  /// - 'system'：跟随系统语言
+  String resolveOutputLanguage(LanguageSettings langSettings) {
+    switch (langSettings.languageMode) {
       case 'manual':
-        return langSettings.aiOutputLanguage;
+        return langSettings.language;
       case 'system':
         return detectSystemLanguage();
       default:
@@ -767,15 +727,11 @@ class AIService {
 
   /// 判断是否需要翻译
   ///
-  /// 根据 AI 语言设置确定目标语言，与源语言比较。
+  /// 根据统一语言设置确定目标语言，与源语言比较。
   /// 当源语言与目标语言相同时无需翻译。
-  Future<bool> needsTranslation(String sourceLang) async {
+  bool needsTranslation(String sourceLang) {
     final lang = SettingsService().settings.languageSettings;
-    final targetLang = await resolveOutputLanguage(
-      lang,
-      content: '',
-      preResolvedLanguage: sourceLang,
-    );
+    final targetLang = resolveOutputLanguage(lang);
     return sourceLang != targetLang;
   }
 }

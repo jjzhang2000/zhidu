@@ -581,7 +581,7 @@
 | AiSettings测试 | 默认值、有效性验证、序列化 | P0 |
 | ThemeSettings测试 | 默认值、模式解析、序列化 | P0 |
 | StorageSettings测试 | 默认路径、自动备份配置、序列化 | P0 |
-| LanguageSettings测试 | 默认模式、语言选择、序列化 | P0 |
+| LanguageSettings测试 | 默认值、语言选择、序列化 | P0 |
 | AppSettings测试 | 完整序列化/反序列化、版本兼容 | P0 |
 
 **测试用例数**: ~25个

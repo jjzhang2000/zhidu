@@ -15,7 +15,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTitle => '设置';
 
   @override
-  String get aiConfigTitle => 'AI配置';
+  String get aiConfigTitle => 'AI';
 
   @override
   String get aiConfigScreenTitle => 'AI配置页面标题';
@@ -24,19 +24,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readThinThick => '先读薄，再读厚';
 
   @override
-  String get appearanceSettingTitle => '外观设置';
+  String get themeSettingTitle => '主题';
 
   @override
-  String get themeSettingTitle => '主题设置';
-
-  @override
-  String get themeSettingsScreenTitle => '主题设置页面标题';
-
-  @override
-  String get languageSettingTitle => '语言设置';
-
-  @override
-  String get languageSettingsScreenTitle => '语言设置页面标题';
+  String get languageSettingTitle => '语言';
 
   @override
   String get aboutTitle => '关于';
@@ -51,43 +42,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeModeDark => '深色';
 
   @override
-  String get aiLanguageFollowBook => '跟随书籍';
+  String get languageModeFollowSystem => '跟随系统';
 
   @override
-  String get aiLanguageFollowSystem => '跟随系统';
+  String get languageModeManualSelect => '用户自选';
 
   @override
-  String get aiLanguageManualSelect => '用户自选';
+  String get languageModeSystemSubtitle => 'AI摘要、翻译与界面统一跟随系统语言';
 
   @override
-  String get uiLanguageFollowSystem => '跟随系统';
+  String get languageModeManualSubtitle => '手动指定统一的AI与界面语言';
 
   @override
-  String get uiLanguageManualSelect => '用户自选';
-
-  @override
-  String get selectAiOutputLanguage => '选择AI输出语言';
-
-  @override
-  String get selectUiLanguage => '选择界面语言';
-
-  @override
-  String get aiOutputLanguage => 'AI输出语言';
-
-  @override
-  String get uiDisplayLanguage => '界面语言';
-
-  @override
-  String get aiLanguageSetting => 'AI语言设置';
-
-  @override
-  String get uiLanguageSetting => '界面语言设置';
-
-  @override
-  String get aiLanguageControl => '控制AI生成内容的语言';
-
-  @override
-  String get uiLanguageControl => '控制应用界面的显示语言';
+  String get selectLanguage => '选择语言';
 
   @override
   String get aiLayeredReader => 'AI 分层阅读器';
@@ -171,21 +138,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeModeDarkSubtitle => '始终使用深色主题';
 
   @override
-  String get aiLanguageModeBookSubtitle => '根据书籍内容语言自动判断';
-
-  @override
-  String get aiLanguageModeSystemSubtitle => '使用系统语言设置';
-
-  @override
-  String get aiLanguageModeManualSubtitle => '手动指定 AI 输出语言';
-
-  @override
-  String get uiLanguageModeSystemSubtitle => '使用系统语言设置';
-
-  @override
-  String get uiLanguageModeManualSubtitle => '手动指定界面显示语言';
-
-  @override
   String get testing => '测试中...';
 
   @override
@@ -234,7 +186,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get librarySettingsTitle => '书库设置';
+  String get librarySettingsTitle => '书库';
 
   @override
   String get calibreLibraryLocation => 'Calibre书库位置：';

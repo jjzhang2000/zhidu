@@ -1,5 +1,7 @@
 # Settings Page Features Test Plan
 
+> ⚠️ **已过时（2026-11-17）**：本文档为 2026-04-15 的历史测试计划快照。「语言设置」部分已过时 —— AI 语言与界面语言已合并为统一「语言」设置，相关测试应覆盖 `LanguageSettings`（`languageMode`/`language`）的默认值、旧字段迁移与序列化。
+
 ## Overview
 
 This document outlines the test coverage needed for the settings page features implementation. All new components require unit tests and widget tests to ensure correctness and maintainability.

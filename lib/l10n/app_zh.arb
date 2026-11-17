@@ -1,31 +1,20 @@
 {
   "appTitle": "智读",
   "settingsTitle": "设置",
-  "aiConfigTitle": "AI配置",
+  "aiConfigTitle": "AI",
   "aiConfigScreenTitle": "AI配置页面标题",
   "readThinThick": "先读薄，再读厚",
-  "appearanceSettingTitle": "外观设置",
-  "themeSettingTitle": "主题设置",
-  "themeSettingsScreenTitle": "主题设置页面标题",
-  "languageSettingTitle": "语言设置",
-  "languageSettingsScreenTitle": "语言设置页面标题",
+  "themeSettingTitle": "主题",
+  "languageSettingTitle": "语言",
   "aboutTitle": "关于",
   "themeModeSystem": "跟随系统",
   "themeModeLight": "浅色",
   "themeModeDark": "深色",
-  "aiLanguageFollowBook": "跟随书籍",
-  "aiLanguageFollowSystem": "跟随系统",
-  "aiLanguageManualSelect": "用户自选",
-  "uiLanguageFollowSystem": "跟随系统",
-  "uiLanguageManualSelect": "用户自选",
-  "selectAiOutputLanguage": "选择AI输出语言",
-  "selectUiLanguage": "选择界面语言",
-  "aiOutputLanguage": "AI输出语言",
-  "uiDisplayLanguage": "界面语言",
-  "aiLanguageSetting": "AI语言设置",
-  "uiLanguageSetting": "界面语言设置",
-  "aiLanguageControl": "控制AI生成内容的语言",
-  "uiLanguageControl": "控制应用界面的显示语言",
+  "languageModeFollowSystem": "跟随系统",
+  "languageModeManualSelect": "用户自选",
+  "languageModeSystemSubtitle": "AI摘要、翻译与界面统一跟随系统语言",
+  "languageModeManualSubtitle": "手动指定统一的AI与界面语言",
+  "selectLanguage": "选择语言",
   "aiLayeredReader": "AI 分层阅读器",
   "search": "搜索书名/作者",
   "bookshelfEmpty": "书架空空如也",
@@ -51,11 +40,6 @@
   "themeModeSystemSubtitle": "自动跟随系统主题设置",
   "themeModeLightSubtitle": "始终使用浅色主题",
   "themeModeDarkSubtitle": "始终使用深色主题",
-  "aiLanguageModeBookSubtitle": "根据书籍内容语言自动判断",
-  "aiLanguageModeSystemSubtitle": "使用系统语言设置",
-  "aiLanguageModeManualSubtitle": "手动指定 AI 输出语言",
-  "uiLanguageModeSystemSubtitle": "使用系统语言设置",
-  "uiLanguageModeManualSubtitle": "手动指定界面显示语言",
   "testing": "测试中...",
   "saving": "保存中...",
   "failed": "失败",
@@ -70,7 +54,7 @@
   "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
   "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
-  "librarySettingsTitle": "书库设置",
+  "librarySettingsTitle": "书库",
   "calibreLibraryLocation": "Calibre书库位置：",
   "noLibraries": "未设置",
   "browse": "浏览",
@@ -93,20 +77,11 @@
   "@readThinThick": {
     "description": "应用副标题"
   },
-  "@appearanceSettingTitle": {
-    "description": "外观设置标题"
-  },
   "@themeSettingTitle": {
     "description": "主题设置分组标题"
   },
-  "@themeSettingsScreenTitle": {
-    "description": "主题设置页面标题"
-  },
   "@languageSettingTitle": {
     "description": "语言设置分组标题"
-  },
-  "@languageSettingsScreenTitle": {
-    "description": "语言设置页面标题"
   },
   "@aboutTitle": {
     "description": "关于标题"
@@ -120,44 +95,20 @@
   "@themeModeDark": {
     "description": "主题模式-深色"
   },
-  "@aiLanguageFollowBook": {
-    "description": "AI语言模式-跟随书籍"
+  "@languageModeFollowSystem": {
+    "description": "语言模式-跟随系统"
   },
-  "@aiLanguageFollowSystem": {
-    "description": "AI语言模式-跟随系统"
+  "@languageModeManualSelect": {
+    "description": "语言模式-用户自选"
   },
-  "@aiLanguageManualSelect": {
-    "description": "AI语言模式-用户自选"
+  "@languageModeSystemSubtitle": {
+    "description": "语言模式-跟随系统说明"
   },
-  "@uiLanguageFollowSystem": {
-    "description": "界面语言模式-跟随系统"
+  "@languageModeManualSubtitle": {
+    "description": "语言模式-用户自选说明"
   },
-  "@uiLanguageManualSelect": {
-    "description": "界面语言模式-用户自选"
-  },
-  "@selectAiOutputLanguage": {
-    "description": "AI输出语言选择对话框标题"
-  },
-  "@selectUiLanguage": {
-    "description": "界面语言选择对话框标题"
-  },
-  "@aiOutputLanguage": {
-    "description": "AI输出语言标签"
-  },
-  "@uiDisplayLanguage": {
-    "description": "界面显示语言标签"
-  },
-  "@aiLanguageSetting": {
-    "description": "AI语言设置分组标题"
-  },
-  "@uiLanguageSetting": {
-    "description": "界面语言设置分组标题"
-  },
-  "@aiLanguageControl": {
-    "description": "AI语言设置说明"
-  },
-  "@uiLanguageControl": {
-    "description": "界面语言设置说明"
+  "@selectLanguage": {
+    "description": "统一语言选择对话框标题"
   },
   "@aiLayeredReader": {
     "description": "应用名称描述"
@@ -242,21 +193,6 @@
   },
   "@themeModeDarkSubtitle": {
     "description": "主题模式-深色说明"
-  },
-  "@aiLanguageModeBookSubtitle": {
-    "description": "AI语言模式-跟随书籍说明"
-  },
-  "@aiLanguageModeSystemSubtitle": {
-    "description": "AI语言模式-跟随系统说明"
-  },
-  "@aiLanguageModeManualSubtitle": {
-    "description": "AI语言模式-用户自选说明"
-  },
-  "@uiLanguageModeSystemSubtitle": {
-    "description": "界面语言模式-跟随系统说明"
-  },
-  "@uiLanguageModeManualSubtitle": {
-    "description": "界面语言模式-用户自选说明"
   },
   "@testing": {
     "description": "连接测试中状态"

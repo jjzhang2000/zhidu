@@ -1,5 +1,7 @@
 # Settings Page Features Implementation Plan
 
+> ⚠️ **已过时（2026-11-17）**：本文档为 2026-04-15 的历史设计快照。其中「语言设置」部分已过时 —— AI 语言与界面语言已合并为统一「语言」设置（仅「跟随系统/用户自选」，删除「跟随书籍」），相关实现见 `lib/models/app_settings.dart` 的 `LanguageSettings`（`languageMode`/`language`）与 `lib/services/ai_service.dart` 的 `resolveOutputLanguage()`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement four settings features: AI configuration, theme switching, backup/recovery, and language settings.
