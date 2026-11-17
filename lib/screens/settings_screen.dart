@@ -468,7 +468,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _getAiConfigStatus() {
     final settings = SettingsService().settings.aiSettings;
     if (settings.isValid) {
-      return '${settings.provider} - ${settings.model}';
+      return '${settings.provider} / ${settings.model}';
     } else {
       return loc.notConfiguredClickToSet;
     }
