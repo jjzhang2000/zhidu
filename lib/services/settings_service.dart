@@ -34,6 +34,7 @@ class SettingsService {
   ValueNotifier<AiSettings> _aiSettings = ValueNotifier(AiSettings());
   ValueNotifier<LanguageSettings> _languageSettings =
       ValueNotifier(LanguageSettings());
+  ValueNotifier<String?> _calibreLibraryPath = ValueNotifier(null);
 
   /// 主题模式ValueNotifier（用于响应式UI更新）
   ValueNotifier<ThemeMode> get themeMode => _themeMode;
@@ -44,16 +45,21 @@ class SettingsService {
   /// 语言设置ValueNotifier
   ValueNotifier<LanguageSettings> get languageSettings => _languageSettings;
 
+  /// 书库路径ValueNotifier
+  ValueNotifier<String?> get calibreLibraryPath => _calibreLibraryPath;
+
   /// 测试用：重置服务状态
   @visibleForTesting
   static void resetForTest() {
     _instance._safeDispose(_instance._themeMode);
     _instance._safeDispose(_instance._aiSettings);
     _instance._safeDispose(_instance._languageSettings);
+    _instance._safeDispose(_instance._calibreLibraryPath);
 
     _instance._themeMode = ValueNotifier(ThemeMode.system);
     _instance._aiSettings = ValueNotifier(AiSettings());
     _instance._languageSettings = ValueNotifier(LanguageSettings());
+    _instance._calibreLibraryPath = ValueNotifier(null);
 
     _instance._settings = AppSettings();
     _instance._settingsFilePath = null;
@@ -117,6 +123,7 @@ class SettingsService {
     themeMode.value = _settings.themeSettings.mode;
     aiSettings.value = _settings.aiSettings;
     languageSettings.value = _settings.languageSettings;
+    calibreLibraryPath.value = _settings.calibreLibraryPath;
   }
 
   /// 获取当前完整设置
@@ -170,11 +177,20 @@ class SettingsService {
     _log.info('SettingsService', '语言设置已更新');
   }
 
+  /// 设置 Calibre 书库路径
+  Future<void> setCalibreLibraryPath(String path) async {
+    _settings = _settings.copyWith(calibreLibraryPath: path);
+    calibreLibraryPath.value = path;
+    await _saveSettings();
+    _log.info('SettingsService', '已设置书库: $path');
+  }
+
   /// 释放资源
   void dispose() {
     _safeDispose(_themeMode);
     _safeDispose(_aiSettings);
     _safeDispose(_languageSettings);
+    _safeDispose(_calibreLibraryPath);
   }
 
   /// 安全地dispose ValueNotifier，忽略已dispose的错误

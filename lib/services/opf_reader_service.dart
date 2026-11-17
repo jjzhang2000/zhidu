@@ -88,23 +88,14 @@ class OpfReaderService {
         language = langElements.first.innerText.trim();
       }
 
-      // 提取封面引用
+      // 提取封面引用：直接从 OPF 的 guide 段落读取 reference type="cover" 的 href
+      // （Calibre 在 metadata.opf 的 guide 段落直接记录封面文件名，不依赖 EPUB 属性）
       String? coverPath;
-      final metaElements = metadataElement.findElements('meta');
-      for (final meta in metaElements) {
-        if (meta.getAttribute('name') == 'cover') {
-          final coverId = meta.getAttribute('content');
-          if (coverId != null) {
-            final manifestElements = document.findAllElements('manifest').firstOrNull;
-            if (manifestElements != null) {
-              final itemElements = manifestElements.findAllElements('item');
-              for (final item in itemElements) {
-                if (item.getAttribute('id') == coverId) {
-                  coverPath = item.getAttribute('href');
-                  break;
-                }
-              }
-            }
+      final guideElements = document.findAllElements('guide').firstOrNull;
+      if (guideElements != null) {
+        for (final reference in guideElements.findAllElements('reference')) {
+          if (reference.getAttribute('type') == 'cover') {
+            coverPath = reference.getAttribute('href');
             break;
           }
         }

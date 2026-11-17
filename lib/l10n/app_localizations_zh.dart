@@ -232,4 +232,33 @@ class AppLocalizationsZh extends AppLocalizations {
   String promptTranslateHtml(String content, String chapterTitle) {
     return '$content|$chapterTitle';
   }
+
+  @override
+  String get librarySettingsTitle => '书库设置';
+
+  @override
+  String get calibreLibraryLocation => 'Calibre书库位置：';
+
+  @override
+  String get noLibraries => '未设置';
+
+  @override
+  String get browse => '浏览';
+
+  @override
+  String get refresh => '刷新';
+
+  @override
+  String bookCount(int count) {
+    return '共 $count 本';
+  }
+
+  @override
+  String get clearBookshelf => '清空书架';
+
+  @override
+  String get clearBookshelfConfirmation => '确定要清空书架中的所有书籍吗？此操作不可恢复。';
+
+  @override
+  String get clearBookshelfDone => '书架已清空';
 }

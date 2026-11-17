@@ -93,6 +93,37 @@ class EpubParser implements BookFormatParser {
   }
 
   @override
+  Future<BookMetadata?> extractBasicMetadata(String filePath, String bookId) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return null;
+
+      final bytes = await file.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes);
+
+      final opfInfo = _parseOpfFile(archive);
+      final title = opfInfo?['title'];
+      final author = opfInfo?['author'];
+      final language = opfInfo?['language'];
+
+      final coverPath = await _extractCoverFromArchiveObject(archive, bookId);
+
+      return BookMetadata(
+        title: (title == null || title.isEmpty)
+            ? _extractTitleFromPath(filePath)
+            : title,
+        author: (author == null || author.isEmpty) ? '未知作者' : author,
+        totalChapters: 0,
+        coverPath: coverPath,
+        language: language,
+      );
+    } catch (e, stackTrace) {
+      _log.e('EpubParser', '轻量提取基本信息失败', e, stackTrace);
+      return null;
+    }
+  }
+
+  @override
   Future<List<Chapter>> getChapters(String filePath) async {
     final file = File(filePath);
     if (!await file.exists()) {
@@ -340,7 +371,17 @@ class EpubParser implements BookFormatParser {
   Future<String?> _extractCoverFromArchive(Uint8List bytes, String bookId) async {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
+      return await _extractCoverFromArchiveObject(archive, bookId);
+    } catch (e) {
+      _log.w('EpubParser', 'archive 回退方案也未找到封面');
+      return null;
+    }
+  }
 
+  /// 从已解码的 archive 中提取封面图片（供轻量导入复用，避免重复解压）
+  Future<String?> _extractCoverFromArchiveObject(
+      Archive archive, String bookId) async {
+    try {
       final coverPatterns = [
         'cover.jpg',
         'cover.jpeg',
@@ -385,7 +426,7 @@ class EpubParser implements BookFormatParser {
         return coverPath;
       }
     } catch (e) {
-      _log.w('EpubParser', 'archive 回退方案也未找到封面');
+      _log.w('EpubParser', '从 archive 提取封面失败');
     }
     return null;
   }

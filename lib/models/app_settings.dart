@@ -210,6 +210,9 @@ class AppSettings {
   /// 语言设置
   final LanguageSettings languageSettings;
 
+  /// Calibre 书库文件夹路径（未设置时为 null）
+  final String? calibreLibraryPath;
+
   /// 设置版本号，用于未来数据迁移
   final int version;
 
@@ -218,6 +221,7 @@ class AppSettings {
     Map<String, AiSettings>? savedAiConfigs,
     ThemeSettings? themeSettings,
     LanguageSettings? languageSettings,
+    this.calibreLibraryPath,
     this.version = 1,
   })  : aiSettings = aiSettings ?? AiSettings(),
         savedAiConfigs = savedAiConfigs ?? {},
@@ -229,6 +233,7 @@ class AppSettings {
     Map<String, AiSettings>? savedAiConfigs,
     ThemeSettings? themeSettings,
     LanguageSettings? languageSettings,
+    String? calibreLibraryPath,
     int? version,
   }) {
     return AppSettings(
@@ -236,6 +241,7 @@ class AppSettings {
       savedAiConfigs: savedAiConfigs ?? this.savedAiConfigs,
       themeSettings: themeSettings ?? this.themeSettings,
       languageSettings: languageSettings ?? this.languageSettings,
+      calibreLibraryPath: calibreLibraryPath ?? this.calibreLibraryPath,
       version: version ?? this.version,
     );
   }
@@ -248,6 +254,7 @@ class AppSettings {
       ),
       'themeSettings': themeSettings.toJson(),
       'languageSettings': languageSettings.toJson(),
+      'calibreLibraryPath': calibreLibraryPath,
       'version': version,
     };
   }
@@ -273,6 +280,7 @@ class AppSettings {
       languageSettings: json['languageSettings'] != null
           ? LanguageSettings.fromJson(json['languageSettings'])
           : null,
+      calibreLibraryPath: json['calibreLibraryPath'] as String?,
       version: json['version'] ?? 1,
     );
   }

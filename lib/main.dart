@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, exit;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -10,6 +10,7 @@ import 'l10n/app_localizations.dart';
 import 'screens/home_screen.dart';
 import 'services/ai_service.dart';
 import 'services/book_service.dart';
+import 'services/library_import_service.dart';
 import 'services/log_service.dart';
 import 'services/parsers/book_format_parser.dart';
 import 'services/parsers/epub_parser.dart';
@@ -63,6 +64,8 @@ Future<void> initDesktopWindow() async {
 
   await windowManager.setMinimumSize(const Size(600, 400));
   await windowManager.show();
+  // 拦截关闭事件，以便退出前保存书库导入进度
+  await windowManager.setPreventClose(true);
 }
 
 /// 应用入口，初始化窗口、日志、服务后启动 ZhiduApp
@@ -80,6 +83,7 @@ void main() async {
   await BookService().init();
   await AIService().init();
   await SummaryService().init();
+  await LibraryImportService().init();
 
   LogService().info('Main', '所有服务初始化完成');
 
@@ -102,13 +106,16 @@ class ZhiduApp extends StatefulWidget {
 }
 
 /// 根状态，管理主题和语言 Locale，通过监听 SettingsService 响应设置变更
-class _ZhiduAppState extends State<ZhiduApp> {
+class _ZhiduAppState extends State<ZhiduApp> with WindowListener {
   late final SettingsService _settingsService;
   Locale? _currentLocale;
 
   @override
   void initState() {
     super.initState();
+    if (isDesktopPlatform()) {
+      windowManager.addListener(this);
+    }
     _settingsService = SettingsService();
     _settingsService.themeMode.addListener(_onAppSettingsChanged);
     _settingsService.languageSettings.addListener(_onAppSettingsChanged);
@@ -117,11 +124,24 @@ class _ZhiduAppState extends State<ZhiduApp> {
 
   @override
   void dispose() {
+    if (isDesktopPlatform()) {
+      windowManager.removeListener(this);
+    }
     _settingsService.themeMode.removeListener(_onAppSettingsChanged);
     _settingsService.languageSettings.removeListener(_onAppSettingsChanged);
     _settingsService.dispose();
     SummaryService().dispose();
     super.dispose();
+  }
+
+  /// 窗口关闭前回调：保存书库导入进度、关闭日志后立即退出
+  @override
+  void onWindowClose() async {
+    final stopwatch = Stopwatch()..start();
+    await LibraryImportService().saveProgress();
+    LogService().info('Main', '退出保存进度耗时: ${stopwatch.elapsedMilliseconds}ms');
+    await LogService().dispose();
+    exit(0);
   }
 
   /// 设置变更时触发重建，以更新主题和语言

@@ -232,4 +232,33 @@ class AppLocalizationsJa extends AppLocalizations {
   String promptTranslateHtml(String content, String chapterTitle) {
     return '$content|$chapterTitle';
   }
+
+  @override
+  String get librarySettingsTitle => '書庫設定';
+
+  @override
+  String get calibreLibraryLocation => 'Calibre ライブラリの場所：';
+
+  @override
+  String get noLibraries => '未設定';
+
+  @override
+  String get browse => '参照';
+
+  @override
+  String get refresh => '更新';
+
+  @override
+  String bookCount(int count) {
+    return '合計 $count 冊';
+  }
+
+  @override
+  String get clearBookshelf => '本棚を空にする';
+
+  @override
+  String get clearBookshelfConfirmation => '本棚のすべての書籍を削除しますか？この操作は取り消せません。';
+
+  @override
+  String get clearBookshelfDone => '本棚を空にしました';
 }

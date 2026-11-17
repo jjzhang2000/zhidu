@@ -70,6 +70,15 @@
   "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
   "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
+  "librarySettingsTitle": "書庫設定",
+  "calibreLibraryLocation": "Calibre ライブラリの場所：",
+  "noLibraries": "未設定",
+  "browse": "参照",
+  "refresh": "更新",
+  "bookCount": "合計 {count} 冊",
+  "clearBookshelf": "本棚を空にする",
+  "clearBookshelfConfirmation": "本棚のすべての書籍を削除しますか？この操作は取り消せません。",
+  "clearBookshelfDone": "本棚を空にしました",
   "@appTitle": {
     "description": "アプリのタイトル"
   },
@@ -116,6 +125,30 @@
       "content": { "type": "String" },
       "chapterTitle": { "type": "String" }
     }
+  },
+  "@calibreLibraryLocation": {
+    "description": "Calibreライブラリの場所ラベル"
+  },
+  "@browse": {
+    "description": "フォルダ参照ボタン"
+  },
+  "@refresh": {
+    "description": "更新ボタン"
+  },
+  "@bookCount": {
+    "description": "本棚の書籍総数のヒント",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "@clearBookshelf": {
+    "description": "本棚を空にするボタンとダイアログタイトル"
+  },
+  "@clearBookshelfConfirmation": {
+    "description": "本棚を空にする確認メッセージ"
+  },
+  "@clearBookshelfDone": {
+    "description": "本棚を空にした完了ヒント"
   },
   "@removeConfirmation": {
     "placeholders": {

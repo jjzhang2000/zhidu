@@ -1,7 +1,10 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide ThemeMode;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/settings_service.dart';
+import '../services/library_import_service.dart';
+import '../services/book_service.dart';
 import '../models/app_settings.dart';
 import 'ai_config_screen.dart';
 import 'theme_settings_screen.dart';
@@ -28,12 +31,31 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = '';
 
+  final _libraryPathController = TextEditingController();
+
   AppLocalizations get loc => AppLocalizations.of(context)!;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
+    _libraryPathController.text =
+        SettingsService().calibreLibraryPath.value ?? '';
+    SettingsService().calibreLibraryPath.addListener(_onLibraryPathChanged);
+  }
+
+  @override
+  void dispose() {
+    SettingsService().calibreLibraryPath.removeListener(_onLibraryPathChanged);
+    _libraryPathController.dispose();
+    super.dispose();
+  }
+
+  /// 书库路径变更时同步输入框显示
+  void _onLibraryPathChanged() {
+    _libraryPathController.text =
+        SettingsService().calibreLibraryPath.value ?? '';
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadVersion() async {
@@ -59,6 +81,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           _buildSectionHeader(loc.appearanceSettingTitle),
           _buildAppearanceSection(),
+          const SizedBox(height: 16),
+          _buildSectionHeader(loc.librarySettingsTitle),
+          _buildLibrarySection(),
           const SizedBox(height: 16),
           _buildSectionHeader(loc.aboutTitle),
           _buildAboutSection(),
@@ -170,6 +195,124 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  /// 构建书库设置区块
+  ///
+  /// 一行内展示：标题 + 文件夹路径输入框（只读）+ 浏览按钮。
+  Widget _buildLibrarySection() {
+    final hasLibrary =
+        (SettingsService().calibreLibraryPath.value?.isNotEmpty ?? false);
+    return _buildSection(children: [
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Text(loc.calibreLibraryLocation),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _libraryPathController,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      hintText: loc.noLibraries,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: _browseCalibreLibrary,
+                  child: Text(loc.browse),
+                ),
+                IconButton(
+                  onPressed: hasLibrary ? _refreshCalibreLibrary : null,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: loc.refresh,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _confirmClearBookshelf,
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: Text(loc.clearBookshelf),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ]);
+  }
+
+  /// 浏览并选择 Calibre 书库文件夹（导入在后台进行，不显示进度）
+  Future<void> _browseCalibreLibrary() async {
+    final path = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: loc.calibreLibraryLocation,
+    );
+    if (path == null || !mounted) return;
+
+    // 路径未变化时不重复导入
+    if (path == SettingsService().calibreLibraryPath.value) return;
+
+    await SettingsService().setCalibreLibraryPath(path);
+    if (!mounted) return;
+
+    _libraryPathController.text = path;
+    LibraryImportService().startImport(path);
+  }
+
+  /// 重新扫描 Calibre 书库，导入书架外的新增书籍
+  void _refreshCalibreLibrary() {
+    final path = SettingsService().calibreLibraryPath.value;
+    if (path == null || path.isEmpty) return;
+    LibraryImportService().startImport(path);
+  }
+
+  /// 确认并清空书架
+  Future<void> _confirmClearBookshelf() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(loc.clearBookshelf),
+        content: Text(loc.clearBookshelfConfirmation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(loc.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(loc.remove),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await BookService().clearAllBooks();
+    if (!mounted) return;
+
+    // 触发首页刷新（书架已空）
+    LibraryImportService().refreshSignal.value++;
+    _showSnackBar(loc.clearBookshelfDone);
+  }
+
+  /// 显示 SnackBar 提示
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// 构建关于区块

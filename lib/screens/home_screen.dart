@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/book_service.dart';
+import '../services/library_import_service.dart';
 import '../models/book.dart';
 import 'book_screen.dart';
 import 'settings_screen.dart';
@@ -40,15 +41,28 @@ class HomeScreen extends StatefulWidget {
 /// ============================================================================
 class _HomeScreenState extends State<HomeScreen> {
   final _bookService = BookService();
+  final _libraryImportService = LibraryImportService();
 
   final _searchController = TextEditingController();
 
   String _searchQuery = '';
 
   @override
+  void initState() {
+    super.initState();
+    _libraryImportService.refreshSignal.addListener(_onLibraryRefresh);
+  }
+
+  @override
   void dispose() {
+    _libraryImportService.refreshSignal.removeListener(_onLibraryRefresh);
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// 书库后台导入刷新信号回调（每导入 10 本或导入完成时触发）
+  void _onLibraryRefresh() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -106,9 +120,33 @@ class _HomeScreenState extends State<HomeScreen> {
       body: books.isEmpty
           ? _buildEmptyState(isSearching: _searchQuery.isNotEmpty)
           : _buildBookGrid(books),
+      bottomNavigationBar: _buildStatusBar(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _importBook(),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  /// 首页底部半透明状态栏，显示书架书籍总数
+  Widget _buildStatusBar() {
+    final totalCount = _bookService.books.length;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.6),
+        border: Border(
+          top: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2)),
+        ),
+      ),
+      child: Text(
+        AppLocalizations.of(context)?.bookCount(totalCount) ?? '共 $totalCount 本',
+        style: TextStyle(
+          fontSize: 12,
+          color: colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
       ),
     );
   }
@@ -146,8 +184,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBookGrid(List<Book> books) {
     return GridView.builder(
       padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 220,
         childAspectRatio: 0.6,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
@@ -218,6 +256,15 @@ class _BookCardState extends State<BookCard> {
         onTap: () => _openBook(context),
         child: Card(
           clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: Theme.of(context)
+                  .colorScheme
+                  .outline
+                  .withValues(alpha: 0.4),
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -255,7 +302,7 @@ class _BookCardState extends State<BookCard> {
                 flex: 1,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    const neededHeight = 16.0 + 2.0 + 14.0;
+                    const neededHeight = 29.0 + 2.0 + 14.0;
                     const progressHeight = 4.0;
                     final hasProgress = widget.book.readingProgress > 0;
                     final totalNeeded =
@@ -272,6 +319,25 @@ class _BookCardState extends State<BookCard> {
                     final vPadding = 4.0 * scaleFactor;
                     final hPadding = 8.0 * scaleFactor;
 
+                    final titleStyle = TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: fontSize,
+                      height: 1.2,
+                    );
+                    final titlePainter = TextPainter(
+                      text: TextSpan(text: widget.book.title, style: titleStyle),
+                      maxLines: 2,
+                      textDirection: Directionality.of(context),
+                    )..layout(maxWidth: constraints.maxWidth - hPadding * 2);
+                    final titleOverflow = titlePainter.didExceedMaxLines;
+
+                    final titleText = Text(
+                      widget.book.title,
+                      style: titleStyle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    );
+
                     return Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: hPadding,
@@ -281,22 +347,16 @@ class _BookCardState extends State<BookCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            widget.book.title,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: fontSize,
-                              height: 1.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          if (titleOverflow)
+                            Tooltip(message: widget.book.title, child: titleText)
+                          else
+                            titleText,
                           SizedBox(height: gap),
                           Text(
                             widget.book.author,
                             style: TextStyle(
                               fontSize: authorFontSize,
-                              color: Colors.grey[600],
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                               height: 1.2,
                             ),
                             maxLines: 1,

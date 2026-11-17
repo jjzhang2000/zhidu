@@ -70,6 +70,15 @@
   "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
   "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
+  "librarySettingsTitle": "书库设置",
+  "calibreLibraryLocation": "Calibre书库位置：",
+  "noLibraries": "未设置",
+  "browse": "浏览",
+  "refresh": "刷新",
+  "bookCount": "共 {count} 本",
+  "clearBookshelf": "清空书架",
+  "clearBookshelfConfirmation": "确定要清空书架中的所有书籍吗？此操作不可恢复。",
+  "clearBookshelfDone": "书架已清空",
   "@appTitle": {
     "description": "应用标题"
   },
@@ -305,5 +314,35 @@
       "content": { "type": "String" },
       "chapterTitle": { "type": "String" }
     }
+  },
+  "@librarySettingsTitle": {
+    "description": "书库设置分组标题"
+  },
+  "@calibreLibraryLocation": {
+    "description": "Calibre书库位置标签"
+  },
+  "@noLibraries": {
+    "description": "书库路径未设置占位提示"
+  },
+  "@browse": {
+    "description": "浏览文件夹按钮"
+  },
+  "@refresh": {
+    "description": "刷新按钮"
+  },
+  "@bookCount": {
+    "description": "书架书籍总数提示",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "@clearBookshelf": {
+    "description": "清空书架按钮及对话框标题"
+  },
+  "@clearBookshelfConfirmation": {
+    "description": "清空书架确认对话框内容"
+  },
+  "@clearBookshelfDone": {
+    "description": "清空书架完成提示"
   }
 }

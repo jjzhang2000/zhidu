@@ -44,6 +44,31 @@ class PdfParser implements BookFormatParser {
     }
   }
 
+  @override
+  Future<BookMetadata?> extractBasicMetadata(String filePath, String bookId) async {
+    try {
+      final document = await PdfDocument.openFile(filePath);
+
+      final fileName = filePath.split('/').last.split('\\').last;
+      final title = fileName.substring(0, fileName.lastIndexOf('.'));
+
+      // 只渲染封面，跳过逐页文本提取（章节检测在打开书籍时懒加载）
+      final coverPath = await _extractCover(document, bookId);
+
+      await document.dispose();
+
+      return BookMetadata(
+        title: title,
+        author: '未知作者',
+        totalChapters: 0,
+        coverPath: coverPath,
+      );
+    } catch (e, stackTrace) {
+      _log.e('PdfParser', '轻量提取基本信息失败', e, stackTrace);
+      return null;
+    }
+  }
+
   /// 检测 PDF 章节结构：封面检测 → 逐页正则匹配章节标题 → 边界转 Chapter 列表
   @override
   Future<List<Chapter>> getChapters(String filePath) async {

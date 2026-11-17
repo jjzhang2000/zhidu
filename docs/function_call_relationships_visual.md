@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.4 | **更新日期**: 2026-11-13
+> **文档版本**: v2.5 | **更新日期**: 2026-11-16
 
 ---
 
@@ -24,6 +24,7 @@ graph TB
         AP["AiPrompts"]
         SuS["SummaryService"]
         ORS["OpfReaderService"]
+        LIS["LibraryImportService"]
     end
 
     subgraph 解析器["Parsers"]
@@ -60,6 +61,7 @@ graph TB
     INIT --> BS
     INIT --> AS
     INIT --> SuS
+    INIT --> LIS
     INIT --> FR
 
     FR --> EP
@@ -122,29 +124,26 @@ graph TB
 ```mermaid
 flowchart TD
     UI["HomeScreen"] --> |"用户点击导入"| FP["file_picker 选择文件"]
-    FP --> |".epub"| EPUB["EpubParser.parseMetadata()"]
-    FP --> |".pdf"| PDF["PdfParser.parseMetadata()"]
+    FP --> |".epub"| EPUB["EpubParser.extractBasicMetadata()"]
+    FP --> |".pdf"| PDF["PdfParser.extractBasicMetadata()"]
 
     subgraph EPUB解析流程
-        EPUB --> E1["EpubReader.readBook()"]
-        E1 --> E2["_extractChapters()"]
-        EPUB --> E3["_extractCover()"]
-        E1 --> E4["OpfReaderService.readFromSameDirectory()"]
+        EPUB --> E1["只读 dc:title/dc:creator/dc:language"]
+        EPUB --> E3["封面提取"]
+        EPUB --> E4["OpfReaderService.readFromSameDirectory()"]
         E4 --> E5["_parseOpfContent() XML解析"]
         E5 --> E6["OpfMetadata"]
     end
 
     subgraph PDF解析流程
-        PDF --> P1["PdfDocument.openFile()"]
-        P1 --> P2["_detectChapters() 正则匹配"]
-        PDF --> P3["_extractCover() 渲染PNG"]
-        P1 --> P4["OpfReaderService.readFromSameDirectory()"]
+        PDF --> P1["文件名标题 + 首页封面"]
+        PDF --> P4["OpfReaderService.readFromSameDirectory()"]
         P4 --> P5["_parseOpfContent() XML解析"]
         P5 --> P6["OpfMetadata"]
     end
 
-    E2 --> MERGE["合并OPF元数据"]
-    P2 --> MERGE
+    E1 --> MERGE["合并OPF元数据 + 基本信息"]
+    P1 --> MERGE
     E6 --> MERGE
     P6 --> MERGE
 
@@ -153,7 +152,8 @@ flowchart TD
     SAVE --> SAVE1["writeJson(metadata.json)"]
     SAVE --> SAVE2["writeJson(books.json)"]
 
-    SAVE --> GEN["SummaryService.generateSummariesForBook()"]
+    SAVE --> NOTE["（导入阶段不生成摘要；进入书籍详情页时按需触发）"]
+    NOTE --> GEN["SummaryService.generateSummariesForBook()"]
     GEN --> CSS["generateSingleSummary() × N 并发max=3"]
     GEN --> BSC["_generateBookSummaryFromChapters()"]
 
@@ -230,12 +230,16 @@ graph LR
 
     subgraph 扩展功能
         ORS["OpfReaderService<br/>OPF元数据"]
+        LIS["LibraryImportService<br/>书库后台导入"]
     end
 
     BS -->|"注册表取解析器"| FR
     BS -->|"持久化"| FS
     BS -->|"读取OPF"| ORS
     BS -->|"触发生成"| SuS
+
+    LIS -->|"扫描/导入"| BS
+    LIS -.-> LS
 
     FR -->|"创建"| EP
     FR -->|"创建"| PP
@@ -266,6 +270,7 @@ graph LR
     style EP fill:#ffb74d,color:#000
     style PP fill:#ffb74d,color:#000
     style ORS fill:#ce93d8,color:#000
+    style LIS fill:#ce93d8,color:#000
 ```
 
 ---
@@ -439,6 +444,7 @@ flowchart TD
     SET --> AIC["AiConfigScreen"]
     SET --> THS["ThemeSettingsScreen"]
     SET --> LAS["LanguageSettingsScreen"]
+    SET --> LIB["书库设置（内联：浏览/刷新/清空书架）"]
 
     BS_NAV --> CS_NAV["Navigator.push(ChapterScreen)"]
     BS_NAV --> |"点击全书摘要"| CS_FIRST["Navigator.push(ChapterScreen<br/>chapterIndex=0)"]
@@ -461,18 +467,21 @@ classDiagram
     class BookFormatParser {
         <<interface>>
         +parseMetadata(filePath, bookId) BookMetadata?
+        +extractBasicMetadata(filePath, bookId) BookMetadata?
         +getChapters(filePath) List~Chapter~
         +getChapterContent(filePath, chapter) Chapter
     }
 
     class EpubParser {
         +parseMetadata()
+        +extractBasicMetadata()
         +getChapters()
         +getChapterContent()
     }
 
     class PdfParser {
         +parseMetadata()
+        +extractBasicMetadata()
         +getChapters()
         +getChapterContent()
     }
@@ -557,5 +566,6 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-16 | Calibre 书库导入 + 首页书架优化 — 服务层新增 `LibraryImportService`（后台导入、断点续传、refreshSignal）；导入改为 `extractBasicMetadata`（只读书名/作者/封面，不解析章节）；`BookFormatParser`/`EpubParser`/`PdfParser` 新增 `extractBasicMetadata()`；导入阶段不再直接生成摘要；SettingsScreen 新增书库设置；OPF 封面改从 `<guide>` 读 |
 | 2026-11-13 | 冗余代码清理同步 — 删除 `EpubService`/`PdfService`/`TranslationService`（已合并/删除），统一为 `EpubParser`/`PdfParser`/`SummaryService`；`_initWindowManager()` → `initDesktopWindow()`；`_onThemeChanged()`/`_onLocaleChanged()` → `_onAppSettingsChanged()`；删除 `_generateBookSummaryFromPreface()` 分支（统一章节摘要→全书摘要）；`translateHtmlStream()` → `translateContent()`；`TranslationService.translateEpubContent()` → `SummaryService.generateTranslationStream()`；解析器接口新增 `parseMetadata()`、删除 `extractCover()`；OpfMetadata 精简为 4 字段、新增 BookMetadata 实体；章节摘要文件名 `chapter-XXX-zh.md` → `Summary-XXX-zh.md` |
 | 2026-05-11 | 完整 Mermaid 可视化：全局架构图、导入/阅读/翻译流程图、Service交互图、并发控制图、ValueNotifier数据流图、导航图、解析器架构图、数据模型ER图 |

@@ -232,4 +232,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String promptTranslateHtml(String content, String chapterTitle) {
     return '$content|$chapterTitle';
   }
+
+  @override
+  String get librarySettingsTitle => 'Library Settings';
+
+  @override
+  String get calibreLibraryLocation => 'Calibre library location:';
+
+  @override
+  String get noLibraries => 'Not set';
+
+  @override
+  String get browse => 'Browse';
+
+  @override
+  String get refresh => 'Refresh';
+
+  @override
+  String bookCount(int count) {
+    return 'Total: $count books';
+  }
+
+  @override
+  String get clearBookshelf => 'Clear Bookshelf';
+
+  @override
+  String get clearBookshelfConfirmation => 'Are you sure you want to clear all books? This cannot be undone.';
+
+  @override
+  String get clearBookshelfDone => 'Bookshelf cleared';
 }

@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.11 | **更新日期**: 2026-11-13 | **基于代码版本**: v1.7
+> **文档版本**: v2.12 | **更新日期**: 2026-11-16 | **基于代码版本**: v1.8
 
 ---
 
@@ -13,6 +13,7 @@
 │  Service 初始化链:                                                        │
 │    LogService → SettingsService → FileStorageService → StorageConfig     │
 │    → BookService → AIService → AiPrompts → SummaryService                │
+│    → LibraryImportService                                                │
 │  FormatRegistry.register('.epub', EpubParser())                          │
 │  FormatRegistry.register('.pdf', PdfParser())                            │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -26,6 +27,7 @@
                 │       ├── AiConfigScreen
                 │       ├── ThemeSettingsScreen
                 │       ├── LanguageSettingsScreen
+                │       └── 书库设置（内联：浏览/刷新/清空书架）
                 │
                 └── 全局监听 (ValueNotifier):
                         ├── SettingsService.themeMode → AppTheme
@@ -36,22 +38,24 @@
 
 ## 二、模块间依赖矩阵
 
-| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | FormatReg | EpubPsr | PdfPsr | SetSvc | OpfRdr | LogSvc | FileSvc |
-|-------------------|:-----:|:-----:|:------:|:---------:|:-------:|:------:|:------:|:------:|:------:|:-------:|
-| **main.dart**     |   ✓   |   ✓   |   ✓    |     ✓     |   ✓     |   ✓    |   ✓    |   —    |   ✓    |   ✓    |
-| **HomeScreen**    |   ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |
-| **BookScreen**    |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |
-| **ChapterScreen** |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |
-| **PdfReaderScreen**|  ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |
-| **AiConfigScreen**|  —   |   ✓   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |
-| **BookService**   |  —   |   —   |   —    |     ✓     |   —     |   —    |   —    |   ✓    |   ✓    |   ✓    |
-| **AIService**     |  ✓   |   —   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |
-| **SummaryService**|  ✓   |   ✓   |   —    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
-| **SettingsSvc**   |  ✓   |   ✓   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |
-| **EpubParser**    |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |
-| **PdfParser**     |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |
+| 调用方 \ 被调用方 | BkSvc | AiSvc | SumSvc | FormatReg | EpubPsr | PdfPsr | SetSvc | OpfRdr | LogSvc | FileSvc | LibImpSvc |
+|-------------------|:-----:|:-----:|:------:|:---------:|:-------:|:------:|:------:|:------:|:------:|:-------:|:--------:|
+| **main.dart**     |   ✓   |   ✓   |   ✓    |     ✓     |   ✓     |   ✓    |   ✓    |   —    |   ✓    |   ✓    |    ✓     |
+| **HomeScreen**    |   ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |    ✓     |
+| **BookScreen**    |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |    —     |
+| **ChapterScreen** |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |    —     |
+| **PdfReaderScreen**|  ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |    —     |
+| **AiConfigScreen**|  —   |   ✓   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |    —     |
+| **SettingsScreen**|  ✓   |   —   |   —    |     —     |   —     |   —    |   ✓    |   —    |   —    |   —    |    ✓     |
+| **BookService**   |  —   |   —   |   —    |     ✓     |   —     |   —    |   —    |   ✓    |   ✓    |   ✓    |    —     |
+| **AIService**     |  ✓   |   —   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |    —     |
+| **SummaryService**|  ✓   |   ✓   |   —    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |    —     |
+| **SettingsSvc**   |  ✓   |   ✓   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   ✓    |    —     |
+| **LibraryImportService** | ✓ | — | — | — | — | — | — | — | ✓ | — | — |
+| **EpubParser**    |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |    —     |
+| **PdfParser**     |  —   |   —   |   —    |     —     |   —     |   —    |   —    |   —    |   ✓    |   —    |    —     |
 
-> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, FormatReg=FormatRegistry, EpubPsr=EpubParser, PdfPsr=PdfParser, SetSvc=SettingsService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService
+> 缩写对照: BkSvc=BookService, AiSvc=AIService, SumSvc=SummaryService, FormatReg=FormatRegistry, EpubPsr=EpubParser, PdfPsr=PdfParser, SetSvc=SettingsService, OpfRdr=OpfReaderService, LogSvc=LogService, FileSvc=FileStorageService, LibImpSvc=LibraryImportService
 
 ---
 
@@ -69,19 +73,15 @@ HomeScreen._importBook()
     │               │       └── _parseOpfContent() → OpfMetadata
     │               │
     │               ├── 识别格式 (扩展名) → FormatRegistry.getParser(extension)
-    │               │       ├── .epub → EpubParser().parseMetadata(filePath, bookId)
-    │               │       │           ├── EpubReader.readBook() (epub_plus库)
-    │               │       │           ├── _extractChapters(epubBook)
-    │               │       │           └── _extractCover(bytes, bookId)
+    │               │       ├── .epub → EpubParser().extractBasicMetadata(filePath, bookId)
+    │               │       │           └── 只读 dc:title/dc:creator/dc:language + 封面（不解析章节）
     │               │       │
-    │               │       └── .pdf → PdfParser().parseMetadata(filePath, bookId)
-    │               │                   ├── PdfDocument.openFile() (sync_pdf_renderer库)
-    │               │                   ├── _detectChapters(document)
-    │               │                   └── _extractCover(document, bookId)
+    │               │       └── .pdf → PdfParser().extractBasicMetadata(filePath, bookId)
+    │               │                   └── 只读文件名标题 + 首页封面（跳过章节检测）
     │               │
-    │               ├── 合并 OPF 元数据 + 解析结果 → Book 对象
-    │               │       ├── opfMetadata.title ?? metadata.title
-    │               │       ├── opfMetadata.author ?? metadata.author
+    │               ├── 合并 OPF 元数据 + 基本信息 → Book 对象
+    │               │       ├── opfMetadata.title ?? basicInfo.title ?? 文件名
+    │               │       ├── opfMetadata.author ?? basicInfo.author ?? '未知作者'
     │               │       ├── opfMetadata.language
     │               │       └── ...
     │               │
@@ -92,6 +92,28 @@ HomeScreen._importBook()
     └── UI 刷新: setState() → 书架更新、新书显示
 
     ※ 注意：摘要生成在 BookScreen._startPreGeneration() 中触发，详见 3.2 节
+```
+
+### 3.1.1 Calibre 书库导入流程
+
+```
+SettingsScreen._browseCalibreLibrary() / _refreshCalibreLibrary()
+    │
+    └── LibraryImportService().startImport(libraryPath)
+            │
+            ├── BookService.scanCalibreOpfFiles(libraryPath)
+            │       └── 递归扫描 metadata.opf，跳过隐藏目录(.caltrash/.calnotes)
+            │
+            └── _runImportLoop() 后台循环
+                    ├── BookService.importOpfFile(opfPath)
+                    │       ├── OpfReaderService.parseOpf() → OpfMetadata
+                    │       ├── 封面从 guide 段落读 reference type="cover"
+                    │       ├── _findBookFile() 定位 .epub/.pdf
+                    │       ├── title+author 去重
+                    │       └── _saveBooksIndex + _saveBookMetadata
+                    │
+                    ├── 每 10 本: refreshSignal++ → HomeScreen setState
+                    └── 完成: refreshSignal++ → _deleteProgress()
 ```
 
 ### 3.2 阅读 + 摘要查看流程
@@ -244,6 +266,21 @@ SettingsScreen / AiConfigScreen / ThemeSettingsScreen / LanguageSettingsScreen
 | `updateLanguageSettings()` | LanguageSettingsScreen |
 | `get themeMode` (ValueNotifier) | ZhiduApp, AppTheme |
 | `get languageSettings` (ValueNotifier) | ZhiduApp |
+| `get calibreLibraryPath` (ValueNotifier) | SettingsScreen |
+| `setCalibreLibraryPath()` | SettingsScreen._browseCalibreLibrary() |
+
+### 4.4 LibraryImportService → 被调用方
+
+| LibraryImportService 方法 | 调用方 |
+|---|---|
+| `LibraryImportService()` (构造) | main.dart, HomeScreen, SettingsScreen |
+| `init()` | main.dart |
+| `startImport()` | SettingsScreen._browseCalibreLibrary(), _refreshCalibreLibrary() |
+| `saveProgress()` | ZhiduApp.onWindowClose() |
+| `get refreshSignal` (ValueNotifier) | HomeScreen |
+| `_runImportLoop()` (内部) | init(), startImport() |
+| `_saveProgress()` (内部) | startImport(), _runImportLoop(), saveProgress() |
+| `_deleteProgress()` (内部) | init(), _runImportLoop() |
 
 ---
 
@@ -280,6 +317,7 @@ AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 A
 SummaryService      → Chapter, Book (通过summary-zh.md文件存储全书摘要)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings
 OpfReaderService    → OpfMetadata
+LibraryImportService → LibraryImportTask
 
 Chapter 模型包含:
   ├── bookId: String (可选)
@@ -380,7 +418,8 @@ SummaryService.getBookSummary()
 │  - title: String?                 - ai: AiSettings - provider      │
 │  - author: String?                - theme         - apiKey         │
 │  - language: String?              - language      - model          │
-│  - coverPath: String?                             - baseUrl        │
+│  - coverPath: String?             - calibreLibraryPath: String?    │
+│                                                  - baseUrl        │
 │                                                                    │
 │  BookMetadata (定义在 book_format_parser.dart)                    │
 │  - title / author / totalChapters / coverPath? / language?        │
@@ -395,6 +434,9 @@ SummaryService.getBookSummary()
 │  + books (getter)         + generateFullChapterSummaryStream()    │
 │  + importBook()           + generateBookSummaryStream()           │
 │  + importBookFromPath()   + translateContent()   + generateSingleSummary()│
+│  + scanCalibreOpfFiles()                                          │
+│  + importOpfFile()                                                │
+│  + clearAllBooks()                                                │
 │  + getBookById()          + testConnection()     + generateSummariesForBook()│
 │  + deleteBook()           + detectLanguageFromContent()           │
 │  + updateBook()           + detectSourceLanguage()                │
@@ -426,6 +468,15 @@ SummaryService.getBookSummary()
 │                                                   + getChapterSummaryPath()│
 │                                                   + getChapterTranslationPath()│
 │                                                   + getCoverSavePath()│
+│                                                                  │
+│  LibraryImportService                                             │
+│  ────────────────────                                             │
+│  + init()                                                        │
+│  + startImport(libraryPath)                                      │
+│  + saveProgress()                                                │
+│  + refreshSignal (ValueNotifier<int>)                            │
+│  - _runImportLoop()                                              │
+│  - _saveProgress() / _deleteProgress()                           │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -435,9 +486,11 @@ SummaryService.getBookSummary()
 │  <<interface>>               EpubParser        PdfParser         │
 │  BookFormatParser            ──────────        ─────────         │
 │  ────────────────            + parseMetadata() + parseMetadata() │
-│  + parseMetadata()           + getChapters()   + getChapters()   │
+│  + parseMetadata()           + extractBasicMetadata()            │
+│  + extractBasicMetadata()    + getChapters()   + extractBasicMetadata()│
 │  + getChapters()             + getChapterContent()               │
-│  + getChapterContent()       + getChapterContent()               │
+│  + getChapterContent()                        + getChapters()    │
+│                                    + getChapterContent()         │
 │                                                                  │
 │  FormatRegistry                                                   │
 │  ──────────────                                                   │
@@ -481,9 +534,11 @@ SummaryService.getBookSummary()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-17 | 删除 `docs/pseudocode/` 伪代码文档目录 — 不再维护伪代码文档，提交前规则仅保留 function_call_relationships 与 AGENTS.md 版本历史同步 |
+| 2026-11-16 | Calibre 书库导入 + 首页书架优化 — 新增 `LibraryImportService`（后台导入、断点续传、refreshSignal）；导入改为 `extractBasicMetadata`（只读书名/作者/封面，不解析章节/摘要）；OPF 封面改从 `<guide>` 读；`scanCalibreOpfFiles` 跳过隐藏目录；退出 `onWindowClose` 用 `exit(0)`；首页书架网格自适应列数 + 底部状态栏 + 卡片 UI 优化 |
 | 2026-11-13 | 冗余代码清理 + 注释规整 + 文档同步 — 代码侧：删除未使用 import/字段、清理冗余空安全操作符、删除死 l10n key `promptPrefaceSummary`、修复 stale 测试；文档侧：类图 UML 修复（删除 `chapterTitles`、`EpubService`/`PdfService` → `EpubParser`/`PdfParser`、删除 `fileExists()`/`getBooksDirectory()`/`getCoverPath()`、PdfReaderScreen `PdfService` → `PdfParser`、`translateHtmlStream()` → `translateContent()`、`_saveBooks()` → `_saveBooksIndex()`、`getBook()` → `getBookById()`）；`index.md` 修正章节摘要文件名 `Summary-{index}-{lang}.md` |
 | 2026-05-21 | EpubService/PdfService 僵尸代码清理 + 测试同步 — EpubService 删除 8 个公共方法（extractPrefaceContent/getHierarchicalChapterList/getSectionContent/getChapterContentFromHref/getChapterHtml/getSectionHtml/getSectionsInChapter/getChapterList）及 10+ 私有依赖方法、2 个内部类（ChapterInfo/SectionInfo），1265→422 行；PdfService 删除 3 个公共方法（getChapterPages/getChapterPageRange/getPageContent）及 2 个内部类（PdfChapter/PdfPageContent 改为私有 _PdfChapter），472→189 行；同步删除 epub_service_test.pdf_service_test 中对应用例、删除 epub_parser_test/pdf_parser_test 中 extractCover 用例；更新 epub_service.md/pdf_service.md/function_call_relationships.md/index.md |
-| 2026-05-21 | BookService: 删除僵尸方法 `saveBooksIndex()`（无外部调用），精简注释（434→289行，-33%），同步更新伪代码 |
+| 2026-05-21 | BookService: 删除僵尸方法 `saveBooksIndex()`（无外部调用），精简注释（434→289行，-33%） |
 | 2026-05-21 | AI 语言检测：`detectLanguageFromContent` 改为 AI 识别；`detectSourceLanguage` 新增 bookId + 回写；合并 `getTargetLanguage` → `resolveOutputLanguage` |
 | 2026-05-19 | fix: 删除失败 SnackBar 硬编码中文改 i18n key `loc.failed` |
 | 2026-05-19 | fix: BookCard 删除检查 deleteBook() 返回值，防止 IO 失败时目录残留 |

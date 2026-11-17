@@ -70,6 +70,15 @@
   "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
   "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
+  "librarySettingsTitle": "Library Settings",
+  "calibreLibraryLocation": "Calibre library location:",
+  "noLibraries": "Not set",
+  "browse": "Browse",
+  "refresh": "Refresh",
+  "bookCount": "Total: {count} books",
+  "clearBookshelf": "Clear Bookshelf",
+  "clearBookshelfConfirmation": "Are you sure you want to clear all books? This cannot be undone.",
+  "clearBookshelfDone": "Bookshelf cleared",
   "@appTitle": {
     "description": "App title"
   },
@@ -305,5 +314,35 @@
       "content": { "type": "String" },
       "chapterTitle": { "type": "String" }
     }
+  },
+  "@librarySettingsTitle": {
+    "description": "Library settings section title"
+  },
+  "@calibreLibraryLocation": {
+    "description": "Calibre library location label"
+  },
+  "@noLibraries": {
+    "description": "Library path not set placeholder"
+  },
+  "@browse": {
+    "description": "Browse folder button"
+  },
+  "@refresh": {
+    "description": "Refresh button"
+  },
+  "@bookCount": {
+    "description": "Bookshelf total count hint",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "@clearBookshelf": {
+    "description": "Clear bookshelf button and dialog title"
+  },
+  "@clearBookshelfConfirmation": {
+    "description": "Clear bookshelf confirmation message"
+  },
+  "@clearBookshelfDone": {
+    "description": "Bookshelf cleared hint"
   }
 }

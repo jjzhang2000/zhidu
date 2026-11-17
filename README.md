@@ -35,14 +35,14 @@
 
 ### 智能导入与解析
 - 📚 支持 EPUB 和 PDF 格式书籍导入
-- 🎯 采用"精准打击"策略，避免全量解析
+- 📚 **Calibre 书库导入**：选择书库目录即可批量导入（只读、后台导入、断点续传）
+- 🎯 采用"精准打击"策略，导入只读书名/作者/封面，避免全量解析
 - 📑 智能识别章节结构和目录
 - 🖼️ 自动提取封面图片
 
 ### AI分层阅读引擎
 - 🧠 **全书概览**：
-  - 有前言/序言：直接从前言生成全书摘要
-  - 无前言/序言：等待所有章节摘要完成后生成全书摘要
+  - 汇总各章节摘要后生成全书摘要（先章节、后全书）
   - **实时流式显示**：AI生成过程中实时展示内容，无需等待完整结果
 - 📝 **章节精炼**：逐章生成AI摘要，提取核心观点
   - **实时流式显示**：边看边生成，AI每生成一个字立即显示
@@ -56,7 +56,8 @@
 - 📖 **PDF阅读器**：支持PDF分页阅读，智能跳过封面页
 
 ### 高级设置管理
-- ⚙️ **统一设置中心**：AI、主题、存储、语言设置集中管理
+- ⚙️ **统一设置中心**：AI、主题、书库、存储、语言设置集中管理
+- 📚 **书库设置**：选择 Calibre 书库、刷新导入新书、清空书架
 - 🌐 **AI语言控制**：支持多语言AI输出设置
 - 💾 **存储路径自定义**：可指定数据存储位置
 - 🔄 **设置导入导出**：支持设置备份与恢复
@@ -140,9 +141,9 @@ flutter build web --release
 ## 🚀 使用指南
 
 ### 1. 添加书籍
-- 点击首页右下角的"+"按钮
-- 选择 EPUB 或 PDF 格式的书籍文件
-- 等待文件解析完成
+- **手工导入**：点击首页右下角的"+"按钮，选择 EPUB 或 PDF 格式的书籍文件
+- **书库导入**：设置页 → 书库设置 → 浏览选择 Calibre 书库目录，后台批量导入
+- 导入仅读取书名/作者/封面，章节解析与 AI 摘要进入书籍详情页时按需生成
 
 ### 2. 阅读书籍
 - 在书架页面点击书籍封面
@@ -216,22 +217,20 @@ zhidu/
 │   │   ├── language_settings_screen.dart # 语言设置页面
 
 │   ├── services/                 # 业务服务层（单例模式）
-│   │   ├── book_service.dart    # 书籍管理（导入、解析）
-│   │   ├── epub_service.dart    # EPUB文件解析
-│   │   ├── pdf_service.dart     # PDF文件解析
+│   │   ├── book_service.dart    # 书籍管理（导入、解析、书库扫描）
+│   │   ├── opf_reader_service.dart # OPF元数据读取
+│   │   ├── library_import_service.dart # Calibre书库后台导入
 │   │   ├── ai_service.dart      # AI服务（智谱/通义千问API）
 │   │   ├── ai_prompts.dart      # AI提示词模板
 │   │   ├── summary_service.dart # 摘要生成与管理
-│   │   ├── export_service.dart  # Markdown导出
 │   │   ├── storage_config.dart  # 存储路径配置
 │   │   ├── file_storage_service.dart # 文件存储服务
-│   │   ├── settings_service.dart # 设置管理服务（AI、主题、语言、存储）
-│   │   └── log_service.dart     # 日志服务
+│   │   ├── settings_service.dart # 设置管理服务（AI、主题、语言、存储、书库）
+│   │   ├── log_service.dart     # 日志服务
 │   │   └── parsers/             # 格式解析器
-│   │       ├── book_format_parser.dart # 解析器接口
+│   │       ├── book_format_parser.dart # 解析器接口+注册表
 │   │       ├── epub_parser.dart # EPUB解析器
-│   │       ├── pdf_parser.dart  # PDF解析器
-│   │       └── format_registry.dart # 格式注册表
+│   │       └── pdf_parser.dart  # PDF解析器
 │   └── utils/
 │       └── app_theme.dart       # 主题配置
 ├── docs/                        # 项目文档

@@ -382,13 +382,8 @@ class SummaryService {
         return;
       }
 
-      if (book.format == BookFormat.epub) {
-        await _generateChapterSummaries(book, chapters, parser, language: language);
-        await _generateBookSummaryFromChapters(book, chapters, language: language);
-      } else {
-        await _generateChapterSummaries(book, chapters, parser, language: language);
-        await _generateBookSummaryFromChapters(book, chapters, language: language);
-      }
+      await _generateChapterSummaries(book, chapters, parser, language: language);
+      await _generateBookSummaryFromChapters(book, chapters, language: language);
 
       _log.info('SummaryService', '书籍摘要生成完成: ${book.title}');
     } catch (e, stackTrace) {

@@ -66,18 +66,17 @@ lib/
 - 非桌面平台不调用`window_manager`（运行时`Platform.is*`检测）
 
 ### Git提交前规则（重要）
-**每次提交前必须先同步更新受影响的文档和伪代码：**
-1. 更新 `docs/pseudocode/` 下对应 `.md` 文件
-2. 更新 `docs/function_call_relationships*.md`
-3. 更新 `docs/pseudocode/index.md` 中引用
-4. 更新本文件版本历史
-5. 删除已不存在服务/方法的文档
-6. 最后再 git commit + push
+**每次提交前必须先同步更新受影响的文档：**
+1. 更新 `docs/function_call_relationships*.md`
+2. 更新本文件版本历史
+3. 最后再 git commit + push
 
 ---
 
 ### 版本历史
 
+**2026-11-17**: 删除 `docs/pseudocode/` 伪代码文档目录 — 决定不再维护伪代码文档，提交前规则移除伪代码同步项，仅保留 function_call_relationships 与版本历史
+**2026-11-16**: Calibre 书库导入 + 首页书架优化 — 书库侧：设置页新增「书库设置」区块（浏览/刷新/清空书架，只读不修改第三方文件）；新增 `LibraryImportService`（后台异步导入 + 断点续传 + refreshSignal 每 10 本或完成触发首页刷新）；导入改为轻量模式（`extractBasicMetadata` 只读书名/作者/封面，不解析章节、不生成摘要）；OPF 封面改从 `<guide>` 段落读 `reference type="cover"`；`scanCalibreOpfFiles` 跳过隐藏目录（修复 Calibre `.caltrash` 回收站误导入）；`clearAllBooks()` 清空书架；退出优化：`onWindowClose` 保存进度后 `exit(0)` 立即退出（修复关闭延迟 5 秒）；首页侧：书架网格改 `SliverGridDelegateWithMaxCrossAxisExtent` 自适应列数、底部半透明状态栏显示书籍总数、卡片书名 2 行 + 溢出 Tooltip、作者改用主题色、卡片加 outline 描边；文档侧：新增 `library_import_service.md`，同步 `main.md`/`book_service.md`/`settings_service.md`/`app_settings.md`/`opf_reader_service.md`/`book_format_parser.md`/`epub_parser.md`/`pdf_parser.md`/`home_screen.md`/`settings_screen.md`/`index.md`/`function_call_relationships*.md`
 **2026-11-13**: 冗余代码清理、注释规整与文档同步 — 代码侧：删除未使用 import（book.dart 等多处）；删除未使用字段（`chapter_screen._bookService`、`summary_service._bookService`、`Semaphore._maxPermits`）；清理冗余空安全操作符（epub_parser 10处、book_service 2处、ai_service 1处）；删除死 l10n key `promptPrefaceSummary`；修复 stale 测试（`bookSummaryFromPreface` 用例等）；注释侧：文件头部 doc 注释 `///` → `//`（消除 dangling_library_doc_comments）、doc 注释尖括号加反引号（消除 unintended_html_in_doc_comment）；文档侧：删除 `window_utils.md`、`opf_metadata.md`；更新 `main.md`/`book.md`/`index.md`/`function_call_relationships.md`/`function_call_relationships_visual.md` 的 stale 引用（`EpubService`/`PdfService`/`TranslationService`、`chapterTitles`、`translateHtmlStream()`、`_generateBookSummaryFromPreface()` 等）
 
 **2026-05-24**: AI思考过程清理 — 新增 `removeThinkingProcess()` 方法清理 `<thinking>`/`<think>` 标签；`getSummary()` 读取章节摘要时自动清理；`generateSingleSummary()` 生成章节摘要时先清理再提取标题；`_generateBookSummaryFromChapters()` 保存全书摘要前清理；BookScreen 加载/刷新文件摘要时调用清理方法，文件摘要优先于流式内容显示；增强 `AIService` system prompt 明确禁止AI输出思考过程标签（中/英/日三语）

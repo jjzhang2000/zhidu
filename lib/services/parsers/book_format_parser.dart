@@ -33,6 +33,12 @@ abstract class BookFormatParser {
   /// 返回 [BookMetadata]，解析失败返回 null
   Future<BookMetadata?> parseMetadata(String filePath, String bookId);
 
+  /// 轻量提取书籍基本信息（批量导入阶段）
+  ///
+  /// 只读书名、作者、封面三项，不解析章节结构与正文内容，
+  /// 以降低批量导入时的 I/O 与 CPU 压力。
+  Future<BookMetadata?> extractBasicMetadata(String filePath, String bookId);
+
   /// 获取所有章节列表（含 index、title、location、level）
   Future<List<Chapter>> getChapters(String filePath);
 
