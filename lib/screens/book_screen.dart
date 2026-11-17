@@ -105,6 +105,9 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     // 获取最新的书籍数据（可能已在其他地方更新）
     _book = _bookService.getBookById(widget.book.id) ?? widget.book;
 
+    // 更新最后阅读时间并持久化
+    _updateLastReadAt();
+
     // 根据 AI 语言设置确定摘要语言
     _summaryLang = _getAiSummaryLanguage();
 
@@ -153,6 +156,15 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  /// 更新书籍的最后阅读时间并持久化
+  ///
+  /// 进入书籍详情页即视为一次阅读，记录当前时间，
+  /// 供首页书架按「最近阅读」排序使用。
+  void _updateLastReadAt() {
+    _book = _book.copyWith(lastReadAt: DateTime.now());
+    _bookService.updateBook(_book);
+  }
+
   /// 加载书籍章节列表
   ///
   /// 使用格式注册表获取对应的解析器（EPUB/PDF），
@@ -182,6 +194,12 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
       });
 
       _log.d('BookScreen', '章节加载完成: ${chapters.length} 个章节');
+
+      // 首次成功获取章节数后持久化保存，后续打开优先使用缓存值避免重复解析
+      if (chapters.isNotEmpty && chapters.length != _book.totalChapters) {
+        _book = _book.copyWith(totalChapters: chapters.length);
+        await _bookService.updateBook(_book);
+      }
     } catch (e, stackTrace) {
       _log.e('BookScreen', '加载章节列表失败', e, stackTrace);
       if (mounted) {
@@ -386,7 +404,9 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
                   _buildInfoChip(
                       Icons.menu_book,
                       _isLoadingChapters
-                          ? '加载中...'
+                          ? (_book.totalChapters > 0
+                              ? '${_book.totalChapters} 章'
+                              : '加载中...')
                           : '${_flatChapters.length} 章'),
                   _buildInfoChip(
                       Icons.calendar_today, _formatDate(_book.addedAt)),

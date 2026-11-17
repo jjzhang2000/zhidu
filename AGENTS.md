@@ -75,6 +75,7 @@ lib/
 
 ### 版本历史
 
+**2026-11-17**: 阅读进度追踪（totalChapters/lastReadAt）— 打开书籍时 `BookScreen._updateLastReadAt()` 更新最后阅读时间并持久化；`_loadChapters()` 首次成功解析章节数后通过 `updateBook` 保存 `totalChapters`，章节数展示优先使用缓存值（加载中即可显示，避免等待解析）；`HomeScreen._sortedBooks()` 书架按 `lastReadAt` 降序排序（最近阅读在前、未读在后）；同步 `function_call_relationships*.md`
 **2026-11-17**: AI/界面语言设置合并为统一「语言」设置 — `LanguageSettings` 精简为 `languageMode`+`language`（删「跟随书籍」，仅「跟随系统/用户自选」），AI 摘要/翻译与界面显示统一使用此语言；`resolveOutputLanguage`/`needsTranslation` 简化、删除 `_detectLanguageFromMetadataAndContentWithBookId` 死代码；设置页语言 UI 合并为一组单选；清理 18 个 l10n 僵尸 key；同步 `function_call_relationships*.md`
 **2026-11-17**: 首页书架 UI 优化 — 移除底部状态栏（书籍总数移至 AppBar 标题括号内，搜索时显示命中/总数）；搜索框提示改"搜索书名/作者"、删除 l10n `bookCount`；卡片比例改 3:4.5；封面改 `fitWidth + topCenter`（竖/横封面均不裁左右）；书名/作者区改为叠加封面底部的半透明条；封面右上角新增格式徽章（PDF/EPUB）；书架支持键盘滚动（↑/↓/PgUp/PgDn）
 **2026-11-17**: 删除 `docs/pseudocode/` 伪代码文档目录 — 决定不再维护伪代码文档，提交前规则移除伪代码同步项，仅保留 function_call_relationships 与版本历史

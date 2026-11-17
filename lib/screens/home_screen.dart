@@ -70,10 +70,24 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
+  /// 按最后阅读时间降序排列书架书籍（未读过的排在后面）
+  List<Book> _sortedBooks() {
+    final books = List<Book>.from(_bookService.books);
+    books.sort((a, b) {
+      final ta = a.lastReadAt;
+      final tb = b.lastReadAt;
+      if (ta == null && tb == null) return 0;
+      if (ta == null) return 1;
+      if (tb == null) return -1;
+      return tb.compareTo(ta);
+    });
+    return books;
+  }
+
   @override
   Widget build(BuildContext context) {
     final books = _searchQuery.isEmpty
-        ? _bookService.books
+        ? _sortedBooks()
         : _bookService.searchBooks(_searchQuery);
 
     return Scaffold(

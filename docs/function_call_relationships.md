@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.13 | **更新日期**: 2026-11-17 | **基于代码版本**: v1.8
+> **文档版本**: v2.14 | **更新日期**: 2026-11-17 | **基于代码版本**: v1.8
 
 ---
 
@@ -120,7 +120,8 @@ SettingsScreen._browseCalibreLibrary() / _refreshCalibreLibrary()
 HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
     │
     ├── BookScreen.initState()
-    │       ├── 加载章节列表 (_loadChapters)
+    │       ├── _updateLastReadAt()  (更新最后阅读时间并持久化)
+    │       ├── 加载章节列表 (_loadChapters) → 成功后保存 totalChapters 到 Book
     │       ├── 注册流式回调: registerBookStreamingCallback()
     │       ├── 初始化 TabController (2 tabs)
     │       ├── 启动定时刷新: Timer.periodic(3s) → _refreshBookIfNeeded()
@@ -510,7 +511,8 @@ SummaryService.getBookSummary()
 │                           - SummaryService      - SummaryService │
 │                           - AIService           - AIService      │
 │  + _importBook()          + _startPreGeneration()+ _loadSummary()│
-│  + _buildEmptyState()     + _refreshBookIfNeeded()+ _generateTranslationWithStreaming()│
+│  + _sortedBooks()         + _updateLastReadAt() + _generateTranslationWithStreaming()│
+│  + _buildEmptyState()     + _refreshBookIfNeeded()               │
 │  + _buildBookGrid()                                           │
 │                                                                    │
 │  SettingsScreen           AiConfigScreen        PdfReaderScreen  │
@@ -529,6 +531,7 @@ SummaryService.getBookSummary()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-17 | 阅读进度追踪：`totalChapters` 首次解析章节后保存到 `Book` 并优先读取缓存（章节数展示无需等待解析）；`lastReadAt` 打开书籍时更新并持久化；HomeScreen 书架按 `lastReadAt` 降序排序（最近阅读在前、未读在后）。新增 `BookScreen._updateLastReadAt()`、`HomeScreen._sortedBooks()` |
 | 2026-11-17 | AI/界面语言设置合并为统一「语言」设置 — `LanguageSettings` 精简为 `languageMode`+`language`（删「跟随书籍」，仅「跟随系统/用户自选」）；`resolveOutputLanguage`/`needsTranslation` 简化、删除 `_detectLanguageFromMetadataAndContentWithBookId`；设置页语言 UI 合并为一组；清理 18 个 l10n 僵尸 key |
 | 2026-11-17 | 首页书架 UI 优化 — 移除底部状态栏（书籍总数移至 AppBar 标题括号内，搜索时显示命中/总数）；搜索框提示改"搜索书名/作者"、删除 l10n `bookCount`；卡片比例改 3:4.5；封面改 `fitWidth + topCenter`（竖/横封面均不裁左右）；书名/作者叠加封面底部半透明条；封面右上角格式徽章；书架支持键盘滚动（↑/↓/PgUp/PgDn） |
 | 2026-11-17 | 删除 `docs/pseudocode/` 伪代码文档目录 — 不再维护伪代码文档，提交前规则仅保留 function_call_relationships 与 AGENTS.md 版本历史同步 |
