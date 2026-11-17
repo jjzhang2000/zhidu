@@ -75,6 +75,7 @@ lib/
 
 ### 版本历史
 
+**2026-11-17**: 书架排序返回刷新 — `BookCard` 新增 `onOpened` 回调，从书籍详情页返回首页时若排序为「最近阅读时间」则刷新书架重新排序（`_openBook` 返回后经回调通知 `_HomeScreenState`，仅 `_sortType == BookSortType.lastRead` 时 `setState`）；同步 `function_call_relationships*.md`
 **2026-11-17**: 书架排序功能 — 首页 AppBar 设置按钮左侧新增排序按钮，书架支持 7 种排序（最近阅读时间/加入时间/书名/作者 × 升序/降序）；新增 `BookSortType` 枚举并接入 `AppSettings.bookshelfSortType` 持久化（`SettingsService.setBookshelfSortType()` + `bookshelfSortType` ValueNotifier）；`HomeScreen._sortedBooks()` 按排序方式排序、初始值从 SettingsService 读取；同步 `function_call_relationships*.md`
 **2026-11-17**: 阅读进度追踪（totalChapters/lastReadAt）— 打开书籍时 `BookScreen._updateLastReadAt()` 更新最后阅读时间并持久化；`_loadChapters()` 首次成功解析章节数后通过 `updateBook` 保存 `totalChapters`，章节数展示优先使用缓存值（加载中即可显示，避免等待解析）；`HomeScreen._sortedBooks()` 书架按 `lastReadAt` 降序排序（最近阅读在前、未读在后）；同步 `function_call_relationships*.md`
 **2026-11-17**: AI/界面语言设置合并为统一「语言」设置 — `LanguageSettings` 精简为 `languageMode`+`language`（删「跟随书籍」，仅「跟随系统/用户自选」），AI 摘要/翻译与界面显示统一使用此语言；`resolveOutputLanguage`/`needsTranslation` 简化、删除 `_detectLanguageFromMetadataAndContentWithBookId` 死代码；设置页语言 UI 合并为一组单选；清理 18 个 l10n 僵尸 key；同步 `function_call_relationships*.md`

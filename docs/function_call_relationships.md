@@ -533,6 +533,7 @@ SummaryService.getBookSummary()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-17 | 书架排序返回刷新 — `BookCard` 新增 `onOpened` 回调，从书籍详情返回时若排序为「最近阅读时间」则刷新书架重排（`_openBook` 返回后经回调通知 `_HomeScreenState`，仅 `_sortType == BookSortType.lastRead` 时 `setState`） |
 | 2026-11-17 | 书架排序功能 — 新增 `BookSortType` 枚举（最近阅读/加入时间/书名/作者 × 升序/降序共 7 种）；`AppSettings` 新增 `bookshelfSortType` 字段持久化；`SettingsService` 新增 `bookshelfSortType` ValueNotifier + `setBookshelfSortType()`；HomeScreen 新增排序按钮（AppBar 设置按钮左侧），`_sortedBooks()` 按排序方式排序、初始值从 SettingsService 读取 |
 | 2026-11-17 | 阅读进度追踪：`totalChapters` 首次解析章节后保存到 `Book` 并优先读取缓存（章节数展示无需等待解析）；`lastReadAt` 打开书籍时更新并持久化；HomeScreen 书架按 `lastReadAt` 降序排序（最近阅读在前、未读在后）。新增 `BookScreen._updateLastReadAt()`、`HomeScreen._sortedBooks()` |
 | 2026-11-17 | AI/界面语言设置合并为统一「语言」设置 — `LanguageSettings` 精简为 `languageMode`+`language`（删「跟随书籍」，仅「跟随系统/用户自选」）；`resolveOutputLanguage`/`needsTranslation` 简化、删除 `_detectLanguageFromMetadataAndContentWithBookId`；设置页语言 UI 合并为一组；清理 18 个 l10n 僵尸 key |

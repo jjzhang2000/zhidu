@@ -267,6 +267,11 @@ class _HomeScreenState extends State<HomeScreen> {
           return BookCard(
             book: book,
             onDeleted: () => setState(() {}),
+            onOpened: () {
+              if (_sortType == BookSortType.lastRead) {
+                setState(() {});
+              }
+            },
           );
         },
       ),
@@ -331,7 +336,15 @@ class BookCard extends StatefulWidget {
 
   final VoidCallback? onDeleted;
 
-  const BookCard({super.key, required this.book, this.onDeleted});
+  /// 打开书籍详情返回后的回调（用于刷新书架排序）
+  final VoidCallback? onOpened;
+
+  const BookCard({
+    super.key,
+    required this.book,
+    this.onDeleted,
+    this.onOpened,
+  });
 
   @override
   State<BookCard> createState() => _BookCardState();
@@ -530,6 +543,7 @@ class _BookCardState extends State<BookCard> {
     if (mounted) {
       setState(() {});
     }
+    widget.onOpened?.call();
   }
 
   Future<void> _showDeleteConfirmDialog(BuildContext context) async {
