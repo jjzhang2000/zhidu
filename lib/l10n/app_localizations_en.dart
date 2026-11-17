@@ -93,7 +93,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aiLayeredReader => 'AI Layered Reader';
 
   @override
-  String get search => 'Search';
+  String get search => 'Search title/author';
 
   @override
   String get bookshelfEmpty => 'Bookshelf is empty';
@@ -247,11 +247,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refresh => 'Refresh';
-
-  @override
-  String bookCount(int count) {
-    return 'Total: $count books';
-  }
 
   @override
   String get clearBookshelf => 'Clear Bookshelf';

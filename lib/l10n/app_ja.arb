@@ -27,7 +27,7 @@
   "aiLanguageControl": "AI生成コンテンツの言語を制御",
   "uiLanguageControl": "アプリインターフェースの表示言語を制御",
   "aiLayeredReader": "AI層別リーダー",
-  "search": "検索",
+  "search": "タイトル/著者を検索",
   "bookshelfEmpty": "本棚は空です",
   "noRelatedBooks": "関連する書籍が見つかりません",
   "tryOtherKeywords": "他のキーワードを試してください",
@@ -75,7 +75,6 @@
   "noLibraries": "未設定",
   "browse": "参照",
   "refresh": "更新",
-  "bookCount": "合計 {count} 冊",
   "clearBookshelf": "本棚を空にする",
   "clearBookshelfConfirmation": "本棚のすべての書籍を削除しますか？この操作は取り消せません。",
   "clearBookshelfDone": "本棚を空にしました",
@@ -134,12 +133,6 @@
   },
   "@refresh": {
     "description": "更新ボタン"
-  },
-  "@bookCount": {
-    "description": "本棚の書籍総数のヒント",
-    "placeholders": {
-      "count": { "type": "int" }
-    }
   },
   "@clearBookshelf": {
     "description": "本棚を空にするボタンとダイアログタイトル"

@@ -93,7 +93,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiLayeredReader => 'AI 分层阅读器';
 
   @override
-  String get search => '搜索';
+  String get search => '搜索书名/作者';
 
   @override
   String get bookshelfEmpty => '书架空空如也';
@@ -247,11 +247,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get refresh => '刷新';
-
-  @override
-  String bookCount(int count) {
-    return '共 $count 本';
-  }
 
   @override
   String get clearBookshelf => '清空书架';

@@ -27,7 +27,7 @@
   "aiLanguageControl": "Controls the language of AI-generated content",
   "uiLanguageControl": "Controls the display language of the app interface",
   "aiLayeredReader": "AI Layered Reader",
-  "search": "Search",
+  "search": "Search title/author",
   "bookshelfEmpty": "Bookshelf is empty",
   "noRelatedBooks": "No related books found",
   "tryOtherKeywords": "Please try other keywords",
@@ -75,7 +75,6 @@
   "noLibraries": "Not set",
   "browse": "Browse",
   "refresh": "Refresh",
-  "bookCount": "Total: {count} books",
   "clearBookshelf": "Clear Bookshelf",
   "clearBookshelfConfirmation": "Are you sure you want to clear all books? This cannot be undone.",
   "clearBookshelfDone": "Bookshelf cleared",
@@ -329,12 +328,6 @@
   },
   "@refresh": {
     "description": "Refresh button"
-  },
-  "@bookCount": {
-    "description": "Bookshelf total count hint",
-    "placeholders": {
-      "count": { "type": "int" }
-    }
   },
   "@clearBookshelf": {
     "description": "Clear bookshelf button and dialog title"

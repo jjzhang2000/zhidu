@@ -93,7 +93,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get aiLayeredReader => 'AI層別リーダー';
 
   @override
-  String get search => '検索';
+  String get search => 'タイトル/著者を検索';
 
   @override
   String get bookshelfEmpty => '本棚は空です';
@@ -247,11 +247,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get refresh => '更新';
-
-  @override
-  String bookCount(int count) {
-    return '合計 $count 冊';
-  }
 
   @override
   String get clearBookshelf => '本棚を空にする';

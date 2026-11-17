@@ -9,6 +9,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
 import '../services/book_service.dart';
 import '../services/library_import_service.dart';
@@ -44,6 +45,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _libraryImportService = LibraryImportService();
 
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+  final _shelfFocusNode = FocusNode();
 
   String _searchQuery = '';
 
@@ -57,6 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _libraryImportService.refreshSignal.removeListener(_onLibraryRefresh);
     _searchController.dispose();
+    _scrollController.dispose();
+    _shelfFocusNode.dispose();
     super.dispose();
   }
 
@@ -73,8 +78,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context)?.appTitle ?? '智读'),
         centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(AppLocalizations.of(context)?.appTitle ?? '智读'),
+            const SizedBox(width: 6),
+            Text(
+              _searchQuery.isEmpty
+                  ? '(${_bookService.books.length})'
+                  : '(${books.length}/${_bookService.books.length})',
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           Container(
             width: 160,
@@ -120,33 +140,9 @@ class _HomeScreenState extends State<HomeScreen> {
       body: books.isEmpty
           ? _buildEmptyState(isSearching: _searchQuery.isNotEmpty)
           : _buildBookGrid(books),
-      bottomNavigationBar: _buildStatusBar(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _importBook(),
         child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  /// 首页底部半透明状态栏，显示书架书籍总数
-  Widget _buildStatusBar() {
-    final totalCount = _bookService.books.length;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.6),
-        border: Border(
-          top: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2)),
-        ),
-      ),
-      child: Text(
-        AppLocalizations.of(context)?.bookCount(totalCount) ?? '共 $totalCount 本',
-        style: TextStyle(
-          fontSize: 12,
-          color: colorScheme.onSurface.withValues(alpha: 0.7),
-        ),
       ),
     );
   }
@@ -182,23 +178,57 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBookGrid(List<Book> books) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 220,
-        childAspectRatio: 0.6,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+    return Focus(
+      focusNode: _shelfFocusNode,
+      autofocus: true,
+      onKeyEvent: _handleShelfKey,
+      child: GridView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 220,
+          childAspectRatio: 3 / 4.5,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: books.length,
+        itemBuilder: (context, index) {
+          final book = books[index];
+          return BookCard(
+            book: book,
+            onDeleted: () => setState(() {}),
+          );
+        },
       ),
-      itemCount: books.length,
-      itemBuilder: (context, index) {
-        final book = books[index];
-        return BookCard(
-          book: book,
-          onDeleted: () => setState(() {}),
-        );
-      },
     );
+  }
+
+  /// 处理书架键盘滚动（PgUp/PgDn/上下箭头）
+  KeyEventResult _handleShelfKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (!_scrollController.hasClients) return KeyEventResult.ignored;
+
+    final position = _scrollController.position;
+    final viewport = position.viewportDimension;
+    double delta = 0;
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      delta = -viewport * 0.2;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      delta = viewport * 0.2;
+    } else if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+      delta = -viewport * 0.9;
+    } else if (event.logicalKey == LogicalKeyboardKey.pageDown) {
+      delta = viewport * 0.9;
+    } else {
+      return KeyEventResult.ignored;
+    }
+
+    final target =
+        (position.pixels + delta).clamp(0.0, position.maxScrollExtent).toDouble();
+    _scrollController.jumpTo(target);
+    return KeyEventResult.handled;
   }
 
   Future<void> _importBook() async {
@@ -265,116 +295,127 @@ class _BookCardState extends State<BookCard> {
                   .withValues(alpha: 0.4),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Expanded(
-                flex: 4,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _buildCover(),
-                    if (_isHovered)
-                      Positioned(
-                        right: 4,
-                        bottom: 4,
-                        child: Material(
-                          color: Colors.red.withOpacity(0.9),
-                          shape: const CircleBorder(),
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
-                            onTap: () => _showDeleteConfirmDialog(context),
-                            child: const Padding(
-                              padding: EdgeInsets.all(4),
-                              child: Icon(
-                                Icons.remove,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+              _buildCover(),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    widget.book.format == BookFormat.pdf ? 'PDF' : 'EPUB',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.0,
+                    ),
+                  ),
                 ),
               ),
-              Expanded(
-                flex: 1,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    const neededHeight = 29.0 + 2.0 + 14.0;
-                    const progressHeight = 4.0;
-                    final hasProgress = widget.book.readingProgress > 0;
-                    final totalNeeded =
-                        neededHeight + (hasProgress ? progressHeight : 0) + 8.0;
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  width: double.infinity,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surface
+                      .withValues(alpha: 0.75),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const titleStyle = TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        height: 1.2,
+                      );
+                      final titlePainter = TextPainter(
+                        text: TextSpan(
+                          text: widget.book.title,
+                          style: titleStyle,
+                        ),
+                        maxLines: 2,
+                        textDirection: Directionality.of(context),
+                      )..layout(maxWidth: constraints.maxWidth);
+                      final titleOverflow = titlePainter.didExceedMaxLines;
 
-                    double scaleFactor = 1.0;
-                    if (constraints.maxHeight < totalNeeded) {
-                      scaleFactor = constraints.maxHeight / totalNeeded;
-                    }
+                      final titleText = Text(
+                        widget.book.title,
+                        style: titleStyle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      );
 
-                    final fontSize = 12.0 * scaleFactor;
-                    final authorFontSize = 10.0 * scaleFactor;
-                    final gap = 2.0 * scaleFactor;
-                    final vPadding = 4.0 * scaleFactor;
-                    final hPadding = 8.0 * scaleFactor;
-
-                    final titleStyle = TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: fontSize,
-                      height: 1.2,
-                    );
-                    final titlePainter = TextPainter(
-                      text: TextSpan(text: widget.book.title, style: titleStyle),
-                      maxLines: 2,
-                      textDirection: Directionality.of(context),
-                    )..layout(maxWidth: constraints.maxWidth - hPadding * 2);
-                    final titleOverflow = titlePainter.didExceedMaxLines;
-
-                    final titleText = Text(
-                      widget.book.title,
-                      style: titleStyle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    );
-
-                    return Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: hPadding,
-                        vertical: vPadding,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      return Column(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (titleOverflow)
-                            Tooltip(message: widget.book.title, child: titleText)
+                            Tooltip(
+                              message: widget.book.title,
+                              child: titleText,
+                            )
                           else
                             titleText,
-                          SizedBox(height: gap),
+                          const SizedBox(height: 2),
                           Text(
                             widget.book.author,
                             style: TextStyle(
-                              fontSize: authorFontSize,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontSize: 10,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                               height: 1.2,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           if (widget.book.readingProgress > 0) ...[
-                            const Spacer(),
+                            const SizedBox(height: 4),
                             LinearProgressIndicator(
                               value: widget.book.readingProgress,
                               backgroundColor: Colors.grey[200],
                             ),
                           ],
                         ],
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
+              if (_isHovered)
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: Material(
+                    color: Colors.red.withOpacity(0.9),
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => _showDeleteConfirmDialog(context),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.remove,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -385,17 +426,11 @@ class _BookCardState extends State<BookCard> {
   Widget _buildCover() {
     if (widget.book.coverPath != null &&
         File(widget.book.coverPath!).existsSync()) {
-      return ClipRect(
-        child: Align(
-          alignment: Alignment.topCenter,
-          heightFactor: 1.0,
-          child: Image.file(
-            File(widget.book.coverPath!),
-            width: double.infinity,
-            fit: BoxFit.fitWidth,
-            errorBuilder: (context, error, stackTrace) => _buildDefaultCover(),
-          ),
-        ),
+      return Image.file(
+        File(widget.book.coverPath!),
+        fit: BoxFit.fitWidth,
+        alignment: Alignment.topCenter,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultCover(),
       );
     }
     return _buildDefaultCover();

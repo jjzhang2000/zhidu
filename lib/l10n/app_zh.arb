@@ -27,7 +27,7 @@
   "aiLanguageControl": "控制AI生成内容的语言",
   "uiLanguageControl": "控制应用界面的显示语言",
   "aiLayeredReader": "AI 分层阅读器",
-  "search": "搜索",
+  "search": "搜索书名/作者",
   "bookshelfEmpty": "书架空空如也",
   "noRelatedBooks": "未找到相关书籍",
   "tryOtherKeywords": "请尝试其他关键词",
@@ -75,7 +75,6 @@
   "noLibraries": "未设置",
   "browse": "浏览",
   "refresh": "刷新",
-  "bookCount": "共 {count} 本",
   "clearBookshelf": "清空书架",
   "clearBookshelfConfirmation": "确定要清空书架中的所有书籍吗？此操作不可恢复。",
   "clearBookshelfDone": "书架已清空",
@@ -329,12 +328,6 @@
   },
   "@refresh": {
     "description": "刷新按钮"
-  },
-  "@bookCount": {
-    "description": "书架书籍总数提示",
-    "placeholders": {
-      "count": { "type": "int" }
-    }
   },
   "@clearBookshelf": {
     "description": "清空书架按钮及对话框标题"

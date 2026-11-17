@@ -553,12 +553,6 @@ abstract class AppLocalizations {
   /// **'Refresh'**
   String get refresh;
 
-  /// Bookshelf total count hint
-  ///
-  /// In en, this message translates to:
-  /// **'Total: {count} books'**
-  String bookCount(int count);
-
   /// Clear bookshelf button and dialog title
   ///
   /// In en, this message translates to:
