@@ -402,6 +402,43 @@ class BookService {
     }
   }
 
+  /// 确保书籍文件位于本地存储目录
+  ///
+  /// 从书架首次打开书籍时，若原始文件不在应用存储目录下
+  /// （如从 Calibre 书库导入），先复制到 `books/{bookId}/` 目录，
+  /// 后续解析均使用本地副本，避免依赖外部文件路径。
+  ///
+  /// 返回更新后的 Book（filePath 指向本地文件）。
+  Future<Book> ensureBookFileLocal(Book book) async {
+    try {
+      final bookDirPath = await StorageConfig.getBookDirectoryPath(book.id);
+
+      // 已在本地存储目录内，无需复制
+      if (p.isWithin(bookDirPath, book.filePath)) {
+        return book;
+      }
+
+      final source = File(book.filePath);
+      if (!await source.exists()) {
+        _log.w('BookService', '书籍源文件不存在，跳过复制: ${book.filePath}');
+        return book;
+      }
+
+      final bookDir = await StorageConfig.getBookDirectory(book.id);
+      final destPath = p.join(
+          bookDir.path, 'book${p.extension(book.filePath)}');
+      final dest = await source.copy(destPath);
+
+      final updated = book.copyWith(filePath: dest.path);
+      await updateBook(updated);
+      _log.info('BookService', '书籍文件已复制到本地: ${dest.path}');
+      return updated;
+    } catch (e, stackTrace) {
+      _log.e('BookService', '复制书籍文件到本地失败', e, stackTrace);
+      return book;
+    }
+  }
+
   /// 按标题或作者模糊搜索（不区分大小写）
   List<Book> searchBooks(String query) {
     final lowerQuery = query.toLowerCase();

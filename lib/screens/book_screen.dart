@@ -177,6 +177,9 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     setState(() => _isLoadingChapters = true);
 
     try {
+      // 首次打开时确保书籍文件在本地（非本地则复制到应用目录）
+      _book = await _bookService.ensureBookFileLocal(_book);
+
       // 根据书籍格式获取对应的解析器
       final parser = FormatRegistry.getParser('.${_book.format.name}');
       if (parser == null) {

@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.15 | **更新日期**: 2026-11-17 | **基于代码版本**: v1.8
+> **文档版本**: v2.16 | **更新日期**: 2026-11-18 | **基于代码版本**: v1.8
 
 ---
 
@@ -121,7 +121,7 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
     │
     ├── BookScreen.initState()
     │       ├── _updateLastReadAt()  (更新最后阅读时间并持久化)
-    │       ├── 加载章节列表 (_loadChapters) → 成功后保存 totalChapters 到 Book
+    │       ├── _loadChapters() → ensureBookFileLocal()（非本地复制到应用目录）→ 解析章节 → 保存 totalChapters
     │       ├── 注册流式回调: registerBookStreamingCallback()
     │       ├── 初始化 TabController (2 tabs)
     │       ├── 启动定时刷新: Timer.periodic(3s) → _refreshBookIfNeeded()
@@ -442,7 +442,8 @@ SummaryService.getBookSummary()
 │  + getBookById()          + testConnection()     + generateSummariesForBook()│
 │  + deleteBook()           + detectLanguageFromContent()           │
 │  + updateBook()           + detectSourceLanguage()                │
-│  + searchBooks()          + resolveOutputLanguage()               │
+│  + ensureBookFileLocal()  + resolveOutputLanguage()               │
+│  + searchBooks()                                                   │
 │  + _saveBooksIndex()      + needsTranslation()   + getSummary()   │
 │  + _saveBookMetadata()    + fetchAvailableModels()+ saveSummary() │
 │                           + _callAIStream()      + getBookSummary()│
@@ -533,6 +534,7 @@ SummaryService.getBookSummary()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-18 | 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断书籍 `filePath` 是否位于应用存储目录，非本地（如 Calibre 书库）则复制到 `books/{bookId}/book{ext}` 并更新 `filePath` 持久化；`BookScreen._loadChapters()` 解析前先调用，后续解析使用本地副本 |
 | 2026-11-17 | 书架排序返回刷新 — `BookCard` 新增 `onOpened` 回调，从书籍详情返回时若排序为「最近阅读时间」则刷新书架重排（`_openBook` 返回后经回调通知 `_HomeScreenState`，仅 `_sortType == BookSortType.lastRead` 时 `setState`） |
 | 2026-11-17 | 书架排序功能 — 新增 `BookSortType` 枚举（最近阅读/加入时间/书名/作者 × 升序/降序共 7 种）；`AppSettings` 新增 `bookshelfSortType` 字段持久化；`SettingsService` 新增 `bookshelfSortType` ValueNotifier + `setBookshelfSortType()`；HomeScreen 新增排序按钮（AppBar 设置按钮左侧），`_sortedBooks()` 按排序方式排序、初始值从 SettingsService 读取 |
 | 2026-11-17 | 阅读进度追踪：`totalChapters` 首次解析章节后保存到 `Book` 并优先读取缓存（章节数展示无需等待解析）；`lastReadAt` 打开书籍时更新并持久化；HomeScreen 书架按 `lastReadAt` 降序排序（最近阅读在前、未读在后）。新增 `BookScreen._updateLastReadAt()`、`HomeScreen._sortedBooks()` |

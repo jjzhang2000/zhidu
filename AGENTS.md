@@ -75,6 +75,7 @@ lib/
 
 ### 版本历史
 
+**2026-11-18**: 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断书籍 `filePath` 是否位于应用存储目录 `books/{bookId}/`，非本地（如从 Calibre 书库导入）则复制到 `books/{bookId}/book{ext}` 并通过 `updateBook` 更新 `filePath` 持久化；`BookScreen._loadChapters()` 解析章节前先调用，后续解析统一使用本地副本；同步 `function_call_relationships*.md`
 **2026-11-17**: 书架排序返回刷新 — `BookCard` 新增 `onOpened` 回调，从书籍详情页返回首页时若排序为「最近阅读时间」则刷新书架重新排序（`_openBook` 返回后经回调通知 `_HomeScreenState`，仅 `_sortType == BookSortType.lastRead` 时 `setState`）；同步 `function_call_relationships*.md`
 **2026-11-17**: 书架排序功能 — 首页 AppBar 设置按钮左侧新增排序按钮，书架支持 7 种排序（最近阅读时间/加入时间/书名/作者 × 升序/降序）；新增 `BookSortType` 枚举并接入 `AppSettings.bookshelfSortType` 持久化（`SettingsService.setBookshelfSortType()` + `bookshelfSortType` ValueNotifier）；`HomeScreen._sortedBooks()` 按排序方式排序、初始值从 SettingsService 读取；同步 `function_call_relationships*.md`
 **2026-11-17**: 阅读进度追踪（totalChapters/lastReadAt）— 打开书籍时 `BookScreen._updateLastReadAt()` 更新最后阅读时间并持久化；`_loadChapters()` 首次成功解析章节数后通过 `updateBook` 保存 `totalChapters`，章节数展示优先使用缓存值（加载中即可显示，避免等待解析）；`HomeScreen._sortedBooks()` 书架按 `lastReadAt` 降序排序（最近阅读在前、未读在后）；同步 `function_call_relationships*.md`
