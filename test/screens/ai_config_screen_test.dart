@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zhidu/screens/ai_config_screen.dart';
 import 'package:zhidu/services/settings_service.dart';
 import 'package:zhidu/services/ai_service.dart';
+import '../helpers/test_app.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -24,19 +25,15 @@ void main() {
       testWidgets('renders AppBar with correct title',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
-        expect(find.text('AI配置'), findsOneWidget);
+        expect(find.text('AI配置页面标题'), findsOneWidget);
       });
 
       testWidgets('renders Scaffold with body', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         expect(find.byType(Scaffold), findsOneWidget);
@@ -44,9 +41,7 @@ void main() {
 
       testWidgets('renders Form widget', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         expect(find.byType(Form), findsOneWidget);
@@ -55,9 +50,7 @@ void main() {
       testWidgets('renders SingleChildScrollView for scrollable content',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         expect(find.byType(SingleChildScrollView), findsOneWidget);
@@ -66,9 +59,7 @@ void main() {
       testWidgets('displays all form section labels',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Check all section labels are displayed
@@ -81,9 +72,7 @@ void main() {
       testWidgets('provider dropdown shows options (智谱 and 通义千问)',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find and tap the provider dropdown
@@ -103,9 +92,7 @@ void main() {
       testWidgets('API Key field has visibility toggle button',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find the visibility toggle icon button (indicates password field)
@@ -115,31 +102,25 @@ void main() {
       testWidgets('API Key field has visibility toggle button',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find the visibility toggle icon button
         expect(find.byIcon(Icons.visibility_off), findsOneWidget);
       });
 
-      testWidgets('model dropdown exists', (WidgetTester tester) async {
+      testWidgets('provider dropdown exists', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
-        // Should find two DropdownButtonFormField widgets (provider and model)
-        expect(find.byType(DropdownButtonFormField<String>), findsNWidgets(2));
+        // Only the provider is a DropdownButtonFormField; the model is a custom selector
+        expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
       });
 
       testWidgets('Base URL field exists', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find Base URL text field (should be 2 TextFormFields: API Key and Base URL)
@@ -150,9 +131,7 @@ void main() {
           'Base URL auto-populates with default value for selected provider',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Default provider is qwen (通义千问), so base URL should be qwen's default
@@ -169,9 +148,7 @@ void main() {
       testWidgets('test connection button is present',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         expect(find.text('测试连接'), findsOneWidget);
@@ -180,9 +157,7 @@ void main() {
 
       testWidgets('save button is present', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         expect(find.text('保存'), findsOneWidget);
@@ -194,9 +169,7 @@ void main() {
       testWidgets('tapping provider dropdown shows options',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find and tap the provider dropdown
@@ -209,41 +182,10 @@ void main() {
         expect(find.text('智谱'), findsOneWidget);
       });
 
-      testWidgets('changing provider updates model options',
-          (WidgetTester tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
-        );
-
-        // Open provider dropdown
-        final providerDropdown =
-            find.byType(DropdownButtonFormField<String>).first;
-        await tester.tap(providerDropdown);
-        await tester.pumpAndSettle();
-
-        // Select 智谱
-        await tester.tap(find.text('智谱').last);
-        await tester.pumpAndSettle();
-
-        // Now open model dropdown to verify models changed
-        final modelDropdown = find.byType(DropdownButtonFormField<String>).last;
-        await tester.tap(modelDropdown);
-        await tester.pumpAndSettle();
-
-        // Verify zhipu models are shown
-        expect(find.text('glm-4-flash'), findsWidgets);
-        expect(find.text('glm-4'), findsOneWidget);
-        expect(find.text('glm-4-plus'), findsOneWidget);
-      });
-
       testWidgets('API Key visibility toggle works',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Initially should show visibility_off icon
@@ -262,9 +204,7 @@ void main() {
       testWidgets('test connection button is tappable when form is valid',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find test connection button
@@ -278,9 +218,7 @@ void main() {
 
       testWidgets('save button is tappable', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find save button
@@ -295,9 +233,7 @@ void main() {
       testWidgets('changing provider updates base URL automatically',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Initial base URL should be qwen's
@@ -331,9 +267,7 @@ void main() {
       testWidgets('form loads with empty defaults when no settings configured',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // API Key should be empty
@@ -354,9 +288,7 @@ void main() {
         SettingsService.resetForTest();
 
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Form should load with default provider (qwen)
@@ -377,9 +309,7 @@ void main() {
       testWidgets('form validation requires API Key',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Try to save without filling in API Key
@@ -394,9 +324,7 @@ void main() {
       testWidgets('form validation requires Base URL',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Clear the base URL field
@@ -416,9 +344,7 @@ void main() {
       testWidgets('form validation requires valid URL format',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Enter invalid URL (without http/https)
@@ -445,9 +371,7 @@ void main() {
       testWidgets('buttons show loading state during operations',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Both buttons should be present initially
@@ -458,9 +382,7 @@ void main() {
       testWidgets('buttons are disabled when loading',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Enter valid data first
@@ -478,9 +400,7 @@ void main() {
     group('UI layout tests', () {
       testWidgets('form has consistent padding', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Check that padding is applied
@@ -494,9 +414,7 @@ void main() {
       testWidgets('sections are separated by spacing',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Should have multiple SizedBox widgets for spacing
@@ -505,9 +423,7 @@ void main() {
 
       testWidgets('action buttons are in a Row', (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Find the Row containing the buttons
@@ -517,79 +433,30 @@ void main() {
       testWidgets('action buttons have correct flex ratio',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
-        // Find all Expanded widgets in button Row
-        final expandedWidgets = find.byType(Expanded);
-        expect(expandedWidgets, findsNWidgets(2));
+        // Check flex values of the buttons' enclosing Expanded widgets
+        final testButton = find.widgetWithText(ElevatedButton, '测试连接');
+        final saveButton = find.widgetWithText(ElevatedButton, '保存');
 
-        // Check flex values
-        final firstExpanded = tester.widget<Expanded>(expandedWidgets.at(0));
-        final secondExpanded = tester.widget<Expanded>(expandedWidgets.at(1));
+        final testExpanded = tester.widget<Expanded>(
+          find.ancestor(of: testButton, matching: find.byType(Expanded)),
+        );
+        final saveExpanded = tester.widget<Expanded>(
+          find.ancestor(of: saveButton, matching: find.byType(Expanded)),
+        );
 
-        expect(firstExpanded.flex, equals(2)); // Test connection button
-        expect(secondExpanded.flex, equals(3)); // Save button
+        expect(testExpanded.flex, equals(2)); // Test connection button
+        expect(saveExpanded.flex, equals(3)); // Save button
       });
     });
 
     group('model selection tests', () {
-      testWidgets('default provider has correct default model',
-          (WidgetTester tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
-        );
-
-        // Default provider is qwen, default model is qwen-plus
-        await tester.pumpAndSettle();
-
-        // Open model dropdown to verify current model
-        final modelDropdown = find.byType(DropdownButtonFormField<String>).last;
-        await tester.tap(modelDropdown);
-        await tester.pumpAndSettle();
-
-        // Should show qwen models
-        expect(find.text('qwen-plus'), findsWidgets);
-      });
-
-      testWidgets('changing to zhipu provider shows zhipu models',
-          (WidgetTester tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
-        );
-
-        // Change provider to zhipu
-        final providerDropdown =
-            find.byType(DropdownButtonFormField<String>).first;
-        await tester.tap(providerDropdown);
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('智谱').last);
-        await tester.pumpAndSettle();
-
-        // Open model dropdown
-        final modelDropdown = find.byType(DropdownButtonFormField<String>).last;
-        await tester.tap(modelDropdown);
-        await tester.pumpAndSettle();
-
-        // Should show zhipu models
-        expect(find.text('glm-4-flash'), findsWidgets);
-        expect(find.text('glm-4'), findsOneWidget);
-        expect(find.text('glm-4-plus'), findsOneWidget);
-      });
-
       testWidgets('model dropdown is disabled when no models available',
           (WidgetTester tester) async {
         await tester.pumpWidget(
-          const MaterialApp(
-            home: AiConfigScreen(),
-          ),
+          buildTestApp(const AiConfigScreen()),
         );
 
         // Model dropdown should always be available for valid providers

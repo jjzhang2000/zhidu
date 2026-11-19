@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.9 | **更新日期**: 2026-11-18
+> **文档版本**: v2.10 | **更新日期**: 2026-11-19
 
 ---
 
@@ -150,19 +150,7 @@ flowchart TD
     SAVE --> SAVE1["writeJson(metadata.json)"]
     SAVE --> SAVE2["writeJson(books.json)"]
 
-    SAVE --> NOTE["（导入阶段不生成摘要；进入书籍详情页时按需触发）"]
-    NOTE --> GEN["SummaryService.generateSummariesForBook()"]
-    GEN --> CSS["generateSingleSummary() × N 并发max=3"]
-    GEN --> BSC["_generateBookSummaryFromChapters()"]
-
-    CSS --> AI2["AIService.generateFullChapterSummaryStream()"]
-    BSC --> AI3["AIService.generateBookSummaryStream()"]
-
-    AI2 --> SSE["_callAIStream() SSE流式"]
-    AI3 --> SSE
-
-    SSE --> |"onChunk"| NOTIFY["_notifyBookStreamingContent()"]
-    NOTIFY --> UI_UPDATE["UI setState() 实时更新"]
+    SAVE --> NOTE["（导入阶段不生成摘要；进入章节页时按需读取缓存缩写/译文）"]
 ```
 
 ---
@@ -174,30 +162,25 @@ flowchart TD
     HOME["HomeScreen 书架"] --> |"BookCard.onTap"| BOOK_SCREEN["Navigator.push(BookScreen)"]
 
     subgraph "BookScreen 书籍详情页"
-        BS_INIT["initState()"] --> PRE["_startPreGeneration() → SummaryService"]
-        BS_INIT --> REG["registerBookStreamingCallback()"]
-        BS_INIT --> TIMER["Timer.periodic _refreshBookIfNeeded()"]
-        BS_INIT --> LU["_updateLastReadAt() → BookService.updateBook()"]
+        BS_INIT["initState()"] --> LU["_updateLastReadAt() → BookService.updateBook()"]
         BS_INIT --> EL["_loadChapters() → ensureBookFileLocal() → getChapters()"]
-        TAB0["Tab 0: 全书摘要 (流式/最终)"]
-        TAB1["Tab 1: 章节目录列表"]
-        TAB1 --> |"点击章节"| CHAPTER_SCREEN["Navigator.push(ChapterScreen)"]
+        READ["阅读按钮 → _startReading()"]
+        READ --> |"PDF"| OPEN1["_openChapter(首章, initialPage:1)"]
+        READ --> |"EPUB"| OPEN2["getOpeningContent() → 首屏HTML"]
+        OPEN2 --> |"非空"| OPEN3["_openOpening(html)"]
+        OPEN2 --> |"空"| OPEN1
+        CHAPTER_LIST["章节列表"] --> |"点击章节"| CHAPTER_SCREEN["Navigator.push(ChapterScreen)"]
     end
 
     subgraph "ChapterScreen 章节阅读页"
-        CS_INIT --> LOAD["_loadSummary()"]
-        LOAD --> LOCAL["getSummary() → readText(summaryPath)"]
-        LOCAL --> |"摘要不存在"| GEN["SummaryService.generateSingleSummary()"]
-        GEN --> AI["AIService.generateFullChapterSummaryStream()"]
-        AI --> STREAM["SSE流式 → onChunk → onContentUpdate回调 → UI实时显示"]
+        CS_INIT["initState()"] --> TAB["垂直Tab: 原文(0) | 缩写(1) | 译文(2)"]
+        TAB_ORIG["原文Tab（默认）"]
+        TAB_ABBR["缩写Tab → _loadAbbreviation() → getChapterAbbreviation() 读缓存"]
+        TAB_TRANS["译文Tab → _ensureTranslation() → ensureChapterTranslation()"]
+        NAV["上一章/下一章 → _navigateToChapter() 原地渲染"]
 
-        TAB_SUMMARY["Tab 0: 摘要 (Markdown渲染)"]
-        TAB_ORIG["Tab 1: 原文 (HTML/纯文本)"]
-        TAB_TRANS["Tab 2: 译文"]
-
-        TAB_TRANS --> |"点击翻译"| TRANS["SummaryService.generateTranslationStream()"]
-        TRANS --> TRANS_AI["AIService.translateContent()"]
-        TRANS_AI --> |"SSE流式"| TRANS_UI["UI实时显示译文"]
+        TAB_TRANS --> TRANS["generateTranslationStream() → AIService.translateContent()"]
+        TRANS --> |"SSE流式"| TRANS_UI["UI实时显示译文"]
     end
 
     HOME --> BOOK_SCREEN
@@ -339,20 +322,14 @@ flowchart TD
     end
 
     subgraph 流式公开方法
-        FS["generateFullChapterSummaryStream()<br/>章节摘要流式生成"]
-        BS["generateBookSummaryStream()<br/>全书摘要流式生成"]
         TC["translateContent()<br/>HTML格式保留流式翻译"]
     end
 
-    CONFIG --> FS
-    CONFIG --> BS
     CONFIG --> TC
     CONFIG --> DETECT
     CONFIG --> RESOLVE
     CONFIG --> TEST
 
-    FS --> STREAM
-    BS --> STREAM
     TC --> STREAM
 
     STREAM --> |"SSE onChunk"| CB["回调函数<br/>onChunk(String partialText)"]
@@ -360,30 +337,26 @@ flowchart TD
 
 ---
 
-## 七、并发控制机制
+## 七、译文防重复机制
 
 ```mermaid
 flowchart TD
-    REQ["SummaryService.generateSingleSummary()<br/>收到章节摘要生成请求"]
+    REQ["SummaryService.ensureChapterTranslation()<br/>收到章节译文请求"]
 
-    REQ --> CHECK_GEN{"_generatingKeys<br/>是否已在生成中?"}
+    REQ --> CHECK_CACHE{"getTranslation()<br/>缓存是否已存在?"}
 
-    CHECK_GEN --> |"是"| SKIP["RETURN false<br/>跳过重复请求"]
-    CHECK_GEN --> |"否"| SEM["semaphore.acquire()<br/>等待并发槽位 (max=3)"]
+    CHECK_CACHE --> |"是"| RETURN["直接返回缓存译文"]
+    CHECK_CACHE --> |"否"| CHECK_GEN{"_generatingTranslationKeys<br/>是否已在生成中?"}
 
-    SEM --> MARK["标记 _generatingKeys.add(key)"]
-    MARK --> AI["AIService.generateFullChapterSummaryStream()"]
+    CHECK_GEN --> |"是"| WAIT["等待已有生成完成"]
+    CHECK_GEN --> |"否"| MARK["标记 _generatingTranslationKeys.add(key)"]
+    MARK --> AI["AIService.translateContent()"]
 
     AI --> |"chunk流式"| CALLBACK["onContentUpdate(accumulatedContent)"]
     CALLBACK --> UI["UI setState() 实时显示"]
 
-    AI --> DONE["生成完成 → 保存到文件"]
-
-    DONE --> RELEASE["semaphore.release()"]
-    RELEASE --> CLEANUP["清理 _generatingKeys"]
-
-    SKIP --> RESULT["返回 false"]
-    DONE --> RESULT
+    AI --> DONE["生成完成 → saveTranslation() 保存到文件"]
+    DONE --> CLEANUP["清理 _generatingTranslationKeys"]
 ```
 
 ---
@@ -445,10 +418,9 @@ flowchart TD
     SET --> AIC["AiConfigScreen"]
     SET --> LIB["书库设置（内联：浏览/刷新/清空书架）"]
 
-    BS_NAV --> CS_NAV["Navigator.push(ChapterScreen)"]
-    BS_NAV --> |"点击全书摘要"| CS_FIRST["Navigator.push(ChapterScreen<br/>chapterIndex=0)"]
+    BS_NAV --> |"阅读按钮 / 点击章节"| CS_NAV["Navigator.push(ChapterScreen)"]
 
-    CS_NAV --> |"Tab: 译文"| TRANS["SummaryService.generateTranslationStream()"]
+    CS_NAV --> |"Tab: 译文"| TRANS["SummaryService.ensureChapterTranslation()"]
 
     CS_NAV --> |"返回"| POP["Navigator.pop()"]
     BS_NAV --> |"返回"| POP
@@ -563,6 +535,7 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-19 | 阅读/章节页重构 — 删除 AI 缩写预处理与全书摘要；`BookFormatParser` 新增 `getOpeningContent()`（阅读按钮直达第一页）；`ChapterScreen` 删除「生成缩写」按钮、缩写改为 `_loadAbbreviation` 仅读缓存；章节 Tab 重排为 原文/缩写/译文；翻章改为原地渲染 `_navigateToChapter()`（保留旧内容后台加载无闪动）；翻页按钮样式调整 |
 | 2026-11-18 | 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断 `filePath` 是否在应用目录，非本地复制到 `books/{bookId}/book{ext}` 并更新持久化；`BookScreen._loadChapters()` 解析前调用 |
 | 2026-11-17 | 书架排序功能 — 新增 `BookSortType` 枚举（7 种排序）；`SettingsService` 新增 `bookshelfSortType` ValueNotifier + `setBookshelfSortType()`；HomeScreen 新增排序按钮，`_sortedBooks()` 按排序方式排序并持久化 |
 | 2026-11-17 | 阅读进度追踪：`BookScreen.initState` 新增 `_updateLastReadAt()`（打开书籍更新最后阅读时间并持久化）；`_loadChapters` 成功后保存 `totalChapters`；HomeScreen 书架按 `lastReadAt` 降序排序（新增 `_sortedBooks()`） |

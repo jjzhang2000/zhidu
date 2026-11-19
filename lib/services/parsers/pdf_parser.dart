@@ -261,6 +261,22 @@ class PdfParser implements BookFormatParser {
     }
   }
 
+  /// 获取顶层章节的完整内容
+  ///
+  /// PDF 章节均为第一级（level==0），无子章节，直接返回该章节内容。
+  @override
+  Future<String?> getChapterContentMerged(
+      String filePath, Chapter chapter, List<Chapter> allChapters) async {
+    final c = await getChapterContent(filePath, chapter);
+    return c.htmlContent;
+  }
+
+  /// PDF 无独立开头 HTML，调用方按页码从第 1 页开始
+  @override
+  Future<String?> getOpeningContent(String filePath) async {
+    return null;
+  }
+
   /// 检测 PDF 章节结构，返回章节信息列表（供 parseMetadata 调用）
   Future<List<_PdfChapter>> _detectChapters(PdfDocument document) async {
     final chapters = <_PdfChapter>[];

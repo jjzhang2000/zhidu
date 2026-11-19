@@ -192,19 +192,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get baseUrl => 'ベースURL';
 
   @override
-  String get promptBookChaptersLabel => '章数：';
-
-  @override
-  String promptBookSummary(String title, String author, String chapterSummaries, String chaptersLine) {
-    return '$title|$author|$chapterSummaries|$chaptersLine';
-  }
-
-  @override
-  String promptChapterSummary(String chapterTitle, String content) {
-    return '$chapterTitle|$content';
-  }
-
-  @override
   String promptTranslateHtml(String content, String chapterTitle) {
     return '$content|$chapterTitle';
   }

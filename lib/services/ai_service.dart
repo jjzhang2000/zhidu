@@ -5,7 +5,7 @@
 // 主要职责：
 // - 加载和管理AI配置（API Key、模型、Base URL等）
 // - 封装AI API调用逻辑（兼容智谱/通义千问等OpenAI兼容接口）
-// - 提供章节摘要、全书摘要、翻译等 AI 生成能力（流式）
+// - 提供章节缩写、翻译等 AI 生成能力（流式）
 //
 // 调用方：
 // - summary_service.dart：摘要生成与翻译
@@ -30,7 +30,7 @@ import '../l10n/app_localizations.dart';
 ///
 /// 主要职责：
 /// - 初始化时加载AI配置文件
-/// - 提供章节摘要、全书摘要、翻译的流式生成接口
+/// - 提供章节缩写、翻译的流式生成接口
 /// - 提供语言检测与翻译判断
 /// - 封装HTTP请求和SSE流式响应处理
 ///
@@ -232,23 +232,49 @@ class AIService {
   // ==========================================================================
 
   /// 构建 AI 请求消息列表
-  List<Map<String, String>> _buildMessages(String prompt, String? language, {bool isChapterSummary = false}) {
+  ///
+  /// [isAbbreviation] 为 true 时使用「章节缩写」提示词（缩写至约 1/5），
+  /// 否则使用默认提示词（供翻译、语言检测等场景复用）。
+  List<Map<String, String>> _buildMessages(String prompt, String? language,
+      {bool isAbbreviation = false, int? targetLength}) {
     final actualLanguage = language ?? 'zh';
-    final systemPrompt = switch (actualLanguage) {
-      'en' => 'Write a book summary in English. Write plain text only, no markdown, no code blocks, no lists, no headers, no XML/HTML tags. Do not include any thinking process, reasoning, or explanation tags such as <thinking>, <think>, or <think>. Do not write any introduction or explanation. Start writing the summary content immediately, without any preamble.',
-      'ja' => '日本語で書籍要約を書いてください。プレーンテキストのみ、マークダウン、コードブロック、リスト、ヘッダー、XML/HTMLタグは不要です。<thinking>、<think>、または <think> などの思考過程、推論、説明タグを含めないでください。導入や説明を書かないでください。要約内容を前置きなしで直に書き始めてください。',
-      _ => '用中文写书籍摘要。只写纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程、推理或解释标签，如 <thinking>、<think> 或 <think>。不要写任何前言或解释。立即开始写摘要内容，不要任何开场白。',
-    };
+    final systemPrompt = isAbbreviation
+        ? _abbreviationSystemPrompt(actualLanguage)
+        : switch (actualLanguage) {
+            'en' => 'Write a book summary in English. Write plain text only, no markdown, no code blocks, no lists, no headers, no XML/HTML tags. Do not include any thinking process, reasoning, or explanation tags such as <thinking>, <think>, or <think>. Do not write any introduction or explanation. Start writing the summary content immediately, without any preamble.',
+            'ja' => '日本語で書籍要約を書いてください。プレーンテキストのみ、マークダウン、コードブロック、リスト、ヘッダー、XML/HTMLタグは不要です。<thinking>、<think>、または <think> などの思考過程、推論、説明タグを含めないでください。導入や説明を書かないでください。要約内容を前置きなしで直に書き始めてください。',
+            _ => '用中文写书籍摘要。只写纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程、推理或解释标签，如 <thinking>、<think> 或 <think>。不要写任何前言或解释。立即开始写摘要内容，不要任何开场白。',
+          };
     _log.d('AIService', 'systemPrompt[$actualLanguage]: $systemPrompt');
     final messages = <Map<String, String>>[];
     messages.add({'role': 'system', 'content': systemPrompt});
-    final userPrompt = switch (actualLanguage) {
-      'en' => 'Summarize this in English:\n$prompt',
-      'ja' => '日本語で要約してください：\n$prompt',
-      _ => '请用中文摘要：\n$prompt',
-    };
+    final userPrompt = isAbbreviation
+        ? _abbreviationUserPrompt(actualLanguage, prompt, targetLength)
+        : switch (actualLanguage) {
+            'en' => 'Summarize this in English:\n$prompt',
+            'ja' => '日本語で要約してください：\n$prompt',
+            _ => '请用中文摘要：\n$prompt',
+          };
     messages.add({'role': 'user', 'content': userPrompt});
     return messages;
+  }
+
+  /// 章节缩写系统提示词
+  String _abbreviationSystemPrompt(String language) {
+    return switch (language) {
+      'en' => 'You are a text condensing assistant. Condense the given chapter content to about one-fifth (1/5) of its original length. Preserve all key information, main ideas, logical structure, and important details while removing redundant descriptions and repetition. Write in the original language. Output plain text only — no markdown, no code blocks, no lists, no headers, no XML/HTML tags. Do not include any thinking tags such as <thinking> or <think>. Do not write any preamble or explanation; output the condensed text directly.',
+      'ja' => 'あなたは文章要約アシスタントです。与えられた章の内容を元の長さの約5分の1に凝縮してください。重要な情報、主要な考え、論理構造、重要な詳細をすべて保持し、冗長な説明や繰り返しを削除してください。元の言語で書いてください。プレーンテキストのみ出力し、マークダウン、コードブロック、リスト、見出し、XML/HTMLタグは使わないでください。<thinking>や<think>などの思考タグを含めないでください。前置きや説明を書かず、凝縮した内容を直接出力してください。',
+      _ => '你是一名文本缩写助手。请将给定的章节内容缩写为原文长度的约五分之一，保留所有关键信息、主要观点、逻辑结构和重要细节，删除冗余描述与重复内容。使用原文语言输出。只输出纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程标签（如 <thinking>、）。不要写任何前言或解释，直接输出缩写内容。',
+    };
+  }
+
+  /// 章节缩写用户提示词
+  String _abbreviationUserPrompt(String language, String prompt, int? targetLength) {
+    return switch (language) {
+      'en' => 'Condense the following chapter content to about one-fifth of its original length${targetLength != null ? ' (about $targetLength characters)' : ''}:\n$prompt',
+      'ja' => '以下の章の内容を元の長さの約5分の1に凝縮してください${targetLength != null ? '（約 $targetLength 文字）' : ''}：\n$prompt',
+      _ => '请将以下章节内容缩写至原长度的约五分之一${targetLength != null ? '（约 $targetLength 字）' : ''}：\n$prompt',
+    };
   }
 
   /// 方法名：_callAIStream
@@ -289,15 +315,17 @@ class AIService {
   /// data: {"choices":[{"delta":{"content":"AI生成的内容片段"},"index":0,"finish_reason":null}]}
   /// data: [DONE]
   /// ```
-  Stream<String> _callAIStream(String prompt, {String? language, bool isChapterSummary = false}) async* {
+  Stream<String> _callAIStream(String prompt,
+      {String? language, bool isAbbreviation = false, int? targetLength}) async* {
     final url = Uri.parse('${_config!.baseUrl}/chat/completions');
 
     // 构建请求体
     final requestBody = jsonEncode({
       'model': _config!.model,
-      'messages': _buildMessages(prompt, language, isChapterSummary: isChapterSummary),
+      'messages': _buildMessages(prompt, language,
+          isAbbreviation: isAbbreviation, targetLength: targetLength),
       'temperature': 0.7,
-      'max_tokens': 32000,  // 全书摘要需要较长的输出
+      'max_tokens': 32000,
       'stream': true,  // 启用流式响应
     });
 
@@ -402,27 +430,20 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域4：摘要生成 - 流式版
+  // 区域4：章节缩写生成 - 流式版
   // ==========================================================================
 
-  /// 方法名：generateFullChapterSummaryStream
-  /// 功能：生成章节内容摘要（流式）
+  /// 生成章节缩写（流式）
+  ///
+  /// 将章节正文缩写为原长度的约五分之一，仅在章节超过一页内容时调用。
   ///
   /// 参数：
-  /// - content: 章节内容的文本
-  /// - chapterTitle: 章节标题（可选）
-  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的章节摘要内容流
-  /// - 失败时返回空流
-  ///
-  /// 调用方：
-  /// - summary_service.dart 的 generateSummaryStream 方法
-  Stream<String> generateFullChapterSummaryStream(
+  /// - content: 章节正文纯文本
+  /// - targetLength: 目标缩写长度（字数，可选）
+  /// - language: 输出语言代码（可选，默认跟随统一语言设置）
+  Stream<String> generateChapterAbbreviationStream(
     String content, {
-    String? chapterTitle,
-    String? bookId,
+    int? targetLength,
     String? language,
   }) async* {
     if (!isConfigured) {
@@ -433,68 +454,17 @@ class AIService {
     final outputLanguage = language ??
         resolveOutputLanguage(SettingsService().settings.languageSettings);
 
-    final loc = _getPromptLoc(outputLanguage);
-
-    final prompt = AiPrompts.chapterSummary(
-      loc: loc,
-      chapterTitle: chapterTitle,
-      content: content,
-    );
-
     try {
-      await for (final chunk in _callAIStream(prompt, language: outputLanguage, isChapterSummary: true)) {
+      await for (final chunk in _callAIStream(
+        content,
+        language: outputLanguage,
+        isAbbreviation: true,
+        targetLength: targetLength,
+      )) {
         yield chunk;
       }
     } catch (e) {
-      _log.e('AIService', '生成章节摘要流失败', e);
-    }
-  }
-
-  /// 方法名：generateBookSummaryStream
-  /// 功能：基于章节摘要生成全书摘要（流式）
-  ///
-  /// 参数：
-  /// - title: 书籍标题
-  /// - author: 书籍作者
-  /// - chapterSummaries: 所有章节摘要的汇总文本（Markdown格式）
-  /// - totalChapters: 总章节数（可选，用于提示词模板）
-  /// - bookId: 书籍ID（可选，用于获取元数据中的语言信息）
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的内容流
-  /// - 失败时返回空流
-  Stream<String> generateBookSummaryStream({
-    required String title,
-    required String author,
-    required String chapterSummaries,
-    int? totalChapters,
-    String? bookId,
-    String? language,
-  }) async* {
-    if (!isConfigured) {
-      _log.w('AIService', 'AI 服务未配置或 API Key 无效');
-      return;
-    }
-
-    final outputLanguage = language ??
-        resolveOutputLanguage(SettingsService().settings.languageSettings);
-
-    final loc = _getPromptLoc(outputLanguage);
-
-    final prompt = AiPrompts.bookSummary(
-      loc: loc,
-      title: title,
-      author: author,
-      chapterSummaries: chapterSummaries,
-      totalChapters: totalChapters,
-    );
-
-    try {
-      await for (final chunk in _callAIStream(prompt, language: outputLanguage)) {
-        yield chunk;
-      }
-    } catch (e) {
-      _log.e('AIService', '生成全书摘要流失败', e);
+      _log.e('AIService', '生成章节缩写流失败', e);
     }
   }
 

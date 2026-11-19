@@ -16,7 +16,6 @@ import 'services/parsers/book_format_parser.dart';
 import 'services/parsers/epub_parser.dart';
 import 'services/parsers/pdf_parser.dart';
 import 'services/settings_service.dart';
-import 'services/summary_service.dart';
 import 'utils/app_theme.dart';
 
 /// 判断当前是否为桌面平台（Windows/macOS/Linux）
@@ -82,7 +81,6 @@ void main() async {
   await SettingsService().init();
   await BookService().init();
   await AIService().init();
-  await SummaryService().init();
   await LibraryImportService().init();
 
   LogService().info('Main', '所有服务初始化完成');
@@ -130,7 +128,6 @@ class _ZhiduAppState extends State<ZhiduApp> with WindowListener {
     _settingsService.themeMode.removeListener(_onAppSettingsChanged);
     _settingsService.languageSettings.removeListener(_onAppSettingsChanged);
     _settingsService.dispose();
-    SummaryService().dispose();
     super.dispose();
   }
 

@@ -1,38 +1,23 @@
 // 书籍详情页面
 //
-// 显示书籍的详细信息和AI生成的全书摘要，支持在摘要视图和章节目录之间切换。
+// 显示书籍的基本信息（封面、书名、作者、出版信息）和章节目录。
 //
 // 核心功能：
-// 1. **全书摘要展示**：显示AI生成的书籍概览（Markdown渲染）
+// 1. **书籍信息展示**：封面、书名、作者、出版时间、出版方
 // 2. **章节目录展示**：层级缩进的章节列表
-// 3. **后台预生成**：自动在后台为书籍生成章节摘要
-// 4. **定时刷新**：检测全书摘要生成完成状态
 //
 // 用户交互：
-// - 点击摘要内容 → 进入第一章阅读
-// - 点击目录按钮 → 切换到章节列表
 // - 点击顶层章节 → 进入该章节阅读
-//
-// 关键机制：
-// - [_startPreGeneration] 后台静默生成章节摘要
-// - [_refreshBookIfNeeded] 定时刷新检测全书摘要状态
-// - [_getChapterTitle] 优先显示提取的章节标题
 
 import 'dart:async';
 import 'dart:io' show File;
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
-import 'package:markdown/markdown.dart' as md;
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../services/parsers/book_format_parser.dart';
 import '../models/chapter.dart';
-import '../services/ai_service.dart';
-import '../services/summary_service.dart';
 import '../services/log_service.dart';
-import '../services/settings_service.dart';
 import 'chapter_screen.dart';
 
 /// 书籍详情页面的StatefulWidget
@@ -47,15 +32,9 @@ class BookScreen extends StatefulWidget {
   State<BookScreen> createState() => _BookScreenState();
 }
 
-class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
+class _BookScreenState extends State<BookScreen> {
   /// 书籍管理服务（单例）
   final _bookService = BookService();
-
-  /// AI服务（用于检测是否已配置）
-  final _aiService = AIService();
-
-  /// 摘要生成服务（后台预生成用）
-  final _summaryService = SummaryService();
 
   /// 日志服务
   final _log = LogService();
@@ -74,30 +53,6 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 是否正在加载章节列表
   bool _isLoadingChapters = false;
 
-  /// Tab控制器（用于垂直Tab布局）
-  TabController? _tabController;
-
-  /// 是否正在后台预生成摘要
-  ///
-  /// 防止重复启动预生成任务。
-  bool _isPreGenerating = false;
-
-  /// 流式全书摘要内容（实时显示）
-  String _streamingBookSummary = '';
-
-  /// 从文件加载的全书摘要内容
-  String? _bookSummaryFromFile;
-
-  /// 当前摘要语言（跟随 AI 语言设置，切换语言时触发重新摘要）
-  late String _summaryLang;
-
-  /// 定时刷新计时器
-  ///
-  /// 每3秒检查一次书籍状态，用于：
-  /// - 检测全书摘要是否生成完成
-  /// - 更新UI显示最新状态
-  Timer? _refreshTimer;
-
   @override
   void initState() {
     super.initState();
@@ -108,52 +63,8 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     // 更新最后阅读时间并持久化
     _updateLastReadAt();
 
-    // 根据 AI 语言设置确定摘要语言
-    _summaryLang = _getAiSummaryLanguage();
-
     // 加载章节列表
     _loadChapters();
-
-    // 从文件加载本书当前语言的全书摘要
-    _loadBookSummary();
-
-    // 注册本书当前语言的全书摘要流式回调
-    _summaryService.registerBookStreamingCallback(_book.id, _summaryLang, (content) {
-      if (mounted) {
-        setState(() {
-          _streamingBookSummary = content;
-        });
-      }
-    });
-
-    // 初始化Tab控制器
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController!.addListener(() {
-      if (mounted) setState(() {});
-    });
-
-    // 启动定时刷新机制
-    // 目的：检测全书摘要是否生成完成，及时更新UI
-    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      _refreshBookIfNeeded();
-    });
-
-    // 在首次build完成后启动后台预生成摘要任务
-    // 这样Tab框架已就绪，流式摘要可以显示在正确的页面布局中
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startPreGeneration();
-    });
-  }
-
-  @override
-  void dispose() {
-    // 释放Tab控制器
-    _tabController?.dispose();
-    // 清理定时器，防止内存泄漏
-    _refreshTimer?.cancel();
-    // 取消本书当前语言的全书摘要流式回调
-    _summaryService.unregisterBookStreamingCallback(_book.id, _summaryLang);
-    super.dispose();
   }
 
   /// 更新书籍的最后阅读时间并持久化
@@ -169,10 +80,6 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   ///
   /// 使用格式注册表获取对应的解析器（EPUB/PDF），
   /// 解析书籍结构并获取扁平化的章节列表。
-  ///
-  /// 章节列表用于：
-  /// 1. 在目录视图展示章节结构
-  /// 2. 点击章节时跳转到对应位置
   Future<void> _loadChapters() async {
     setState(() => _isLoadingChapters = true);
 
@@ -187,6 +94,9 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
         setState(() => _isLoadingChapters = false);
         return;
       }
+
+      // 第二优先级：出版信息缺失时解析书籍文件内部元数据补充
+      await _fillPublishInfoIfMissing(parser);
 
       // 解析章节结构
       final chapters = await parser.getChapters(_book.filePath);
@@ -213,132 +123,35 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// 从文件加载本书当前语言的全书摘要
-  Future<void> _loadBookSummary() async {
+  /// 补充出版信息（第二优先级来源）
+  ///
+  /// 出版方/出版时间的第一优先级来源是 Calibre 导入时的 OPF 元数据；
+  /// 若为空，则进入详情页时解析书籍文件内部元数据（EPUB 内部 OPF）补充并持久化。
+  /// PDF 无 OPF，无法提供出版信息，直接跳过。
+  Future<void> _fillPublishInfoIfMissing(BookFormatParser parser) async {
+    if (_book.format != BookFormat.epub) return;
+
+    final hasPublisher = _book.publisher?.isNotEmpty ?? false;
+    final hasPublishDate = _book.publishDate?.isNotEmpty ?? false;
+    if (hasPublisher && hasPublishDate) return;
+
     try {
-      final summary = await _summaryService.getBookSummary(_book.id, language: _summaryLang);
-      if (mounted) {
-        // 清理可能的AI思考过程
-        final cleanSummary = summary != null ? _summaryService.removeThinkingProcess(summary) : null;
-        setState(() {
-          _bookSummaryFromFile = cleanSummary;
-        });
+      final metadata = await parser.parseMetadata(_book.filePath, _book.id);
+      if (metadata == null) return;
+
+      final publisher = hasPublisher ? _book.publisher : metadata.publisher;
+      final publishDate = hasPublishDate ? _book.publishDate : metadata.publishDate;
+
+      if ((publisher == null || publisher.isEmpty) &&
+          (publishDate == null || publishDate.isEmpty)) {
+        return;
       }
-    } catch (e, stackTrace) {
-      _log.e('BookScreen', '加载全书摘要失败', e, stackTrace);
-    }
-  }
 
-  /// 根据统一语言设置获取摘要语言
-  ///
-  /// - 'manual'：用户自选语言（[language]）
-  /// - 'system'：跟随系统语言（通过 [PlatformDispatcher] 获取）
-  String _getAiSummaryLanguage() {
-    final langSettings = SettingsService().settings.languageSettings;
-    if (langSettings.languageMode == 'manual') {
-      return langSettings.language;
-    }
-    return PlatformDispatcher.instance.locale.languageCode;
-  }
-
-  /// 后台预生成摘要（全书 + 章节）
-  ///
-  /// 在首次 build() 完成后通过 addPostFrameCallback 调用，
-  /// 确保垂直Tab框架已就绪，流式摘要内容可显示在正确的页面布局中。
-  ///
-  /// 预生成机制：
-  /// 1. 检查AI服务是否已配置
-  /// 2. 防止重复启动（通过[_isPreGenerating]标志）
-  /// 3. 异步执行，不阻塞UI
-  /// 4. 调用[SummaryService.generateSummariesForBook]生成全书摘要和所有章节摘要
-  ///
-  /// 优点：
-  /// - 用户无需等待，摘要提前准备好
-  /// - 不影响页面加载速度
-  /// - 静默执行，无侵入性
-  void _startPreGeneration() async {
-    // 等待章节加载完成，确保 _flatChapters 已就绪
-    while (_flatChapters.isEmpty && _isLoadingChapters) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-
-    if (_flatChapters.isEmpty) {
-      _log.d('BookScreen', '章节列表为空，跳过后台预生成');
-      return;
-    }
-
-    _log.d('BookScreen', '_startPreGeneration 被调用');
-
-    if (!_aiService.isConfigured) {
-      _log.d('BookScreen', 'AI服务未配置，跳过后台预生成');
-      return;
-    }
-
-    if (_isPreGenerating) {
-      _log.d('BookScreen', '正在预生成中，跳过重复调用');
-      return;
-    }
-
-    _isPreGenerating = true;
-    _log.d('BookScreen', '开始后台预生成摘要');
-
-    try {
-      _log.d('BookScreen', '后台预生成任务启动');
-
-      _refreshBookIfNeeded();
-
-      _log.d('BookScreen', '调用 SummaryService.generateSummariesForBook, 章节数: ${_flatChapters.length}');
-      await _summaryService.generateSummariesForBook(_book, _flatChapters, language: _summaryLang);
-      _log.d('BookScreen', 'SummaryService.generateSummariesForBook 完成');
-
-      _refreshBookIfNeeded();
-    } catch (e, stackTrace) {
-      _log.e('BookScreen', '后台预生成摘要失败', e, stackTrace);
-    } finally {
-      _isPreGenerating = false;
-      _log.d('BookScreen', '后台预生成任务结束');
-    }
-  }
-
-  /// 按需刷新书籍数据
-  ///
-  /// 由定时器调用，检测全书摘要是否已从文件生成。
-  /// 如果全书摘要从null变为有内容，则触发setState更新UI。
-  ///
-  /// 刷新逻辑：
-  /// 1. 从文件获取最新全书摘要
-  /// 2. 比较摘要是否变化
-  /// 3. 变化则setState更新UI，否则静默更新_book引用
-  /// 4. 如果摘要有值，说明全书摘要生成完成，清空流式状态
-  ///
-  /// 这种设计避免了频繁setState，只在真正需要时更新UI。
-  void _refreshBookIfNeeded() async {
-    try {
-      final summary = await _summaryService.getBookSummary(_book.id, language: _summaryLang);
-      if (mounted) {
-        // 清理可能的AI思考过程
-        final cleanSummary = summary != null ? _summaryService.removeThinkingProcess(summary) : null;
-        final hasNewSummary = cleanSummary != null && cleanSummary.isNotEmpty;
-        final hadOldSummary =
-            _bookSummaryFromFile != null && _bookSummaryFromFile!.isNotEmpty;
-
-        if (hasNewSummary != hadOldSummary || cleanSummary != _bookSummaryFromFile) {
-          setState(() {
-            _bookSummaryFromFile = cleanSummary;
-            // 如果文件摘要有内容，说明生成完成，清空流式状态，优先显示文件内容
-            if (hasNewSummary) {
-              _streamingBookSummary = '';
-            }
-          });
-        }
-      }
+      _book = _book.copyWith(publisher: publisher, publishDate: publishDate);
+      await _bookService.updateBook(_book);
     } catch (e) {
-      _log.w('BookScreen', '刷新书籍摘要失败: $e');
+      _log.w('BookScreen', '解析书籍文件补充出版信息失败: $e');
     }
-  }
-
-  String _getChapterTitle(int index, Chapter chapter) {
-    return chapter.title;
   }
 
   @override
@@ -350,17 +163,17 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
       ),
       body: Column(
         children: [
-          // 顶部书籍信息区域：封面、标题、作者、章节数
+          // 顶部书籍信息区域：封面、标题、作者、出版信息
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: _buildBookHeader(),
           ),
           const Divider(height: 1),
-          // 底部内容区域（全书摘要或章节目录）
+          // 底部章节目录
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: _buildAIIntroduction(),
+              child: _buildChapterStructureContent(),
             ),
           ),
         ],
@@ -370,55 +183,153 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
 
   /// 构建书籍头部信息
   ///
-  /// 包含：封面图片、书名、作者、章节数、添加日期
+  /// 包含：封面图片、书名、作者、出版时间、出版方
   Widget _buildBookHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final theme = Theme.of(context);
+    final metaBase = theme.textTheme.bodyMedium;
+    final metaFontSize = metaBase?.fontSize ?? 14;
+    // 出版时间/出版方
+    final metaStyle = metaBase?.copyWith(
+      color: Colors.grey[600],
+      fontSize: metaFontSize + 4,
+    );
+    // 作者（比出版信息再大2号）
+    final authorStyle = metaBase?.copyWith(
+      color: Colors.grey[600],
+      fontSize: metaFontSize + 6,
+    );
+    final titleBase = theme.textTheme.titleLarge;
+    final titleFontSize = titleBase?.fontSize ?? 22;
+    final titleStyle = titleBase?.copyWith(
+      fontWeight: FontWeight.bold,
+      fontSize: titleFontSize + 8,
+    );
+
+    final publishDate = _formatPublishDate(_book.publishDate);
+    final publisher =
+        (_book.publisher?.isNotEmpty ?? false) ? _book.publisher : null;
+
+    return Stack(
       children: [
-        _buildCover(),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 书名（最多2行）
-              Text(
-                _book.title,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              // 作者
-              Text(
-                _book.author,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-              ),
-              const SizedBox(height: 12),
-              // 信息标签：章节数、添加日期
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCover(),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildInfoChip(
-                      Icons.menu_book,
-                      _isLoadingChapters
-                          ? (_book.totalChapters > 0
-                              ? '${_book.totalChapters} 章'
-                              : '加载中...')
-                          : '${_flatChapters.length} 章'),
-                  _buildInfoChip(
-                      Icons.calendar_today, _formatDate(_book.addedAt)),
+                  // 书名（最多2行）
+                  Text(
+                    _book.title,
+                    style: titleStyle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // 作者
+                  Text(_book.author, style: authorStyle),
+                  // 出版信息（有值才显示，缺失时不显示，仅显示值）
+                  if (publishDate != null || publisher != null) ...[
+                    // 作者与出版时间之间空 2 行
+                    const SizedBox(height: 40),
+                    if (publishDate != null) Text(publishDate, style: metaStyle),
+                    if (publishDate != null && publisher != null)
+                      const SizedBox(height: 4),
+                    if (publisher != null) Text(publisher, style: metaStyle),
+                  ],
                 ],
               ),
-            ],
+            ),
+          ],
+        ),
+        // 封面所在整行的右下角「阅读」按钮（开卷图标）
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: _startReading,
+            icon: const Icon(Icons.auto_stories, size: 36, color: Colors.white),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.deepOrange,
+              shape: const CircleBorder(),
+              padding: const EdgeInsets.all(14),
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  /// 将出版时间格式化为「年月」（YYYY-MM），缺失或无法识别时返回 null
+  String? _formatPublishDate(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final match = RegExp(r'^(\d{4})(?:-(\d{1,2}))?').firstMatch(raw.trim());
+    if (match == null) return null;
+    final year = match.group(1)!;
+    final month = match.group(2);
+    if (month == null) return year;
+    return '$year-${month.padLeft(2, '0')}';
+  }
+
+  /// 开始阅读：从书籍第一页开始（EPUB：首个 spine 文件/标题页；PDF：第 1 页）
+  Future<void> _startReading() async {
+    if (_flatChapters.isEmpty) return;
+
+    // PDF：从第 1 页开始阅读
+    if (_book.format == BookFormat.pdf) {
+      _openChapter(_flatChapters.first, initialPage: 1);
+      return;
+    }
+
+    // EPUB：从第一页（首个 spine 内容文档，如标题页）开始，无独立开头页则回退到第一章
+    final dot = _book.filePath.lastIndexOf('.');
+    final ext = dot == -1 ? '' : _book.filePath.substring(dot).toLowerCase();
+    final parser = FormatRegistry.getParser(ext);
+    final opening = parser == null ? null : await parser.getOpeningContent(_book.filePath);
+
+    if (!mounted) return;
+    if (opening != null && opening.isNotEmpty) {
+      _openOpening(opening);
+    } else {
+      _openChapter(_flatChapters.first);
+    }
+  }
+
+  /// 打开书籍第一页（开头内容，如 EPUB 标题页）
+  void _openOpening(String openingContent) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChapterScreen(
+          bookId: _book.id,
+          chapterIndex: 0,
+          chapterTitle: _book.title,
+          filePath: _book.filePath,
+          chapters: _flatChapters,
+          book: _book,
+          openingContent: openingContent,
+        ),
+      ),
+    );
+  }
+
+  /// 跳转到指定章节的阅读页面
+  void _openChapter(Chapter chapter, {int? initialPage}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChapterScreen(
+          bookId: _book.id,
+          chapterIndex: chapter.index,
+          chapterTitle: chapter.title,
+          filePath: _book.filePath,
+          chapters: _flatChapters,
+          book: _book,
+          initialPage: initialPage,
+        ),
+      ),
     );
   }
 
@@ -428,10 +339,11 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 1. 如果[_book.coverPath]存在且文件有效，显示实际封面
   /// 2. 否则显示默认封面图标
   Widget _buildCover() {
-    final coverSize = 100.0;
+    final coverSize = 200.0;
 
+    final Widget coverImage;
     if (_book.coverPath != null && File(_book.coverPath!).existsSync()) {
-      return Card(
+      coverImage = Card(
         clipBehavior: Clip.antiAlias,
         child: Image.file(
           File(_book.coverPath!),
@@ -442,8 +354,11 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
               _buildDefaultCover(coverSize),
         ),
       );
+    } else {
+      coverImage = _buildDefaultCover(coverSize);
     }
-    return _buildDefaultCover(coverSize);
+
+    return coverImage;
   }
 
   /// 构建默认封面（当无封面图片时）
@@ -459,233 +374,12 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
         child: Center(
           child: Icon(
             Icons.book,
-            size: 40,
+            size: 80,
             color: Colors.blueGrey[300],
           ),
         ),
       ),
     );
-  }
-
-  /// 构建信息标签（章节数、日期等）
-  Widget _buildInfoChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey[80],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: Colors.grey[600]),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建主内容区域（垂直Tab布局）
-  ///
-  /// 布局：左侧垂直Tab栏 + 右侧TabBarView内容区
-  ///
-  /// 颜色层级（三层区分）：
-  /// - 页面背景：Scaffold默认（白色/浅色）
-  /// - 未选中Tab：灰色背景（较明显）
-  /// - 选中Tab + 右侧内容框：主题色背景（最明显）
-  Widget _buildAIIntroduction() {
-    final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
-    final unselectedColor = Colors.grey.withAlpha(80);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 左侧垂直Tab栏（无整体背景，每个Tab独立背景色）
-        Column(
-          children: [
-            _buildVerticalTab(0, Icons.auto_awesome,
-                selectedColor: selectedColor, unselectedColor: unselectedColor),
-            Container(height: 1, width: 60, color: Colors.grey.withAlpha(100)),
-            _buildVerticalTab(1, Icons.format_list_numbered,
-                selectedColor: selectedColor, unselectedColor: unselectedColor),
-          ],
-        ),
-        // 右侧Tab内容区（与选中Tab同色）
-        Expanded(
-          child: Container(
-            color: selectedColor,
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildAIIntroductionContent(),
-                _buildChapterStructureContent(),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 构建垂直Tab按钮（仅图标）
-  ///
-  /// 颜色层级：
-  /// - 未选中：灰色背景（与页面有明显区分）
-  /// - 选中：主题色背景（与右侧内容框同色）
-  Widget _buildVerticalTab(int index, IconData icon,
-      {required Color selectedColor, required Color unselectedColor}) {
-    final isSelected = _tabController?.index == index;
-    return InkWell(
-      onTap: () => _tabController?.animateTo(index),
-      child: Container(
-        width: 60,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        color: isSelected ? selectedColor : unselectedColor,
-        child: Icon(
-          icon,
-          size: 24,
-          color:
-              isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
-        ),
-      ),
-    );
-  }
-
-  /// Markdown HTML 渲染样式
-  Map<String, Style> get _htmlStyle => {
-        'body': Style(
-          fontSize: FontSize(14),
-          lineHeight: const LineHeight(1.6),
-          margin: Margins.zero,
-          padding: HtmlPaddings.zero,
-        ),
-        'h2': Style(
-          fontSize: FontSize(16),
-          fontWeight: FontWeight.bold,
-          margin: Margins.only(bottom: 8, top: 16),
-        ),
-        'h3': Style(
-          fontSize: FontSize(15),
-          fontWeight: FontWeight.bold,
-          margin: Margins.only(bottom: 6, top: 12),
-        ),
-        'p': Style(
-          fontSize: FontSize(14),
-          lineHeight: const LineHeight(1.6),
-          margin: Margins.only(bottom: 8),
-        ),
-        'ul': Style(
-          margin: Margins.only(bottom: 8),
-        ),
-        'li': Style(
-          fontSize: FontSize(14),
-          lineHeight: const LineHeight(1.5),
-        ),
-        'strong': Style(
-          fontWeight: FontWeight.bold,
-        ),
-      };
-
-  /// 将 Markdown 内容渲染为可点击的摘要视图
-  ///
-  /// 点击时导航到第一章，[onBeforeNavigate] 在跳转前执行（如打日志）。
-  Widget _buildSummaryWithMarkdown(String markdownContent,
-      {VoidCallback? onBeforeNavigate}) {
-    final htmlContent = md.markdownToHtml(markdownContent);
-    return GestureDetector(
-      onTap: _flatChapters.isNotEmpty
-          ? () {
-              onBeforeNavigate?.call();
-              final firstChapter = _flatChapters.first;
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChapterScreen(
-                    bookId: _book.id,
-                    chapterIndex: firstChapter.index,
-                    chapterTitle: firstChapter.title,
-                    filePath: _book.filePath,
-                    chapters: _flatChapters,
-                    book: _book,
-                  ),
-                ),
-              );
-            }
-          : null,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Html(
-            data: htmlContent,
-            style: _htmlStyle,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建全书摘要内容
-  ///
-  /// 显示逻辑：
-  /// 1. **流式中**：显示流式内容 + "AI正在生成..." 提示
-  /// 2. **无摘要**：显示提示信息
-  ///    - AI已配置："全书摘要生成中，请稍候..."
-  ///    - AI未配置："AI服务未配置，无法生成全书摘要"
-  ///
-  /// 3. **有摘要**：
-  ///    - 将Markdown转换为HTML显示
-  ///    - 点击摘要区域可进入第一章阅读
-  ///
-  /// Markdown渲染：
-  /// - 使用[md.markdownToHtml]转换
-  /// - 使用[flutter_html]组件渲染
-  /// - 自定义标题、段落、列表样式
-  Widget _buildAIIntroductionContent() {
-    // 有流式内容正在显示
-    if (_streamingBookSummary.isNotEmpty) {
-      return _buildStreamingBookSummary();
-    }
-
-    // 没有全书摘要
-    if (_bookSummaryFromFile == null || _bookSummaryFromFile!.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.article_outlined,
-              size: 48,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _aiService.isConfigured ? '全书摘要生成中，请稍候...' : 'AI服务未配置，无法生成全书摘要',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 显示全书摘要（Markdown渲染）
-    return _buildSummaryWithMarkdown(_bookSummaryFromFile!,
-        onBeforeNavigate: () {});
-  }
-
-  /// 构建流式全书摘要视图
-  Widget _buildStreamingBookSummary() {
-    return _buildSummaryWithMarkdown(_streamingBookSummary);
   }
 
   /// 构建章节目录内容
@@ -694,12 +388,6 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// 1. **加载中**：显示进度指示器
   /// 2. **无章节**：显示"暂无章节信息"
   /// 3. **有章节**：显示层级缩进的章节列表
-  ///
-  /// 章节列表特点：
-  /// - 根据层级[level]缩进（每层16像素）
-  /// - 字体大小随层级递减
-  /// - 子章节颜色较淡
-  /// - 只有顶层章节可点击进入阅读
   Widget _buildChapterStructureContent() {
     if (_isLoadingChapters) {
       return const Center(
@@ -733,7 +421,7 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
   /// - 以此类推...
   ///
   /// **样式规则**：
-  /// - 字体大小：13 - level * 1（顶层13px，一级12px...）
+  /// - 字体大小：15 - level * 1（顶层15px，一级14px...）
   /// - 颜色：子章节使用灰色(Colors.grey[600])，顶层章节使用默认颜色
   /// - 最大显示1行，超出显示省略号
   ///
@@ -753,11 +441,10 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
           child: ListTile(
             dense: true,
             title: Text(
-              // 使用_getChapterTitle获取标题（优先AI提取的标题）
-              _getChapterTitle(chapter.index, chapter),
+              chapter.title,
               style: TextStyle(
                 // 字体大小随层级递减
-                fontSize: 13 - chapter.level * 1,
+                fontSize: 15 - chapter.level * 1,
                 // 子章节颜色较淡
                 color: chapter.level > 0 ? Colors.grey[600] : null,
               ),
@@ -765,32 +452,12 @@ class _BookScreenState extends State<BookScreen> with TickerProviderStateMixin {
               overflow: TextOverflow.ellipsis,
             ),
             // 只有顶层章节才能点击进入阅读
-            onTap: chapter.level == 0
-                ? () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChapterScreen(
-                          bookId: _book.id,
-                          chapterIndex: chapter.index,
-                          chapterTitle: chapter.title,
-                          filePath: _book.filePath,
-                          chapters: _flatChapters,
-                          book: _book,
-                        ),
-                      ),
-                    );
-                  }
-                : null, // 子章节不可点击
+            onTap:
+                chapter.level == 0 ? () => _openChapter(chapter) : null, // 子章节不可点击
           ),
         ),
       );
     }
     return widgets;
-  }
-
-  /// 格式化日期为 YYYY-MM-DD 格式
-  String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }

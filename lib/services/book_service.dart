@@ -23,6 +23,11 @@ class BookService {
 
   List<Book> get books => _books;
 
+  /// 仅供测试使用：清空内存中的书籍列表
+  void resetForTest() {
+    _books.clear();
+  }
+
   Future<void> init() async {
     await _loadBooks();
   }
@@ -94,6 +99,11 @@ class BookService {
         return null;
       }
 
+      if (!await File(filePath).exists()) {
+        _log.w('BookService', '文件不存在: $filePath');
+        return null;
+      }
+
       final bookId = _uuid.v4();
       final bookDir = p.dirname(filePath);
 
@@ -124,6 +134,8 @@ class BookService {
           ? opfMetadata!.author!
           : (basicInfo?.author.isNotEmpty == true ? basicInfo!.author : '未知作者');
       final language = opfMetadata?.language ?? basicInfo?.language;
+      final publisher = opfMetadata?.publisher ?? basicInfo?.publisher;
+      final publishDate = opfMetadata?.publishDate ?? basicInfo?.publishDate;
 
       // 封面：外部 OPF 封面优先，其次内部封面
       String? coverPath;
@@ -154,6 +166,8 @@ class BookService {
         format: extension == '.epub' ? BookFormat.epub : BookFormat.pdf,
         addedAt: DateTime.now(),
         language: language,
+        publisher: publisher,
+        publishDate: publishDate,
       );
 
       final existingBook = _books
@@ -295,6 +309,8 @@ class BookService {
       format: extension == '.epub' ? BookFormat.epub : BookFormat.pdf,
       addedAt: DateTime.now(),
       language: opf?.language,
+      publisher: opf?.publisher,
+      publishDate: opf?.publishDate,
     );
 
     final existing =
@@ -411,16 +427,16 @@ class BookService {
   /// 返回更新后的 Book（filePath 指向本地文件）。
   Future<Book> ensureBookFileLocal(Book book) async {
     try {
+      final source = File(book.filePath);
+      if (!source.existsSync()) {
+        _log.w('BookService', '书籍源文件不存在，跳过复制: ${book.filePath}');
+        return book;
+      }
+
       final bookDirPath = await StorageConfig.getBookDirectoryPath(book.id);
 
       // 已在本地存储目录内，无需复制
       if (p.isWithin(bookDirPath, book.filePath)) {
-        return book;
-      }
-
-      final source = File(book.filePath);
-      if (!await source.exists()) {
-        _log.w('BookService', '书籍源文件不存在，跳过复制: ${book.filePath}');
         return book;
       }
 

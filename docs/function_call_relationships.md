@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.16 | **更新日期**: 2026-11-18 | **基于代码版本**: v1.8
+> **文档版本**: v2.17 | **更新日期**: 2026-11-19 | **基于代码版本**: v1.9
 
 ---
 
@@ -88,8 +88,6 @@ HomeScreen._importBook()
     │               └── 返回 Book 对象（摘要生成不在此处触发）
     │
     └── UI 刷新: setState() → 书架更新、新书显示
-
-    ※ 注意：摘要生成在 BookScreen._startPreGeneration() 中触发，详见 3.2 节
 ```
 
 ### 3.1.1 Calibre 书库导入流程
@@ -114,85 +112,62 @@ SettingsScreen._browseCalibreLibrary() / _refreshCalibreLibrary()
                     └── 完成: refreshSignal++ → _deleteProgress()
 ```
 
-### 3.2 阅读 + 摘要查看流程
+### 3.2 阅读 + 缩写查看 + 译文查看流程
 
 ```
 HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
     │
     ├── BookScreen.initState()
     │       ├── _updateLastReadAt()  (更新最后阅读时间并持久化)
-    │       ├── _loadChapters() → ensureBookFileLocal()（非本地复制到应用目录）→ 解析章节 → 保存 totalChapters
-    │       ├── 注册流式回调: registerBookStreamingCallback()
-    │       ├── 初始化 TabController (2 tabs)
-    │       ├── 启动定时刷新: Timer.periodic(3s) → _refreshBookIfNeeded()
-    │       └── addPostFrameCallback → _startPreGeneration()  (首次build后触发)
+    │       └── _loadChapters() → ensureBookFileLocal()（非本地复制到应用目录）→ 解析章节 → 保存 totalChapters
     │
-    ├── BookScreen.build() (首次渲染，Tab框架就绪)
-    │       ├── Tab 0 (全书摘要) — 此时显示空占位/加载中
-    │       └── Tab 1 (章节目录)
-    │               └── 点击章节 → Navigator.push(ChapterScreen)
-    │                       │
-    │                       ├── ChapterScreen.initState()
-    │                       │       ├── _initializeContent()  (加载章节全文)
-    │                       │       ├── 初始化 TabController (3 tabs)
-    │                       │       ├── _initializeLanguageSettings()
-    │                       │       └── addPostFrameCallback → _loadSummary()  (首次build后触发)
-    │                       │
-    │                       ├── ChapterScreen.build() (首次渲染，Tab框架就绪)
-    │                       │       ├── Tab 0 (摘要) — 此时显示空占位/加载中
-    │                       │       ├── Tab 1 (译文)
-    │                       │       └── Tab 2 (原文)
-    │                       │
-    │                       └── _loadSummary() (addPostFrameCallback 触发，在build完成之后)
-    │                               │
-    │                               ├── 后台生成中 (generatingFuture != null)
-    │                               │       └── await generatingFuture → 加载最终摘要
-    │                               │
-    │                               ├── 摘要已缓存 → Markdown渲染章节摘要
-    │                               │
-    │                               └── 摘要不存在 → _generateSummaryWithStreaming()
-    │                                       └── SummaryService.generateSingleSummary()
-    │                                           └── AIService.generateFullChapterSummaryStream()
-    │                                               └── _callAIStream() → SSE → onContentUpdate → UI实时显示
-    │                                                   └── 生成完成 → 保存文件 → 切换最终 Markdown
+    ├── BookScreen.build() (单页：封面行 + 章节列表，无Tab)
+    │       ├── 封面行「阅读」按钮 → _startReading()
+    │       │       ├── [PDF] _openChapter(首章, initialPage: 1)
+    │       │       └── [EPUB] FormatRegistry.getParser(ext).getOpeningContent(filePath)
+    │       │               └── 返回首屏 HTML（spine 首文件，内联 CSS/图片、SVG 封面转 <img>）
+    │       │                       ├── 非空 → _openOpening(html) → ChapterScreen(openingContent)
+    │       │                       └── 空 → _openChapter(首章)
+    │       └── 点击章节 → _openChapter(chapter) → Navigator.push(ChapterScreen)
     │
-    └── _startPreGeneration() (addPostFrameCallback 触发，在build完成之后)
+    └── ChapterScreen (垂直Tab: 原文(0) | 缩写(1) | 译文(2)，默认进入原文)
             │
-            └── SummaryService.generateSummariesForBook()
-                    │
-                    ├── [EPUB/PDF] generateSingleSummary() × N (并发控制: semaphore max=3)
-                    │               └── AIService.generateFullChapterSummaryStream()
-                    │                   └── _callAIStream() → SSE → onChunk → onContentUpdate回调
-                    │
-                    └── [EPUB/PDF] _generateBookSummaryFromChapters()
-                                └── AIService.generateBookSummaryStream()
-                                    └── _callAIStream() → SSE → onChunk → _notifyBookStreamingContent()
+            ├── initState()
+            │       ├── 初始化 TabController(3) → 默认 index 0 = 原文
+            │       ├── _initializeLanguageSettings()（源语言检测 + 目标语言）
+            │       └── _initializeContent()（openingContent / chapterContent / filePath）
+            │               └── _checkContentLength()（内容过短置灰缩写 Tab）
             │
-            └── 流式回调 → setState → Tab 0 实时显示 _streamingBookSummary
-                    └── 生成完成 → _refreshTimer 检测到变化 → 切换到最终 Markdown 摘要
+            ├── 缩写 Tab → _loadAbbreviation()（仅读缓存，不生成、不调用 AI）
+            │       └── SummaryService.getChapterAbbreviation()
+            │
+            ├── 译文 Tab → _ensureTranslation()（切换到译文 Tab 时触发）
+            │       └── SummaryService.ensureChapterTranslation()（读缓存或流式生成）
+            │
+            └── 翻章（上一章/下一章）→ _navigateToChapter()（原地渲染，不触发路由）
+                    ├── 更新 _currentIndex/_title，保留旧内容后台加载
+                    ├── _loadChapterContent()（复用 _chapters，无需重复解析）
+                    └── _loadAbbreviation()（读取新章节缓存缩写）
 ```
 
 ### 3.3 翻译流程
 
 ```
-ChapterScreen._generateTranslationWithStreaming()
+ChapterScreen._ensureTranslation()
     │
-    └── SummaryService().generateTranslationStream(
-            bookId, chapterIndex, content, targetLang, ...)
+    └── SummaryService.ensureChapterTranslation(bookId, chapterIndex, content, ...)
             │
-            ├── 防止重复生成 (_generatingTranslationKeys)
+            ├── getTranslation() 读缓存 → 命中直接返回
             │
-            ├── AIService.translateContent(htmlContent, sourceLang, targetLang, onProgress)
-            │       └── _callAIStream(systemPrompt, userPrompt, onChunk)
-            │           └── HttpClient.post() → SSE 流式响应
-            │               └── onProgress(currentTranslation)
-            │                   ├── 更新进度
-            │                   └── 通知 UI 回调 (onContentUpdate)
+            ├── 未命中 → generateTranslationStream()
+            │       ├── 防止重复生成 (_generatingTranslationKeys)
+            │       └── AIService.translateContent(...)
+            │               └── _callAIStream() → SSE 流式响应
+            │                   └── onContentUpdate 回调 → _notifyTranslationContent()
             │
-            ├── saveTranslation(bookId, chapterIndex, lang, html)
-            │       └── FileStorageService().writeText(path, htmlContent)
+            ├── saveTranslation() → FileStorageService().writeText()
             │
-            └── 清理 _generatingTranslationKeys
+            └── 再读缓存返回
 ```
 
 ### 3.4 设置变更流程
@@ -224,34 +199,35 @@ SettingsScreen / AiConfigScreen
 |---|---|
 | `AIService()` (构造) | main.dart |
 | `_loadConfig()` (内部) | 构造时、SettingsService 变更时 |
-| `generateFullChapterSummaryStream()` | SummaryService.generateSingleSummary() |
-| `generateBookSummaryStream()` | SummaryService._generateBookSummaryFromChapters() |
 | `translateContent()` | SummaryService.generateTranslationStream() |
 | `testConnection()` | AiConfigScreen 测试按钮 |
 | `detectLanguageFromContent()` | `detectSourceLanguage()` |
 | `detectSourceLanguage()` | ChapterScreen._initializeLanguageSettings() |
 | `detectSystemLanguage()` | `resolveOutputLanguage()` |
-| `resolveOutputLanguage()` | AIService 摘要生成方法, ChapterScreen._initializeLanguageSettings() |
+| `resolveOutputLanguage()` | AIService 译文生成方法, ChapterScreen._initializeLanguageSettings() |
 | `needsTranslation()` | (已废弃，ChapterScreen 改用源语言==目标语言判断) |
 | `convertLanguageCodeToStandard()` | `detectSourceLanguage()` |
 | `_callAIStream()` (内部) | 所有流式方法 |
 | `get config` | SummaryService, SettingsScreen |
 | `get availableModels` | AiConfigScreen |
-| `get isConfigured` | BookScreen, ChapterScreen |
+| `get isConfigured` | ChapterScreen |
 
 ### 4.2 SummaryService → 被调用方
 
 | SummaryService 方法 | 调用方 |
 |---|---|
-| `SummaryService()` (构造) | main.dart, BookScreen, ChapterScreen |
-| `generateSummariesForBook()` | BookScreen._startPreGeneration() |
-| `generateSingleSummary()` | ChapterScreen._loadSummary(), ChapterScreen._generateSummaryWithStreaming() |
-| `_generateBookSummaryFromChapters()` (内部) | generateSummariesForBook() (EPUB/PDF) |
-| `registerBookStreamingCallback()` | BookScreen.initState() |
-| `unregisterBookStreamingCallback()` | BookScreen.dispose() |
-| `_notifyBookStreamingContent()` (内部) | 流式回调时 |
-| `getTranslation()` | ChapterScreen._loadTranslation(), ChapterScreen._generateTranslationWithStreaming() |
-| `generateTranslationStream()` | ChapterScreen._generateTranslationWithStreaming() |
+| `SummaryService()` (构造) | ChapterScreen |
+| `getChapterAbbreviation()` | ChapterScreen._loadAbbreviation() |
+| `saveChapterAbbreviation()` | (无调用方，保留供后续使用) |
+| `getTranslation()` | SummaryService.ensureChapterTranslation() |
+| `saveTranslation()` | SummaryService.generateTranslationStream() |
+| `generateTranslationStream()` | SummaryService.ensureChapterTranslation() |
+| `ensureChapterTranslation()` | ChapterScreen._ensureTranslation() |
+| `registerTranslationCallback()` | ChapterScreen._ensureTranslation() |
+| `unregisterTranslationCallback()` | ChapterScreen.dispose(), ChapterScreen._navigateToChapter() |
+| `stripHtml()` | ChapterScreen._checkContentLength() |
+| `shouldAbbreviate()` | ChapterScreen._checkContentLength() |
+| `removeThinkingProcess()` | 内部（缩写/译文读取时清理 AI 思考标签） |
 
 ### 4.3 SettingsService → 被调用方
 
@@ -298,12 +274,14 @@ ZhiduApp (MaterialApp)
     │
     ├── BookScreen (接收 Book 对象)
     │       ├── 章节列表 → Navigator.push(ChapterScreen)
-    │       ├── 全书摘要 → 点击进入第一章 (ChapterScreen)
+    │       ├── 阅读按钮 → _startReading() → 第一页（getOpeningContent）
     │       └── 返回 → Navigator.pop()
     │
     └── ChapterScreen (接收 bookId + chapterIndex)
-                    ├── 垂直Tab: 摘要 | 原文 | 译文
-                    ├── 译文Tab → SummaryService.generateTranslationStream()
+                    ├── 垂直Tab: 原文 | 缩写 | 译文
+                    ├── 缩写Tab → 读缓存（getChapterAbbreviation）
+                    ├── 译文Tab → SummaryService.ensureChapterTranslation()
+                    ├── 上一章/下一章 → _navigateToChapter()（原地渲染）
                     └── 返回 → Navigator.pop()
 ```
 
@@ -316,7 +294,7 @@ BookService         → Book, Chapter
 EpubParser          → BookMetadata, Chapter
 PdfParser           → BookMetadata, Chapter
 AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 AiSettings)
-SummaryService      → Chapter, Book (通过summary-zh.md文件存储全书摘要)
+SummaryService      → Chapter (通过abbr-XXX-lang.md存储缩写、chapter-XXX-lang.html存储译文)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings, BookSortType
 OpfReaderService    → OpfMetadata
 LibraryImportService → LibraryImportTask
@@ -338,7 +316,7 @@ Book 模型包含:
   ├── double readingProgress
   └── String? language (OPF 元数据字段)
 
-全书摘要独立存储在 books/{bookId}/summary-zh.md，不再使用 aiIntroduction 字段
+章节缩写独立存储在 books/{bookId}/abbr-{index}-{lang}.md，译文存储在 chapter-{index}-{lang}.html
 ```
 
 ---
@@ -356,11 +334,11 @@ BookService._saveBooksIndex()
 BookService._saveBookMetadata()
     → FileStorageService().writeJson(metadata.json, book.toJson())
 
-SummaryService.saveSummary()
-    → FileStorageService().writeText(Summary-XXX-zh.md, markdownContent)
+SummaryService.saveChapterAbbreviation()
+    → FileStorageService().writeText(abbr-XXX-lang.md, markdownContent)
 
 SummaryService.saveTranslation()
-    → FileStorageService().writeText(chapter-XXX-en.html, htmlContent)
+    → FileStorageService().writeText(chapter-XXX-lang.html, htmlContent)
 
 读操作:
 SettingsService.init()
@@ -372,11 +350,8 @@ BookService._loadBooks()
 BookService.getBook()
     → FileStorageService().readJson(metadata.json)
 
-SummaryService.getSummary()
-    → FileStorageService().readText(Summary-XXX-zh.md)
-
-SummaryService.getBookSummary()
-    → FileStorageService().readText(summary-zh.md)
+SummaryService.getChapterAbbreviation()
+    → FileStorageService().readText(abbr-XXX-lang.md)
 ```
 
 ---
@@ -389,10 +364,8 @@ SummaryService.getBookSummary()
 | **工厂模式** | `FormatRegistry.register()` | 扩展名 → 解析器映射，动态创建解析器 |
 | **策略模式** | `BookFormatParser` 接口 | `EpubParser` / `PdfParser` 实现统一接口 |
 | **观察者模式** | `ValueNotifier` + 流式回调 | 设置变更通知 / 流式内容实时推送 |
-| **并发控制** | `Semaphore` 类 | 限制并发 AI 请求数 (max=3) |
-| **防重复** | `_generatingKeys` | 防止重复生成同一章节 |
-| **回调注册** | `registerBookStreamingCallback` | UI 注册回调监听流式全书摘要 |
-| **章节流式通知** | `onContentUpdate` 参数 | 章节摘要流式内容直接通过方法参数回调 |
+| **防重复** | `_generatingTranslationKeys` | 防止重复生成同一章节译文 |
+| **回调注册** | `registerTranslationCallback` | UI 注册回调监听流式译文 |
 
 ---
 
@@ -433,32 +406,31 @@ SummaryService.getBookSummary()
 │                                                                  │
 │  BookService              AIService              SummaryService   │
 │  ─────────────            ──────────             ───────────────  │
-│  + books (getter)         + generateFullChapterSummaryStream()    │
-│  + importBook()           + generateBookSummaryStream()           │
-│  + importBookFromPath()   + translateContent()   + generateSingleSummary()│
-│  + scanCalibreOpfFiles()                                          │
-│  + importOpfFile()                                                │
-│  + clearAllBooks()                                                │
-│  + getBookById()          + testConnection()     + generateSummariesForBook()│
-│  + deleteBook()           + detectLanguageFromContent()           │
-│  + updateBook()           + detectSourceLanguage()                │
-│  + ensureBookFileLocal()  + resolveOutputLanguage()               │
-│  + searchBooks()                                                   │
-│  + _saveBooksIndex()      + needsTranslation()   + getSummary()   │
-│  + _saveBookMetadata()    + fetchAvailableModels()+ saveSummary() │
-│                           + _callAIStream()      + getBookSummary()│
-│                                                  + saveBookSummary()│
-│  SettingsService          SummaryService(续)     + getTranslation()│
-│  ───────────────          ────────────────       + saveTranslation()│
-│  + init()                 + generateTranslationStream()           │
-│  + settings (getter)      + ensureChapterTranslation()            │
-│  + themeMode (getter)     + registerBookStreamingCallback()       │
-│  + aiSettings (getter)    + Semaphore (并发控制 max=3)            │
-│  + languageSettings      + _generatingKeys                        │
-│  + updateAiSettings()     LogService                               │
-│  + setThemeMode()         ──────────                               │
+│  + books (getter)         + translateContent()   + getChapterAbbreviation()│
+│  + importBook()           + testConnection()     + saveChapterAbbreviation()│
+│  + importBookFromPath()   + detectLanguageFromContent()           │
+│  + scanCalibreOpfFiles()  + detectSourceLanguage()                │
+│  + importOpfFile()        + resolveOutputLanguage()               │
+│  + clearAllBooks()        + needsTranslation()   + getTranslation()│
+│  + getBookById()          + fetchAvailableModels()+ saveTranslation()│
+│  + deleteBook()           + _callAIStream()      + generateTranslationStream()│
+│  + updateBook()                                  + ensureChapterTranslation()│
+│  + ensureBookFileLocal()                         + registerTranslationCallback()│
+│  + searchBooks()                                 + unregisterTranslationCallback()│
+│  + _saveBooksIndex()                             + stripHtml()    │
+│  + _saveBookMetadata()                           + shouldAbbreviate()│
+│                                                  + removeThinkingProcess()│
+│  SettingsService                                                  │
+│  ───────────────                                                  │
+│  + init()                                                         │
+│  + settings (getter)                                              │
+│  + themeMode (getter)                                             │
+│  + aiSettings (getter)                                            │
+│  + languageSettings                                               │
+│  + updateAiSettings()     LogService                              │
+│  + setThemeMode()         ──────────                              │
 │  + updateLanguageSettings() + v() / d() / info() / w() / e()      │
-│  + getSavedAiConfigForProvider()  + init()                        │
+│  + getSavedAiConfigForProvider()                                  │
 │                                                                  │
 │  FileStorageService        OpfReaderService       StorageConfig   │
 │  ──────────────────        ────────────────       ─────────────   │
@@ -492,8 +464,10 @@ SummaryService.getBookSummary()
 │  + parseMetadata()           + extractBasicMetadata()            │
 │  + extractBasicMetadata()    + getChapters()   + extractBasicMetadata()│
 │  + getChapters()             + getChapterContent()               │
-│  + getChapterContent()                        + getChapters()    │
+│  + getChapterContent()       + getOpeningContent()               │
+│  + getOpeningContent()                        + getChapters()    │
 │                                    + getChapterContent()         │
+│                                    + getOpeningContent()         │
 │                                                                  │
 │  FormatRegistry                                                   │
 │  ──────────────                                                   │
@@ -510,13 +484,13 @@ SummaryService.getBookSummary()
 │                                                                  │
 │  HomeScreen               BookScreen            ChapterScreen    │
 │  ──────────               ──────────            ─────────────    │
-│  - BookService            - BookService         - BookService    │
-│                           - SummaryService      - SummaryService │
-│                           - AIService           - AIService      │
-│  + _importBook()          + _startPreGeneration()+ _loadSummary()│
-│  + _sortedBooks()         + _updateLastReadAt() + _generateTranslationWithStreaming()│
-│  + _buildEmptyState()     + _refreshBookIfNeeded()               │
-│  + _buildBookGrid()                                           │
+│  - BookService            - BookService         - SummaryService │
+│                           - FormatRegistry      - AIService      │
+│  + _importBook()          + _updateLastReadAt() + _initializeContent()│
+│  + _sortedBooks()         + _loadChapters()     + _loadChapterContent()│
+│  + _buildEmptyState()     + _startReading()     + _loadAbbreviation()│
+│  + _buildBookGrid()       + _openOpening()      + _ensureTranslation()│
+│                           + _openChapter()      + _navigateToChapter()│
 │                                                                    │
 │  SettingsScreen           AiConfigScreen        PdfReaderScreen  │
 │  ──────────────           ──────────────        ─────────────── │
@@ -534,6 +508,7 @@ SummaryService.getBookSummary()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-19 | 阅读/章节页重构 — ① 删除 AI 缩写预处理与生成：SummaryService 删除 `generateSingleSummary`/`generateSummariesForBook`/`_generateBookSummaryFromChapters`/`Semaphore`/`registerBookStreamingCallback`/`init`/`dispose`，保留译文生成与缩写/译文读写缓存；BookScreen 删除后台预生成 `_startPreGeneration` 与全书摘要 Tab；ChapterScreen 删除「生成缩写」按钮与 `_ensureAbbreviation`，缩写改为 `_loadAbbreviation` 仅读缓存。② 阅读按钮跳转第一页：`BookFormatParser` 新增 `getOpeningContent`，`EpubParser` 实现（spine 首文件 + CSS/图片内联 + SVG 封面转 `<img>`），`PdfParser` 返回 null。③ 章节 Tab 重排为 原文/缩写/译文 且默认进入原文。④ 翻章改为原地渲染 `_navigateToChapter`（不再 `Navigator.pushReplacement`），保留旧内容后台加载无闪动、滚动重置到顶部。⑤ 翻页按钮样式（放大、透明度、悬停变色、单箭头图标） |
 | 2026-11-18 | 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断书籍 `filePath` 是否位于应用存储目录，非本地（如 Calibre 书库）则复制到 `books/{bookId}/book{ext}` 并更新 `filePath` 持久化；`BookScreen._loadChapters()` 解析前先调用，后续解析使用本地副本 |
 | 2026-11-17 | 书架排序返回刷新 — `BookCard` 新增 `onOpened` 回调，从书籍详情返回时若排序为「最近阅读时间」则刷新书架重排（`_openBook` 返回后经回调通知 `_HomeScreenState`，仅 `_sortType == BookSortType.lastRead` 时 `setState`） |
 | 2026-11-17 | 书架排序功能 — 新增 `BookSortType` 枚举（最近阅读/加入时间/书名/作者 × 升序/降序共 7 种）；`AppSettings` 新增 `bookshelfSortType` 字段持久化；`SettingsService` 新增 `bookshelfSortType` ValueNotifier + `setBookshelfSortType()`；HomeScreen 新增排序按钮（AppBar 设置按钮左侧），`_sortedBooks()` 按排序方式排序、初始值从 SettingsService 读取 |

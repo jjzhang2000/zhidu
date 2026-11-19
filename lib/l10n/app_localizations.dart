@@ -451,24 +451,6 @@ abstract class AppLocalizations {
   /// **'Base URL'**
   String get baseUrl;
 
-  /// Prompt - chapters label
-  ///
-  /// In en, this message translates to:
-  /// **'Chapters: '**
-  String get promptBookChaptersLabel;
-
-  /// Prompt - book summary template
-  ///
-  /// In en, this message translates to:
-  /// **'{title}|{author}|{chapterSummaries}|{chaptersLine}'**
-  String promptBookSummary(String title, String author, String chapterSummaries, String chaptersLine);
-
-  /// Prompt - chapter summary template
-  ///
-  /// In en, this message translates to:
-  /// **'{chapterTitle}|{content}'**
-  String promptChapterSummary(String chapterTitle, String content);
-
   /// Prompt - HTML translation template
   ///
   /// In en, this message translates to:

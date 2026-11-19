@@ -65,6 +65,18 @@ class EpubParser implements BookFormatParser {
         totalChapters = navChapters.length;
       }
 
+      // 解析 OPF 获取出版方与出版时间（EPUB 内部元数据）
+      String? publisher;
+      String? publishDate;
+      try {
+        final archive = ZipDecoder().decodeBytes(bytes);
+        final opfInfo = _parseOpfFile(archive);
+        publisher = opfInfo?['publisher'];
+        publishDate = opfInfo?['date'];
+      } catch (_) {
+        _log.w('EpubParser', '解析出版方/出版时间失败');
+      }
+
       if (title == null || title.isEmpty) {
         title = _extractTitleFromPath(filePath);
       }
@@ -85,6 +97,8 @@ class EpubParser implements BookFormatParser {
         totalChapters: totalChapters,
         coverPath: coverPath,
         language: language,
+        publisher: publisher,
+        publishDate: publishDate,
       );
     } catch (e, stackTrace) {
       _log.e('EpubParser', '解析 EPUB 元数据失败', e, stackTrace);
@@ -105,6 +119,8 @@ class EpubParser implements BookFormatParser {
       final title = opfInfo?['title'];
       final author = opfInfo?['author'];
       final language = opfInfo?['language'];
+      final publisher = opfInfo?['publisher'];
+      final publishDate = opfInfo?['date'];
 
       final coverPath = await _extractCoverFromArchiveObject(archive, bookId);
 
@@ -116,6 +132,8 @@ class EpubParser implements BookFormatParser {
         totalChapters: 0,
         coverPath: coverPath,
         language: language,
+        publisher: publisher,
+        publishDate: publishDate,
       );
     } catch (e, stackTrace) {
       _log.e('EpubParser', '轻量提取基本信息失败', e, stackTrace);
@@ -207,6 +225,8 @@ class EpubParser implements BookFormatParser {
       String? title;
       String? author;
       String? language;
+      String? publisher;
+      String? publishDate;
 
       final titleElements = document.findAllElements('dc:title');
       if (titleElements.isNotEmpty) {
@@ -223,7 +243,23 @@ class EpubParser implements BookFormatParser {
         language = languageElements.first.innerText.trim();
       }
 
-      return {'title': title, 'author': author, 'language': language};
+      final publisherElements = document.findAllElements('dc:publisher');
+      if (publisherElements.isNotEmpty) {
+        publisher = publisherElements.first.innerText.trim();
+      }
+
+      final dateElements = document.findAllElements('dc:date');
+      if (dateElements.isNotEmpty) {
+        publishDate = dateElements.first.innerText.trim();
+      }
+
+      return {
+        'title': title,
+        'author': author,
+        'language': language,
+        'publisher': publisher,
+        'date': publishDate,
+      };
     } catch (e) {
       _log.e('EpubParser', '解析 OPF 文件失败', e);
       return null;
@@ -522,6 +558,183 @@ class EpubParser implements BookFormatParser {
     return chapter;
   }
 
+  /// 获取顶层章节的完整内容（含其下所有子章节，以第一级章节为边界）
+  ///
+  /// EPUB 的目录常把同一文件（锚点）或不同文件拆成多级 navPoint。
+  /// 阅读与缩写应以第一级章节为最小单位，因此这里将顶层章节与其后连续的
+  /// 子章节（level>0）内容按目录顺序合并，避免把子章节拆成独立片段。
+  @override
+  Future<String?> getChapterContentMerged(
+      String filePath, Chapter chapter, List<Chapter> allChapters) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      _log.w('EpubParser', '文件不存在：$filePath');
+      return null;
+    }
+
+    final group = _collectChapterGroup(allChapters, chapter);
+    if (group.isEmpty) return null;
+
+    final bytes = await file.readAsBytes();
+    final archive = ZipDecoder().decodeBytes(bytes);
+
+    final buffer = StringBuffer();
+    // 已整文件读取的文件名（小写），用于去重：同一文件内的子章节锚点不再重复提取
+    final readFullFiles = <String>{};
+
+    for (final c in group) {
+      final href = c.location.href;
+      if (href == null || href.isEmpty) continue;
+
+      final parts = href.split('#');
+      final fileName = parts[0];
+      final anchor = parts.length > 1 ? parts[1] : null;
+
+      // 定位 archive 中对应的文件
+      ArchiveFile? archiveFile;
+      final fileNameLower = fileName.toLowerCase();
+      for (final f in archive.files) {
+        final nameLower = f.name.toLowerCase();
+        if (nameLower == fileNameLower ||
+            nameLower.endsWith('/$fileNameLower') ||
+            nameLower.endsWith(fileNameLower)) {
+          archiveFile = f;
+          break;
+        }
+      }
+      if (archiveFile == null) continue;
+
+      final fullHtml = utf8.decode(archiveFile.content as List<int>);
+      final fileKey = archiveFile.name.toLowerCase();
+
+      if (anchor == null || anchor.isEmpty) {
+        // 无锚点：整个文件都属于本顶层章节（含其子章节），只读一次
+        if (readFullFiles.contains(fileKey)) continue;
+        buffer.writeln(_extractBodyHtml(fullHtml));
+        readFullFiles.add(fileKey);
+      } else {
+        // 有锚点：文件已整读则跳过，否则按锚点范围提取片段
+        if (readFullFiles.contains(fileKey)) continue;
+        final fragment = _extractChapterByAnchor(fullHtml, anchor);
+        if (fragment != null && fragment.isNotEmpty) {
+          buffer.writeln(fragment);
+        }
+      }
+    }
+
+    final merged = buffer.toString().trim();
+    if (merged.isEmpty) return null;
+    return _inlineCssAndImages(archive, merged);
+  }
+
+  /// 获取书籍第一页（开头）的 HTML 内容
+  ///
+  /// 解析 content.opf 的 spine 顺序，取第一个内容文档（如标题页）的完整 HTML，
+  /// 并内联 CSS 与图片（与章节内容一致的处理）。无开头页时返回 null。
+  @override
+  Future<String?> getOpeningContent(String filePath) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      _log.w('EpubParser', '文件不存在：$filePath');
+      return null;
+    }
+
+    final bytes = await file.readAsBytes();
+    final archive = ZipDecoder().decodeBytes(bytes);
+
+    final fullHtml = _getFirstSpineHtml(archive);
+    if (fullHtml == null || fullHtml.isEmpty) return null;
+    return _inlineCssAndImages(archive, fullHtml);
+  }
+
+  /// 解析 content.opf 的 spine，返回第一个内容文档（HTML/XHTML）的完整 HTML
+  String? _getFirstSpineHtml(Archive archive) {
+    try {
+      ArchiveFile? opfFile;
+      for (final f in archive.files) {
+        if (f.name.toLowerCase().endsWith('.opf')) {
+          opfFile = f;
+          break;
+        }
+      }
+      if (opfFile == null) return null;
+
+      final document = XmlDocument.parse(utf8.decode(opfFile.content as List<int>));
+
+      // manifest：id → href
+      final manifest = <String, String>{};
+      for (final item in document.findAllElements('item')) {
+        final id = item.getAttribute('id');
+        final href = item.getAttribute('href');
+        if (id != null && href != null) {
+          manifest[id] = href;
+        }
+      }
+
+      // spine 按阅读顺序排列，取第一个内容文档
+      for (final itemref in document.findAllElements('itemref')) {
+        final idref = itemref.getAttribute('idref');
+        final href = idref != null ? manifest[idref] : null;
+        if (href == null || href.isEmpty) continue;
+
+        final lower = href.toLowerCase();
+        if (!lower.endsWith('.html') &&
+            !lower.endsWith('.xhtml') &&
+            !lower.endsWith('.htm')) {
+          continue;
+        }
+
+        ArchiveFile? htmlFile;
+        for (final f in archive.files) {
+          final n = f.name.toLowerCase();
+          if (n == lower || n.endsWith('/$lower') || n.endsWith(lower)) {
+            htmlFile = f;
+            break;
+          }
+        }
+        if (htmlFile != null) {
+          return utf8.decode(htmlFile.content as List<int>);
+        }
+      }
+      return null;
+    } catch (e) {
+      _log.w('EpubParser', '解析 spine 首文件失败: $e');
+      return null;
+    }
+  }
+
+  /// 收集顶层章节及其后连续的子章节（level>0），直到下一个顶层章节为止
+  List<Chapter> _collectChapterGroup(
+      List<Chapter> allChapters, Chapter topChapter) {
+    final result = <Chapter>[];
+    int start = -1;
+
+    for (int i = 0; i < allChapters.length; i++) {
+      if (identical(allChapters[i], topChapter)) {
+        start = i;
+        break;
+      }
+    }
+    // 引用不匹配时回退到 index 定位
+    if (start < 0) {
+      for (int i = 0; i < allChapters.length; i++) {
+        if (allChapters[i].level == 0 &&
+            allChapters[i].index == topChapter.index) {
+          start = i;
+          break;
+        }
+      }
+    }
+    if (start < 0) return result;
+
+    result.add(allChapters[start]);
+    for (int i = start + 1; i < allChapters.length; i++) {
+      if (allChapters[i].level == 0) break;
+      result.add(allChapters[i]);
+    }
+    return result;
+  }
+
   /// 从 NCX 导航点递归提取章节信息（含层级，最准确）
   List<_ChapterInfoInternal> _extractChapterInfosFromNavigation(
       List<EpubNavigationPoint> navPoints) {
@@ -731,18 +944,21 @@ class EpubParser implements BookFormatParser {
         if (isMatch) {
           final fullHtml = utf8.decode(archiveFile.content as List<int>);
 
+          final String result;
           if (anchor == null || anchor.isEmpty) {
-            return fullHtml;
+            result = fullHtml;
+          } else {
+            final chapterHtml = _extractChapterByAnchor(fullHtml, anchor);
+            if (chapterHtml != null) {
+              _log.d('EpubParser', '成功提取锚点 #$anchor 对应的章节内容');
+              result = chapterHtml;
+            } else {
+              _log.w('EpubParser', '未找到锚点 #$anchor，返回整个文件内容');
+              result = fullHtml;
+            }
           }
 
-          final chapterHtml = _extractChapterByAnchor(fullHtml, anchor);
-          if (chapterHtml != null) {
-            _log.d('EpubParser', '成功提取锚点 #$anchor 对应的章节内容');
-            return chapterHtml;
-          } else {
-            _log.w('EpubParser', '未找到锚点 #$anchor，返回整个文件内容');
-            return fullHtml;
-          }
+          return _inlineCssAndImages(archive, result);
         }
       }
 
@@ -754,7 +970,169 @@ class EpubParser implements BookFormatParser {
     }
   }
 
-  /// 根据锚点 ID 从完整 HTML 中提取对应元素的片段
+  /// 将章节 HTML 处理为自包含内容：内联 EPUB CSS、图片转 base64、移除 link/style
+  ///
+  /// EPUB 正文的样式通常依赖外部 CSS 文件与内部图片资源，直接渲染原始 HTML
+  /// 会丢失排版效果。这里将 CSS 规则内联到元素的 style 属性、图片转为 data URI，
+  /// 使渲染层（flutter_html）能完整还原各种效果。
+  String _inlineCssAndImages(Archive archive, String html) {
+    try {
+      final document = html_parser.parse(html);
+
+      // 1. 收集所有 CSS：EPUB 内全部 .css 文件 + 当前 HTML 的 <style> 块
+      final cssBuffer = StringBuffer();
+      for (final f in archive.files) {
+        if (f.name.toLowerCase().endsWith('.css')) {
+          cssBuffer.writeln(utf8.decode(f.content as List<int>));
+        }
+      }
+      for (final styleEl in document.querySelectorAll('style')) {
+        cssBuffer.writeln(styleEl.text);
+      }
+
+      // 2. 内联 CSS 到匹配元素（保持源顺序，后定义规则覆盖先定义）
+      for (final rule in _parseCssRules(cssBuffer.toString())) {
+        for (final sel in _splitSelectors(rule.key)) {
+          try {
+            for (final el in document.querySelectorAll(sel)) {
+              final existing = el.attributes['style'];
+              el.attributes['style'] = (existing == null || existing.isEmpty)
+                  ? rule.value
+                  : '$existing; ${rule.value}';
+            }
+          } catch (_) {
+            // 忽略不支持的复杂选择器
+          }
+        }
+      }
+
+      // 3. 图片 src 转 base64 data URI
+      for (final img in document.querySelectorAll('img')) {
+        final src = img.attributes['src'];
+        if (src == null || src.isEmpty || src.startsWith('data:')) continue;
+        final dataUri = _resolveImageDataUri(archive, src);
+        if (dataUri != null) {
+          img.attributes['src'] = dataUri;
+        }
+      }
+
+      // 3.1 SVG 内嵌图片（如 Calibre 封面 <svg><image xlink:href="cover.jpg"/></svg>）
+      // flutter_html 无法渲染 SVG，将含图片的 <svg> 转为 <img> 以显示封面/插图。
+      for (final svg in document.querySelectorAll('svg')) {
+        final image = svg.querySelector('image');
+        String? href;
+        if (image != null) {
+          // xlink:href 为命名空间属性，package:html 以 AttributeName 作为 key，
+          // 无法用字符串直接索引，需遍历匹配。
+          for (final entry in image.attributes.entries) {
+            final key = entry.key.toString();
+            if (key == 'xlink:href' || key == 'href') {
+              href = entry.value;
+              break;
+            }
+          }
+        }
+        if (href == null || href.isEmpty || href.startsWith('data:')) continue;
+        final dataUri = _resolveImageDataUri(archive, href);
+        if (dataUri == null) continue;
+
+        final replacement = document.createElement('img');
+        replacement.attributes['src'] = dataUri;
+        replacement.attributes['alt'] = '';
+        replacement.attributes['style'] = 'width:100%;height:auto;';
+        svg.replaceWith(replacement);
+      }
+
+      // 4. 移除 link/style 标签（CSS 已内联，避免无效渲染）
+      for (final el in document.querySelectorAll('link')) {
+        el.remove();
+      }
+      for (final el in document.querySelectorAll('style')) {
+        el.remove();
+      }
+
+      return document.body?.innerHtml ?? html;
+    } catch (e) {
+      _log.w('EpubParser', '内联 CSS/图片失败，返回原文: $e');
+      return html;
+    }
+  }
+
+  /// 按文件名在 archive 中查找图片并返回 data URI，找不到返回 null
+  String? _resolveImageDataUri(Archive archive, String src) {
+    // EPUB 中图片 src 常含 URL 编码（如空格 %20），需先解码再按文件名匹配
+    final rawName = src.split('/').last.split('\\').last;
+    final targetName = _urlDecode(rawName);
+    final targetLower = targetName.toLowerCase();
+    ArchiveFile? match;
+    for (final f in archive.files) {
+      final nameLower = f.name.toLowerCase();
+      if (nameLower == targetLower || nameLower.endsWith('/$targetLower')) {
+        match = f;
+        break;
+      }
+    }
+    if (match == null) return null;
+    return 'data:${_mimeFromName(targetName)};base64,'
+        '${base64Encode(match.content as List<int>)}';
+  }
+
+  /// 解析 CSS 文本为规则列表（key=选择器组，value=声明块）
+  List<MapEntry<String, String>> _parseCssRules(String css) {
+    final rules = <MapEntry<String, String>>[];
+    final noComments = css.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
+    for (final block in noComments.split('}')) {
+      final braceIndex = block.indexOf('{');
+      if (braceIndex < 0) continue;
+      final selector = block.substring(0, braceIndex).trim();
+      final declarations = block.substring(braceIndex + 1).trim();
+      if (selector.isEmpty || declarations.isEmpty) continue;
+      if (selector.startsWith('@')) continue; // 跳过 @media/@page/@font-face 等
+      rules.add(MapEntry(selector, declarations));
+    }
+    return rules;
+  }
+
+  /// 将逗号分隔的选择器组拆分为单个选择器
+  List<String> _splitSelectors(String selector) {
+    return selector
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  /// URL 解码（如空格 %20、中文 %E4%B8%AD），解码失败时返回原文
+  String _urlDecode(String s) {
+    try {
+      return Uri.decodeComponent(s);
+    } catch (_) {
+      return s;
+    }
+  }
+
+  /// 根据文件名扩展名推断图片 MIME 类型
+  String _mimeFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.svg')) return 'image/svg+xml';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+  }
+
+  /// 提取 HTML 的 body 内容（无 body 时返回原文）
+  String _extractBodyHtml(String html) {
+    final bodyMatch = RegExp(r'<body[^>]*>([\s\S]*)</body>', caseSensitive: false)
+        .firstMatch(html);
+    if (bodyMatch != null) return bodyMatch.group(1)!;
+    return html;
+  }
+
+  /// 根据锚点 ID 从完整 HTML 中提取该章节的片段
+  ///
+  /// 返回从锚点元素（通常为标题标签）开始，到下一个标题（h1-h6）之前
+  /// 或文件末尾的内容，即该章节的「标题 + 正文」完整范围。
   String? _extractChapterByAnchor(String fullHtml, String anchor) {
     try {
       final anchorPattern = RegExp('(id|name)\\s*=\\s*["\']?$anchor["\']?', caseSensitive: false);
@@ -765,56 +1143,38 @@ class EpubParser implements BookFormatParser {
         return null;
       }
 
-      final startPos = anchorMatch.start;
-
-      int elementStart = startPos;
-      int searchCount = 0;
-      while (elementStart > 0 && fullHtml[elementStart - 1] != '<' && searchCount < 500) {
+      // 定位锚点所属元素的起始标签 <
+      int elementStart = anchorMatch.start;
+      while (elementStart > 0 && fullHtml[elementStart - 1] != '<') {
         elementStart--;
-        searchCount++;
       }
 
-      if (searchCount >= 500) {
-        _log.w('EpubParser', '向前查找开始标签超时，使用当前位置');
-      }
-
-      int elementEnd = startPos;
-      searchCount = 0;
-      while (elementEnd < fullHtml.length && fullHtml[elementEnd] != '>' && searchCount < 500) {
-        elementEnd++;
-        searchCount++;
-      }
-      elementEnd++;
-
-      if (searchCount >= 500) {
-        _log.w('EpubParser', '向后查找结束标签超时');
-      }
-
-      final tagContent = fullHtml.substring(elementStart, elementEnd);
-
-      final isSelfClosing = tagContent.endsWith('/>');
-
-      if (isSelfClosing) {
-        return tagContent;
-      }
-
-      final tagNameMatch = RegExp(r'<(\w+)').firstMatch(tagContent);
+      // 提取锚点元素的标签名
+      final tagNameMatch = RegExp(r'<(\w+)').firstMatch(fullHtml.substring(elementStart));
       if (tagNameMatch == null) {
         _log.w('EpubParser', '无法提取标签名');
         return null;
       }
       final tagName = tagNameMatch.group(1);
 
+      // 锚点元素（标题）结束标签之后即为正文起点
       final endTagPattern = RegExp('</$tagName\\s*>', caseSensitive: false);
-      final endTagMatch = endTagPattern.firstMatch(fullHtml.substring(elementEnd));
-
+      final endTagMatch = endTagPattern.firstMatch(fullHtml.substring(anchorMatch.end));
+      final int contentStart;
       if (endTagMatch != null) {
-        final chapterContent = fullHtml.substring(elementStart, elementEnd + endTagMatch.end);
-        return chapterContent;
+        contentStart = anchorMatch.end + endTagMatch.end;
       } else {
-        _log.w('EpubParser', '未找到结束标签，返回从锚点到文件末尾的内容');
-        return fullHtml.substring(elementStart);
+        contentStart = anchorMatch.end;
       }
+
+      // 下一个标题（h1-h6）作为本段正文的结束边界
+      final nextHeadingPattern = RegExp(r'<h[1-6][\s>]', caseSensitive: false);
+      final nextHeadingMatch = nextHeadingPattern.firstMatch(fullHtml.substring(contentStart));
+      final int contentEnd = nextHeadingMatch != null
+          ? contentStart + nextHeadingMatch.start
+          : fullHtml.length;
+
+      return fullHtml.substring(elementStart, contentEnd);
     } catch (e) {
       _log.e('EpubParser', '提取锚点内容失败：anchor=$anchor', e);
       return null;

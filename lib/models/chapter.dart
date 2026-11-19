@@ -18,8 +18,8 @@ class Chapter {
   /// HTML 格式章节内容
   final String? htmlContent;
 
-  /// AI 生成的客观摘要
-  final String? objectiveSummary;
+  /// AI 生成的章节缩写
+  final String? abbreviation;
 
   Chapter({
     this.bookId = '',
@@ -28,7 +28,7 @@ class Chapter {
     required this.location,
     this.level = 0,
     this.htmlContent,
-    this.objectiveSummary,
+    this.abbreviation,
   });
 }
 

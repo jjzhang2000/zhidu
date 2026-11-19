@@ -88,6 +88,18 @@ class OpfReaderService {
         language = langElements.first.innerText.trim();
       }
 
+      String? publisher;
+      final publisherElements = metadataElement.findAllElements('dc:publisher');
+      if (publisherElements.isNotEmpty) {
+        publisher = publisherElements.first.innerText.trim();
+      }
+
+      String? publishDate;
+      final dateElements = metadataElement.findAllElements('dc:date');
+      if (dateElements.isNotEmpty) {
+        publishDate = dateElements.first.innerText.trim();
+      }
+
       // 提取封面引用：直接从 OPF 的 guide 段落读取 reference type="cover" 的 href
       // （Calibre 在 metadata.opf 的 guide 段落直接记录封面文件名，不依赖 EPUB 属性）
       String? coverPath;
@@ -106,6 +118,8 @@ class OpfReaderService {
         author: author,
         language: language,
         coverPath: coverPath,
+        publisher: publisher,
+        publishDate: publishDate,
       );
     } catch (e) {
       _log.w('OpfReaderService', '解析OPF内容失败, 错误: $e');

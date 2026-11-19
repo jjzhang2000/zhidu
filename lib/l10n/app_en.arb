@@ -58,9 +58,6 @@
   "apiKey": "API Key",
   "model": "Model",
   "baseUrl": "Base URL",
-  "promptBookChaptersLabel": "Chapters: ",
-  "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
-  "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
   "librarySettingsTitle": "Library",
   "calibreLibraryLocation": "Calibre library location:",
@@ -231,25 +228,6 @@
   },
   "@baseUrl": {
     "description": "Base URL label"
-  },
-  "@promptBookChaptersLabel": {
-    "description": "Prompt - chapters label"
-  },
-  "@promptBookSummary": {
-    "description": "Prompt - book summary template",
-    "placeholders": {
-      "title": { "type": "String" },
-      "author": { "type": "String" },
-      "chapterSummaries": { "type": "String" },
-      "chaptersLine": { "type": "String" }
-    }
-  },
-  "@promptChapterSummary": {
-    "description": "Prompt - chapter summary template",
-    "placeholders": {
-      "chapterTitle": { "type": "String" },
-      "content": { "type": "String" }
-    }
   },
   "@promptTranslateHtml": {
     "description": "Prompt - HTML translation template",

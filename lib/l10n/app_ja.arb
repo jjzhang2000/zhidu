@@ -58,9 +58,6 @@
   "apiKey": "APIキー",
   "model": "モデル",
   "baseUrl": "ベースURL",
-  "promptBookChaptersLabel": "章数：",
-  "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
-  "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
   "librarySettingsTitle": "書庫",
   "calibreLibraryLocation": "Calibre ライブラリの場所：",
@@ -87,25 +84,6 @@
   },
   "@aboutTitle": {
     "description": "アプリについてのタイトル"
-  },
-  "@promptBookChaptersLabel": {
-    "description": "プロンプト-章数ラベル"
-  },
-  "@promptBookSummary": {
-    "description": "プロンプト-書籍全体要約テンプレート",
-    "placeholders": {
-      "title": { "type": "String" },
-      "author": { "type": "String" },
-      "chapterSummaries": { "type": "String" },
-      "chaptersLine": { "type": "String" }
-    }
-  },
-  "@promptChapterSummary": {
-    "description": "プロンプト-章要約テンプレート",
-    "placeholders": {
-      "chapterTitle": { "type": "String" },
-      "content": { "type": "String" }
-    }
   },
   "@promptTranslateHtml": {
     "description": "プロンプト-HTML翻訳テンプレート",

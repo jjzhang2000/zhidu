@@ -61,6 +61,12 @@ class Book {
   /// 书籍语言（从OPF元数据中获取）
   final String? language;
 
+  /// 出版方（从OPF元数据中获取）
+  final String? publisher;
+
+  /// 出版时间（从OPF元数据中获取）
+  final String? publishDate;
+
   /// 构造函数：创建Book实例
   ///
   /// 必需参数：
@@ -91,6 +97,8 @@ class Book {
     required this.addedAt,
     this.lastReadAt,
     this.language,
+    this.publisher,
+    this.publishDate,
   });
 
   /// 方法名：copyWith
@@ -126,6 +134,8 @@ class Book {
     DateTime? addedAt,
     DateTime? lastReadAt,
     String? language,
+    String? publisher,
+    String? publishDate,
   }) {
     return Book(
       id: id ?? this.id,
@@ -140,6 +150,8 @@ class Book {
       addedAt: addedAt ?? this.addedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
       language: language ?? this.language,
+      publisher: publisher ?? this.publisher,
+      publishDate: publishDate ?? this.publishDate,
     );
   }
 
@@ -165,6 +177,8 @@ class Book {
       'addedAt': addedAt.toIso8601String(),
       'lastReadAt': lastReadAt?.toIso8601String(),
       'language': language,
+      'publisher': publisher,
+      'publishDate': publishDate,
     };
   }
 
@@ -196,6 +210,8 @@ class Book {
           ? DateTime.parse(json['lastReadAt'])
           : null,
       language: json['language'],
+      publisher: json['publisher'],
+      publishDate: json['publishDate'],
     );
   }
 }
@@ -217,12 +233,20 @@ class OpfMetadata {
   /// 封面图片路径（相对于OPF文件的路径）
   final String? coverPath;
 
+  /// 出版方
+  final String? publisher;
+
+  /// 出版时间
+  final String? publishDate;
+
   /// 构造函数
   OpfMetadata({
     this.title,
     this.author,
     this.language,
     this.coverPath,
+    this.publisher,
+    this.publishDate,
   });
 
   /// 创建副本，可以选择性修改部分字段
@@ -231,12 +255,16 @@ class OpfMetadata {
     String? author,
     String? language,
     String? coverPath,
+    String? publisher,
+    String? publishDate,
   }) {
     return OpfMetadata(
       title: title ?? this.title,
       author: author ?? this.author,
       language: language ?? this.language,
       coverPath: coverPath ?? this.coverPath,
+      publisher: publisher ?? this.publisher,
+      publishDate: publishDate ?? this.publishDate,
     );
   }
 }

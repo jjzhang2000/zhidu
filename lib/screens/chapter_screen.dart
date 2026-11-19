@@ -1,18 +1,18 @@
-// 章节摘要阅读界面
+// 章节阅读界面
 //
 // 这是应用的核心阅读界面，提供以下功能：
-// 1. 显示AI生成的章节摘要（Markdown渲染）
-// 2. 查看章节原文（EPUB: HTML渲染，PDF: 单页查看器）
-// 3. 一键生成章节摘要
+// 1. 查看章节原文（EPUB: HTML渲染，PDF: 单页查看器）
+// 2. 查看章节缩写（已缓存，Markdown渲染）
+// 3. 查看章节译文
 // 4. 章节导航（上一章/下一章）
 // 5. PDF页码翻页（在原文模式下）
 //
 // 界面切换逻辑：
-// - 左侧图标按钮：切换"摘要视图"与"原文视图"
-// - 摘要视图：显示AI生成的章节摘要
+// - 左侧垂直Tab：原文/缩写/译文
 // - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
+// - 缩写视图：显示已缓存的章节缩写
+// - 译文视图：显示AI生成的章节译文
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -35,7 +35,7 @@ class ScrollAnchor {
   });
 }
 
-/// 章节摘要界面 Widget
+/// 章节阅读界面 Widget
 ///
 /// 参数说明：
 /// - [bookId]: 书籍唯一标识
@@ -45,6 +45,8 @@ class ScrollAnchor {
 /// - [filePath]: 文件路径（用于重新加载内容）
 /// - [chapters]: 章节列表（用于导航）
 /// - [book]: 书籍对象（包含AI更新后的章节标题）
+/// - [openingContent]: 书籍第一页（开头）HTML（可选，用于「阅读」从第一页开始）
+/// - [initialPage]: PDF 起始页码（可选，用于「阅读」从第 1 页开始）
 class ChapterScreen extends StatefulWidget {
   final String bookId;
   final int chapterIndex;
@@ -53,6 +55,8 @@ class ChapterScreen extends StatefulWidget {
   final String? filePath;
   final List<Chapter>? chapters;
   final Book? book;
+  final String? openingContent;
+  final int? initialPage;
 
   const ChapterScreen({
     super.key,
@@ -63,6 +67,8 @@ class ChapterScreen extends StatefulWidget {
     this.filePath,
     this.chapters,
     this.book,
+    this.openingContent,
+    this.initialPage,
   });
 
   @override
@@ -71,38 +77,41 @@ class ChapterScreen extends StatefulWidget {
 
 class _ChapterScreenState extends State<ChapterScreen>
     with TickerProviderStateMixin {
-  /// AI服务（用于检查配置状态）
+  /// AI服务（用于语言检测与译文生成）
   final _aiService = AIService();
 
   /// 日志服务
   final _log = LogService();
 
-  /// 摘要服务（用于加载/生成摘要）
+  /// 缩写服务（用于读取已缓存缩写与译文）
   final _summaryService = SummaryService();
 
-  /// 当前章节的摘要数据
+  /// 当前章节的缩写数据
   Chapter? _summaryChapter;
-
-  /// 是否正在生成摘要
-  bool _isGenerating = false;
 
   /// 错误信息
   String? _error;
 
-  /// 是否正在加载章节内容
+  /// 是否正在加载章节内容（首次进入时的整页加载）
   bool _isLoadingContent = false;
 
   /// 章节内容（HTML格式）
   String _content = '';
 
-  /// 章节标题（动态更新，可能被AI生成的标题覆盖）
+  /// 章节标题（翻章/加载时动态更新）
   String _title = '';
+
+  /// 当前章节索引（可在本页内切换章节，不触发页面路由）
+  int _currentIndex = 0;
+
+  /// PDF 起始页码（仅「阅读」从第一页进入时使用；切换章节后失效）
+  int? _initialPage;
 
   /// Tab控制器（用于垂直Tab布局）
   TabController? _tabController;
 
   /// 内容是否过短（少于2000字节）
-  /// 内容过短时，默认显示原文视图，且摘要按钮禁用
+  /// 内容过短时缩写 tab 置灰
   bool _contentTooShort = false;
 
   /// 第一级章节列表（用于导航）
@@ -114,9 +123,6 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// PDF总页数（从文档加载后设置）
   int _pdfTotalPages = 0;
-
-  /// 流式摘要内容（实时显示AI生成的内容）
-  String _streamingSummary = '';
 
   /// 译文内容（已缓存的译文）
   String? _translationContent;
@@ -138,6 +144,12 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// 译文Tab是否禁用（当书籍语言与目标语言相同时禁用）
   bool _translationTabDisabled = false;
+
+  /// 上一章按钮是否处于鼠标悬停状态
+  bool _hoverPrev = false;
+
+  /// 下一章按钮是否处于鼠标悬停状态
+  bool _hoverNext = false;
 
   /// 译文滚动控制器
   ScrollController? _translationScrollController;
@@ -197,6 +209,10 @@ class _ChapterScreenState extends State<ChapterScreen>
   void initState() {
     super.initState();
 
+    _currentIndex = widget.chapterIndex;
+    _initialPage = widget.initialPage;
+    _title = widget.chapterTitle;
+
     if (widget.chapters != null) {
       _chapters = widget.chapters!.where((c) => c.level == 0).toList();
     }
@@ -225,17 +241,12 @@ class _ChapterScreenState extends State<ChapterScreen>
 
     _initializeLanguageSettings();
 
-    _initializeContent().then((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _ensureSummary();
-      });
-    });
+    _initializeContent();
   }
 
   @override
   void dispose() {
-    _summaryService.unregisterChapterCallback(widget.bookId, widget.chapterIndex);
-    _summaryService.unregisterTranslationCallback(widget.bookId, widget.chapterIndex);
+    _summaryService.unregisterTranslationCallback(widget.bookId, _currentIndex);
     _translationScrollController?.dispose();
     _originalScrollController?.dispose();
     _tabController?.dispose();
@@ -245,11 +256,21 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 初始化章节内容
   ///
   /// 内容来源优先级：
-  /// 1. 已传入的 chapterContent（预加载的内容）
-  /// 2. 从文件路径重新加载（通过FormatRegistry解析）
+  /// 1. 已传入的 openingContent（书籍第一页，用于「阅读」从开头开始）
+  /// 2. 已传入的 chapterContent（预加载的内容）
+  /// 3. 从文件路径重新加载（通过FormatRegistry解析）
   ///
   /// 同时检查内容长度，内容过短时自动切换到原文视图
   Future<void> _initializeContent() async {
+    if (widget.openingContent != null && widget.openingContent!.isNotEmpty) {
+      _content = widget.openingContent!;
+      _title = widget.chapterTitle;
+      _checkContentLength();
+      if (!mounted) return;
+      setState(() => _isLoadingContent = false);
+      return;
+    }
+
     if (widget.chapterContent != null && widget.chapterContent!.isNotEmpty) {
       _content = widget.chapterContent!;
       _title = widget.chapterTitle;
@@ -275,18 +296,10 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// 检查内容长度
   ///
-  /// 内容少于2000字节时：
-  /// 1. 标记为过短，禁用摘要生成按钮
-  /// 2. 如果没有摘要，自动切换到原文视图（Tab 1）
+  /// 内容不超过一页（约 2000 字节）时标记为过短，置灰缩写 Tab。
   void _checkContentLength() {
-    final textContent = _extractTextContent(_content);
-    final byteLength = utf8.encode(textContent).length;
-    _contentTooShort = byteLength < 2000;
-
-    // 内容过短且没有摘要时，默认切换到原文视图
-    if (_contentTooShort && _summaryChapter == null) {
-      _tabController?.animateTo(1);
-    }
+    final textContent = _summaryService.stripHtml(_content);
+    _contentTooShort = !_summaryService.shouldAbbreviate(textContent);
   }
 
   /// 初始化语言设置
@@ -303,6 +316,18 @@ class _ChapterScreenState extends State<ChapterScreen>
     _translationTabDisabled = _sourceLang == _targetLang;
 
     _log.d('ChapterScreen', '源语言=$_sourceLang, 目标语言=$_targetLang, 摘要语言=$_summaryLang, 译文Tab禁用=$_translationTabDisabled');
+
+    _loadAbbreviation();
+  }
+
+  /// 读取已缓存的章节缩写并显示（仅读缓存，不生成、不调用AI）
+  Future<void> _loadAbbreviation() async {
+    final abbreviation = await _summaryService.getChapterAbbreviation(
+      widget.bookId, _currentIndex,
+      language: _summaryLang,
+    );
+    if (!mounted) return;
+    setState(() => _summaryChapter = abbreviation);
   }
 
   /// 从文件加载章节内容
@@ -311,7 +336,8 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 解析章节列表并获取指定章节的内容
   Future<void> _loadChapterContent() async {
     try {
-      List<Chapter> chapters = widget.chapters ?? [];
+      List<Chapter> chapters =
+          _chapters.isNotEmpty ? _chapters : (widget.chapters ?? []);
 
       if (chapters.isEmpty && widget.filePath != null) {
         final extension = _getFileExtension(widget.filePath!);
@@ -327,18 +353,18 @@ class _ChapterScreenState extends State<ChapterScreen>
       final topLevelChapters = chapters.where((c) => c.level == 0).toList();
       _chapters = topLevelChapters;
 
-      if (widget.chapterIndex < 0 ||
-          widget.chapterIndex >= topLevelChapters.length) {
+      if (_currentIndex < 0 ||
+          _currentIndex >= topLevelChapters.length) {
         if (!mounted) return;
         setState(() {
           _error =
-              '章节索引超出范围: ${widget.chapterIndex}, 总章节数: ${topLevelChapters.length}';
+              '章节索引超出范围: $_currentIndex, 总章节数: ${topLevelChapters.length}';
           _isLoadingContent = false;
         });
         return;
       }
 
-      final chapter = topLevelChapters[widget.chapterIndex];
+      final chapter = topLevelChapters[_currentIndex];
       _title = chapter.title;
 
       String? content;
@@ -348,11 +374,11 @@ class _ChapterScreenState extends State<ChapterScreen>
           final parser = FormatRegistry.getParser(extension);
 
           if (parser != null) {
-            final chapterContent = await parser.getChapterContent(
+            content = await parser.getChapterContentMerged(
               widget.filePath!,
               chapter,
+              chapters,
             );
-            content = chapterContent.htmlContent;
           }
         }
       } catch (e) {
@@ -374,6 +400,17 @@ class _ChapterScreenState extends State<ChapterScreen>
         _isLoadingContent = false;
       });
       _checkContentLength();
+      // 新内容渲染后重置滚动到顶部（翻章后新章节从顶部开始阅读）
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_originalScrollController?.hasClients == true) {
+          _originalScrollController!.jumpTo(0);
+        }
+        if (_translationScrollController?.hasClients == true) {
+          _translationScrollController!.jumpTo(0);
+        }
+        _currentScrollAnchor = const ScrollAnchor();
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -381,52 +418,6 @@ class _ChapterScreenState extends State<ChapterScreen>
         _isLoadingContent = false;
       });
     }
-  }
-
-  /// 确保章节摘要存在（加载已有或触发流式生成）
-  Future<void> _ensureSummary() async {
-    if (_content.isEmpty || !_aiService.isConfigured) return;
-
-    _summaryService.registerChapterCallback(widget.bookId, widget.chapterIndex, (content) {
-      if (mounted) setState(() => _streamingSummary = content);
-    });
-
-    setState(() {
-      _isGenerating = true;
-      _streamingSummary = '';
-      _error = null;
-    });
-
-    final plainText = _extractTextContent(_content);
-    final summary = await _summaryService.ensureChapterSummary(
-      widget.bookId, widget.chapterIndex, plainText, _title,
-      language: _summaryLang,
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _summaryChapter = summary;
-      _isGenerating = false;
-      _streamingSummary = '';
-    });
-  }
-
-  /// 从HTML中提取纯文本
-  ///
-  /// 1. 移除所有HTML标签
-  /// 2. 解码HTML实体（&nbsp;, &lt;, &gt;等）
-  /// 用于将HTML内容转换为纯文本供AI处理
-  String _extractTextContent(String html) {
-    // 使用正则表达式移除HTML标签
-    final text = html.replaceAll(RegExp(r'<[^>]+>'), '');
-    // 解码HTML实体
-    return text
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .trim();
   }
 
   /// 获取文件扩展名（包含点，如 .epub）
@@ -441,7 +432,7 @@ class _ChapterScreenState extends State<ChapterScreen>
     ScrollController? controller;
 
     switch (tabIndex) {
-      case 1:
+      case 0:
         controller = _originalScrollController;
         break;
       case 2:
@@ -465,12 +456,12 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// 将共享的滚动锚点恢复到指定Tab
   void _syncScrollToTab(int tabIndex) {
-    if (tabIndex == 0) return;
+    if (tabIndex == 1) return;
 
     ScrollController? controller;
 
     switch (tabIndex) {
-      case 1:
+      case 0:
         controller = _originalScrollController;
         break;
       case 2:
@@ -557,7 +548,7 @@ class _ChapterScreenState extends State<ChapterScreen>
       final contentWithPlaceholders = extractedResult[0] as String;
       final codeBlocks = List<String>.from(extractedResult[1]);
 
-      _summaryService.registerTranslationCallback(widget.bookId, widget.chapterIndex, (content) {
+      _summaryService.registerTranslationCallback(widget.bookId, _currentIndex, (content) {
         if (mounted) {
           _captureScrollAnchor(2);
           setState(() { _streamingTranslation = _restorePlaceholdersToCodeBlocks(content, codeBlocks); });
@@ -569,7 +560,7 @@ class _ChapterScreenState extends State<ChapterScreen>
 
       final translation = await _summaryService.ensureChapterTranslation(
         bookId: widget.bookId,
-        chapterIndex: widget.chapterIndex,
+        chapterIndex: _currentIndex,
         content: contentWithPlaceholders,
         chapterTitle: _title,
         sourceLang: _sourceLang ?? 'zh',
@@ -598,12 +589,10 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.chapterTitle,
+          _title,
           style: const TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: 16,
@@ -612,26 +601,6 @@ class _ChapterScreenState extends State<ChapterScreen>
         ),
         centerTitle: true,
         elevation: 0,
-        actions: [
-          // 生成摘要按钮：仅在以下条件满足时显示
-          // 1. 没有摘要
-          // 2. 没有正在生成
-          // 3. 有内容可用
-          // 4. AI服务已配置
-          if (_summaryChapter == null &&
-              !_isGenerating &&
-              _content.isNotEmpty &&
-              _aiService.isConfigured)
-            TextButton.icon(
-              onPressed: _ensureSummary,
-              icon: const Icon(Icons.auto_awesome, size: 20),
-              label: const Text('生成摘要'),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-              ),
-            ),
-        ],
       ),
       body: Stack(
         children: [
@@ -648,7 +617,7 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 根据状态显示不同视图：
   /// 1. 加载中 -> 加载视图
   /// 2. 有错误且无内容 -> 错误视图
-  /// 3. 其他 -> 带Tab布局的摘要/原文/译文视图（生成中状态在Tab 0内处理）0内显示）
+  /// 3. 其他 -> 带Tab布局的原文/缩写/译文视图
   Widget _buildBody() {
     if (_isLoadingContent) {
       return _buildLoadingView();
@@ -658,7 +627,7 @@ class _ChapterScreenState extends State<ChapterScreen>
       return _buildErrorView();
     }
 
-    // 始终使用Tab布局，生成中/流式/无摘要状态在 Tab 0 内部处理
+    // 始终使用Tab布局，无摘要/有缓存摘要状态在缩写 Tab 内部处理
     return _buildSummaryView();
   }
 
@@ -675,34 +644,6 @@ class _ChapterScreenState extends State<ChapterScreen>
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建生成中视图
-  Widget _buildGeneratingView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(
-            'AI 正在生成摘要...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '这可能需要几秒钟',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
             ),
           ),
         ],
@@ -741,52 +682,45 @@ class _ChapterScreenState extends State<ChapterScreen>
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _ensureSummary,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
           ],
         ),
       ),
     );
   }
 
-  /// 构建摘要/原文视图（垂直Tab布局）
+  /// 构建章节阅读主视图（垂直Tab布局）
   ///
   /// 布局说明：
-  /// - 左侧：垂直Tab栏（摘要/原文切换）
+  /// - 左侧：垂直Tab栏（原文/缩写/译文切换）
   /// - 右侧：TabBarView内容区
   ///
   /// PDF原文阅读功能：
   /// - PDF格式的书籍在原文模式下使用PdfDocumentViewBuilder
   /// - 支持单页PDF查看，配合翻页按钮
   Widget _buildSummaryView() {
-    final bool originalViewDisabled = _contentTooShort ||
-        (!_aiService.isConfigured && _summaryChapter == null);
+    final bool abbreviationDisabled = _contentTooShort;
 
     final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
     final unselectedColor = Colors.grey.withAlpha(80);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Column(
             children: [
-              _buildVerticalTab(0, Icons.auto_awesome,
+              _buildVerticalTab(0, Icons.menu_book,
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor),
               Container(
-                  height: 1, width: 60, color: Colors.grey.withAlpha(100)),
-              _buildVerticalTab(1, Icons.menu_book,
+                  height: 1, width: 44, color: Colors.grey.withAlpha(100)),
+              _buildVerticalTab(1, Icons.auto_awesome,
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor,
-                  disabled: originalViewDisabled),
+                  disabled: abbreviationDisabled),
               Container(
-                  height: 1, width: 60, color: Colors.grey.withAlpha(100)),
+                  height: 1, width: 44, color: Colors.grey.withAlpha(100)),
               _buildVerticalTab(2, Icons.translate,
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor,
@@ -799,8 +733,8 @@ class _ChapterScreenState extends State<ChapterScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildSummaryContent(),
                   _buildOriginalTextView(),
+                  _buildSummaryContent(),
                   _buildTranslationView(),
                 ],
               ),
@@ -824,7 +758,7 @@ class _ChapterScreenState extends State<ChapterScreen>
     return InkWell(
       onTap: disabled ? null : () => _tabController?.animateTo(index),
       child: Container(
-        width: 60,
+        width: 44,
         padding: const EdgeInsets.symmetric(vertical: 12),
         color: isSelected ? selectedColor : unselectedColor,
         child: Icon(
@@ -840,90 +774,44 @@ class _ChapterScreenState extends State<ChapterScreen>
     );
   }
 
-  /// 构建摘要内容视图
+  /// 构建缩写内容视图
   ///
-  /// 将Markdown格式的摘要转换为HTML并渲染
+  /// 将Markdown格式的缩写转换为HTML并渲染
   /// 使用flutter_html组件显示，支持丰富的文本样式
   Widget _buildSummaryContent() {
-    // 如果在生成过程中，显示流式内容
-    if (_isGenerating && _streamingSummary.isNotEmpty) {
-      return _buildStreamingSummaryView();
+    // 章节较短，无需缩写
+    if (_contentTooShort) {
+      return _buildNoAbbreviationView();
     }
 
-    // 如果正在生成但还没有流式内容，在Tab 0内显示加载提示
-    if (_isGenerating && _streamingSummary.isEmpty) {
-      return _buildGeneratingView();
-    }
-
-    // 否则显示正常摘要
-    if (_summaryChapter != null && _summaryChapter!.objectiveSummary != null) {
-      final htmlContent = md.markdownToHtml(_summaryChapter!.objectiveSummary!);
+    // 显示已缓存的缩写
+    if (_summaryChapter != null && _summaryChapter!.abbreviation != null) {
+      final htmlContent = md.markdownToHtml(_summaryChapter!.abbreviation!);
       return _buildNormalSummaryView(htmlContent);
     }
 
-    // 如果都没有，显示空状态
+    // 无缓存缩写，显示空状态
     return _buildEmptySummaryView();
   }
 
-  /// 流式摘要视图
+  /// 章节较短无需缩写视图
   ///
-  /// 显示AI正在生成摘要的过程，实时展示AI生成的内容
-  Widget _buildStreamingSummaryView() {
-    final htmlContent = md.markdownToHtml(_streamingSummary);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: constraints.maxHeight,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Html(
-                    data: htmlContent,
-                    style: _htmlStyle,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTypingIndicator(),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 打字动画指示器
-  Widget _buildTypingIndicator() {
-    return Row(
-      children: [
-        _typingDot(),
-        const SizedBox(width: 4),
-        _typingDot(),
-        const SizedBox(width: 4),
-        _typingDot(),
-      ],
-    );
-  }
-
-  Widget _typingDot() {
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: const BoxDecoration(
-        color: Colors.blue,
-        shape: BoxShape.circle,
+  /// 章节内容不超过一页时显示，提示用户直接阅读原文。
+  Widget _buildNoAbbreviationView() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Text(
+          '章节较短，无需缩写',
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
       ),
     );
   }
 
-  /// 正常摘要视图
+  /// 正常缩写视图
   ///
-  /// 显示已生成的完整摘要内容
+  /// 显示已缓存的完整缩写内容
   Widget _buildNormalSummaryView(String htmlContent) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -950,20 +838,44 @@ class _ChapterScreenState extends State<ChapterScreen>
     );
   }
 
-  /// 空摘要视图
+  /// 空缩写视图
   ///
-  /// 当没有摘要时显示的空状态
+  /// 当没有缩写时显示的空状态
   Widget _buildEmptySummaryView() {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Text(
-          '暂无摘要',
+          '暂无缩写',
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey,
           ),
         ),
+      ),
+    );
+  }
+
+  /// 打字动画指示器（用于译文流式生成时展示）
+  Widget _buildTypingIndicator() {
+    return Row(
+      children: [
+        _typingDot(),
+        const SizedBox(width: 4),
+        _typingDot(),
+        const SizedBox(width: 4),
+        _typingDot(),
+      ],
+    );
+  }
+
+  Widget _typingDot() {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: const BoxDecoration(
+        color: Colors.blue,
+        shape: BoxShape.circle,
       ),
     );
   }
@@ -1012,7 +924,7 @@ class _ChapterScreenState extends State<ChapterScreen>
       return _buildTranslationHtmlView(_translationContent!);
     }
 
-    // 无译文且未生成（翻译启动中）
+    // 无译文（翻译启动中）
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1127,8 +1039,9 @@ class _ChapterScreenState extends State<ChapterScreen>
       // PDF格式：显示单页PDF查看器
       // 获取当前章节信息以确定页码范围
       final currentChapter =
-          _chapters.isNotEmpty ? _chapters[widget.chapterIndex] : null;
-      final startPage = currentChapter?.location.startPage ?? 1;
+          _chapters.isNotEmpty ? _chapters[_currentIndex] : null;
+      // 起始页：优先用传入的初始页码（「阅读」从第 1 页开始），否则用章节起始页
+      final startPage = _initialPage ?? currentChapter?.location.startPage ?? 1;
 
       // 初始化当前页码为章节起始页
       if (_pdfCurrentPage < startPage) {
@@ -1162,44 +1075,15 @@ class _ChapterScreenState extends State<ChapterScreen>
               minHeight: constraints.maxHeight,
             ),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               child: Html(
                 data: _content,
+                // 样式已内联到 HTML（EPUB 的 CSS 与图片已转 data URI），此处仅兜底
+                // 去除 body 额外边距，避免硬编码字号/行距覆盖 EPUB 原有的排版效果。
                 style: {
                   'body': Style(
-                    fontSize: FontSize(16),
-                    lineHeight: const LineHeight(1.8),
                     margin: Margins.zero,
                     padding: HtmlPaddings.zero,
-                  ),
-                  'p': Style(
-                    margin: Margins.only(bottom: 16),
-                    lineHeight: const LineHeight(1.8),
-                  ),
-                  'h1': Style(
-                    fontSize: FontSize(20),
-                    fontWeight: FontWeight.bold,
-                    margin: Margins.only(bottom: 16, top: 24),
-                  ),
-                  'h2': Style(
-                    fontSize: FontSize(18),
-                    fontWeight: FontWeight.bold,
-                    margin: Margins.only(bottom: 14, top: 20),
-                  ),
-                  'h3': Style(
-                    fontSize: FontSize(17),
-                    fontWeight: FontWeight.bold,
-                    margin: Margins.only(bottom: 12, top: 16),
-                  ),
-                  'code': Style(
-                    fontFamily: 'Consolas',
-                    fontSize: FontSize(14),
-                  ),
-                  'pre': Style(
-                    fontFamily: 'Consolas',
-                    fontSize: FontSize(14),
-                    padding: HtmlPaddings.all(8),
-                    margin: Margins.only(bottom: 16),
                   ),
                 },
               ),
@@ -1210,31 +1094,37 @@ class _ChapterScreenState extends State<ChapterScreen>
     );
   }
 
-  /// 导航到指定章节
+  /// 在本页内切换到指定章节（不触发页面路由，避免页面切换动画）
   ///
-  /// 章节导航逻辑：
-  /// - 使用Navigator.pushReplacement替换当前页面
-  /// - 传入新的章节索引和标题
-  /// - 保持文件路径和章节列表不变
+  /// 切换逻辑：
+  /// - 更新当前章节索引与标题
+  /// - 保留当前内容、后台加载新章节内容，加载完成后替换（避免闪动）
+  /// - 重置摘要/译文等状态
   ///
   /// 注意：只导航到第一级章节（level=0）
   void _navigateToChapter(int index) {
     if (index < 0 || index >= _chapters.length) return;
 
-    final chapter = _chapters[index];
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChapterScreen(
-          bookId: widget.bookId,
-          chapterIndex: index,
-          chapterTitle: chapter.title,
-          filePath: widget.filePath,
-          chapters: _chapters,
-          book: widget.book,
-        ),
-      ),
-    );
+    // 注销旧章节的译文回调
+    _summaryService.unregisterTranslationCallback(widget.bookId, _currentIndex);
+
+    _currentIndex = index;
+    _title = _chapters[index].title;
+    _initialPage = null; // 切换章节后不再从第一页开始，改用章节自身页码
+
+    setState(() {
+      // 保留 _content（旧章节内容）直到新内容加载完成，后台加载无闪动
+      _summaryChapter = null;
+      _translationContent = null;
+      _streamingTranslation = '';
+      _isTranslating = false;
+      _error = null;
+      _pdfCurrentPage = 1;
+      _pdfTotalPages = 0;
+    });
+
+    _loadChapterContent();
+    _loadAbbreviation();
   }
 
   /// 构建导航按钮
@@ -1251,16 +1141,16 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// - 结束页：chapter.location.endPage
   Widget _buildNavigationButtons() {
     // 判断边界条件
-    final isFirst = widget.chapterIndex <= 0;
-    final isLast = widget.chapterIndex >= _chapters.length - 1;
+    final isFirst = _currentIndex <= 0;
+    final isLast = _currentIndex >= _chapters.length - 1;
 
 // 判断是否为PDF原文模式
     final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
-    final isPdfOriginalView = isPdf && (_tabController?.index == 1);
+    final isPdfOriginalView = isPdf && (_tabController?.index == 0);
 
     // 计算PDF页码翻页范围（仅PDF原文阅读时有效）
     final currentChapter =
-        _chapters.isNotEmpty ? _chapters[widget.chapterIndex] : null;
+        _chapters.isNotEmpty ? _chapters[_currentIndex] : null;
     final startPage = currentChapter?.location.startPage ?? 1;
     final endPage = currentChapter?.location.endPage ?? startPage;
 
@@ -1276,21 +1166,35 @@ class _ChapterScreenState extends State<ChapterScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // << 上一章按钮
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(76),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              onPressed: isFirst
-                  ? null
-                  : () => _navigateToChapter(widget.chapterIndex - 1),
-              icon: Icon(
-                Icons.keyboard_double_arrow_left,
-                color: isFirst ? Colors.grey.shade600 : Colors.white,
-                size: 28,
+          MouseRegion(
+            onEnter: (_) => setState(() => _hoverPrev = true),
+            onExit: (_) => setState(() => _hoverPrev = false),
+            child: Opacity(
+              opacity: isFirst ? 0.0 : 1.0,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 45),
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(_hoverPrev ? 102 : 51),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    hoverColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                    onPressed: isFirst
+                        ? null
+                        : () => _navigateToChapter(_currentIndex - 1),
+                    icon: Icon(
+                      Icons.keyboard_arrow_left,
+                      color: _hoverPrev
+                          ? Colors.deepOrange.withAlpha(179)
+                          : Colors.white.withAlpha(89),
+                      size: 56,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1343,21 +1247,32 @@ class _ChapterScreenState extends State<ChapterScreen>
           // 空位填充（当不显示翻页按钮时保持布局平衡）
           if (!isPdfOriginalView) const SizedBox(width: 48),
           // >> 下一章按钮
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(76),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              onPressed: isLast
-                  ? null
-                  : () => _navigateToChapter(widget.chapterIndex + 1),
-              icon: Icon(
-                Icons.keyboard_double_arrow_right,
-                color: isLast ? Colors.grey.shade600 : Colors.white,
-                size: 28,
+          MouseRegion(
+            onEnter: (_) => setState(() => _hoverNext = true),
+            onExit: (_) => setState(() => _hoverNext = false),
+            child: Opacity(
+              opacity: isLast ? 0.0 : 1.0,
+              child: Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(_hoverNext ? 102 : 51),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  hoverColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  onPressed: isLast
+                      ? null
+                      : () => _navigateToChapter(_currentIndex + 1),
+                  icon: Icon(
+                    Icons.keyboard_arrow_right,
+                    color: _hoverNext
+                        ? Colors.deepOrange.withAlpha(179)
+                        : Colors.white.withAlpha(89),
+                    size: 56,
+                  ),
+                ),
               ),
             ),
           ),

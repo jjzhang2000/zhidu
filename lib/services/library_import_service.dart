@@ -12,7 +12,7 @@ import 'storage_config.dart';
 ///
 /// 负责 Calibre 书库的后台导入与断点续传：
 /// - 导入在后台异步执行，前台不显示进度
-/// - 每导入 10 本或导入完成时通过 [refreshSignal] 通知首页刷新
+/// - 每导入 50 本或导入完成时通过 [refreshSignal] 通知首页刷新
 /// - 进度持久化到本地文件，程序退出时保存，下次启动自动恢复
 class LibraryImportService {
   LibraryImportService._internal();
@@ -25,11 +25,14 @@ class LibraryImportService {
   final LogService _log = LogService();
   final BookService _bookService = BookService();
 
-  /// 首页刷新信号：每导入 10 本或导入完成时 +1
+  /// 首页刷新信号：每导入 50 本或导入完成时 +1
   final ValueNotifier<int> refreshSignal = ValueNotifier<int>(0);
 
   /// 当前导入任务（null 表示无进行中的任务）
   LibraryImportTask? _currentTask;
+
+  /// 是否正在启动导入（扫描书库阶段），防止重入
+  bool _startingImport = false;
 
   /// 是否正在导入
   bool get isImporting => _currentTask != null;
@@ -63,25 +66,30 @@ class LibraryImportService {
 
   /// 启动书库后台导入
   Future<void> startImport(String libraryPath) async {
-    if (_currentTask != null) {
+    if (_currentTask != null || _startingImport) {
       _log.w('LibraryImportService', '已有导入任务进行中，忽略新的导入请求');
       return;
     }
 
-    final opfFiles = await _bookService.scanCalibreOpfFiles(libraryPath);
-    if (opfFiles.isEmpty) {
-      _log.info('LibraryImportService', '书库无书籍可导入: $libraryPath');
-      return;
-    }
+    _startingImport = true;
+    try {
+      final opfFiles = await _bookService.scanCalibreOpfFiles(libraryPath);
+      if (opfFiles.isEmpty) {
+        _log.info('LibraryImportService', '书库无书籍可导入: $libraryPath');
+        return;
+      }
 
-    _currentTask = LibraryImportTask(
-      libraryPath: libraryPath,
-      pendingOpfFiles: opfFiles,
-      importedCount: 0,
-    );
-    await _saveProgress();
-    _log.info('LibraryImportService', '开始后台导入: ${opfFiles.length} 本');
-    _runImportLoop();
+      _currentTask = LibraryImportTask(
+        libraryPath: libraryPath,
+        pendingOpfFiles: opfFiles,
+        importedCount: 0,
+      );
+      await _saveProgress();
+      _log.info('LibraryImportService', '开始后台导入: ${opfFiles.length} 本');
+      _runImportLoop();
+    } finally {
+      _startingImport = false;
+    }
   }
 
   /// 后台导入循环
@@ -89,28 +97,43 @@ class LibraryImportService {
     final task = _currentTask;
     if (task == null) return;
 
+    // 本次循环实际新增的书数（「已存在跳过」「找不到书文件」不计入）
+    var addedCount = 0;
+
     while (task.pendingOpfFiles.isNotEmpty) {
       final opfPath = task.pendingOpfFiles.first;
+      final booksBefore = _bookService.books.length;
       try {
         await _bookService.importOpfFile(opfPath);
       } catch (e) {
         _log.w('LibraryImportService', '导入失败: $opfPath - $e');
       }
+      final added = _bookService.books.length > booksBefore;
 
       task.pendingOpfFiles.removeAt(0);
       task.importedCount++;
 
-      if (task.importedCount % 10 == 0) {
-        refreshSignal.value++;
+      // 进度持久化：每处理 50 个条目保存一次（断点续传）
+      if (task.importedCount % 50 == 0) {
         await _saveProgress();
+      }
+
+      // 首页刷新：每实际新增 50 本书触发一次
+      if (added) {
+        addedCount++;
+        if (addedCount % 50 == 0) {
+          refreshSignal.value++;
+        }
       }
 
       // 让出事件循环，避免长时间占用导致 UI 卡顿
       await Future<void>.delayed(Duration.zero);
     }
 
-    // 导入完成
-    refreshSignal.value++;
+    // 导入完成：本次有新增书时才触发最终刷新（避免重复导入时空刷）
+    if (addedCount > 0) {
+      refreshSignal.value++;
+    }
     _currentTask = null;
     await _deleteProgress();
     _log.info('LibraryImportService', '导入完成: 共 ${task.importedCount} 本');

@@ -58,9 +58,6 @@
   "apiKey": "API Key",
   "model": "模型",
   "baseUrl": "Base URL",
-  "promptBookChaptersLabel": "章节数：",
-  "promptBookSummary": "{title}|{author}|{chapterSummaries}|{chaptersLine}",
-  "promptChapterSummary": "{chapterTitle}|{content}",
   "promptTranslateHtml": "{content}|{chapterTitle}",
   "librarySettingsTitle": "书库",
   "calibreLibraryLocation": "Calibre书库位置：",
@@ -231,25 +228,6 @@
   },
   "@baseUrl": {
     "description": "基础URL标签"
-  },
-  "@promptBookChaptersLabel": {
-    "description": "提示词-章节数标签"
-  },
-  "@promptBookSummary": {
-    "description": "提示词-全书摘要模板",
-    "placeholders": {
-      "title": { "type": "String" },
-      "author": { "type": "String" },
-      "chapterSummaries": { "type": "String" },
-      "chaptersLine": { "type": "String" }
-    }
-  },
-  "@promptChapterSummary": {
-    "description": "提示词-章节摘要模板",
-    "placeholders": {
-      "chapterTitle": { "type": "String" },
-      "content": { "type": "String" }
-    }
   },
   "@promptTranslateHtml": {
     "description": "提示词-HTML翻译模板",
