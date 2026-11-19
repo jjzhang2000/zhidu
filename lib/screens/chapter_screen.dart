@@ -14,16 +14,20 @@
 // - 译文视图：显示AI生成的章节译文
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:pdfrx/pdfrx.dart';
+import 'package:tategaki/tategaki.dart';
 import '../models/chapter.dart';
 import '../models/book.dart';
 import '../services/ai_service.dart';
 import '../services/summary_service.dart';
 import '../services/parsers/book_format_parser.dart';
+import '../services/parsers/rendered_content.dart';
 import '../services/log_service.dart';
 import '../services/settings_service.dart';
+import '../widgets/paged_reading_view.dart';
 
 /// 滚动位置锚点
 class ScrollAnchor {
@@ -56,6 +60,9 @@ class ChapterScreen extends StatefulWidget {
   final List<Chapter>? chapters;
   final Book? book;
   final String? openingContent;
+  final List<EmbeddedFont>? openingFonts;
+  final bool openingIsVertical;
+  final String openingPlainText;
   final int? initialPage;
 
   const ChapterScreen({
@@ -68,6 +75,9 @@ class ChapterScreen extends StatefulWidget {
     this.chapters,
     this.book,
     this.openingContent,
+    this.openingFonts,
+    this.openingIsVertical = false,
+    this.openingPlainText = '',
     this.initialPage,
   });
 
@@ -97,6 +107,15 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// 章节内容（HTML格式）
   String _content = '';
+
+  /// 是否为竖排排版（writing-mode: vertical-rl/lr）
+  bool _isVertical = false;
+
+  /// 纯文本（段落已换行），供竖排与分页模式复用
+  String _plainText = '';
+
+  /// 是否处于分页阅读模式（仅 EPUB 横排原文可选，默认分页）
+  bool _pagedMode = true;
 
   /// 章节标题（翻章/加载时动态更新）
   String _title = '';
@@ -160,50 +179,11 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 当前共享的滚动锚点（用于Tab间同步）
   ScrollAnchor _currentScrollAnchor = const ScrollAnchor();
 
-  /// 摘要/译文通用的 HTML 渲染样式
-  Map<String, Style> get _htmlStyle => {
-        'body': Style(
-          fontSize: FontSize(14),
-          lineHeight: const LineHeight(1.6),
-          margin: Margins.zero,
-          padding: HtmlPaddings.zero,
-        ),
-        'h2': Style(
-          fontSize: FontSize(15),
-          fontWeight: FontWeight.bold,
-          margin: Margins.only(bottom: 8, top: 16),
-        ),
-        'h3': Style(
-          fontSize: FontSize(14),
-          fontWeight: FontWeight.bold,
-          margin: Margins.only(bottom: 6, top: 12),
-        ),
-        'p': Style(
-          fontSize: FontSize(14),
-          lineHeight: const LineHeight(1.6),
-          margin: Margins.only(bottom: 8),
-        ),
-        'ul': Style(
-          margin: Margins.only(bottom: 8),
-        ),
-        'li': Style(
-          fontSize: FontSize(14),
-          lineHeight: const LineHeight(1.5),
-        ),
-        'strong': Style(
-          fontWeight: FontWeight.bold,
-        ),
-        'code': Style(
-          fontFamily: 'Consolas',
-          fontSize: FontSize(13),
-        ),
-        'pre': Style(
-          fontFamily: 'Consolas',
-          fontSize: FontSize(13),
-          padding: HtmlPaddings.all(8),
-          margin: Margins.only(bottom: 12),
-        ),
-      };
+  /// 摘要/译文/原文通用的正文文本样式
+  static const TextStyle _contentTextStyle = TextStyle(fontSize: 14, height: 1.6);
+
+  /// 已通过 FontLoader 注册的字体家族（避免重复加载）
+  final Set<String> _loadedFontFamilies = {};
 
   @override
   void initState() {
@@ -265,6 +245,9 @@ class _ChapterScreenState extends State<ChapterScreen>
     if (widget.openingContent != null && widget.openingContent!.isNotEmpty) {
       _content = widget.openingContent!;
       _title = widget.chapterTitle;
+      _isVertical = widget.openingIsVertical;
+      _plainText = widget.openingPlainText;
+      _loadEmbeddedFonts(widget.openingFonts ?? const []);
       _checkContentLength();
       if (!mounted) return;
       setState(() => _isLoadingContent = false);
@@ -300,6 +283,21 @@ class _ChapterScreenState extends State<ChapterScreen>
   void _checkContentLength() {
     final textContent = _summaryService.stripHtml(_content);
     _contentTooShort = !_summaryService.shouldAbbreviate(textContent);
+  }
+
+  /// 运行时注册 EPUB 内嵌字体（通过 FontLoader）
+  ///
+  /// 字体家族已注册过则跳过，避免重复加载同一字体。
+  void _loadEmbeddedFonts(List<EmbeddedFont> fonts) {
+    for (final font in fonts) {
+      final family = font.family.trim();
+      if (family.isEmpty || _loadedFontFamilies.contains(family)) continue;
+      _loadedFontFamilies.add(family);
+
+      final loader = FontLoader(family)
+        ..addFont(Future.value(ByteData.view(font.bytes.buffer)));
+      loader.load();
+    }
   }
 
   /// 初始化语言设置
@@ -367,14 +365,14 @@ class _ChapterScreenState extends State<ChapterScreen>
       final chapter = topLevelChapters[_currentIndex];
       _title = chapter.title;
 
-      String? content;
+      RenderedContent? rendered;
       try {
         if (widget.filePath != null) {
           final extension = _getFileExtension(widget.filePath!);
           final parser = FormatRegistry.getParser(extension);
 
           if (parser != null) {
-            content = await parser.getChapterContentMerged(
+            rendered = await parser.getChapterContentMerged(
               widget.filePath!,
               chapter,
               chapters,
@@ -385,7 +383,7 @@ class _ChapterScreenState extends State<ChapterScreen>
         _log.e('ChapterScreen', '获取章节内容失败', e);
       }
 
-      if (content == null || content.isEmpty) {
+      if (rendered == null || rendered.html.isEmpty) {
         if (!mounted) return;
         setState(() {
           _error = '章节内容为空';
@@ -394,9 +392,16 @@ class _ChapterScreenState extends State<ChapterScreen>
         return;
       }
 
+      _loadEmbeddedFonts(rendered.fonts);
+
+      final content = rendered.html;
+      final isVertical = rendered.isVertical;
+      final renderedPlainText = rendered.plainText;
       if (!mounted) return;
       setState(() {
-        _content = content ?? '';
+        _content = content;
+        _isVertical = isVertical;
+        _plainText = renderedPlainText;
         _isLoadingContent = false;
       });
       _checkContentLength();
@@ -777,7 +782,7 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 构建缩写内容视图
   ///
   /// 将Markdown格式的缩写转换为HTML并渲染
-  /// 使用flutter_html组件显示，支持丰富的文本样式
+  /// 使用flutter_widget_from_html_core组件显示，支持丰富的文本样式
   Widget _buildSummaryContent() {
     // 章节较短，无需缩写
     if (_contentTooShort) {
@@ -825,10 +830,7 @@ class _ChapterScreenState extends State<ChapterScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Html(
-                    data: htmlContent,
-                    style: _htmlStyle,
-                  ),
+                  HtmlWidget(htmlContent, textStyle: _contentTextStyle),
                 ],
               ),
             ),
@@ -962,32 +964,7 @@ class _ChapterScreenState extends State<ChapterScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Html(
-                    data: htmlContent,
-                    style: {
-                      'body': Style(
-                        fontSize: FontSize(14),
-                        lineHeight: const LineHeight(1.6),
-                        margin: Margins.zero,
-                        padding: HtmlPaddings.zero,
-                      ),
-                      'p': Style(
-                        fontSize: FontSize(14),
-                        lineHeight: const LineHeight(1.6),
-                        margin: Margins.only(bottom: 8),
-                      ),
-                      'code': Style(
-                        fontFamily: 'Consolas',
-                        fontSize: FontSize(13),
-                      ),
-                      'pre': Style(
-                        fontFamily: 'Consolas',
-                        fontSize: FontSize(13),
-                        padding: HtmlPaddings.all(8),
-                        margin: Margins.only(bottom: 12),
-                      ),
-                    },
-                  ),
+                  HtmlWidget(htmlContent, textStyle: _contentTextStyle),
                   const SizedBox(height: 16),
                   _buildTypingIndicator(),
                 ],
@@ -1014,10 +991,7 @@ class _ChapterScreenState extends State<ChapterScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Html(
-                    data: htmlContent,
-                    style: _htmlStyle,
-                  ),
+                  HtmlWidget(htmlContent, textStyle: _contentTextStyle),
                 ],
               ),
             ),
@@ -1031,7 +1005,7 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 根据书籍格式显示不同的原文内容：
   /// - PDF：使用PdfPageView显示单页PDF，支持翻页
-  /// - EPUB/其他：使用Html组件渲染HTML内容
+  /// - EPUB/其他：使用HtmlWidget组件渲染HTML内容
   Widget _buildOriginalTextView() {
     final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
 
@@ -1065,6 +1039,37 @@ class _ChapterScreenState extends State<ChapterScreen>
       );
     }
 
+// EPUB 竖排：writing-mode: vertical-rl/lr，改用 tategaki 竖排渲染
+    if (_isVertical && _plainText.isNotEmpty) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            controller: _originalScrollController,
+            child: Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                child: VerticalText(
+                  _plainText,
+                  style: const VerticalTextStyle(
+                    baseStyle: TextStyle(fontSize: 18, height: 1.8),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+// EPUB 分页：可选的「分页模式」，纯文本按可用高度切页左右翻页
+    if (_pagedMode && _plainText.isNotEmpty) {
+      return PagedReadingView(
+        text: _plainText,
+        textStyle: _contentTextStyle,
+      );
+    }
+
 // EPUB/其他格式：显示HTML内容（背景由父Container提供）
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1076,17 +1081,9 @@ class _ChapterScreenState extends State<ChapterScreen>
             ),
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Html(
-                data: _content,
-                // 样式已内联到 HTML（EPUB 的 CSS 与图片已转 data URI），此处仅兜底
-                // 去除 body 额外边距，避免硬编码字号/行距覆盖 EPUB 原有的排版效果。
-                style: {
-                  'body': Style(
-                    margin: Margins.zero,
-                    padding: HtmlPaddings.zero,
-                  ),
-                },
-              ),
+              // 样式已内联到 HTML（EPUB 的 CSS 与图片已转 data URI），
+              // textStyle 仅作为无内联样式时的兜底，不影响 EPUB 原有排版。
+              child: HtmlWidget(_content, textStyle: _contentTextStyle),
             ),
           ),
         );

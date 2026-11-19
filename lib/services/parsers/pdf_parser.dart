@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
+import 'rendered_content.dart';
 import '../log_service.dart';
 import '../storage_config.dart';
 
@@ -265,15 +266,17 @@ class PdfParser implements BookFormatParser {
   ///
   /// PDF 章节均为第一级（level==0），无子章节，直接返回该章节内容。
   @override
-  Future<String?> getChapterContentMerged(
+  Future<RenderedContent?> getChapterContentMerged(
       String filePath, Chapter chapter, List<Chapter> allChapters) async {
     final c = await getChapterContent(filePath, chapter);
-    return c.htmlContent;
+    final html = c.htmlContent;
+    if (html == null || html.isEmpty) return null;
+    return RenderedContent(html);
   }
 
   /// PDF 无独立开头 HTML，调用方按页码从第 1 页开始
   @override
-  Future<String?> getOpeningContent(String filePath) async {
+  Future<RenderedContent?> getOpeningContent(String filePath) async {
     return null;
   }
 

@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 类/函数调用关系图
 
-> **文档版本**: v2.17 | **更新日期**: 2026-11-19 | **基于代码版本**: v1.9
+> **文档版本**: v2.18 | **更新日期**: 2026-11-20 | **基于代码版本**: v1.9
 
 ---
 
@@ -125,8 +125,8 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
     │       ├── 封面行「阅读」按钮 → _startReading()
     │       │       ├── [PDF] _openChapter(首章, initialPage: 1)
     │       │       └── [EPUB] FormatRegistry.getParser(ext).getOpeningContent(filePath)
-    │       │               └── 返回首屏 HTML（spine 首文件，内联 CSS/图片、SVG 封面转 <img>）
-    │       │                       ├── 非空 → _openOpening(html) → ChapterScreen(openingContent)
+    │       │               └── 返回 RenderedContent（spine 首文件，经 EpubCssEngine 内联 CSS/图片 + SVG 封面转 <img> + 提取内嵌字体）
+    │       │                       ├── html 非空 → _openOpening(rendered) → ChapterScreen(openingContent + openingFonts + openingIsVertical + openingPlainText)
     │       │                       └── 空 → _openChapter(首章)
     │       └── 点击章节 → _openChapter(chapter) → Navigator.push(ChapterScreen)
     │
@@ -136,7 +136,14 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
             │       ├── 初始化 TabController(3) → 默认 index 0 = 原文
             │       ├── _initializeLanguageSettings()（源语言检测 + 目标语言）
             │       └── _initializeContent()（openingContent / chapterContent / filePath）
+            │               ├── _loadEmbeddedFonts()（EPUB 内嵌字体经 FontLoader 注册）
             │               └── _checkContentLength()（内容过短置灰缩写 Tab）
+            │
+            ├── 原文 Tab 渲染（_buildOriginalTextView）
+            │       ├── [PDF] PdfReaderScreen 单页查看器（initialPage）
+            │       ├── [竖排] VerticalText（tategaki，writing-mode: vertical-rl/lr）
+            │       ├── [分页] PagedReadingView（纯文本 TextPainter 切页，默认模式）
+            │       └── [滚动] HtmlWidget（flutter_widget_from_html_core）
             │
             ├── 缩写 Tab → _loadAbbreviation()（仅读缓存，不生成、不调用 AI）
             │       └── SummaryService.getChapterAbbreviation()
@@ -146,7 +153,7 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
             │
             └── 翻章（上一章/下一章）→ _navigateToChapter()（原地渲染，不触发路由）
                     ├── 更新 _currentIndex/_title，保留旧内容后台加载
-                    ├── _loadChapterContent()（复用 _chapters，无需重复解析）
+                    ├── _loadChapterContent() → getChapterContentMerged() → RenderedContent（复用 _chapters，无需重复解析）
                     └── _loadAbbreviation()（读取新章节缓存缩写）
 ```
 
@@ -291,8 +298,9 @@ ZhiduApp (MaterialApp)
 
 ```
 BookService         → Book, Chapter
-EpubParser          → BookMetadata, Chapter
-PdfParser           → BookMetadata, Chapter
+EpubParser          → BookMetadata, Chapter, RenderedContent
+EpubCssEngine       → RenderedContent, EmbeddedFont
+PdfParser           → BookMetadata, Chapter, RenderedContent
 AIService           → AiPrompts, AiSettings (直接使用 AppSettings 中的 AiSettings)
 SummaryService      → Chapter (通过abbr-XXX-lang.md存储缩写、chapter-XXX-lang.html存储译文)
 SettingsService     → AppSettings, AiSettings, ThemeSettings, LanguageSettings, BookSortType
@@ -398,6 +406,16 @@ SummaryService.getChapterAbbreviation()
 │                                                                    │
 │  BookMetadata (定义在 book_format_parser.dart)                    │
 │  - title / author / totalChapters / coverPath? / language?        │
+│                                                                    │
+│  RenderedContent (定义在 rendered_content.dart)                    │
+│  - html: String                                                    │
+│  - fonts: List<EmbeddedFont>                                       │
+│  - isVertical: bool                                                │
+│  - plainText: String                                               │
+│                                                                    │
+│  EmbeddedFont (定义在 rendered_content.dart)                       │
+│  - family: String                                                  │
+│  - bytes: List<int>                                                │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -464,10 +482,19 @@ SummaryService.getChapterAbbreviation()
 │  + parseMetadata()           + extractBasicMetadata()            │
 │  + extractBasicMetadata()    + getChapters()   + extractBasicMetadata()│
 │  + getChapters()             + getChapterContent()               │
-│  + getChapterContent()       + getOpeningContent()               │
+│  + getChapterContent()       + getChapterContentMerged()         │
+│  + getChapterContentMerged() + getOpeningContent()               │
 │  + getOpeningContent()                        + getChapters()    │
 │                                    + getChapterContent()         │
+│                                    + getChapterContentMerged()   │
 │                                    + getOpeningContent()         │
+│  返回 RenderedContent? 的接口:                                     │
+│   getChapterContentMerged / getOpeningContent                    │
+│                                                                  │
+│  EpubCssEngine (CSS 内联引擎)                                      │
+│  ────────────────                                                 │
+│  + render(chapterHtml) → RenderedContent                         │
+│  （csslib 解析 + cascadia 选择器匹配 + 字体提取 + 图片内联）          │
 │                                                                  │
 │  FormatRegistry                                                   │
 │  ──────────────                                                   │
@@ -488,9 +515,16 @@ SummaryService.getChapterAbbreviation()
 │                           - FormatRegistry      - AIService      │
 │  + _importBook()          + _updateLastReadAt() + _initializeContent()│
 │  + _sortedBooks()         + _loadChapters()     + _loadChapterContent()│
-│  + _buildEmptyState()     + _startReading()     + _loadAbbreviation()│
-│  + _buildBookGrid()       + _openOpening()      + _ensureTranslation()│
-│                           + _openChapter()      + _navigateToChapter()│
+│  + _buildEmptyState()     + _startReading()     + _loadEmbeddedFonts()│
+│  + _buildBookGrid()       + _openOpening()      + _loadAbbreviation()│
+│                           + _openChapter()      + _ensureTranslation()│
+│                                                 + _buildOriginalTextView()│
+│                                                 + _navigateToChapter()│
+│                                                                    │
+│  可复用组件 (lib/widgets/)                                          │
+│  ────────────────                                                 │
+│  PagedReadingView（分页阅读：TextPainter 切页 + PageView）          │
+│  依赖: HtmlWidget(flutter_widget_from_html_core) / VerticalText(tategaki)│
 │                                                                    │
 │  SettingsScreen           AiConfigScreen        PdfReaderScreen  │
 │  ──────────────           ──────────────        ─────────────── │
@@ -508,6 +542,7 @@ SummaryService.getChapterAbbreviation()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-20 | EPUB 显示能力改进 — ① 渲染器替换：`flutter_html` → `flutter_widget_from_html_core`（`HtmlWidget`），CSS 内联重写为 `EpubCssEngine`（csslib 解析 + cascadia 选择器匹配 + !important/特异性/源顺序级联）；② 字体嵌入：`@font-face` 提取 + SHA-1 反混淆 + `FontLoader` 运行时注册；③ 图片完善：`background-image` 转 data URI、SVG 封面转 `<img>`、保留尺寸；④ 竖排：检测 `writing-mode: vertical-rl/lr`，用 `tategaki` 的 `VerticalText` 渲染；⑤ 分页阅读：新增 `PagedReadingView`（TextPainter 切页 + PageView），设为 EPUB 横排原文默认模式（滚动为可选，切换入口后续放设置项）。`BookFormatParser.getChapterContentMerged`/`getOpeningContent` 返回值改为 `RenderedContent`（html + fonts + isVertical + plainText），新增 `RenderedContent`/`EmbeddedFont` 模型 |
 | 2026-11-19 | 阅读/章节页重构 — ① 删除 AI 缩写预处理与生成：SummaryService 删除 `generateSingleSummary`/`generateSummariesForBook`/`_generateBookSummaryFromChapters`/`Semaphore`/`registerBookStreamingCallback`/`init`/`dispose`，保留译文生成与缩写/译文读写缓存；BookScreen 删除后台预生成 `_startPreGeneration` 与全书摘要 Tab；ChapterScreen 删除「生成缩写」按钮与 `_ensureAbbreviation`，缩写改为 `_loadAbbreviation` 仅读缓存。② 阅读按钮跳转第一页：`BookFormatParser` 新增 `getOpeningContent`，`EpubParser` 实现（spine 首文件 + CSS/图片内联 + SVG 封面转 `<img>`），`PdfParser` 返回 null。③ 章节 Tab 重排为 原文/缩写/译文 且默认进入原文。④ 翻章改为原地渲染 `_navigateToChapter`（不再 `Navigator.pushReplacement`），保留旧内容后台加载无闪动、滚动重置到顶部。⑤ 翻页按钮样式（放大、透明度、悬停变色、单箭头图标） |
 | 2026-11-18 | 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断书籍 `filePath` 是否位于应用存储目录，非本地（如 Calibre 书库）则复制到 `books/{bookId}/book{ext}` 并更新 `filePath` 持久化；`BookScreen._loadChapters()` 解析前先调用，后续解析使用本地副本 |
 | 2026-11-17 | 书架排序返回刷新 — `BookCard` 新增 `onOpened` 回调，从书籍详情返回时若排序为「最近阅读时间」则刷新书架重排（`_openBook` 返回后经回调通知 `_HomeScreenState`，仅 `_sortType == BookSortType.lastRead` 时 `setState`） |

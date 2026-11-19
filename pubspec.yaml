@@ -25,9 +25,17 @@ dependencies:
   # HTML解析
   html: ^0.15.6
 
+  # CSS解析与选择器
+  csslib: ^1.0.2
+  cascadia: ^0.8.0
+  crypto: ^3.0.3
+
   # UI组件
-  flutter_html: ^3.0.0-beta.2
+  flutter_widget_from_html_core: ^0.17.4
   markdown: ^7.2.1
+
+  # 竖排文字（writing-mode: vertical-rl）
+  tategaki: ^0.6.4
   
   # 工具库
   uuid: ^4.2.1

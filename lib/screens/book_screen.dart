@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../services/parsers/book_format_parser.dart';
+import '../services/parsers/rendered_content.dart';
 import '../models/chapter.dart';
 import '../services/log_service.dart';
 import 'chapter_screen.dart';
@@ -290,7 +291,7 @@ class _BookScreenState extends State<BookScreen> {
     final opening = parser == null ? null : await parser.getOpeningContent(_book.filePath);
 
     if (!mounted) return;
-    if (opening != null && opening.isNotEmpty) {
+    if (opening != null && opening.html.isNotEmpty) {
       _openOpening(opening);
     } else {
       _openChapter(_flatChapters.first);
@@ -298,7 +299,7 @@ class _BookScreenState extends State<BookScreen> {
   }
 
   /// 打开书籍第一页（开头内容，如 EPUB 标题页）
-  void _openOpening(String openingContent) {
+  void _openOpening(RenderedContent opening) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -309,7 +310,10 @@ class _BookScreenState extends State<BookScreen> {
           filePath: _book.filePath,
           chapters: _flatChapters,
           book: _book,
-          openingContent: openingContent,
+          openingContent: opening.html,
+          openingFonts: opening.fonts,
+          openingIsVertical: opening.isVertical,
+          openingPlainText: opening.plainText,
         ),
       ),
     );

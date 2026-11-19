@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.10 | **更新日期**: 2026-11-19
+> **文档版本**: v2.11 | **更新日期**: 2026-11-20
 
 ---
 
@@ -166,8 +166,8 @@ flowchart TD
         BS_INIT --> EL["_loadChapters() → ensureBookFileLocal() → getChapters()"]
         READ["阅读按钮 → _startReading()"]
         READ --> |"PDF"| OPEN1["_openChapter(首章, initialPage:1)"]
-        READ --> |"EPUB"| OPEN2["getOpeningContent() → 首屏HTML"]
-        OPEN2 --> |"非空"| OPEN3["_openOpening(html)"]
+        READ --> |"EPUB"| OPEN2["getOpeningContent() → RenderedContent"]
+        OPEN2 --> |"html 非空"| OPEN3["_openOpening(rendered) → ChapterScreen(openingContent+fonts+isVertical+plainText)"]
         OPEN2 --> |"空"| OPEN1
         CHAPTER_LIST["章节列表"] --> |"点击章节"| CHAPTER_SCREEN["Navigator.push(ChapterScreen)"]
     end
@@ -175,6 +175,10 @@ flowchart TD
     subgraph "ChapterScreen 章节阅读页"
         CS_INIT["initState()"] --> TAB["垂直Tab: 原文(0) | 缩写(1) | 译文(2)"]
         TAB_ORIG["原文Tab（默认）"]
+        TAB_ORIG --> |"PDF"| ORIG_PDF["PdfReaderScreen 单页"]
+        TAB_ORIG --> |"竖排"| ORIG_VERT["VerticalText(tategaki)"]
+        TAB_ORIG --> |"分页(默认)"| ORIG_PAGE["PagedReadingView(TextPainter切页)"]
+        TAB_ORIG --> |"滚动"| ORIG_SCROLL["HtmlWidget(fwfh_core)"]
         TAB_ABBR["缩写Tab → _loadAbbreviation() → getChapterAbbreviation() 读缓存"]
         TAB_TRANS["译文Tab → _ensureTranslation() → ensureChapterTranslation()"]
         NAV["上一章/下一章 → _navigateToChapter() 原地渲染"]
@@ -439,6 +443,8 @@ classDiagram
         +extractBasicMetadata(filePath, bookId) BookMetadata?
         +getChapters(filePath) List~Chapter~
         +getChapterContent(filePath, chapter) Chapter
+        +getChapterContentMerged(filePath, chapter, chapters) RenderedContent?
+        +getOpeningContent(filePath) RenderedContent?
     }
 
     class EpubParser {
@@ -446,6 +452,12 @@ classDiagram
         +extractBasicMetadata()
         +getChapters()
         +getChapterContent()
+        +getChapterContentMerged()
+        +getOpeningContent()
+    }
+
+    class EpubCssEngine {
+        +render(chapterHtml) RenderedContent
     }
 
     class PdfParser {
@@ -453,6 +465,15 @@ classDiagram
         +extractBasicMetadata()
         +getChapters()
         +getChapterContent()
+        +getChapterContentMerged()
+        +getOpeningContent()
+    }
+
+    class RenderedContent {
+        +html: String
+        +fonts: List~EmbeddedFont~
+        +isVertical: bool
+        +plainText: String
     }
 
     class FormatRegistry {
@@ -469,6 +490,8 @@ classDiagram
     FormatRegistry ..> BookFormatParser : stores
     FormatRegistry --> EpubParser : creates
     FormatRegistry --> PdfParser : creates
+    EpubParser --> EpubCssEngine : uses
+    EpubCssEngine --> RenderedContent : returns
 ```
 
 ---
@@ -535,6 +558,7 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-20 | EPUB 显示能力改进 — 渲染器替换 `flutter_html` → `flutter_widget_from_html_core`（`HtmlWidget`）；CSS 内联重写为 `EpubCssEngine`（csslib + cascadia + 特异性级联）；`@font-face` 字体嵌入（SHA-1 反混淆 + `FontLoader`）；图片内联（background-image/SVG）；竖排 `VerticalText`（tategaki）；分页阅读 `PagedReadingView`（TextPainter 切页，默认模式）；`getChapterContentMerged`/`getOpeningContent` 返回值改为 `RenderedContent`，新增 `RenderedContent`/`EmbeddedFont` 模型 |
 | 2026-11-19 | 阅读/章节页重构 — 删除 AI 缩写预处理与全书摘要；`BookFormatParser` 新增 `getOpeningContent()`（阅读按钮直达第一页）；`ChapterScreen` 删除「生成缩写」按钮、缩写改为 `_loadAbbreviation` 仅读缓存；章节 Tab 重排为 原文/缩写/译文；翻章改为原地渲染 `_navigateToChapter()`（保留旧内容后台加载无闪动）；翻页按钮样式调整 |
 | 2026-11-18 | 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断 `filePath` 是否在应用目录，非本地复制到 `books/{bookId}/book{ext}` 并更新持久化；`BookScreen._loadChapters()` 解析前调用 |
 | 2026-11-17 | 书架排序功能 — 新增 `BookSortType` 枚举（7 种排序）；`SettingsService` 新增 `bookshelfSortType` ValueNotifier + `setBookshelfSortType()`；HomeScreen 新增排序按钮，`_sortedBooks()` 按排序方式排序并持久化 |

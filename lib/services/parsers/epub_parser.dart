@@ -9,6 +9,8 @@ import 'package:xml/xml.dart';
 
 import '../../models/chapter.dart';
 import 'book_format_parser.dart';
+import 'epub_css_engine.dart';
+import 'rendered_content.dart';
 import '../log_service.dart';
 import '../storage_config.dart';
 
@@ -564,7 +566,7 @@ class EpubParser implements BookFormatParser {
   /// 阅读与缩写应以第一级章节为最小单位，因此这里将顶层章节与其后连续的
   /// 子章节（level>0）内容按目录顺序合并，避免把子章节拆成独立片段。
   @override
-  Future<String?> getChapterContentMerged(
+  Future<RenderedContent?> getChapterContentMerged(
       String filePath, Chapter chapter, List<Chapter> allChapters) async {
     final file = File(filePath);
     if (!await file.exists()) {
@@ -632,7 +634,7 @@ class EpubParser implements BookFormatParser {
   /// 解析 content.opf 的 spine 顺序，取第一个内容文档（如标题页）的完整 HTML，
   /// 并内联 CSS 与图片（与章节内容一致的处理）。无开头页时返回 null。
   @override
-  Future<String?> getOpeningContent(String filePath) async {
+  Future<RenderedContent?> getOpeningContent(String filePath) async {
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('EpubParser', '文件不存在：$filePath');
@@ -958,7 +960,7 @@ class EpubParser implements BookFormatParser {
             }
           }
 
-          return _inlineCssAndImages(archive, result);
+          return _inlineCssAndImages(archive, result).html;
         }
       }
 
@@ -973,152 +975,43 @@ class EpubParser implements BookFormatParser {
   /// 将章节 HTML 处理为自包含内容：内联 EPUB CSS、图片转 base64、移除 link/style
   ///
   /// EPUB 正文的样式通常依赖外部 CSS 文件与内部图片资源，直接渲染原始 HTML
-  /// 会丢失排版效果。这里将 CSS 规则内联到元素的 style 属性、图片转为 data URI，
-  /// 使渲染层（flutter_html）能完整还原各种效果。
-  String _inlineCssAndImages(Archive archive, String html) {
-    try {
-      final document = html_parser.parse(html);
+  /// 会丢失排版效果。这里交给 [EpubCssEngine] 完成 CSS 级联内联、图片转 data URI，
+  /// 并提取 @font-face 字体，使渲染层（flutter_widget_from_html）能完整还原排版。
+  RenderedContent _inlineCssAndImages(Archive archive, String html) {
+    return EpubCssEngine(archive, identifier: _readUniqueIdentifier(archive))
+        .render(html);
+  }
 
-      // 1. 收集所有 CSS：EPUB 内全部 .css 文件 + 当前 HTML 的 <style> 块
-      final cssBuffer = StringBuffer();
+  /// 读取 OPF 中由 package 的 unique-identifier 指定的 dc:identifier，
+  /// 用于 IDPF 字体混淆的反混淆。
+  String _readUniqueIdentifier(Archive archive) {
+    try {
       for (final f in archive.files) {
-        if (f.name.toLowerCase().endsWith('.css')) {
-          cssBuffer.writeln(utf8.decode(f.content as List<int>));
-        }
-      }
-      for (final styleEl in document.querySelectorAll('style')) {
-        cssBuffer.writeln(styleEl.text);
-      }
+        if (!f.name.toLowerCase().endsWith('.opf')) continue;
+        final document = XmlDocument.parse(utf8.decode(f.content as List<int>));
 
-      // 2. 内联 CSS 到匹配元素（保持源顺序，后定义规则覆盖先定义）
-      for (final rule in _parseCssRules(cssBuffer.toString())) {
-        for (final sel in _splitSelectors(rule.key)) {
-          try {
-            for (final el in document.querySelectorAll(sel)) {
-              final existing = el.attributes['style'];
-              el.attributes['style'] = (existing == null || existing.isEmpty)
-                  ? rule.value
-                  : '$existing; ${rule.value}';
-            }
-          } catch (_) {
-            // 忽略不支持的复杂选择器
-          }
+        String? uniqueId;
+        for (final packageEl in document.findAllElements('package')) {
+          uniqueId = packageEl.getAttribute('unique-identifier');
+          if (uniqueId != null) break;
         }
-      }
 
-      // 3. 图片 src 转 base64 data URI
-      for (final img in document.querySelectorAll('img')) {
-        final src = img.attributes['src'];
-        if (src == null || src.isEmpty || src.startsWith('data:')) continue;
-        final dataUri = _resolveImageDataUri(archive, src);
-        if (dataUri != null) {
-          img.attributes['src'] = dataUri;
-        }
-      }
-
-      // 3.1 SVG 内嵌图片（如 Calibre 封面 <svg><image xlink:href="cover.jpg"/></svg>）
-      // flutter_html 无法渲染 SVG，将含图片的 <svg> 转为 <img> 以显示封面/插图。
-      for (final svg in document.querySelectorAll('svg')) {
-        final image = svg.querySelector('image');
-        String? href;
-        if (image != null) {
-          // xlink:href 为命名空间属性，package:html 以 AttributeName 作为 key，
-          // 无法用字符串直接索引，需遍历匹配。
-          for (final entry in image.attributes.entries) {
-            final key = entry.key.toString();
-            if (key == 'xlink:href' || key == 'href') {
-              href = entry.value;
-              break;
+        final identifiers = document.findAllElements('dc:identifier');
+        if (uniqueId != null) {
+          for (final idEl in identifiers) {
+            if (idEl.getAttribute('id') == uniqueId) {
+              return idEl.innerText.trim();
             }
           }
         }
-        if (href == null || href.isEmpty || href.startsWith('data:')) continue;
-        final dataUri = _resolveImageDataUri(archive, href);
-        if (dataUri == null) continue;
-
-        final replacement = document.createElement('img');
-        replacement.attributes['src'] = dataUri;
-        replacement.attributes['alt'] = '';
-        replacement.attributes['style'] = 'width:100%;height:auto;';
-        svg.replaceWith(replacement);
+        if (identifiers.isNotEmpty) {
+          return identifiers.first.innerText.trim();
+        }
       }
-
-      // 4. 移除 link/style 标签（CSS 已内联，避免无效渲染）
-      for (final el in document.querySelectorAll('link')) {
-        el.remove();
-      }
-      for (final el in document.querySelectorAll('style')) {
-        el.remove();
-      }
-
-      return document.body?.innerHtml ?? html;
-    } catch (e) {
-      _log.w('EpubParser', '内联 CSS/图片失败，返回原文: $e');
-      return html;
-    }
-  }
-
-  /// 按文件名在 archive 中查找图片并返回 data URI，找不到返回 null
-  String? _resolveImageDataUri(Archive archive, String src) {
-    // EPUB 中图片 src 常含 URL 编码（如空格 %20），需先解码再按文件名匹配
-    final rawName = src.split('/').last.split('\\').last;
-    final targetName = _urlDecode(rawName);
-    final targetLower = targetName.toLowerCase();
-    ArchiveFile? match;
-    for (final f in archive.files) {
-      final nameLower = f.name.toLowerCase();
-      if (nameLower == targetLower || nameLower.endsWith('/$targetLower')) {
-        match = f;
-        break;
-      }
-    }
-    if (match == null) return null;
-    return 'data:${_mimeFromName(targetName)};base64,'
-        '${base64Encode(match.content as List<int>)}';
-  }
-
-  /// 解析 CSS 文本为规则列表（key=选择器组，value=声明块）
-  List<MapEntry<String, String>> _parseCssRules(String css) {
-    final rules = <MapEntry<String, String>>[];
-    final noComments = css.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
-    for (final block in noComments.split('}')) {
-      final braceIndex = block.indexOf('{');
-      if (braceIndex < 0) continue;
-      final selector = block.substring(0, braceIndex).trim();
-      final declarations = block.substring(braceIndex + 1).trim();
-      if (selector.isEmpty || declarations.isEmpty) continue;
-      if (selector.startsWith('@')) continue; // 跳过 @media/@page/@font-face 等
-      rules.add(MapEntry(selector, declarations));
-    }
-    return rules;
-  }
-
-  /// 将逗号分隔的选择器组拆分为单个选择器
-  List<String> _splitSelectors(String selector) {
-    return selector
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-  }
-
-  /// URL 解码（如空格 %20、中文 %E4%B8%AD），解码失败时返回原文
-  String _urlDecode(String s) {
-    try {
-      return Uri.decodeComponent(s);
     } catch (_) {
-      return s;
+      // 忽略，无标识符时跳过字体反混淆
     }
-  }
-
-  /// 根据文件名扩展名推断图片 MIME 类型
-  String _mimeFromName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.gif')) return 'image/gif';
-    if (lower.endsWith('.svg')) return 'image/svg+xml';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    return 'image/jpeg';
+    return '';
   }
 
   /// 提取 HTML 的 body 内容（无 body 时返回原文）

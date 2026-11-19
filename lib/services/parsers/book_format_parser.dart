@@ -1,4 +1,5 @@
 import '../../models/chapter.dart';
+import 'rendered_content.dart';
 
 /// 书籍元数据解析结果（parseMetadata 返回值）
 ///
@@ -53,7 +54,7 @@ abstract class BookFormatParser {
   ///
   /// EPUB 等多级目录格式需覆盖此方法，将顶层章节（level==0）与其后连续的
   /// 子章节合并为一段完整内容；无子章节的格式（如 PDF）直接返回该章节内容。
-  Future<String?> getChapterContentMerged(
+  Future<RenderedContent?> getChapterContentMerged(
       String filePath, Chapter chapter, List<Chapter> allChapters);
 
   /// 获取书籍第一页（开头）的 HTML 内容
@@ -61,7 +62,7 @@ abstract class BookFormatParser {
   /// 用于「阅读」按钮从书籍开头开始阅读。EPUB 返回首个 spine 内容文档（如
   /// 标题页）的 HTML；无独立开头页的格式（如 PDF）返回 null，由调用方按
   /// 页码从第 1 页开始。
-  Future<String?> getOpeningContent(String filePath);
+  Future<RenderedContent?> getOpeningContent(String filePath);
 }
 
 /// 文件格式解析器注册表（注册表模式）
