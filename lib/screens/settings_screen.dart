@@ -10,15 +10,8 @@ import 'ai_config_screen.dart';
 
 /// 设置页面 - 应用各项配置入口
 ///
-/// 功能模块：
-/// 1. AI配置：AI服务提供商、API密钥、模型等参数设置
-/// 2. 外观设置：主题模式、界面语言等
-/// 3. 关于：应用信息、版本等
-///
-/// 设计特点：
-/// - 使用卡片面板组织不同设置类别
-/// - 实时显示设置状态（如AI配置状态、主题模式等）
-/// - 响应式UI更新（设置变更后自动刷新显示）
+/// 区块顺序：AI、主题、语言、书库、关于。
+/// 设置项直接内联，修改后即时生效并自动保存。
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -159,25 +152,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListenableBuilder(
           listenable: SettingsService().themeMode,
           builder: (context, _) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildThemeOption(
-                  mode: ThemeMode.system,
-                  title: loc.themeModeSystem,
-                  subtitle: loc.themeModeSystemSubtitle,
-                ),
-                _buildThemeOption(
-                  mode: ThemeMode.light,
-                  title: loc.themeModeLight,
-                  subtitle: loc.themeModeLightSubtitle,
-                ),
-                _buildThemeOption(
-                  mode: ThemeMode.dark,
-                  title: loc.themeModeDark,
-                  subtitle: loc.themeModeDarkSubtitle,
-                ),
-              ],
+            return RadioGroup<ThemeMode>(
+              groupValue: SettingsService().themeMode.value,
+              onChanged: (mode) {
+                if (mode != null) {
+                  SettingsService().setThemeMode(mode);
+                }
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildThemeOption(
+                    mode: ThemeMode.system,
+                    title: loc.themeModeSystem,
+                    subtitle: loc.themeModeSystemSubtitle,
+                  ),
+                  _buildThemeOption(
+                    mode: ThemeMode.light,
+                    title: loc.themeModeLight,
+                    subtitle: loc.themeModeLightSubtitle,
+                  ),
+                  _buildThemeOption(
+                    mode: ThemeMode.dark,
+                    title: loc.themeModeDark,
+                    subtitle: loc.themeModeDarkSubtitle,
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -194,38 +195,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
           listenable: SettingsService().languageSettings,
           builder: (context, _) {
             final settings = SettingsService().languageSettings.value;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                RadioListTile<String>(
-                  value: 'system',
-                  groupValue: settings.languageMode,
-                  onChanged: (value) {
-                    if (value != null) _updateLanguageMode(value);
-                  },
-                  title: Text(loc.languageModeFollowSystem),
-                  subtitle: Text(loc.languageModeSystemSubtitle),
-                  activeColor: Theme.of(context).colorScheme.primary,
-                ),
-                RadioListTile<String>(
-                  value: 'manual',
-                  groupValue: settings.languageMode,
-                  onChanged: (value) {
-                    if (value != null) _updateLanguageMode(value);
-                  },
-                  title: Text(loc.languageModeManualSelect),
-                  subtitle: Text(loc.languageModeManualSubtitle),
-                  activeColor: Theme.of(context).colorScheme.primary,
-                ),
-                if (settings.languageMode == 'manual')
-                  _buildLanguageSelector(
-                    title: loc.selectLanguage,
-                    value: settings.language,
-                    onChanged: (value) {
-                      if (value != null) _updateLanguage(value);
-                    },
+            return RadioGroup<String>(
+              groupValue: settings.languageMode,
+              onChanged: (value) {
+                if (value != null) _updateLanguageMode(value);
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RadioListTile<String>(
+                    value: 'system',
+                    title: Text(loc.languageModeFollowSystem),
+                    subtitle: Text(loc.languageModeSystemSubtitle),
+                    activeColor: Theme.of(context).colorScheme.primary,
                   ),
-              ],
+                  RadioListTile<String>(
+                    value: 'manual',
+                    title: Text(loc.languageModeManualSelect),
+                    subtitle: Text(loc.languageModeManualSubtitle),
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
+                  if (settings.languageMode == 'manual')
+                    _buildLanguageSelector(
+                      title: loc.selectLanguage,
+                      value: settings.language,
+                      onChanged: (value) {
+                        if (value != null) _updateLanguage(value);
+                      },
+                    ),
+                ],
+              ),
             );
           },
         ),
@@ -263,7 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 8.0),
               DropdownButtonFormField<String>(
-                value: languages.any((l) => l.$1 == value) ? value : 'zh',
+                initialValue: languages.any((l) => l.$1 == value) ? value : 'zh',
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   contentPadding:
@@ -311,12 +310,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return RadioListTile<ThemeMode>(
       value: mode,
-      groupValue: SettingsService().themeMode.value,
-      onChanged: (selectedMode) {
-        if (selectedMode != null) {
-          SettingsService().setThemeMode(selectedMode);
-        }
-      },
       title: Text(title),
       subtitle: Text(subtitle),
       activeColor: Theme.of(context).colorScheme.primary,

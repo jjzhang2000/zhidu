@@ -55,7 +55,6 @@ class AppTheme {
       // 从主色调生成完整的颜色方案
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryColor,
-        brightness: Brightness.light,
       ),
       // 页面背景色
       scaffoldBackgroundColor: backgroundColor,

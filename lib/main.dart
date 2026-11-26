@@ -151,7 +151,7 @@ class _ZhiduAppState extends State<ZhiduApp> with WindowListener {
     final languageSettings = _settingsService.settings.languageSettings;
     final String languageCode = languageSettings.languageMode == 'manual'
         ? languageSettings.language
-        : WidgetsBinding.instance.window.locale.languageCode;
+        : WidgetsBinding.instance.platformDispatcher.locale.languageCode;
 
     final Locale newLocale = switch (languageCode) {
       'en' => const Locale('en', 'US'),

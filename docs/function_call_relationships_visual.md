@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.11 | **更新日期**: 2026-11-20
+> **文档版本**: v2.12 | **更新日期**: 2026-11-21
 
 ---
 
@@ -47,7 +47,6 @@ graph TB
         HS["HomeScreen"]
         BKS["BookScreen"]
         CHS["ChapterScreen"]
-        PDS["PdfReaderScreen"]
         ST["SettingsScreen"]
         AIC["AiConfigScreen"]
     end
@@ -100,9 +99,6 @@ graph TB
     CHS --> BS
     CHS --> AS
     CHS --> SuS
-
-    PDS --> BS
-    PDS --> PP
 
     ST --> AIC
     ST --> THS
@@ -175,13 +171,13 @@ flowchart TD
     subgraph "ChapterScreen 章节阅读页"
         CS_INIT["initState()"] --> TAB["垂直Tab: 原文(0) | 缩写(1) | 译文(2)"]
         TAB_ORIG["原文Tab（默认）"]
-        TAB_ORIG --> |"PDF"| ORIG_PDF["PdfReaderScreen 单页"]
+        TAB_ORIG --> |"PDF"| ORIG_PDF["PdfDocumentViewBuilder 单页"]
         TAB_ORIG --> |"竖排"| ORIG_VERT["VerticalText(tategaki)"]
-        TAB_ORIG --> |"分页(默认)"| ORIG_PAGE["PagedReadingView(TextPainter切页)"]
+        TAB_ORIG --> |"分页(默认)"| ORIG_PAGE["PagedReadingView(HTML块级切分+HtmlWidget)"]
         TAB_ORIG --> |"滚动"| ORIG_SCROLL["HtmlWidget(fwfh_core)"]
         TAB_ABBR["缩写Tab → _loadAbbreviation() → getChapterAbbreviation() 读缓存"]
         TAB_TRANS["译文Tab → _ensureTranslation() → ensureChapterTranslation()"]
-        NAV["上一章/下一章 → _navigateToChapter() 原地渲染"]
+        NAV["翻页入口统一(按钮/点击/键盘/滑动) → onPrevChapter/onNextChapter 跨章 → _navigateToChapter() 原地渲染，startAtLastPage 时 _finalizePosition() 定位末页避免闪动"]
 
         TAB_TRANS --> TRANS["generateTranslationStream() → AIService.translateContent()"]
         TRANS --> |"SSE流式"| TRANS_UI["UI实时显示译文"]
@@ -558,6 +554,7 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-21 | 分页阅读翻页导航完善 — 修复跨章闪动（`_pageViewHidden` + `_finalizePosition()` 分页稳定后定位目标页）；翻页入口统一（`PagedReadingView` 新增 `onPrevChapter`/`onNextChapter`，点击/键盘到边界跨章）；滑动跨章（`BouncingScrollPhysics` + overscroll 监听，`_crossChapterTriggered` 防重复） |
 | 2026-11-20 | EPUB 显示能力改进 — 渲染器替换 `flutter_html` → `flutter_widget_from_html_core`（`HtmlWidget`）；CSS 内联重写为 `EpubCssEngine`（csslib + cascadia + 特异性级联）；`@font-face` 字体嵌入（SHA-1 反混淆 + `FontLoader`）；图片内联（background-image/SVG）；竖排 `VerticalText`（tategaki）；分页阅读 `PagedReadingView`（TextPainter 切页，默认模式）；`getChapterContentMerged`/`getOpeningContent` 返回值改为 `RenderedContent`，新增 `RenderedContent`/`EmbeddedFont` 模型 |
 | 2026-11-19 | 阅读/章节页重构 — 删除 AI 缩写预处理与全书摘要；`BookFormatParser` 新增 `getOpeningContent()`（阅读按钮直达第一页）；`ChapterScreen` 删除「生成缩写」按钮、缩写改为 `_loadAbbreviation` 仅读缓存；章节 Tab 重排为 原文/缩写/译文；翻章改为原地渲染 `_navigateToChapter()`（保留旧内容后台加载无闪动）；翻页按钮样式调整 |
 | 2026-11-18 | 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断 `filePath` 是否在应用目录，非本地复制到 `books/{bookId}/book{ext}` 并更新持久化；`BookScreen._loadChapters()` 解析前调用 |

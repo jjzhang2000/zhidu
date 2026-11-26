@@ -210,7 +210,6 @@ zhidu/
 │   │   ├── home_screen.dart     # 首页（书架+书籍导入）
 │   │   ├── book_screen.dart # 书籍详情（全书概览）
 │   │   ├── chapter_screen.dart  # 章节摘要页
-│   │   ├── pdf_reader_screen.dart # PDF阅读器
 │   │   ├── ai_config_screen.dart # AI配置页面
 │   │   ├── settings_screen.dart # 设置主页面
 │   │   ├── theme_settings_screen.dart # 主题设置页面

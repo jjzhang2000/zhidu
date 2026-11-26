@@ -51,7 +51,7 @@
 ### 1.5 测试限制说明
 
 以下文件因技术限制无法在单元测试环境中完全覆盖：
-1. **PDF相关文件**: pdf_parser.dart、pdf_service.dart、pdf_reader_screen.dart
+1. **PDF解析文件**: pdf_parser.dart
    - 原因：pdfrx依赖FFI调用pdfium动态库，纯Dart测试环境无法加载
    - 解决方案：需要使用Flutter集成测试或Widget测试在真实平台运行
 
@@ -649,22 +649,9 @@
 
 ---
 
-### 4.6 Screens模块测试（目标85%）
+### 4.6 Utils模块测试（目标100%）
 
-**文件**: `test/screens/pdf_reader_screen_test.dart`
-
-| 测试项 | 测试内容 | 优先级 |
-|--------|----------|--------|
-| 渲染测试 | PDF页面显示 | P1 |
-| 翻页测试 | 页面导航 | P1 |
-
-**测试用例数**: ~5个
-
----
-
-### 4.7 Utils模块测试（目标100%）
-
-#### 4.7.1 AppTheme测试
+#### 4.6.1 AppTheme测试
 
 **文件**: `test/utils/app_theme_test.dart`
 
@@ -689,9 +676,9 @@
 | models/ | 7 | ~83 | 3天 |
 | services/parsers/ | 4 | ~62 | 3天 |
 | services/ (非parsers) | 11 | ~235 | 7天 |
-| screens/ | 10 | ~108 | 4天 |
+| screens/ | 9 | ~103 | 4天 |
 | utils/ | 1 | ~10 | 0.5天 |
-| **总计** | **33** | **~498** | **17.5天** |
+| **总计** | **32** | **~493** | **17.5天** |
 
 ### 5.2 Settings功能专项统计
 
@@ -948,7 +935,6 @@ test/
 │   ├── book_screen_test.dart
 │   ├── chapter_screen_test.dart
 │   ├── settings_screen_test.dart
-│   ├── pdf_reader_screen_test.dart
 │   ├── ai_config_screen_test.dart                [新增]
 │   ├── theme_settings_screen_test.dart           [新增]
 │   ├── language_settings_screen_test.dart        [新增]

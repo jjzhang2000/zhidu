@@ -121,11 +121,20 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   bool get _requiresApiKey {
     final settings = AiSettings(
       provider: _selectedProvider,
-      apiKey: '',
       model: '',
       baseUrl: '',
     );
     return settings.requiresApiKey;
+  }
+
+  /// 用当前表单内容构建 AI 配置对象
+  AiSettings _buildFormAiSettings() {
+    return AiSettings(
+      provider: _selectedProvider,
+      apiKey: _apiKeyController.text.trim(),
+      model: _modelController.text.trim(),
+      baseUrl: _baseUrlController.text.trim(),
+    );
   }
 
   /// 加载当前AI设置
@@ -251,12 +260,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final newSettings = AiSettings(
-        provider: _selectedProvider,
-        apiKey: _apiKeyController.text.trim(),
-        model: _modelController.text.trim(), // 使用文本输入框的值
-        baseUrl: _baseUrlController.text.trim(),
-      );
+      final newSettings = _buildFormAiSettings();
 
       await _settingsService.updateAiSettings(newSettings);
       _aiService.reloadConfig();
@@ -291,16 +295,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     });
 
     try {
-      // 创建临时配置用于测试
-      final tempSettings = AiSettings(
-        provider: _selectedProvider,
-        apiKey: _apiKeyController.text.trim(),
-        model: _modelController.text.trim(), // 使用文本输入框的值
-        baseUrl: _baseUrlController.text.trim(),
-      );
-
       // 临时更新AIService配置进行测试
-      _aiService.updateConfig(tempSettings);
+      _aiService.updateConfig(_buildFormAiSettings());
       final isValid = await _aiService.testConnection();
 
       setState(() {
@@ -379,7 +375,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedProvider,
+          initialValue: _selectedProvider,
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -442,10 +438,10 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Colors.grey.withOpacity(0.3),
+                color: Colors.grey.withValues(alpha: 0.3),
               ),
             ),
             child: Row(
@@ -548,7 +544,6 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
             decoration: BoxDecoration(
               border: Border.all(
                 color: Theme.of(context).colorScheme.outline,
-                width: 1,
               ),
               borderRadius: BorderRadius.circular(4),
             ),
@@ -564,7 +559,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
                           : Theme.of(context)
                               .colorScheme
                               .onSurface
-                              .withOpacity(0.6),
+                              .withValues(alpha: 0.6),
                     ),
                   ),
                 ),
@@ -581,11 +576,11 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   ///
   /// 根据 _modelBoxKey 对应 Widget 的实际位置和尺寸，
   /// 返回菜单应显示的 RelativeRect（紧贴其下方、等宽）。
-  Future<RelativeRect> _getMenuPosition() async {
-    final RenderBox? renderBox =
+  RelativeRect _getMenuPosition() {
+    final renderBox =
         _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) {
-      return RelativeRect.fromLTRB(0, 0, 0, 0);
+      return const RelativeRect.fromLTRB(0, 0, 0, 0);
     }
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
@@ -605,7 +600,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
   /// 先通过 _getMenuPosition 计算位置，再调用 showMenu 弹出已排序的模型列表，
   /// 选中后将模型名写入 _modelController。
   Future<void> _showModelMenu() async {
-    final position = await _getMenuPosition();
+    final position = _getMenuPosition();
     final renderBox =
         _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
     final width = renderBox?.size.width ?? 200;
@@ -689,8 +684,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _testResultSuccess == true
-            ? Colors.green.withOpacity(0.1)
-            : Colors.red.withOpacity(0.1),
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.red.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: _testResultSuccess == true ? Colors.green : Colors.red,

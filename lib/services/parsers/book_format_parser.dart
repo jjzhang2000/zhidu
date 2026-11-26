@@ -57,11 +57,11 @@ abstract class BookFormatParser {
   Future<RenderedContent?> getChapterContentMerged(
       String filePath, Chapter chapter, List<Chapter> allChapters);
 
-  /// 获取书籍第一页（开头）的 HTML 内容
+  /// 获取书籍开头（前置页）的 HTML 内容
   ///
-  /// 用于「阅读」按钮从书籍开头开始阅读。EPUB 返回首个 spine 内容文档（如
-  /// 标题页）的 HTML；无独立开头页的格式（如 PDF）返回 null，由调用方按
-  /// 页码从第 1 页开始。
+  /// 用于「阅读」按钮从书籍开头开始阅读。EPUB 合并首个 spine 文档到第一个
+  /// 顶层章节之前的所有文档（封面/版权页/目录等）；无前置页的格式（如 PDF）
+  /// 返回 null，由调用方按页码从第 1 页开始。
   Future<RenderedContent?> getOpeningContent(String filePath);
 }
 

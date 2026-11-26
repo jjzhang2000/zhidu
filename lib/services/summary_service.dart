@@ -157,7 +157,6 @@ class SummaryService {
     String? chapterTitle,
     required String sourceLang,
     required String targetLang,
-    String? bookFormat,
     Function(String)? onContentUpdate,
   }) async {
     final key = '${bookId}_${chapterIndex}_$targetLang';
@@ -208,7 +207,6 @@ class SummaryService {
     String? chapterTitle,
     required String sourceLang,
     required String targetLang,
-    String? bookFormat,
   }) async {
     final existing = await getTranslation(bookId, chapterIndex, targetLang);
     if (existing != null && existing.isNotEmpty) return existing;
@@ -220,7 +218,6 @@ class SummaryService {
       chapterTitle: chapterTitle,
       sourceLang: sourceLang,
       targetLang: targetLang,
-      bookFormat: bookFormat,
     );
 
     return await getTranslation(bookId, chapterIndex, targetLang);

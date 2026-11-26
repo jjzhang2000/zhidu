@@ -34,6 +34,9 @@ dependencies:
   flutter_widget_from_html_core: ^0.17.4
   markdown: ^7.2.1
 
+  # SVG 渲染（EPUB 中的矢量图片/封面，Flutter 原生无法解码 SVG）
+  flutter_svg: ^2.0.10
+
   # 竖排文字（writing-mode: vertical-rl）
   tategaki: ^0.6.4
   

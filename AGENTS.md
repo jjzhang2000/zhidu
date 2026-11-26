@@ -19,7 +19,7 @@ Flutter跨平台AI智能阅读器，主打"分层阅读"和"知识蒸馏"。
 lib/
 ├── main.dart                 # 入口，初始化所有Service
 ├── models/                   # app_settings, book, chapter, chapter_summary等
-├── screens/                  # home, book, chapter, pdf_reader, settings系列页面
+├── screens/                  # home, book, chapter, settings系列页面
 ├── services/                 # book, ai, summary, storage_config, file_storage, settings, log
 │   └── parsers/             # book_format_parser(接口+注册表), epub_parser, pdf_parser
 └── utils/                    # app_theme
@@ -75,6 +75,8 @@ lib/
 
 ### 版本历史
 
+**2026-11-26**: 代码审核清理 + 删除 PdfReaderScreen — 删除未被应用流程调用的 `lib/screens/pdf_reader_screen.dart` 及其测试（PDF 阅读实际由 `ChapterScreen` 内置 `PdfDocumentViewBuilder` 处理），同步更新 README、测试计划与 `function_call_relationships*.md`；清理 `ChapterScreen` 恒真分页开关、重复 `HtmlWidget` 构造、`List<dynamic>` 返回值与未使用的 `bookFormat` 参数；`SummaryService`/`AiConfigScreen` 去重；修复 `withOpacity`/`RadioListTile`/`Dropdown value`/`window` 等弃用 API 与 analyzer 告警；精简 models、file_storage、pdf_reader、ai_service 冗余注释并修正过时描述；`flutter analyze lib` 无告警，409 个测试全部通过
+**2026-11-21**: 分页阅读翻页导航完善 — ① 修复跨章闪动：翻回上一章（`startAtLastPage`）不再「先首页/中间页再末页」，`PagedReadingView` 在分页稳定后由 `_finalizePosition()` 定位目标页（翻上一章为末页、翻下一章/初始为首页），期间用 `_pageViewHidden`（Opacity 隐藏）使跳转全程不可见。② 翻页入口统一：`PagedReadingView` 新增 `onPrevChapter`/`onNextChapter` 回调，点击左右 1/3 区域与键盘 ←/→ 到达章节边界即跨章，与底部大按钮行为一致；`ChapterScreen` 传入回调复用 `_navigateToChapter`。③ 滑动跨章：`PageView` 改用 `BouncingScrollPhysics` + `NotificationListener` 监听 overscroll，滑到末页/首页继续滑动即跨章，`_crossChapterTriggered` 防重复触发；同步 `function_call_relationships*.md`
 **2026-11-20**: EPUB 显示能力改进（分层阅读器四阶段）— ① 渲染器替换：`flutter_html` → `flutter_widget_from_html_core`（`HtmlWidget`），CSS 内联重写为 `EpubCssEngine`（csslib 解析 + cascadia 选择器匹配 + !important/特异性/源顺序级联），`getChapterContentMerged`/`getOpeningContent` 返回值改为 `RenderedContent`（html + fonts + isVertical + plainText），新增 `RenderedContent`/`EmbeddedFont` 模型。② 字体嵌入：`@font-face` 提取 + SHA-1 反混淆 + `FontLoader` 运行时注册。③ 图片完善：`background-image` 转 data URI、SVG 封面转 `<img>`、保留尺寸。④ 竖排：检测 `writing-mode: vertical-rl/lr`，用 `tategaki` 的 `VerticalText` 渲染。⑤ 分页阅读：新增 `PagedReadingView`（TextPainter 切页 + PageView），设为 EPUB 横排原文默认模式（滚动为可选，切换入口后续放设置项）；同步 `function_call_relationships*.md`
 **2026-11-19**: 阅读/章节页重构 — ① 删除 AI 缩写预处理与生成：`SummaryService` 删除 `generateSingleSummary`/`generateSummariesForBook`/`_generateBookSummaryFromChapters`/`Semaphore`/`registerBookStreamingCallback`/`init`/`dispose`，保留译文生成与缩写/译文读写缓存；`BookScreen` 删除后台预生成 `_startPreGeneration` 与全书摘要 Tab；`ChapterScreen` 删除「生成缩写」按钮，缩写改为 `_loadAbbreviation` 仅读缓存、不调用 AI。② 阅读按钮直达第一页：`BookFormatParser` 新增 `getOpeningContent()`（`EpubParser` 实现 spine 首文件内联 CSS/图片、SVG 封面转 `<img>`，`PdfParser` 返回 null）。③ 章节 Tab 重排为 原文/缩写/译文 且默认进入原文。④ 翻章改为原地渲染 `_navigateToChapter()`（不再 `Navigator.pushReplacement`），保留旧内容后台加载无闪动、滚动重置到顶部。⑤ 翻页按钮样式（放大、透明度、悬停变色、单箭头图标）；同步 `function_call_relationships*.md`
 **2026-11-18**: 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断书籍 `filePath` 是否位于应用存储目录 `books/{bookId}/`，非本地（如从 Calibre 书库导入）则复制到 `books/{bookId}/book{ext}` 并通过 `updateBook` 更新 `filePath` 持久化；`BookScreen._loadChapters()` 解析章节前先调用，后续解析统一使用本地副本；同步 `function_call_relationships*.md`

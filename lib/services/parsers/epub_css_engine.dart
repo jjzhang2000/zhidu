@@ -64,14 +64,19 @@ class EpubCssEngine {
       final document = html_parser.parse(chapterHtml);
 
       final fonts = <EmbeddedFont>[];
-      final cssText = _collectCss(document);
+      final cssText = _sanitizeCss(_collectCss(document));
       _extractFonts(cssText, fonts);
       _inlineCss(document, cssText);
+
+      final isVertical = _detectVertical(document, cssText);
+      if (!isVertical) {
+        _applyReaderTypography(document);
+      }
+
       _inlineImages(document);
       _inlineSvgImages(document);
       _removeLinkAndStyle(document);
 
-      final isVertical = _detectVertical(document, cssText);
       return RenderedContent(
         _finalizeHtml(document, chapterHtml),
         fonts: fonts,
@@ -104,6 +109,20 @@ class EpubCssEngine {
     }
 
     return buffer.toString();
+  }
+
+  /// 清理会让 csslib 解析器崩溃的非法 CSS 片段。
+  ///
+  /// 部分生成工具（如 PrismJS）会在 CSS 中留下未替换的占位符
+  /// （如 `color: #$$codeBlockColor$$`）。csslib 在解析 `#` 后跟 `$` 这类
+  /// 非十六进制、非标识符字符时，会在 `_parseHex` 中对空 `processTerm()`
+  /// 强转 `LiteralTerm` 而抛异常，导致整个样式表解析失败、CSS 全部失效。
+  /// 这里把此类占位符替换为安全颜色，保证其余样式仍能内联。
+  String _sanitizeCss(String cssText) {
+    return cssText.replaceAll(
+      RegExp(r'#\$\$[^;\s{}]*'),
+      '#000000',
+    );
   }
 
   // ---- 字体提取 ----
@@ -253,13 +272,29 @@ class EpubCssEngine {
     final decls = <_DeclTemplate>[];
     for (final d in node.declarationGroup.declarations) {
       if (d is! css.Declaration) continue;
-      final value = d.expression?.span?.text.trim();
+      final value = _declValue(d);
       if (value == null || value.isEmpty) continue;
+      if (_isInvalidColorValue(d.property, value)) continue;
       decls.add(_DeclTemplate(d.property, value, d.important));
     }
     if (decls.isEmpty) return null;
 
     return _CssRule(selectors, decls);
+  }
+
+  /// 提取声明的完整值文本。
+  ///
+  /// csslib 的 `expression.span.text` 只覆盖首个词法单元（如 `#000000` 只剩 `#`、
+  /// `1px solid #eee` 只剩 `1`），导致多 token 值被截断。改用声明整体 `span`（含
+  /// `属性: 值` 与可选的 `!important`），去掉属性名与 `!important` 后得到完整值。
+  String? _declValue(css.Declaration d) {
+    final text = d.span.text.trim();
+    final colon = text.indexOf(':');
+    if (colon < 0) return null;
+    return text
+        .substring(colon + 1)
+        .replaceAll(RegExp(r'!\s*important\s*$', caseSensitive: false), '')
+        .trim();
   }
 
   bool _mediaMatches(css.MediaDirective directive) {
@@ -371,7 +406,7 @@ class EpubCssEngine {
   // ---- 资源定位 ----
 
   ArchiveFile? _findFileByName(String name) {
-    name = name.replaceAll('\\', '/');
+    name = _normalizeResourcePath(name);
     final lower = name.toLowerCase();
 
     for (final file in archive.files) {
@@ -386,10 +421,129 @@ class EpubCssEngine {
     for (final file in archive.files) {
       if (file.name.toLowerCase().endsWith('/$lower')) return file;
     }
+    // 折叠后仍可能因归档内目录层级不同而匹配失败（如资源位于 META-INF 之外的
+    // 其它目录），退化为按最后一段文件名匹配。
+    final basename = name.split('/').last;
+    if (basename.isEmpty || basename == name) return null;
+    final baseLower = basename.toLowerCase();
+    for (final file in archive.files) {
+      if (file.name.endsWith('/$basename')) return file;
+    }
+    for (final file in archive.files) {
+      if (file.name.toLowerCase().endsWith('/$baseLower')) return file;
+    }
     return null;
   }
 
+  /// 规范化资源引用路径。
+  ///
+  /// EPUB 正文里的 `<img src>` / `url()` 是相对章节文件而言的，常见形如
+  /// `../images/foo.jpg`、`/images/foo.jpg` 或 `./images/foo.jpg`；而归档内
+  /// 文件路径是全局的。这里统一分隔符、去掉锚点/查询串、折叠 `.` 与 `..` 段，
+  /// 得到纯目录相对路径，便于与归档内路径做前缀匹配。
+  String _normalizeResourcePath(String name) {
+    name = name.replaceAll('\\', '/');
+    final hash = name.indexOf('#');
+    if (hash >= 0) name = name.substring(0, hash);
+    final query = name.indexOf('?');
+    if (query >= 0) name = name.substring(0, query);
+
+    final segments = <String>[];
+    for (final seg in name.split('/')) {
+      if (seg.isEmpty || seg == '.') continue;
+      if (seg == '..') {
+        if (segments.isNotEmpty) segments.removeLast();
+        continue;
+      }
+      segments.add(seg);
+    }
+    return segments.join('/');
+  }
+
   // ---- 收尾 ----
+
+  /// 应用阅读器默认排版，弥补 flutter_widget_from_html 对 `text-indent` 的不支持。
+  ///
+  /// 主流 EPUB 阅读器普遍为正文段落做首行缩进（中文习惯为 2em）。fwfh 不识别
+  /// `text-indent`，这里改为在段落的每个"行首"（段落开头 + 每个 <br> 之后）插入
+  /// 一个 2em 宽的内联占位，从而只缩进该行、换行后的后续行不缩进。
+  ///
+  /// 占位用 `display: inline-block` 包裹两个全角空格（U+3000，每个天然 1em），
+  /// 宽度取自空格字形本身而非 `width` 属性：fwfh 对 `display: inline-block`
+  /// 上的 `width` 依赖 `_sizingInline` 的特殊分支，在 `text-align: justify`
+  /// 等场景下可能不生效，此时占位会坍缩到内部空格的自然宽度（U+00A0 仅约
+  /// 0.3em），导致缩进从 2em 变成半个字。inline-block 使全角空格脱离正文行内
+  /// 文本，避免两端对齐剥离行首空白；两个全角空格保证宽度稳定为 2em。
+  ///
+  /// 同时剥离行首的空白（ASCII 空格 + U+00A0 不间断空格 + U+3000 全角空格）：
+  /// 部分 EPUB（如 calibre 转换）用 `&nbsp;` 做段首/行首缩进，而 nbsp 在正文
+  /// 字体里宽度约 0.3em，会造成"缩进半个字"的观感，这里统一替换为 2em 占位。
+  void _applyReaderTypography(dom.Document document) {
+    final leadingWs = RegExp(r'^[\s\u00A0\u3000]+');
+    for (final p in document.querySelectorAll('p')) {
+      _indentParagraph(p, leadingWs);
+    }
+  }
+
+  /// 为单个段落补充首行缩进，并修正 nbsp 造成的半字缩进。
+  void _indentParagraph(dom.Element p, RegExp leadingWs) {
+    // 段落开头：剥离首文本节点的行首空白后插入 2em 缩进。
+    final first = _firstNonEmptyText(p);
+    if (first != null) {
+      first.data = first.data.replaceFirst(leadingWs, '');
+    }
+
+    // 移除段落开头的纯空白文本节点（如 <p>\n  <span>正文</span> 中的换行）。
+    while (p.nodes.isNotEmpty &&
+        p.nodes.first is dom.Text &&
+        (p.nodes.first as dom.Text).data.trim().isEmpty) {
+      p.nodes.first.remove();
+    }
+    if (p.nodes.isNotEmpty) {
+      _insertIndent(p, p.nodes.first);
+    }
+
+    // 每个 <br> 之后：若下一文本节点以空白起头（calibre 手写的行首缩进），
+    // 剥离该空白并插入 2em 缩进，使引言等多行段落各行缩进一致。
+    var prevIsBr = false;
+    for (final node in List<dom.Node>.of(p.nodes)) {
+      if (node is dom.Element && node.localName == 'br') {
+        prevIsBr = true;
+        continue;
+      }
+      if (node is dom.Text && prevIsBr) {
+        final stripped = node.data.replaceFirst(leadingWs, '');
+        if (stripped != node.data) {
+          node.data = stripped;
+          if (node.data.isNotEmpty) {
+            _insertIndent(p, node);
+          }
+        }
+      }
+      prevIsBr = false;
+    }
+  }
+
+  void _insertIndent(dom.Element p, dom.Node before) {
+    final spacer = dom.Element.tag('span');
+    spacer.attributes['style'] = 'display: inline-block';
+    spacer.append(dom.Text('\u3000\u3000'));
+    p.insertBefore(spacer, before);
+  }
+
+  /// 深度优先查找第一个非空文本节点（跳过仅含空白的文本节点与空元素）。
+  dom.Text? _firstNonEmptyText(dom.Node node) {
+    if (node is dom.Text) {
+      return node.data.trim().isNotEmpty ? node : null;
+    }
+    if (node is dom.Element) {
+      for (final child in node.nodes) {
+        final found = _firstNonEmptyText(child);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
 
   void _removeLinkAndStyle(dom.Document document) {
     for (final el in document.querySelectorAll('link')) {
@@ -515,8 +669,63 @@ class EpubCssEngine {
       if (idx <= 0) continue;
       final key = part.substring(0, idx).trim();
       final value = part.substring(idx + 1).trim();
-      if (key.isNotEmpty && value.isNotEmpty) map[key] = value;
+      if (key.isEmpty || value.isEmpty) continue;
+      if (_isInvalidColorValue(key, value)) continue;
+      map[key] = value;
     }
     return map;
+  }
+
+  // ---- 非法 CSS 值过滤 ----
+
+  /// 颜色相关属性：这些属性的值中可能含十六进制颜色，需要校验合法性。
+  static const _colorProperties = {
+    'color',
+    'background',
+    'background-color',
+    'border',
+    'border-color',
+    'border-top',
+    'border-right',
+    'border-bottom',
+    'border-left',
+    'border-top-color',
+    'border-right-color',
+    'border-bottom-color',
+    'border-left-color',
+    'outline',
+    'outline-color',
+    'text-decoration',
+    'text-decoration-color',
+    'text-emphasis',
+    'text-emphasis-color',
+    'text-shadow',
+    'box-shadow',
+    'caret-color',
+    'column-rule-color',
+  };
+
+  /// 检测颜色值中是否含非法十六进制颜色 token。
+  ///
+  /// fwfh 对十六进制颜色直接 `int.parse`，遇到非法 hex（如 #xyz、#$$codeBlockColor$$）
+  /// 会抛异常导致整块渲染失败显示 ❌，故在此识别并过滤。
+  bool _hasInvalidHexColor(String value) {
+    // 优先匹配合法 hex（3/4/6/8 位），否则匹配 # 后跟的非法 token
+    final re = RegExp(r'#[0-9a-fA-F]{3,8}|#[^\s;,()]+');
+    for (final m in re.allMatches(value)) {
+      final hex = m.group(0)!.substring(1);
+      final isHex = RegExp(r'^[0-9a-fA-F]+$').hasMatch(hex);
+      final validLen = hex.length == 3 ||
+          hex.length == 4 ||
+          hex.length == 6 ||
+          hex.length == 8;
+      if (!isHex || !validLen) return true;
+    }
+    return false;
+  }
+
+  bool _isInvalidColorValue(String property, String value) {
+    if (!_colorProperties.contains(property.toLowerCase())) return false;
+    return _hasInvalidHexColor(value);
   }
 }

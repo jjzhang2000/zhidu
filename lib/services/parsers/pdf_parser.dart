@@ -22,7 +22,7 @@ class PdfParser implements BookFormatParser {
       final document = await PdfDocument.openFile(filePath);
 
       final fileName = filePath.split('/').last.split('\\').last;
-      var title = fileName.substring(0, fileName.lastIndexOf('.'));
+      final title = fileName.substring(0, fileName.lastIndexOf('.'));
 
       final chapters = await _detectChapters(document);
       _log.d('PdfParser', '检测到 ${chapters.length} 个章节');
@@ -163,7 +163,6 @@ class PdfParser implements BookFormatParser {
               startPage: startOffset + 1,
               endPage: totalPages,
             ),
-            level: 0,
           ),
         ];
       }
@@ -187,7 +186,6 @@ class PdfParser implements BookFormatParser {
             startPage: startIndex + 1,
             endPage: endIndex + 1,
           ),
-          level: 0,
         ));
       }
 

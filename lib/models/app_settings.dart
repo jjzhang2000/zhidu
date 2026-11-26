@@ -292,7 +292,7 @@ class AppSettings {
   }
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
-    Map<String, AiSettings> savedAiConfigs = {};
+    final savedAiConfigs = <String, AiSettings>{};
     if (json['savedAiConfigs'] != null) {
       final configsMap = json['savedAiConfigs'] as Map<String, dynamic>;
       configsMap.forEach((key, value) {

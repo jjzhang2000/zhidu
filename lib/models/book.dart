@@ -1,31 +1,17 @@
-// ============================================================================
-// 文件名：book.dart
-// 功能：书籍数据模型定义
-// ============================================================================
+// 书籍数据模型：Book / BookFormat / OpfMetadata
 
-/// 枚举名：BookFormat
-/// 功能：书籍文件格式枚举
-///
-/// 主要用途：
-/// - 定义书籍支持的文件格式类型
-/// - 用于区分EPUB和PDF文件的解析方式
+/// 书籍文件格式
 enum BookFormat {
-  /// PDF格式
+  /// PDF 格式
   pdf,
 
-  /// EPUB格式（主要支持的格式）
+  /// EPUB 格式（主要支持的格式）
   epub,
 }
 
-/// 类名：Book
-/// 功能：书籍实体类，表示单本书籍的完整信息
-///
-/// 主要用途：
-/// - 存储书籍的基本信息（标题、作者、文件路径等）
-/// - 跟踪阅读进度（当前章节、阅读进度百分比）
-/// - 提供序列化/反序列化功能用于数据存储
+/// 书籍实体，包含基本信息、阅读进度与出版元数据
 class Book {
-  /// 书籍唯一标识符（UUID格式）
+  /// 书籍唯一标识符（UUID 格式）
   final String id;
 
   /// 书籍标题
@@ -40,13 +26,13 @@ class Book {
   /// 书籍文件在本地存储的完整路径
   final String filePath;
 
-  /// 书籍文件格式（EPUB或PDF）
+  /// 书籍文件格式（EPUB 或 PDF）
   final BookFormat format;
 
   /// 书籍总章节数
   final int totalChapters;
 
-  /// 当前阅读章节索引（从0开始）
+  /// 当前阅读章节索引（从 0 开始）
   final int currentChapter;
 
   /// 阅读进度百分比（0.0-1.0）
@@ -58,32 +44,15 @@ class Book {
   /// 最后阅读时间（可选）
   final DateTime? lastReadAt;
 
-  /// 书籍语言（从OPF元数据中获取）
+  /// 书籍语言（从 OPF 元数据中获取）
   final String? language;
 
-  /// 出版方（从OPF元数据中获取）
+  /// 出版方（从 OPF 元数据中获取）
   final String? publisher;
 
-  /// 出版时间（从OPF元数据中获取）
+  /// 出版时间（从 OPF 元数据中获取）
   final String? publishDate;
 
-  /// 构造函数：创建Book实例
-  ///
-  /// 必需参数：
-  /// - id: 书籍唯一标识
-  /// - title: 书籍标题
-  /// - author: 书籍作者
-  /// - filePath: 文件路径
-  /// - format: 文件格式
-  /// - addedAt: 添加时间
-  ///
-  /// 可选参数：
-  /// - coverPath: 封面路径，默认为null
-  /// - totalChapters: 总章节数，默认为0
-  /// - currentChapter: 当前章节，默认为0
-  /// - readingProgress: 阅读进度，默认为0.0
-  /// - lastReadAt: 最后阅读时间，默认为null
-  /// - language: 书籍语言，默认为null
   Book({
     required this.id,
     required this.title,
@@ -101,26 +70,7 @@ class Book {
     this.publishDate,
   });
 
-  /// 方法名：copyWith
-  /// 功能：创建Book的副本，可选择性地修改部分字段
-  ///
-  /// 参数：
-  /// - id: 新的书籍ID（可选）
-  /// - title: 新的标题（可选）
-  /// - author: 新的作者（可选）
-  /// - coverPath: 新的封面路径（可选）
-  /// - filePath: 新的文件路径（可选）
-  /// - format: 新的文件格式（可选）
-  /// - totalChapters: 新的总章节数（可选）
-  /// - currentChapter: 新的当前章节（可选）
-  /// - readingProgress: 新的阅读进度（可选）
-  /// - addedAt: 新的添加时间（可选）
-  /// - lastReadAt: 新的最后阅读时间（可选）
-  /// - language: 新的语言信息（可选）
-  ///
-  /// 返回值：新的Book实例，未指定的字段保留原值
-  ///
-  /// 调用方：BookService（更新书籍信息时）
+  /// 创建副本，可选地修改部分字段
   Book copyWith({
     String? id,
     String? title,
@@ -155,14 +105,7 @@ class Book {
     );
   }
 
-  /// 方法名：toJson
-  /// 功能：将Book实例序列化为JSON格式Map
-  ///
-  /// 参数：无
-  ///
-  /// 返回值：`Map<String, dynamic>`，包含所有字段的JSON表示
-  ///
-  /// 调用方：BookService（书籍数据持久化时）
+  /// 序列化为 JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -182,15 +125,7 @@ class Book {
     };
   }
 
-  /// 方法名：fromJson
-  /// 功能：从JSON格式Map反序列化创建Book实例
-  ///
-  /// 参数：
-  /// - json: 包含书籍数据的Map对象
-  ///
-  /// 返回值：Book实例
-  ///
-  /// 调用方：Database（从数据库读取时）、BookService（加载数据时）
+  /// 从 JSON 反序列化
   factory Book.fromJson(Map<String, dynamic> json) {
     return Book(
       id: json['id'],
@@ -216,10 +151,7 @@ class Book {
   }
 }
 
-/// OPF元数据模型
-///
-/// 用于存储从OPF文件解析出的书籍元数据信息
-/// 主要用于从Calibre生成的metadata.opf文件中读取书籍信息
+/// OPF 元数据模型，用于存储从 Calibre metadata.opf 解析出的书籍信息
 class OpfMetadata {
   /// 书籍标题
   final String? title;
@@ -230,7 +162,7 @@ class OpfMetadata {
   /// 书籍语言
   final String? language;
 
-  /// 封面图片路径（相对于OPF文件的路径）
+  /// 封面图片路径（相对于 OPF 文件的路径）
   final String? coverPath;
 
   /// 出版方
@@ -239,7 +171,6 @@ class OpfMetadata {
   /// 出版时间
   final String? publishDate;
 
-  /// 构造函数
   OpfMetadata({
     this.title,
     this.author,
@@ -249,7 +180,7 @@ class OpfMetadata {
     this.publishDate,
   });
 
-  /// 创建副本，可以选择性修改部分字段
+  /// 创建副本，可选地修改部分字段
   OpfMetadata copyWith({
     String? title,
     String? author,

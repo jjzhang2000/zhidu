@@ -65,16 +65,7 @@ class AIService {
   /// 方法名：init
   /// 功能：初始化AI服务，从SettingsService加载API配置
   ///
-  /// 调用时机：
-  /// - 应用启动时在main.dart中调用
-  ///
-  /// 算法逻辑：
-  /// 1. 调用reloadConfig()从SettingsService加载配置
-  /// 2. 监听SettingsService.aiSettings的变化
-  /// 3. 配置变化时自动重新加载
-  ///
-  /// 异常处理：
-  /// - SettingsService未初始化：记录警告，不抛出异常
+  /// 调用时机：应用启动时在 main.dart 中调用
   Future<void> init() async {
     await reloadConfig();
 
@@ -89,16 +80,7 @@ class AIService {
   }
 
   /// 方法名：reloadConfig
-  /// 功能：从SettingsService重新加载AI配置
-  ///
-  /// 算法逻辑：
-  /// 1. 从SettingsService获取当前AI设置
-  /// 2. 如果配置有效，直接使用AiSettings实例
-  /// 3. 如果配置无效，记录警告日志
-  ///
-  /// 使用场景：
-  /// - 初始化时调用
-  /// - 用户在设置页面修改AI配置后调用
+  /// 功能：从SettingsService重新加载AI配置，配置无效时记录警告并置空
   Future<void> reloadConfig() async {
     try {
       final aiSettings = SettingsService().settings.aiSettings;
@@ -124,37 +106,19 @@ class AIService {
 
   /// 属性名：isConfigured
   /// 功能：检查AI服务是否已正确配置
-  ///
-  /// 返回值：true表示配置有效可用，false表示未配置或配置无效
-  ///
-  /// 使用场景：
-  /// - 设置页面显示配置状态
-  /// - 生成摘要前检查服务可用性
   bool get isConfigured => _config?.isValid ?? false;
 
   /// 获取当前AI提供商（如 'zhipu', 'qwen', 'ollama' 等）
   String get currentProvider => _config?.provider ?? '';
 
   /// 方法名：updateConfig
-  /// 功能：从AiSettings更新AI配置
-  ///
-  /// 参数：
-  /// - settings: AiSettings对象，包含新的配置信息
-  ///
-  /// 使用场景：
-  /// - AI配置页面保存新配置后，立即更新AIService
+  /// 功能：从AiSettings更新AI配置（用于连接测试等临时场景）
   void updateConfig(AiSettings settings) {
     _config = settings;
   }
 
   /// 方法名：testConnection
-  /// 功能：测试AI连接是否可用
-  ///
-  /// 发送一个简单的测试请求到AI服务，验证配置是否正确
-  ///
-  /// 返回值：
-  /// - true: 连接成功，配置有效
-  /// - false: 连接失败，配置可能不正确
+  /// 功能：发送一条简单请求，验证AI配置是否可用
   Future<bool> testConnection() async {
     if (!isConfigured) {
       _log.w('AIService', '测试连接失败：配置无效');
@@ -175,15 +139,7 @@ class AIService {
   /// 方法名：fetchAvailableModels
   /// 功能：从 AI 提供商获取可用模型列表
   ///
-  /// 调用 OpenAI 兼容的 /v1/models 端点获取模型列表
-  ///
-  /// 参数：
-  /// - baseUrl: API 基础 URL
-  /// - apiKey: API 密钥
-  ///
-  /// 返回值：
-  /// - 成功时返回模型 ID 列表
-  /// - 失败时返回空列表
+  /// 调用 OpenAI 兼容的 /v1/models 端点获取模型列表，失败时返回空列表。
   Future<List<String>> fetchAvailableModels({
     required String baseUrl,
     required String apiKey,
@@ -632,7 +588,7 @@ class AIService {
       } else if (locale.startsWith('en') || locale.contains('_US') || locale.contains('_GB')) {
         return 'en';
       }
-      
+
       return 'zh';
     } catch (e) {
       _log.w('AIService', '检测系统语言失败: $e，使用默认中文');

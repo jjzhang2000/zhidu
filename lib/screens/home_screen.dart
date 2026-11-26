@@ -1,9 +1,6 @@
 // ============================================================================
 // 文件名：home_screen.dart
 // 功能：应用首页界面，包含书架展示、书籍导入、搜索等功能
-// 主要组件：
-//   - HomeScreen: 首页入口组件，管理AppBar/FAB/书架展示
-//   - BookCard: 书籍卡片组件，显示封面、标题、作者等信息
 // ============================================================================
 
 import 'dart:io';
@@ -19,17 +16,7 @@ import '../models/book.dart';
 import 'book_screen.dart';
 import 'settings_screen.dart';
 
-/// ============================================================================
-/// 类名：HomeScreen
-/// 功能：应用首页入口组件
-/// 父类：StatefulWidget
-/// 说明：
-///   - 作为应用的主界面容器
-///   - 包含书架展示、搜索、书籍导入功能
-///   - AppBar含搜索框和设置按钮
-///   - FAB触发书籍导入
-///   - 支持空状态和搜索无结果状态显示
-/// ============================================================================
+/// 应用首页：书架展示、搜索、排序与书籍导入入口
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -37,11 +24,6 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-/// ============================================================================
-/// 类名：_HomeScreenState
-/// 功能：HomeScreen的状态管理类
-/// 父类：`State<HomeScreen>`
-/// ============================================================================
 class _HomeScreenState extends State<HomeScreen> {
   final _bookService = BookService();
   final _libraryImportService = LibraryImportService();
@@ -68,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  /// 书库后台导入刷新信号回调（每导入 10 本或导入完成时触发）
+  /// 书库后台导入刷新信号回调（每实际新增 50 本或导入完成时触发）
   void _onLibraryRefresh() {
     if (mounted) setState(() {});
   }
@@ -154,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 32,
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
             ),
             child: TextField(
@@ -321,16 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// ============================================================================
-/// 类名：BookCard
-/// 功能：书籍卡片组件
-/// 父类：StatefulWidget
-/// 说明：
-///   - 显示书籍封面、标题、作者
-///   - 显示阅读进度条
-///   - 鼠标悬停时显示删除按钮
-///   - 点击卡片进入书籍详情页
-/// ============================================================================
+/// 书籍卡片：封面、书名、作者与阅读进度，悬停显示删除按钮
 class BookCard extends StatefulWidget {
   final Book book;
 
@@ -350,11 +323,6 @@ class BookCard extends StatefulWidget {
   State<BookCard> createState() => _BookCardState();
 }
 
-/// ============================================================================
-/// 类名：_BookCardState
-/// 功能：BookCard的状态管理类
-/// 父类：`State<BookCard>`
-/// ============================================================================
 class _BookCardState extends State<BookCard> {
   bool _isHovered = false;
 
@@ -366,7 +334,7 @@ class _BookCardState extends State<BookCard> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: () => _openBook(context),
+        onTap: () => _openBook(),
         child: Card(
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
@@ -483,11 +451,11 @@ class _BookCardState extends State<BookCard> {
                   right: 4,
                   bottom: 4,
                   child: Material(
-                    color: Colors.red.withOpacity(0.9),
+                    color: Colors.red.withValues(alpha: 0.9),
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
-                      onTap: () => _showDeleteConfirmDialog(context),
+                      onTap: _showDeleteConfirmDialog,
                       child: const Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(
@@ -532,7 +500,7 @@ class _BookCardState extends State<BookCard> {
     );
   }
 
-  void _openBook(BuildContext context) async {
+  void _openBook() async {
     final latestBook = _bookService.getBookById(widget.book.id) ?? widget.book;
     await Navigator.push(
       context,
@@ -546,7 +514,7 @@ class _BookCardState extends State<BookCard> {
     widget.onOpened?.call();
   }
 
-  Future<void> _showDeleteConfirmDialog(BuildContext context) async {
+  Future<void> _showDeleteConfirmDialog() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

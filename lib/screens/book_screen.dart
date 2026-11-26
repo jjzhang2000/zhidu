@@ -274,7 +274,7 @@ class _BookScreenState extends State<BookScreen> {
     return '$year-${month.padLeft(2, '0')}';
   }
 
-  /// 开始阅读：从书籍第一页开始（EPUB：首个 spine 文件/标题页；PDF：第 1 页）
+  /// 开始阅读：从书籍开头开始（EPUB：前置页合并内容；PDF：第 1 页）
   Future<void> _startReading() async {
     if (_flatChapters.isEmpty) return;
 
@@ -284,7 +284,7 @@ class _BookScreenState extends State<BookScreen> {
       return;
     }
 
-    // EPUB：从第一页（首个 spine 内容文档，如标题页）开始，无独立开头页则回退到第一章
+    // EPUB：从开头的全部前置页开始，无独立开头页则回退到第一章
     final dot = _book.filePath.lastIndexOf('.');
     final ext = dot == -1 ? '' : _book.filePath.substring(dot).toLowerCase();
     final parser = FormatRegistry.getParser(ext);
@@ -343,11 +343,10 @@ class _BookScreenState extends State<BookScreen> {
   /// 1. 如果[_book.coverPath]存在且文件有效，显示实际封面
   /// 2. 否则显示默认封面图标
   Widget _buildCover() {
-    final coverSize = 200.0;
+    const coverSize = 200.0;
 
-    final Widget coverImage;
     if (_book.coverPath != null && File(_book.coverPath!).existsSync()) {
-      coverImage = Card(
+      return Card(
         clipBehavior: Clip.antiAlias,
         child: Image.file(
           File(_book.coverPath!),
@@ -358,11 +357,8 @@ class _BookScreenState extends State<BookScreen> {
               _buildDefaultCover(coverSize),
         ),
       );
-    } else {
-      coverImage = _buildDefaultCover(coverSize);
     }
-
-    return coverImage;
+    return _buildDefaultCover(coverSize);
   }
 
   /// 构建默认封面（当无封面图片时）

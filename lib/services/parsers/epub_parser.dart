@@ -385,9 +385,7 @@ class EpubParser implements BookFormatParser {
           }
         }
 
-        if (coverImage == null) {
-          coverImage = epubBook.content!.images.values.first;
-        }
+        coverImage ??= epubBook.content!.images.values.first;
 
         if (coverImage.content != null) {
           final extension = coverImage.contentMimeType?.contains('png') == true ? 'png' : 'jpg';
@@ -629,10 +627,11 @@ class EpubParser implements BookFormatParser {
     return _inlineCssAndImages(archive, merged);
   }
 
-  /// 获取书籍第一页（开头）的 HTML 内容
+  /// 获取书籍开头（封面/版权页/插图/目录等前置页）的 HTML 内容
   ///
-  /// 解析 content.opf 的 spine 顺序，取第一个内容文档（如标题页）的完整 HTML，
-  /// 并内联 CSS 与图片（与章节内容一致的处理）。无开头页时返回 null。
+  /// 解析 content.opf 的 spine 顺序，合并从第一个内容文档到第一个正文顶层章节
+  /// 之前的所有文档，使「阅读」按真实阅读顺序呈现前置页，而非只显示封面后直接
+  /// 跳到第一章。无前置页时退化为只返回第一个内容文档。
   @override
   Future<RenderedContent?> getOpeningContent(String filePath) async {
     final file = File(filePath);
@@ -644,13 +643,46 @@ class EpubParser implements BookFormatParser {
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
 
-    final fullHtml = _getFirstSpineHtml(archive);
-    if (fullHtml == null || fullHtml.isEmpty) return null;
-    return _inlineCssAndImages(archive, fullHtml);
+    final spineHrefs = _getSpineHtmlHrefs(archive);
+    if (spineHrefs.isEmpty) return null;
+
+    // 第一个顶层章节的 href，用于界定前置页范围
+    String? firstChapterHref;
+    final chapters = await getChapters(filePath);
+    for (final c in chapters) {
+      if (c.level == 0 && c.location.href != null) {
+        firstChapterHref = c.location.href;
+        break;
+      }
+    }
+
+    // 收集前置页：从 spine 第一个文档到第一个章节文档之前（不含）
+    final openingHrefs = <String>[];
+    if (firstChapterHref == null) {
+      openingHrefs.add(spineHrefs.first);
+    } else {
+      for (final href in spineHrefs) {
+        if (_sameFile(href, firstChapterHref)) break;
+        openingHrefs.add(href);
+      }
+      if (openingHrefs.isEmpty) openingHrefs.add(spineHrefs.first);
+    }
+
+    final buffer = StringBuffer();
+    for (final href in openingHrefs) {
+      final htmlFile = _findHtmlFile(archive, href);
+      if (htmlFile == null) continue;
+      buffer.writeln(
+          _extractBodyHtml(utf8.decode(htmlFile.content as List<int>)));
+    }
+
+    final merged = buffer.toString().trim();
+    if (merged.isEmpty) return null;
+    return _inlineCssAndImages(archive, merged);
   }
 
-  /// 解析 content.opf 的 spine，返回第一个内容文档（HTML/XHTML）的完整 HTML
-  String? _getFirstSpineHtml(Archive archive) {
+  /// 解析 content.opf 的 spine，按阅读顺序返回所有内容文档（HTML/XHTML）的 href
+  List<String> _getSpineHtmlHrefs(Archive archive) {
     try {
       ArchiveFile? opfFile;
       for (final f in archive.files) {
@@ -659,9 +691,10 @@ class EpubParser implements BookFormatParser {
           break;
         }
       }
-      if (opfFile == null) return null;
+      if (opfFile == null) return const [];
 
-      final document = XmlDocument.parse(utf8.decode(opfFile.content as List<int>));
+      final document =
+          XmlDocument.parse(utf8.decode(opfFile.content as List<int>));
 
       // manifest：id → href
       final manifest = <String, String>{};
@@ -673,7 +706,7 @@ class EpubParser implements BookFormatParser {
         }
       }
 
-      // spine 按阅读顺序排列，取第一个内容文档
+      final result = <String>[];
       for (final itemref in document.findAllElements('itemref')) {
         final idref = itemref.getAttribute('idref');
         final href = idref != null ? manifest[idref] : null;
@@ -685,24 +718,42 @@ class EpubParser implements BookFormatParser {
             !lower.endsWith('.htm')) {
           continue;
         }
-
-        ArchiveFile? htmlFile;
-        for (final f in archive.files) {
-          final n = f.name.toLowerCase();
-          if (n == lower || n.endsWith('/$lower') || n.endsWith(lower)) {
-            htmlFile = f;
-            break;
-          }
-        }
-        if (htmlFile != null) {
-          return utf8.decode(htmlFile.content as List<int>);
-        }
+        result.add(href);
       }
-      return null;
+      return result;
     } catch (e) {
-      _log.w('EpubParser', '解析 spine 首文件失败: $e');
-      return null;
+      _log.w('EpubParser', '解析 spine 失败: $e');
+      return const [];
     }
+  }
+
+  /// 按 href 在 archive 中定位 HTML/XHTML 文件
+  ArchiveFile? _findHtmlFile(Archive archive, String href) {
+    final lower = href.toLowerCase();
+    for (final f in archive.files) {
+      final n = f.name.toLowerCase();
+      if (n == lower || n.endsWith('/$lower') || n.endsWith(lower)) {
+        return f;
+      }
+    }
+    return null;
+  }
+
+  /// 判断两个资源 href 是否指向同一文件（忽略锚点/查询串/大小写/目录前缀差异）
+  bool _sameFile(String a, String b) {
+    String norm(String s) {
+      s = s.replaceAll('\\', '/');
+      final hash = s.indexOf('#');
+      if (hash >= 0) s = s.substring(0, hash);
+      final q = s.indexOf('?');
+      if (q >= 0) s = s.substring(0, q);
+      return s.toLowerCase();
+    }
+
+    final na = norm(a);
+    final nb = norm(b);
+    if (na == nb) return true;
+    return na.endsWith('/$nb') || nb.endsWith('/$na');
   }
 
   /// 收集顶层章节及其后连续的子章节（level>0），直到下一个顶层章节为止

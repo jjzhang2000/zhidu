@@ -42,7 +42,6 @@
 | **HomeScreen**    |   ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |    ✓     |
 | **BookScreen**    |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |    —     |
 | **ChapterScreen** |   ✓   |   ✓   |   ✓    |     ✓     |   —     |   —    |   —    |   —    |   ✓    |   —    |    —     |
-| **PdfReaderScreen**|  ✓   |   —   |   —    |     ✓     |   —     |   —    |   —    |   —    |   —    |   —    |    —     |
 | **AiConfigScreen**|  —   |   ✓   |   —    |     —     |   —     |   —    |   ✓    |   —    |   ✓    |   —    |    —     |
 | **SettingsScreen**|  ✓   |   —   |   —    |     —     |   —     |   —    |   ✓    |   —    |   —    |   —    |    ✓     |
 | **BookService**   |  —   |   —   |   —    |     ✓     |   —     |   —    |   —    |   ✓    |   ✓    |   ✓    |    —     |
@@ -140,9 +139,9 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
             │               └── _checkContentLength()（内容过短置灰缩写 Tab）
             │
             ├── 原文 Tab 渲染（_buildOriginalTextView）
-            │       ├── [PDF] PdfReaderScreen 单页查看器（initialPage）
+            │       ├── [PDF] PdfDocumentViewBuilder 单页查看器（initialPage）
             │       ├── [竖排] VerticalText（tategaki，writing-mode: vertical-rl/lr）
-            │       ├── [分页] PagedReadingView（纯文本 TextPainter 切页，默认模式）
+            │       ├── [分页] PagedReadingView（HTML 块级切分 + HtmlWidget 渲染，默认模式）
             │       └── [滚动] HtmlWidget（flutter_widget_from_html_core）
             │
             ├── 缩写 Tab → _loadAbbreviation()（仅读缓存，不生成、不调用 AI）
@@ -154,7 +153,11 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
             └── 翻章（上一章/下一章）→ _navigateToChapter()（原地渲染，不触发路由）
                     ├── 更新 _currentIndex/_title，保留旧内容后台加载
                     ├── _loadChapterContent() → getChapterContentMerged() → RenderedContent（复用 _chapters，无需重复解析）
-                    └── _loadAbbreviation()（读取新章节缓存缩写）
+                    ├── _loadAbbreviation()（读取新章节缓存缩写）
+                    └── 翻页入口统一：底部大按钮 / 点击左右 1/3 / 键盘 ←→ / 滑动，
+                        到达章节边界均经 PagedReadingView 的 onPrevChapter/onNextChapter
+                        回调跨章；翻回上一章 startAtLastPage=true → 分页稳定后由
+                        _finalizePosition() 定位末页（_pageViewHidden 隐藏期间完成，避免闪动）
 ```
 
 ### 3.3 翻译流程
@@ -523,16 +526,16 @@ SummaryService.getChapterAbbreviation()
 │                                                                    │
 │  可复用组件 (lib/widgets/)                                          │
 │  ────────────────                                                 │
-│  PagedReadingView（分页阅读：TextPainter 切页 + PageView）          │
+│  PagedReadingView（分页阅读：HTML 块级切分 + HtmlWidget + PageView） │
 │  依赖: HtmlWidget(flutter_widget_from_html_core) / VerticalText(tategaki)│
 │                                                                    │
-│  SettingsScreen           AiConfigScreen        PdfReaderScreen  │
-│  ──────────────           ──────────────        ─────────────── │
-│  - SettingsService        - SettingsService     - BookService    │
-│  + 主题/语言/书库内联设置 - AIService           - PdfParser      │
-│                           - LogService                           │
-│                           + _testConnection()                    │
-│                           + _fetchModelsForCurrentProvider()     │
+│  SettingsScreen           AiConfigScreen                          │
+│  ──────────────           ──────────────                          │
+│  - SettingsService        - SettingsService                       │
+│  + 主题/语言/书库内联设置 - AIService                             │
+│                           - LogService                            │
+│                           + _testConnection()                     │
+│                           + _fetchModelsForCurrentProvider()      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -542,6 +545,8 @@ SummaryService.getChapterAbbreviation()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-26 | 代码审核清理 + 删除 `PdfReaderScreen` — 删除未被应用流程调用的 `lib/screens/pdf_reader_screen.dart` 及其测试（PDF 阅读实际由 `ChapterScreen` 内置 `PdfDocumentViewBuilder` 处理），同步更新类图、章节原文 Tab 说明与依赖关系；清理恒真分页开关、重复 HTML 渲染、未使用参数与冗长/过时注释，`flutter analyze lib` 无告警 |
+| 2026-11-21 | 分页阅读翻页导航完善 — ① 修复跨章闪动：翻回上一章（`startAtLastPage`）不再「先首页/中间页再末页」，`PagedReadingView` 分页稳定后由 `_finalizePosition()` 定位目标页（翻上一章为末页、翻下一章/初始为首页），期间用 `_pageViewHidden`（Opacity 隐藏）避免闪动；② 翻页入口统一：`PagedReadingView` 新增 `onPrevChapter`/`onNextChapter` 回调，点击左右 1/3 与键盘 ←/→ 到达章节边界即跨章（与底部大按钮一致）；③ 滑动跨章：`PageView` 改用 `BouncingScrollPhysics` + `NotificationListener` 监听 overscroll，滑到末页/首页继续滑动即跨章，`_crossChapterTriggered` 防重复触发 |
 | 2026-11-20 | EPUB 显示能力改进 — ① 渲染器替换：`flutter_html` → `flutter_widget_from_html_core`（`HtmlWidget`），CSS 内联重写为 `EpubCssEngine`（csslib 解析 + cascadia 选择器匹配 + !important/特异性/源顺序级联）；② 字体嵌入：`@font-face` 提取 + SHA-1 反混淆 + `FontLoader` 运行时注册；③ 图片完善：`background-image` 转 data URI、SVG 封面转 `<img>`、保留尺寸；④ 竖排：检测 `writing-mode: vertical-rl/lr`，用 `tategaki` 的 `VerticalText` 渲染；⑤ 分页阅读：新增 `PagedReadingView`（TextPainter 切页 + PageView），设为 EPUB 横排原文默认模式（滚动为可选，切换入口后续放设置项）。`BookFormatParser.getChapterContentMerged`/`getOpeningContent` 返回值改为 `RenderedContent`（html + fonts + isVertical + plainText），新增 `RenderedContent`/`EmbeddedFont` 模型 |
 | 2026-11-19 | 阅读/章节页重构 — ① 删除 AI 缩写预处理与生成：SummaryService 删除 `generateSingleSummary`/`generateSummariesForBook`/`_generateBookSummaryFromChapters`/`Semaphore`/`registerBookStreamingCallback`/`init`/`dispose`，保留译文生成与缩写/译文读写缓存；BookScreen 删除后台预生成 `_startPreGeneration` 与全书摘要 Tab；ChapterScreen 删除「生成缩写」按钮与 `_ensureAbbreviation`，缩写改为 `_loadAbbreviation` 仅读缓存。② 阅读按钮跳转第一页：`BookFormatParser` 新增 `getOpeningContent`，`EpubParser` 实现（spine 首文件 + CSS/图片内联 + SVG 封面转 `<img>`），`PdfParser` 返回 null。③ 章节 Tab 重排为 原文/缩写/译文 且默认进入原文。④ 翻章改为原地渲染 `_navigateToChapter`（不再 `Navigator.pushReplacement`），保留旧内容后台加载无闪动、滚动重置到顶部。⑤ 翻页按钮样式（放大、透明度、悬停变色、单箭头图标） |
 | 2026-11-18 | 打开书籍自动本地化文件 — `BookService.ensureBookFileLocal()` 判断书籍 `filePath` 是否位于应用存储目录，非本地（如 Calibre 书库）则复制到 `books/{bookId}/book{ext}` 并更新 `filePath` 持久化；`BookScreen._loadChapters()` 解析前先调用，后续解析使用本地副本 |
