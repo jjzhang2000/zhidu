@@ -49,5 +49,5 @@ quick_run.bat
 # Runtime generated data
 /temp_docs/
 
-# Test
-/test/
+# Test 临时产物（测试源码纳入版本管理）
+/test/.test_temp/
