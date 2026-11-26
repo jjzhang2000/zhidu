@@ -10,7 +10,6 @@
 // - 点击顶层章节 → 进入该章节阅读
 
 import 'dart:async';
-import 'dart:io' show File;
 
 import 'package:flutter/material.dart';
 import '../models/book.dart';
@@ -19,6 +18,7 @@ import '../services/parsers/book_format_parser.dart';
 import '../services/parsers/rendered_content.dart';
 import '../models/chapter.dart';
 import '../services/log_service.dart';
+import '../widgets/chapter_directory.dart';
 import 'chapter_screen.dart';
 
 /// 书籍详情页面的StatefulWidget
@@ -278,9 +278,23 @@ class _BookScreenState extends State<BookScreen> {
   Future<void> _startReading() async {
     if (_flatChapters.isEmpty) return;
 
-    // PDF：从第 1 页开始阅读
+    // 读取最新的书籍记录：本页缓存的 _book 可能还是上次进入阅读前的快照，
+    // 若不刷新会读不到刚保存的阅读进度
+    _book = BookService().getBookById(_book.id) ?? _book;
+
+    final resumeIndex = _book.lastChapterIndex;
+    final resumePage = _book.lastPageIndex ?? 0;
+
+    // 有进度且不在首章：直接续读该章
+    if (resumeIndex != null && resumeIndex > 0) {
+      _resumeReading(resumeIndex);
+      return;
+    }
+
+    // PDF：从第 1 页开始（有进度则回到上次页）
     if (_book.format == BookFormat.pdf) {
-      _openChapter(_flatChapters.first, initialPage: 1);
+      _openChapter(_flatChapters.first,
+          initialPage: resumeIndex != null ? resumePage + 1 : 1);
       return;
     }
 
@@ -290,16 +304,36 @@ class _BookScreenState extends State<BookScreen> {
     final parser = FormatRegistry.getParser(ext);
     final opening = parser == null ? null : await parser.getOpeningContent(_book.filePath);
 
+    // 首章进度按「开头页」恢复（首次阅读就是从这里开始的，页码与内容一致）
+    final initialPagedPage = resumeIndex != null ? resumePage : null;
+
     if (!mounted) return;
     if (opening != null && opening.html.isNotEmpty) {
-      _openOpening(opening);
+      _openOpening(opening, initialPagedPage: initialPagedPage);
     } else {
-      _openChapter(_flatChapters.first);
+      _openChapter(_flatChapters.first, initialPagedPage: initialPagedPage);
     }
   }
 
+  /// 续读：打开上次阅读的章节与页码（EPUB 恢复分页页码，PDF 恢复页）
+  void _resumeReading(int chapterIndex) {
+    final chapter = _flatChapters.firstWhere(
+      (c) => c.level == 0 && c.index == chapterIndex,
+      orElse: () => _flatChapters.first,
+    );
+    final isPdf = _book.format == BookFormat.pdf;
+    final lastPage = _book.lastPageIndex ?? 0;
+    _openChapter(
+      chapter,
+      initialPage: isPdf ? lastPage + 1 : null,
+      initialPagedPage: isPdf ? null : lastPage,
+    );
+  }
+
   /// 打开书籍第一页（开头内容，如 EPUB 标题页）
-  void _openOpening(RenderedContent opening) {
+  ///
+  /// [initialPagedPage] 用于续读时恢复分页页码。
+  void _openOpening(RenderedContent opening, {int? initialPagedPage}) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -314,27 +348,52 @@ class _BookScreenState extends State<BookScreen> {
           openingFonts: opening.fonts,
           openingIsVertical: opening.isVertical,
           openingPlainText: opening.plainText,
+          initialPagedPage: initialPagedPage,
         ),
       ),
     );
   }
 
   /// 跳转到指定章节的阅读页面
-  void _openChapter(Chapter chapter, {int? initialPage}) {
+  ///
+  /// 子章节（level>0）没有独立索引，需先定位其所属的顶层章节，
+  /// 再以该顶层章节为阅读单位，并把子章节标题作为初始定位锚点。
+  void _openChapter(Chapter chapter,
+      {int? initialPage, int? initialPagedPage}) {
+    final topChapter = _topLevelChapterOf(chapter);
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ChapterScreen(
           bookId: _book.id,
-          chapterIndex: chapter.index,
-          chapterTitle: chapter.title,
+          chapterIndex: topChapter.index,
+          chapterTitle: topChapter.title,
           filePath: _book.filePath,
           chapters: _flatChapters,
           book: _book,
           initialPage: initialPage,
+          initialPagedPage: initialPagedPage,
+          initialAnchor: chapter.level > 0 ? chapter.title : null,
         ),
       ),
     );
+  }
+
+  /// 找到章节所属的顶层章节（level==0）：自身即顶层时直接返回，
+  /// 否则向上找到最近的一个顶层章节
+  Chapter _topLevelChapterOf(Chapter chapter) {
+    if (chapter.level == 0) return chapter;
+
+    var index = _flatChapters.indexWhere((c) => identical(c, chapter));
+    if (index < 0) {
+      index = _flatChapters.indexWhere(
+        (c) => c.level == chapter.level && c.title == chapter.title,
+      );
+    }
+    for (var i = index; i >= 0; i--) {
+      if (_flatChapters[i].level == 0) return _flatChapters[i];
+    }
+    return _flatChapters.isNotEmpty ? _flatChapters.first : chapter;
   }
 
   /// 构建封面图片
@@ -343,43 +402,7 @@ class _BookScreenState extends State<BookScreen> {
   /// 1. 如果[_book.coverPath]存在且文件有效，显示实际封面
   /// 2. 否则显示默认封面图标
   Widget _buildCover() {
-    const coverSize = 200.0;
-
-    if (_book.coverPath != null && File(_book.coverPath!).existsSync()) {
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        child: Image.file(
-          File(_book.coverPath!),
-          width: coverSize,
-          height: coverSize * 1.5,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              _buildDefaultCover(coverSize),
-        ),
-      );
-    }
-    return _buildDefaultCover(coverSize);
-  }
-
-  /// 构建默认封面（当无封面图片时）
-  Widget _buildDefaultCover(double size) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        width: size,
-        height: size * 1.5,
-        decoration: BoxDecoration(
-          color: Colors.blueGrey[100],
-        ),
-        child: Center(
-          child: Icon(
-            Icons.book,
-            size: 80,
-            color: Colors.blueGrey[300],
-          ),
-        ),
-      ),
-    );
+    return BookCover(book: _book);
   }
 
   /// 构建章节目录内容
@@ -426,38 +449,14 @@ class _BookScreenState extends State<BookScreen> {
   /// - 最大显示1行，超出显示省略号
   ///
   /// **交互规则**：
-  /// - 只有顶层章节(level=0)可以点击
-  /// - 子章节不可点击（onTap为null）
-  /// - 点击顶层章节跳转到[ChapterScreen]
+  /// - 所有层级（0/1/2…）都可点击
+  /// - 点击顶层章节直接进入该章
+  /// - 点击子章节进入其所属顶层章节，并定位到该子章节标题所在页
   List<Widget> _buildChapterList() {
-    final widgets = <Widget>[];
-    for (final chapter in _flatChapters) {
-      // 根据层级添加缩进（每层缩进16像素）
-      final indent = chapter.level * 16.0;
-
-      widgets.add(
-        Padding(
-          padding: EdgeInsets.only(left: indent),
-          child: ListTile(
-            dense: true,
-            title: Text(
-              chapter.title,
-              style: TextStyle(
-                // 字体大小随层级递减
-                fontSize: 15 - chapter.level * 1,
-                // 子章节颜色较淡
-                color: chapter.level > 0 ? Colors.grey[600] : null,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            // 只有顶层章节才能点击进入阅读
-            onTap:
-                chapter.level == 0 ? () => _openChapter(chapter) : null, // 子章节不可点击
-          ),
-        ),
-      );
-    }
-    return widgets;
+    return buildChapterTiles(
+      context,
+      chapters: _flatChapters,
+      onChapterTap: _openChapter,
+    );
   }
 }

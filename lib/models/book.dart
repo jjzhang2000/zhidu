@@ -32,10 +32,9 @@ class Book {
   /// 书籍总章节数
   final int totalChapters;
 
-  /// 当前阅读章节索引（从 0 开始）
-  final int currentChapter;
-
-  /// 阅读进度百分比（0.0-1.0）
+  /// 全书阅读进度（0.0-1.0），书架卡片进度条使用
+  ///
+  /// 保存阅读位置时按「已读章节 + 当前章内页占比」计算。
   final double readingProgress;
 
   /// 书籍添加到书架的时间
@@ -43,6 +42,12 @@ class Book {
 
   /// 最后阅读时间（可选）
   final DateTime? lastReadAt;
+
+  /// 上次阅读到的顶层章节索引（null 表示尚未记录阅读位置）
+  final int? lastChapterIndex;
+
+  /// 上次阅读到该章节的页码（0 起；null 表示尚未记录）
+  final int? lastPageIndex;
 
   /// 书籍语言（从 OPF 元数据中获取）
   final String? language;
@@ -61,10 +66,11 @@ class Book {
     required this.filePath,
     required this.format,
     this.totalChapters = 0,
-    this.currentChapter = 0,
     this.readingProgress = 0.0,
     required this.addedAt,
     this.lastReadAt,
+    this.lastChapterIndex,
+    this.lastPageIndex,
     this.language,
     this.publisher,
     this.publishDate,
@@ -79,10 +85,11 @@ class Book {
     String? filePath,
     BookFormat? format,
     int? totalChapters,
-    int? currentChapter,
     double? readingProgress,
     DateTime? addedAt,
     DateTime? lastReadAt,
+    int? lastChapterIndex,
+    int? lastPageIndex,
     String? language,
     String? publisher,
     String? publishDate,
@@ -95,10 +102,11 @@ class Book {
       filePath: filePath ?? this.filePath,
       format: format ?? this.format,
       totalChapters: totalChapters ?? this.totalChapters,
-      currentChapter: currentChapter ?? this.currentChapter,
       readingProgress: readingProgress ?? this.readingProgress,
       addedAt: addedAt ?? this.addedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
+      lastChapterIndex: lastChapterIndex ?? this.lastChapterIndex,
+      lastPageIndex: lastPageIndex ?? this.lastPageIndex,
       language: language ?? this.language,
       publisher: publisher ?? this.publisher,
       publishDate: publishDate ?? this.publishDate,
@@ -115,10 +123,11 @@ class Book {
       'filePath': filePath,
       'format': format.name,
       'totalChapters': totalChapters,
-      'currentChapter': currentChapter,
       'readingProgress': readingProgress,
       'addedAt': addedAt.toIso8601String(),
       'lastReadAt': lastReadAt?.toIso8601String(),
+      'lastChapterIndex': lastChapterIndex,
+      'lastPageIndex': lastPageIndex,
       'language': language,
       'publisher': publisher,
       'publishDate': publishDate,
@@ -138,12 +147,13 @@ class Book {
         orElse: () => BookFormat.epub,
       ),
       totalChapters: json['totalChapters'] ?? 0,
-      currentChapter: json['currentChapter'] ?? 0,
       readingProgress: json['readingProgress']?.toDouble() ?? 0.0,
       addedAt: DateTime.parse(json['addedAt']),
       lastReadAt: json['lastReadAt'] != null
           ? DateTime.parse(json['lastReadAt'])
           : null,
+      lastChapterIndex: json['lastChapterIndex'] as int?,
+      lastPageIndex: json['lastPageIndex'] as int?,
       language: json['language'],
       publisher: json['publisher'],
       publishDate: json['publishDate'],

@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.12 | **更新日期**: 2026-11-21
+> **文档版本**: v2.18 | **更新日期**: 2026-11-26
 
 ---
 
@@ -161,6 +161,7 @@ flowchart TD
         BS_INIT["initState()"] --> LU["_updateLastReadAt() → BookService.updateBook()"]
         BS_INIT --> EL["_loadChapters() → ensureBookFileLocal() → getChapters()"]
         READ["阅读按钮 → _startReading()"]
+        READ --> |"有上次位置"| RESUME["_resumeReading() → _openChapter(恢复 章节+页码)"]
         READ --> |"PDF"| OPEN1["_openChapter(首章, initialPage:1)"]
         READ --> |"EPUB"| OPEN2["getOpeningContent() → RenderedContent"]
         OPEN2 --> |"html 非空"| OPEN3["_openOpening(rendered) → ChapterScreen(openingContent+fonts+isVertical+plainText)"]
@@ -169,7 +170,7 @@ flowchart TD
     end
 
     subgraph "ChapterScreen 章节阅读页"
-        CS_INIT["initState()"] --> TAB["垂直Tab: 原文(0) | 缩写(1) | 译文(2)"]
+        CS_INIT["initState()"] --> TAB["垂直Tab: 原文(0) | 缩写(1) | 译文(2) | 目录(3)"]
         TAB_ORIG["原文Tab（默认）"]
         TAB_ORIG --> |"PDF"| ORIG_PDF["PdfDocumentViewBuilder 单页"]
         TAB_ORIG --> |"竖排"| ORIG_VERT["VerticalText(tategaki)"]
@@ -177,6 +178,7 @@ flowchart TD
         TAB_ORIG --> |"滚动"| ORIG_SCROLL["HtmlWidget(fwfh_core)"]
         TAB_ABBR["缩写Tab → _loadAbbreviation() → getChapterAbbreviation() 读缓存"]
         TAB_TRANS["译文Tab → _ensureTranslation() → ensureChapterTranslation()"]
+        TAB_TOC["目录Tab → ChapterDirectory(封面+章节列表) → _jumpFromDirectory() 原地跳章"]
         NAV["翻页入口统一(按钮/点击/键盘/滑动) → onPrevChapter/onNextChapter 跨章 → _navigateToChapter() 原地渲染，startAtLastPage 时 _finalizePosition() 定位末页避免闪动"]
 
         TAB_TRANS --> TRANS["generateTranslationStream() → AIService.translateContent()"]
@@ -554,6 +556,13 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-26 | 修复续读定位失效 — `_finalizePosition()` 延迟读 `widget.initialPageIndex` 时该值已被父级重置为 0；改为 `_pendingPageIndex` 在 initState/didUpdateWidget 固化目标页，定位后清空；新增回归测试 |
+| 2026-11-26 | 修复页码保存为 0 — `TabBarView` 销毁远离子页导致 `PagedReadingView` 重建、页码归零并覆盖父级 `_pagedCurrentPage`；加 `AutomaticKeepAliveClientMixin` 保活 + `initialPageIndex: _initialPagedPage ?? _pagedCurrentPage` + 翻章重置页码 |
+| 2026-11-26 | 修复续读位置不准 — `_startReading()` 先 `getBookById()` 刷新 `_book`（否则再次点「阅读」读不到新进度，退回全书首页）；首章进度经 `_openOpening(initialPagedPage:)` 恢复；翻页后 2s 防抖保存 + 已保存位置去重 |
+| 2026-11-26 | 书架续读（入口调整）— `Book` 新增 `lastChapterIndex`/`lastPageIndex`；`ChapterScreen._saveReadingPosition()` 在翻章/退出时保存位置；书架点击仍进书籍详情，详情页「阅读」`_startReading()` 有记录时 `_resumeReading()` 续读，否则开全书首页；`PagedReadingView.initialPageIndex` 恢复页码 |
+| 2026-11-26 | 阅读页新增「目录」Tab — `ChapterScreen` 垂直 Tab 扩为 4 个（原文/缩写/译文/目录）；新增 `lib/widgets/chapter_directory.dart`（`BookCover` + `buildChapterTiles` + `ChapterDirectory`），书籍详情页与阅读页复用同一套封面/章节列表；点击原地跳章，子章节定位标题所在页，同章内用 `positionToken` 触发重定位 |
+| 2026-11-26 | 章节列表全层级可点击 — `BookScreen` 取消仅 L0 可点，子章节经 `_topLevelChapterOf()` 定位顶层章节 + `initialAnchor` 定位标题所在页（`PagedReadingView._pageForAnchor()`） |
+| 2026-11-26 | 修复合并章节丢失正文 — `ChapterScreen` 新增 `_allChapters`（完整章节列表），`_loadChapterContent()` 用它调用 `getChapterContentMerged()`；此前误传仅 `level==0` 的 `_chapters`，导致子章节所在文件的正文整段丢失 |
 | 2026-11-21 | 分页阅读翻页导航完善 — 修复跨章闪动（`_pageViewHidden` + `_finalizePosition()` 分页稳定后定位目标页）；翻页入口统一（`PagedReadingView` 新增 `onPrevChapter`/`onNextChapter`，点击/键盘到边界跨章）；滑动跨章（`BouncingScrollPhysics` + overscroll 监听，`_crossChapterTriggered` 防重复） |
 | 2026-11-20 | EPUB 显示能力改进 — 渲染器替换 `flutter_html` → `flutter_widget_from_html_core`（`HtmlWidget`）；CSS 内联重写为 `EpubCssEngine`（csslib + cascadia + 特异性级联）；`@font-face` 字体嵌入（SHA-1 反混淆 + `FontLoader`）；图片内联（background-image/SVG）；竖排 `VerticalText`（tategaki）；分页阅读 `PagedReadingView`（TextPainter 切页，默认模式）；`getChapterContentMerged`/`getOpeningContent` 返回值改为 `RenderedContent`，新增 `RenderedContent`/`EmbeddedFont` 模型 |
 | 2026-11-19 | 阅读/章节页重构 — 删除 AI 缩写预处理与全书摘要；`BookFormatParser` 新增 `getOpeningContent()`（阅读按钮直达第一页）；`ChapterScreen` 删除「生成缩写」按钮、缩写改为 `_loadAbbreviation` 仅读缓存；章节 Tab 重排为 原文/缩写/译文；翻章改为原地渲染 `_navigateToChapter()`（保留旧内容后台加载无闪动）；翻页按钮样式调整 |

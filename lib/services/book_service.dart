@@ -403,6 +403,34 @@ class BookService {
     }
   }
 
+  /// 保存阅读位置（章节索引 + 章节内页码）
+  ///
+  /// 按 id 从内存书籍列表取最新记录，避免调用方传入过期的 Book 快照；
+  /// [progress] 为全书阅读进度（0.0~1.0），用于书架进度条。
+  Future<void> saveReadingPosition(
+    String bookId,
+    int chapterIndex,
+    int pageIndex, {
+    double? progress,
+  }) async {
+    final index = _books.indexWhere((b) => b.id == bookId);
+    if (index < 0) {
+      _log.w('BookService', '保存阅读位置失败，书籍不在书架中: $bookId');
+      return;
+    }
+    final book = _books[index];
+    if (book.lastChapterIndex == chapterIndex &&
+        book.lastPageIndex == pageIndex &&
+        (progress == null || book.readingProgress == progress)) {
+      return;
+    }
+    await updateBook(book.copyWith(
+      lastChapterIndex: chapterIndex,
+      lastPageIndex: pageIndex,
+      readingProgress: progress,
+    ));
+  }
+
   /// 替换内存中的书并同步持久化
   Future<void> updateBook(Book book) async {
     _log.d('BookService', '更新书籍: ${book.title}');

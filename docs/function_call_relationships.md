@@ -114,7 +114,7 @@ SettingsScreen._browseCalibreLibrary() / _refreshCalibreLibrary()
 ### 3.2 阅读 + 缩写查看 + 译文查看流程
 
 ```
-HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
+HomeScreen.BookCard.onTap → Navigator.push(BookScreen) 书籍详情
     │
     ├── BookScreen.initState()
     │       ├── _updateLastReadAt()  (更新最后阅读时间并持久化)
@@ -122,17 +122,20 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
     │
     ├── BookScreen.build() (单页：封面行 + 章节列表，无Tab)
     │       ├── 封面行「阅读」按钮 → _startReading()
-    │       │       ├── [PDF] _openChapter(首章, initialPage: 1)
+    │       │       ├── 先 getBookById() 刷新 _book（避免使用过期快照）
+    │       │       ├── [lastChapterIndex > 0] _resumeReading(index) → _openChapter(章节, 恢复页码)
+    │       │       ├── [lastChapterIndex == 0] 首章进度按开头页恢复 → _openOpening(opening, initialPagedPage)
+    │       │       ├── [PDF] _openChapter(首章, initialPage: 1 / lastPage+1)
     │       │       └── [EPUB] FormatRegistry.getParser(ext).getOpeningContent(filePath)
     │       │               └── 返回 RenderedContent（spine 首文件，经 EpubCssEngine 内联 CSS/图片 + SVG 封面转 <img> + 提取内嵌字体）
     │       │                       ├── html 非空 → _openOpening(rendered) → ChapterScreen(openingContent + openingFonts + openingIsVertical + openingPlainText)
     │       │                       └── 空 → _openChapter(首章)
     │       └── 点击章节 → _openChapter(chapter) → Navigator.push(ChapterScreen)
     │
-    └── ChapterScreen (垂直Tab: 原文(0) | 缩写(1) | 译文(2)，默认进入原文)
+    └── ChapterScreen (垂直Tab: 原文(0) | 缩写(1) | 译文(2) | 目录(3)，默认进入原文)
             │
             ├── initState()
-            │       ├── 初始化 TabController(3) → 默认 index 0 = 原文
+            │       ├── 初始化 TabController(4) → 默认 index 0 = 原文
             │       ├── _initializeLanguageSettings()（源语言检测 + 目标语言）
             │       └── _initializeContent()（openingContent / chapterContent / filePath）
             │               ├── _loadEmbeddedFonts()（EPUB 内嵌字体经 FontLoader 注册）
@@ -149,6 +152,9 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen)
             │
             ├── 译文 Tab → _ensureTranslation()（切换到译文 Tab 时触发）
             │       └── SummaryService.ensureChapterTranslation()（读缓存或流式生成）
+            │
+            ├── 目录 Tab → ChapterDirectory（复用书籍详情页封面 + 章节列表）
+            │       └── _jumpFromDirectory() → _navigateToChapter(index, anchor) / 同章 _positionToken++
             │
             └── 翻章（上一章/下一章）→ _navigateToChapter()（原地渲染，不触发路由）
                     ├── 更新 _currentIndex/_title，保留旧内容后台加载
@@ -546,6 +552,15 @@ SummaryService.getChapterAbbreviation()
 | 日期 | 更新内容 |
 |------|----------|
 | 2026-11-26 | 代码审核清理 + 删除 `PdfReaderScreen` — 删除未被应用流程调用的 `lib/screens/pdf_reader_screen.dart` 及其测试（PDF 阅读实际由 `ChapterScreen` 内置 `PdfDocumentViewBuilder` 处理），同步更新类图、章节原文 Tab 说明与依赖关系；清理恒真分页开关、重复 HTML 渲染、未使用参数与冗长/过时注释，`flutter analyze lib` 无告警 |
+| 2026-11-26 | 修复续读定位失效 — `PagedReadingView._finalizePosition()` 原在分页稳定后读 `widget.initialPageIndex`，此时父级已把一次性页码清空并改传 `_pagedCurrentPage`(0)，导致跳首页。改为 `_pendingPageIndex` 在 `initState`/`didUpdateWidget(htmlChanged)` 固化目标页、定位后清空；`test/screens/chapter_screen_test.dart` 新增续读定位回归用例 |
+| 2026-11-26 | 清理 metadata.json 冗余字段 — 删除 `Book.currentChapter`（仅写不读，位置语义已由 `lastChapterIndex` 覆盖），同步移除 `copyWith`/`toJson`/`fromJson`/`saveReadingPosition` 及相关测试引用；旧文件残留键由 `fromJson` 忽略，下次写入自动消失 |
+| 2026-11-26 | 修复页码保存为 0（续读失败根因）— 依据 `metadata.json`（`lastChapterIndex:1`、`lastPageIndex:0`）定位：`TabBarView` 的 `PageView` 销毁远离当前页的子页，切到缩写/译文/目录再回原文时 `PagedReadingView` 重建、`_currentPage` 归零并通过 `onPageChanged` 把 `ChapterScreen._pagedCurrentPage` 覆盖为 0，退出即保存 0。修复：`PagedReadingView` 加 `AutomaticKeepAliveClientMixin`（`wantKeepAlive=true`，`build` 调 `super.build`）；`initialPageIndex: _initialPagedPage ?? _pagedCurrentPage` 支持同内容重建回位；`_navigateToChapter()` 重置 `_pagedCurrentPage/_pagedTotalPages`；开头页分支首帧后清空 `_initialPagedPage` |
+| 2026-11-26 | 阅读位置持久化加固 — 新增 `BookService.saveReadingPosition(bookId, chapterIndex, pageIndex, progress:)`：按 id 从内存书籍列表取权威记录（不再依赖调用方可能过期的 Book 快照），并同时写入 `readingProgress`（已读章节 + 章内页占比）；`ChapterScreen._saveReadingPosition()` 改用该接口并输出日志。字段含义：`currentChapter` 历史字段（现与 `lastChapterIndex` 同步写入）、`readingProgress` 全书进度（书架进度条）、`lastChapterIndex` 上次阅读顶层章节、`lastPageIndex` 上次阅读页码（0 起）。位置写入 `books/{bookId}/metadata.json`，`books_index.json` 仅存 id/书名/作者/格式/路径/addedAt |
+| 2026-11-26 | 修复续读位置不准 — `BookScreen._startReading()` 先用 `BookService().getBookById()` 刷新 `_book`（本页缓存可能是进入阅读前的快照，导致再次点「阅读」读不到新进度而退回全书首页）；首章进度改由 `_openOpening(initialPagedPage:)` 恢复，保证与首次阅读的文档一致；`ChapterScreen` 翻页后 2s 防抖 `_scheduleSaveReadingPosition()` + `_savedChapterIndex/_savedPageIndex` 去重写入 |
+| 2026-11-26 | 书架续读 — `Book` 新增 `lastChapterIndex`/`lastPageIndex` 并持久化；`ChapterScreen._saveReadingPosition()` 在翻章与 `dispose` 时保存位置；新增 `initialPagedPage` → `PagedReadingView.initialPageIndex` 恢复页码。入口：书架点击进入书籍详情，详情页「阅读」`_startReading()` 在有 `lastChapterIndex` 时调 `_resumeReading()` 续读，否则从全书首页开始；章节点击逻辑不变 |
+| 2026-11-26 | 阅读页新增「目录」Tab — `ChapterScreen` 垂直 Tab 扩为 4 个（原文/缩写/译文/目录），第 4 个显示全书章节树；新增 `lib/widgets/chapter_directory.dart`（`BookCover` + `buildChapterTiles` + `ChapterDirectory`），书籍详情页与阅读页目录 Tab 复用同一套封面/列表代码；`_jumpFromDirectory()` 点击原地跳章（子章节带 `initialAnchor` 定位标题所在页），同章内点击通过 `PagedReadingView.positionToken` 递增触发重定位，并 `animateTo(0)` 切回原文 |
+| 2026-11-26 | 章节列表全层级可点击 — `BookScreen._buildChapterList()` 取消「仅 level==0 可点」，0/1/2 级目录均可跳转；`_openChapter()` 用 `_topLevelChapterOf()` 解析子章节所属顶层章节，并传 `initialAnchor`（子章节标题）→ `ChapterScreen` → `PagedReadingView`，分页稳定后 `_pageForAnchor()` 按块纯文本（忽略空白）定位到标题所在页；`ChapterScreen` 首次加载后清空锚点避免翻章重复定位 |
+| 2026-11-26 | 修复合并章节丢失正文 — `ChapterScreen` 新增 `_allChapters` 保存完整章节列表（含子章节），`_loadChapterContent()` 改用它调用 `getChapterContentMerged()`。此前 `_chapters` 被过滤为仅 `level==0` 并作为合并入参，导致 `_collectChapterGroup` 立即遇到下一个顶层章节而只返回顶层章节自身，子章节所在文件的正文整段丢失（如《三国配角演义》「街 亭」仅剩 3KB 标题页，合并后应为 346KB，含「街亭败战」「马谡入狱」等） |
 | 2026-11-21 | 分页阅读翻页导航完善 — ① 修复跨章闪动：翻回上一章（`startAtLastPage`）不再「先首页/中间页再末页」，`PagedReadingView` 分页稳定后由 `_finalizePosition()` 定位目标页（翻上一章为末页、翻下一章/初始为首页），期间用 `_pageViewHidden`（Opacity 隐藏）避免闪动；② 翻页入口统一：`PagedReadingView` 新增 `onPrevChapter`/`onNextChapter` 回调，点击左右 1/3 与键盘 ←/→ 到达章节边界即跨章（与底部大按钮一致）；③ 滑动跨章：`PageView` 改用 `BouncingScrollPhysics` + `NotificationListener` 监听 overscroll，滑到末页/首页继续滑动即跨章，`_crossChapterTriggered` 防重复触发 |
 | 2026-11-20 | EPUB 显示能力改进 — ① 渲染器替换：`flutter_html` → `flutter_widget_from_html_core`（`HtmlWidget`），CSS 内联重写为 `EpubCssEngine`（csslib 解析 + cascadia 选择器匹配 + !important/特异性/源顺序级联）；② 字体嵌入：`@font-face` 提取 + SHA-1 反混淆 + `FontLoader` 运行时注册；③ 图片完善：`background-image` 转 data URI、SVG 封面转 `<img>`、保留尺寸；④ 竖排：检测 `writing-mode: vertical-rl/lr`，用 `tategaki` 的 `VerticalText` 渲染；⑤ 分页阅读：新增 `PagedReadingView`（TextPainter 切页 + PageView），设为 EPUB 横排原文默认模式（滚动为可选，切换入口后续放设置项）。`BookFormatParser.getChapterContentMerged`/`getOpeningContent` 返回值改为 `RenderedContent`（html + fonts + isVertical + plainText），新增 `RenderedContent`/`EmbeddedFont` 模型 |
 | 2026-11-19 | 阅读/章节页重构 — ① 删除 AI 缩写预处理与生成：SummaryService 删除 `generateSingleSummary`/`generateSummariesForBook`/`_generateBookSummaryFromChapters`/`Semaphore`/`registerBookStreamingCallback`/`init`/`dispose`，保留译文生成与缩写/译文读写缓存；BookScreen 删除后台预生成 `_startPreGeneration` 与全书摘要 Tab；ChapterScreen 删除「生成缩写」按钮与 `_ensureAbbreviation`，缩写改为 `_loadAbbreviation` 仅读缓存。② 阅读按钮跳转第一页：`BookFormatParser` 新增 `getOpeningContent`，`EpubParser` 实现（spine 首文件 + CSS/图片内联 + SVG 封面转 `<img>`），`PdfParser` 返回 null。③ 章节 Tab 重排为 原文/缩写/译文 且默认进入原文。④ 翻章改为原地渲染 `_navigateToChapter`（不再 `Navigator.pushReplacement`），保留旧内容后台加载无闪动、滚动重置到顶部。⑤ 翻页按钮样式（放大、透明度、悬停变色、单箭头图标） |

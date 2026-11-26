@@ -500,6 +500,7 @@ class _BookCardState extends State<BookCard> {
     );
   }
 
+  /// 打开书籍详情页（阅读入口在详情页的「阅读」按钮）
   void _openBook() async {
     final latestBook = _bookService.getBookById(widget.book.id) ?? widget.book;
     await Navigator.push(

@@ -6,12 +6,14 @@
 // 3. 查看章节译文
 // 4. 章节导航（上一章/下一章）
 // 5. PDF页码翻页（在原文模式下）
+// 6. 目录：全书章节目录，点击跳转
 //
 // 界面切换逻辑：
-// - 左侧垂直Tab：原文/缩写/译文
+// - 左侧垂直Tab：原文/缩写/译文/目录
 // - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
 // - 缩写视图：显示已缓存的章节缩写
 // - 译文视图：显示AI生成的章节译文
+// - 目录视图：显示全书章节列表（复用书籍详情页样式）
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,11 +24,13 @@ import 'package:tategaki/tategaki.dart';
 import '../models/chapter.dart';
 import '../models/book.dart';
 import '../services/ai_service.dart';
+import '../services/book_service.dart';
 import '../services/summary_service.dart';
 import '../services/parsers/book_format_parser.dart';
 import '../services/parsers/rendered_content.dart';
 import '../services/log_service.dart';
 import '../services/settings_service.dart';
+import '../widgets/chapter_directory.dart';
 import '../widgets/paged_reading_view.dart';
 import '../widgets/svg_widget_factory.dart';
 
@@ -66,6 +70,12 @@ class ChapterScreen extends StatefulWidget {
   final String openingPlainText;
   final int? initialPage;
 
+  /// 初始定位锚点（子章节标题）：打开所属顶层章节后定位到该子章节所在页
+  final String? initialAnchor;
+
+  /// 初始分页页码（0 起）：恢复上次阅读位置时使用
+  final int? initialPagedPage;
+
   const ChapterScreen({
     super.key,
     required this.bookId,
@@ -80,6 +90,8 @@ class ChapterScreen extends StatefulWidget {
     this.openingIsVertical = false,
     this.openingPlainText = '',
     this.initialPage,
+    this.initialAnchor,
+    this.initialPagedPage,
   });
 
   @override
@@ -136,6 +148,22 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// PDF 起始页码（仅「阅读」从第一页进入时使用；切换章节后失效）
   int? _initialPage;
 
+  /// 初始定位锚点（子章节标题），首次内容加载后消费并清空
+  String? _initialAnchor;
+
+  /// 分页视图定位请求计数器：同章内从目录跳转时递增，触发重新定位
+  int _positionToken = 0;
+
+  /// 初始分页页码（0 起），首次内容加载后消费并清空
+  int? _initialPagedPage;
+
+  /// 阅读位置保存防抖定时器（翻页频繁时不每次都写文件）
+  Timer? _savePositionTimer;
+
+  /// 已写入存储的阅读位置（章节/页码），用于跳过重复写入
+  int? _savedChapterIndex;
+  int? _savedPageIndex;
+
   /// Tab控制器（用于垂直Tab布局）
   TabController? _tabController;
 
@@ -146,6 +174,12 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 第一级章节列表（用于导航）
   /// 注意：只包含level=0的章节，忽略子章节
   List<Chapter> _chapters = [];
+
+  /// 完整章节列表（含子章节）
+  /// 合并顶层章节内容时必须用它：顶层章节的正文常分散在其后的子章节中
+  /// （如「街 亭」的正文位于子章节「街亭败战」所在的文件），
+  /// 若只传 level=0 列表，子章节会被跳过导致整段正文丢失。
+  List<Chapter> _allChapters = [];
 
   /// PDF当前页码（用于PDF原文阅读时的翻页）
   int _pdfCurrentPage = 1;
@@ -201,16 +235,21 @@ class _ChapterScreenState extends State<ChapterScreen>
 
     _currentIndex = widget.chapterIndex;
     _initialPage = widget.initialPage;
+    _initialAnchor = widget.initialAnchor;
+    _initialPagedPage = widget.initialPagedPage;
+    _savedChapterIndex = widget.book?.lastChapterIndex;
+    _savedPageIndex = widget.book?.lastPageIndex;
     _title = widget.chapterTitle;
 
     if (widget.chapters != null) {
-      _chapters = widget.chapters!.where((c) => c.level == 0).toList();
+      _allChapters = List<Chapter>.from(widget.chapters!);
+      _chapters = _allChapters.where((c) => c.level == 0).toList();
     }
 
     _translationScrollController = ScrollController();
     _originalScrollController = ScrollController();
 
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController!.addListener(() {
       if (mounted) {
         setState(() {});
@@ -236,6 +275,9 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   @override
   void dispose() {
+    // 退出阅读时记录位置，下次从书架打开可直接续读
+    _savePositionTimer?.cancel();
+    _saveReadingPosition();
     _summaryService.unregisterTranslationCallback(widget.bookId, _currentIndex);
     _translationScrollController?.dispose();
     _originalScrollController?.dispose();
@@ -262,6 +304,12 @@ class _ChapterScreenState extends State<ChapterScreen>
       _checkContentLength();
       if (!mounted) return;
       setState(() => _isLoadingContent = false);
+      // 初始页码只用一次，之后重建按 _pagedCurrentPage 恢复当前位置
+      if (_initialPagedPage != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _initialPagedPage = null;
+        });
+      }
       return;
     }
 
@@ -345,8 +393,9 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 解析章节列表并获取指定章节的内容
   Future<void> _loadChapterContent() async {
     try {
+      // 合并章节内容需要完整章节列表（含子章节），否则顶层章节的正文会丢失
       List<Chapter> chapters =
-          _chapters.isNotEmpty ? _chapters : (widget.chapters ?? []);
+          _allChapters.isNotEmpty ? _allChapters : (widget.chapters ?? []);
 
       if (chapters.isEmpty && widget.filePath != null) {
         final extension = _getFileExtension(widget.filePath!);
@@ -359,6 +408,7 @@ class _ChapterScreenState extends State<ChapterScreen>
         }
       }
 
+      _allChapters = chapters;
       final topLevelChapters = chapters.where((c) => c.level == 0).toList();
       _chapters = topLevelChapters;
 
@@ -416,6 +466,14 @@ class _ChapterScreenState extends State<ChapterScreen>
         _isLoadingContent = false;
       });
       _checkContentLength();
+      // 锚点/页码只用一次：内容渲染（PagedReadingView.didUpdateWidget 读取）后清空，
+      // 避免后续翻章时重复定位
+      if (_initialAnchor != null || _initialPagedPage != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _initialAnchor = null;
+          _initialPagedPage = null;
+        });
+      }
       // 新内容渲染后重置滚动到顶部（翻章后新章节从顶部开始阅读）
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -738,6 +796,11 @@ class _ChapterScreenState extends State<ChapterScreen>
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor,
                   disabled: _translationTabDisabled),
+              Container(
+                  height: 1, width: 44, color: Colors.grey.withAlpha(100)),
+              _buildVerticalTab(3, Icons.toc,
+                  selectedColor: selectedColor,
+                  unselectedColor: unselectedColor),
             ],
           ),
           Expanded(
@@ -749,6 +812,7 @@ class _ChapterScreenState extends State<ChapterScreen>
                   _buildOriginalTextView(),
                   _buildSummaryContent(),
                   _buildTranslationView(),
+                  _buildDirectoryView(),
                 ],
               ),
             ),
@@ -756,6 +820,46 @@ class _ChapterScreenState extends State<ChapterScreen>
         ],
       ),
     );
+  }
+
+  /// 构建目录视图：封面 + 全书章节列表（复用书籍详情页的封面与列表样式）
+  Widget _buildDirectoryView() {
+    final chapters = _allChapters.isNotEmpty ? _allChapters : _chapters;
+    return ChapterDirectory(
+      book: widget.book,
+      chapters: chapters,
+      currentChapterIndex: _currentIndex,
+      onChapterTap: _jumpFromDirectory,
+    );
+  }
+
+  /// 目录点击：跳到目标章节（子章节定位到其标题所在页），并切回原文 Tab
+  void _jumpFromDirectory(Chapter chapter) {
+    final top = _topLevelChapterOf(chapter);
+    final index = _chapters.indexWhere((c) => c.index == top.index);
+    if (index < 0) return;
+
+    final anchor = chapter.level > 0 ? chapter.title : null;
+    if (index == _currentIndex) {
+      // 同一章内定位：无需重新加载内容，仅通知分页视图按锚点重新定位
+      setState(() {
+        _initialAnchor = anchor;
+        _positionToken++;
+      });
+    } else {
+      _navigateToChapter(index, anchor: anchor);
+    }
+    _tabController?.animateTo(0);
+  }
+
+  /// 找到章节所属的顶层章节（level==0）
+  Chapter _topLevelChapterOf(Chapter chapter) {
+    if (chapter.level == 0) return chapter;
+    final index = _allChapters.indexWhere((c) => identical(c, chapter));
+    for (var i = index; i >= 0; i--) {
+      if (_allChapters[i].level == 0) return _allChapters[i];
+    }
+    return _chapters.isNotEmpty ? _chapters.first : chapter;
   }
 
   /// 构建垂直Tab按钮（仅图标）
@@ -1088,6 +1192,10 @@ class _ChapterScreenState extends State<ChapterScreen>
         controller: _pagedController,
         onPageChanged: _onPagedPageChanged,
         startAtLastPage: _startAtLastPage,
+        initialAnchor: _initialAnchor,
+        // 内容未变时（如 Tab 切换后重建）回到当前页，避免页码被重置为 0
+        initialPageIndex: _initialPagedPage ?? _pagedCurrentPage,
+        positionToken: _positionToken,
         onPrevChapter: () =>
             _navigateToChapter(_currentIndex - 1, startAtLastPage: true),
         onNextChapter: () => _navigateToChapter(_currentIndex + 1),
@@ -1115,6 +1223,42 @@ class _ChapterScreenState extends State<ChapterScreen>
     );
   }
 
+  /// 保存当前阅读位置（章节 + 页码），供下次从书架打开时续读
+  void _saveReadingPosition() {
+    final book = widget.book;
+    if (book == null) return;
+
+    // PDF 用 1 起的 _pdfCurrentPage，统一转成 0 起存储
+    final page = _pdfTotalPages > 0 ? _pdfCurrentPage - 1 : _pagedCurrentPage;
+    // 与已写入的位置相同则跳过，避免翻页时反复写文件
+    if (_savedChapterIndex == _currentIndex && _savedPageIndex == page) {
+      return;
+    }
+    _savedChapterIndex = _currentIndex;
+    _savedPageIndex = page;
+
+    final progress = _computeProgress(page);
+    _log.d('ChapterScreen',
+        '保存阅读位置: 章节 $_currentIndex 页 $page 进度 ${progress.toStringAsFixed(3)}');
+    BookService()
+        .saveReadingPosition(book.id, _currentIndex, page, progress: progress);
+  }
+
+  /// 全书阅读进度（0.0~1.0）：已读章节 + 当前章节内页占比
+  double _computeProgress(int page) {
+    final total = _chapters.length;
+    if (total <= 0) return 0;
+    final pagesInChapter = _pagedTotalPages <= 0 ? 1 : _pagedTotalPages;
+    final fraction = (page / pagesInChapter).clamp(0.0, 1.0);
+    return ((_currentIndex + fraction) / total).clamp(0.0, 1.0);
+  }
+
+  /// 翻页后延迟保存阅读位置（防抖，避免每翻一页都写文件）
+  void _scheduleSaveReadingPosition() {
+    _savePositionTimer?.cancel();
+    _savePositionTimer = Timer(const Duration(seconds: 2), _saveReadingPosition);
+  }
+
   /// 在本页内切换到指定章节（不触发页面路由，避免页面切换动画）
   ///
   /// 切换逻辑：
@@ -1123,8 +1267,12 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// - 重置摘要/译文等状态
   ///
   /// 注意：只导航到第一级章节（level=0）
-  void _navigateToChapter(int index, {bool startAtLastPage = false}) {
+  void _navigateToChapter(int index,
+      {bool startAtLastPage = false, String? anchor}) {
     if (index < 0 || index >= _chapters.length) return;
+
+    // 记录离开前的阅读位置，供下次续读
+    _saveReadingPosition();
 
     // 注销旧章节的译文回调
     _summaryService.unregisterTranslationCallback(widget.bookId, _currentIndex);
@@ -1132,7 +1280,11 @@ class _ChapterScreenState extends State<ChapterScreen>
     _currentIndex = index;
     _title = _chapters[index].title;
     _initialPage = null; // 切换章节后不再从第一页开始，改用章节自身页码
+    _pagedCurrentPage = 0; // 新章节从首页开始，避免沿用上一章的页码
+    _pagedTotalPages = 1;
     _startAtLastPage = startAtLastPage; // 翻回上一章时定位其末页
+    _initialAnchor = anchor; // 从目录跳转子章节时定位到其标题所在页
+    _initialPagedPage = null; // 翻章后不再沿用上次的页码
 
     setState(() {
       // 保留 _content（旧章节内容）直到新内容加载完成，后台加载无闪动
@@ -1166,6 +1318,7 @@ class _ChapterScreenState extends State<ChapterScreen>
       _pagedCurrentPage = page;
       _pagedTotalPages = totalPages;
     });
+    _scheduleSaveReadingPosition();
   }
 
   /// 「上一页」：分页模式先翻页，到章节首页则翻上一章（并定位到上一章末页）

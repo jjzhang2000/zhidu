@@ -33,6 +33,16 @@ class PagedReadingView extends StatefulWidget {
   /// 在当前章节末页再向后翻页时触发（用于跨章到下一章）。
   final VoidCallback? onNextChapter;
 
+  /// 初始定位锚点（子章节标题）：内容渲染后定位到该标题所在页
+  final String? initialAnchor;
+
+  /// 定位请求序号：内容不变时递增也会触发按 [initialAnchor] 重新定位
+  /// （用于同一章节内从目录点击子章节）
+  final int positionToken;
+
+  /// 初次渲染时直接定位到的页码（0 起，null 表示首页），用于恢复上次阅读位置
+  final int? initialPageIndex;
+
   const PagedReadingView({
     super.key,
     required this.html,
@@ -42,13 +52,17 @@ class PagedReadingView extends StatefulWidget {
     this.startAtLastPage = false,
     this.onPrevChapter,
     this.onNextChapter,
+    this.initialAnchor,
+    this.positionToken = 0,
+    this.initialPageIndex,
   });
 
   @override
   State<PagedReadingView> createState() => _PagedReadingViewState();
 }
 
-class _PagedReadingViewState extends State<PagedReadingView> {
+class _PagedReadingViewState extends State<PagedReadingView>
+    with AutomaticKeepAliveClientMixin {
   int _currentPage = 0;
   int _totalPages = 1;
 
@@ -58,6 +72,15 @@ class _PagedReadingViewState extends State<PagedReadingView> {
 
   // 块级元素 HTML 列表（已含 body 级包裹样式）
   List<String> _blocks = [];
+
+  // 每个块的纯文本（去标签、去空白），用于按标题定位子章节起始页
+  List<String> _blockTexts = [];
+
+  // 每页起始块的下标（与 _pages 等长），用于把块下标映射到页码
+  List<int> _pageStartBlocks = [];
+
+  // 待定位的子章节标题（内容切换时由 initialAnchor 写入，定位后清空）
+  String? _anchorTitle;
 
   // 每个块的测量用 GlobalKey
   final List<GlobalKey> _blockKeys = [];
@@ -92,7 +115,19 @@ class _PagedReadingViewState extends State<PagedReadingView> {
   // 是否已在本轮滑动中触发跨章（防止 overscroll 连续通知重复触发跨章）
   bool _crossChapterTriggered = false;
 
+  /// 待定位页码：内容切换时从 [initialPageIndex] 固化到 State。
+  ///
+  /// 必须固化而不能在定位时读 `widget.initialPageIndex`：父级在首帧后会把该参数
+  /// 重置（清空一次性页码 / 改传当前页 0），延迟读取会拿到 0 而定位到首页。
+  int? _pendingPageIndex;
+
   PageController get _controller => widget.controller;
+
+  /// 分页结果在 Tab 切换时保活：
+  /// 否则切到缩写/译文/目录再切回原文，本 State 会被销毁重建，
+  /// 当前页归零（并经 onPageChanged 把父级记录的页码覆盖为 0）。
+  @override
+  bool get wantKeepAlive => true;
 
   // 块与块之间的间距（段落/标题等块级元素之间），以相对字体大小的 em 表示。
   // fwfh 会剥离 HtmlWidget 根元素的上下外边距，故这里显式插入间距。
@@ -102,6 +137,11 @@ class _PagedReadingViewState extends State<PagedReadingView> {
   void initState() {
     super.initState();
     _prepareBlocks();
+    // 带锚点/指定页码打开时先隐藏 PageView，等分页稳定、定位到目标页后再显示，避免闪烁
+    _anchorTitle = widget.initialAnchor;
+    _pendingPageIndex = widget.initialPageIndex;
+    _pageViewHidden =
+        _anchorTitle != null || (_pendingPageIndex ?? 0) > 0;
   }
 
   @override
@@ -114,14 +154,32 @@ class _PagedReadingViewState extends State<PagedReadingView> {
   @override
   void didUpdateWidget(PagedReadingView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.html != widget.html) {
+    final htmlChanged = oldWidget.html != widget.html;
+    final tokenChanged = oldWidget.positionToken != widget.positionToken;
+    if (!htmlChanged && !tokenChanged) return;
+
+    if (htmlChanged) {
       _prepareBlocks();
       // 隐藏 PageView 直至定位到目标页：此时 controller 仍保留上一章的页号，
       // 若直接渲染一帧会先显示错误页（上一章遗留页），再跳目标页即产生闪烁。
       _pageViewHidden = true;
       _jumpToLastPending = widget.startAtLastPage;
+      _anchorTitle = widget.initialAnchor;
+      _pendingPageIndex = widget.initialPageIndex;
       _crossChapterTriggered = false;
+      return;
     }
+
+    // 内容未变、仅请求重新定位（同一章内从目录点击）：分页已就绪，直接跳转。
+    // 无锚点（点击当前顶层章节）时回到该章首页。
+    final target = widget.initialAnchor == null
+        ? 0
+        : _pageForAnchor(widget.initialAnchor);
+    if (target == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      _controller.jumpToPage(target);
+    });
   }
 
   void _prepareBlocks() {
@@ -162,8 +220,10 @@ class _PagedReadingViewState extends State<PagedReadingView> {
     for (var i = 0; i < _blocks.length; i++) {
       _blockKeys.add(GlobalKey());
     }
+    _blockTexts = _blocks.map(_plainTextOf).toList();
 
     _pages = [];
+    _pageStartBlocks = [];
     _measuredWidth = null;
     _measuredHeight = null;
     _lastHeights = [];
@@ -182,6 +242,25 @@ class _PagedReadingViewState extends State<PagedReadingView> {
     return nodes
         .where((n) => n is! dom.Text || n.data.trim().isNotEmpty)
         .toList();
+  }
+
+  /// 提取块 HTML 的纯文本（去标签、解常见实体、折叠空白）
+  String _plainTextOf(String html) {
+    var text = html.replaceAll(RegExp(r'<[^>]*>'), ' ');
+    text = text
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&#160;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&apos;', "'");
+    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// 归一化文本：去掉所有空白（含全角空格与不换行空格），用于标题比对
+  String _normalizeText(String text) {
+    return text.replaceAll(RegExp(r'[\s\u00A0\u3000]+'), '');
   }
 
   /// 递归展开容器元素，让段落、标题等叶子块级元素成为独立块。
@@ -303,6 +382,8 @@ class _PagedReadingViewState extends State<PagedReadingView> {
 
   @override
   Widget build(BuildContext context) {
+    // AutomaticKeepAliveClientMixin 要求先调用父类 build
+    super.build(context);
     return Focus(
       autofocus: true,
       onKeyEvent: _onKey,
@@ -450,7 +531,9 @@ class _PagedReadingViewState extends State<PagedReadingView> {
     _lastHeights = heights;
 
     final pages = <List<String>>[];
+    final pageStarts = <int>[];
     var current = <String>[];
+    var currentStart = 0;
     var currentHeight = 0.0;
     final gap = _blockSpacing;
     for (var i = 0; i < _blocks.length; i++) {
@@ -459,22 +542,32 @@ class _PagedReadingViewState extends State<PagedReadingView> {
       final sep = current.isEmpty ? 0.0 : gap;
       if (current.isNotEmpty && currentHeight + sep + h > height) {
         pages.add(current);
+        pageStarts.add(currentStart);
         current = <String>[];
         currentHeight = 0.0;
+        currentStart = i;
         current.add(_blocks[i]);
         currentHeight = h;
       } else {
+        if (current.isEmpty) currentStart = i;
         currentHeight += sep;
         current.add(_blocks[i]);
         currentHeight += h;
       }
     }
-    if (current.isNotEmpty) pages.add(current);
-    if (pages.isEmpty) pages.add(const <String>[]);
+    if (current.isNotEmpty) {
+      pages.add(current);
+      pageStarts.add(currentStart);
+    }
+    if (pages.isEmpty) {
+      pages.add(const <String>[]);
+      pageStarts.add(0);
+    }
 
     if (!mounted) return;
     setState(() {
       _pages = pages;
+      _pageStartBlocks = pageStarts;
       _totalPages = pages.length;
       if (_currentPage >= _totalPages) _currentPage = _totalPages - 1;
       _measuredWidth = width;
@@ -507,12 +600,23 @@ class _PagedReadingViewState extends State<PagedReadingView> {
   /// 分页稳定后，定位到目标页并显示 PageView。
   ///
   /// 切章后 PageView 一直以 Opacity(0) 隐藏；本方法在 post-frame（PageView 已 attach）
-  /// 把控制器 jump 到目标页（翻上一章为末页，翻下一章/初始为首页），再清除隐藏标志。
+  /// 把控制器 jump 到目标页（翻上一章为末页，带锚点时为该标题所在页，
+  /// 其余为首页），再清除隐藏标志。
   /// 跳转全程在不可见状态下完成，用户不会看到“先错误页、再跳目标页”的闪烁。
   void _finalizePosition() {
     if (!_pageViewHidden) return;
-    final target = _jumpToLastPending ? _totalPages - 1 : 0;
+    final int target;
+    if (_jumpToLastPending) {
+      target = _totalPages - 1;
+    } else if (_anchorTitle != null) {
+      // 有锚点时优先按标题定位，找不到则回退到指定页码
+      target = _pageForAnchor(_anchorTitle) ?? (_pendingPageIndex ?? 0);
+    } else {
+      target = _pendingPageIndex ?? 0;
+    }
     _jumpToLastPending = false;
+    _anchorTitle = null;
+    _pendingPageIndex = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_controller.hasClients) {
@@ -523,6 +627,40 @@ class _PagedReadingViewState extends State<PagedReadingView> {
         setState(() => _pageViewHidden = false);
       }
     });
+  }
+
+  /// 找到标题所在页：块文本与标题一致（忽略空白）优先，其次包含
+  int? _pageForAnchor(String? anchor) {
+    if (anchor == null) return null;
+    final key = _normalizeText(anchor);
+    if (key.isEmpty) return null;
+
+    var blockIndex = -1;
+    for (var i = 0; i < _blockTexts.length; i++) {
+      if (_normalizeText(_blockTexts[i]) == key) {
+        blockIndex = i;
+        break;
+      }
+    }
+    if (blockIndex < 0) {
+      for (var i = 0; i < _blockTexts.length; i++) {
+        if (_blockTexts[i].contains(anchor)) {
+          blockIndex = i;
+          break;
+        }
+      }
+    }
+    if (blockIndex < 0) return null;
+
+    var page = 0;
+    for (var p = 0; p < _pageStartBlocks.length; p++) {
+      if (_pageStartBlocks[p] <= blockIndex) {
+        page = p;
+      } else {
+        break;
+      }
+    }
+    return page;
   }
 
   bool _heightsEqual(List<double> a, List<double> b) {
