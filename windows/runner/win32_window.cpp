@@ -150,7 +150,11 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  // Use SW_SHOW instead of the template default SW_SHOWNORMAL: by the time this
+  // first-frame callback runs, the Dart side may have already maximized the
+  // window (restored from the previous session). SW_SHOWNORMAL would restore it
+  // to a normal window ("opens maximized then shrinks"), SW_SHOW keeps it.
+  return ShowWindow(window_handle_, SW_SHOW);
 }
 
 // static

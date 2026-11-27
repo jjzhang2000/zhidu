@@ -15,19 +15,15 @@ import 'storage_config.dart';
 class SettingsService {
   static final SettingsService _instance = SettingsService._internal();
 
-  /// 获取设置服务单例实例
   factory SettingsService() => _instance;
 
-  /// 私有构造函数
   SettingsService._internal();
 
   /// 日志服务实例
   final _log = LogService();
 
-  /// 设置文件路径
   String? _settingsFilePath;
 
-  /// 当前设置对象
   AppSettings _settings = AppSettings();
 
   ValueNotifier<ThemeMode> _themeMode = ValueNotifier(ThemeMode.system);
@@ -37,6 +33,9 @@ class SettingsService {
   ValueNotifier<BookSortType> _bookshelfSortType =
       ValueNotifier(BookSortType.lastRead);
   ValueNotifier<String?> _calibreLibraryPath = ValueNotifier(null);
+
+  /// 阅读正文字号（其余阅读字号按比例推导）
+  ValueNotifier<double> _readerFontSize = ValueNotifier(21.0);
 
   /// 主题模式ValueNotifier（用于响应式UI更新）
   ValueNotifier<ThemeMode> get themeMode => _themeMode;
@@ -53,6 +52,9 @@ class SettingsService {
   /// 书库路径ValueNotifier
   ValueNotifier<String?> get calibreLibraryPath => _calibreLibraryPath;
 
+  /// 阅读正文字号ValueNotifier（阅读页其余字号按比例推导）
+  ValueNotifier<double> get readerFontSize => _readerFontSize;
+
   /// 测试用：重置服务状态
   @visibleForTesting
   static void resetForTest() {
@@ -61,12 +63,14 @@ class SettingsService {
     _instance._safeDispose(_instance._languageSettings);
     _instance._safeDispose(_instance._bookshelfSortType);
     _instance._safeDispose(_instance._calibreLibraryPath);
+    _instance._safeDispose(_instance._readerFontSize);
 
     _instance._themeMode = ValueNotifier(ThemeMode.system);
     _instance._aiSettings = ValueNotifier(AiSettings());
     _instance._languageSettings = ValueNotifier(LanguageSettings());
     _instance._bookshelfSortType = ValueNotifier(BookSortType.lastRead);
     _instance._calibreLibraryPath = ValueNotifier(null);
+    _instance._readerFontSize = ValueNotifier(21.0);
 
     _instance._settings = AppSettings();
     _instance._settingsFilePath = null;
@@ -132,6 +136,7 @@ class SettingsService {
     languageSettings.value = _settings.languageSettings;
     bookshelfSortType.value = _settings.bookshelfSortType;
     calibreLibraryPath.value = _settings.calibreLibraryPath;
+    readerFontSize.value = _settings.readerFontSize;
   }
 
   /// 获取当前完整设置
@@ -200,6 +205,15 @@ class SettingsService {
     bookshelfSortType.value = type;
     await _saveSettings();
     _log.info('SettingsService', '书架排序方式已更新: ${type.name}');
+  }
+
+  /// 设置阅读正文字号（阅读页其余字号按比例推导）
+  Future<void> setReaderFontSize(double size) async {
+    if (_settings.readerFontSize == size) return;
+    _settings = _settings.copyWith(readerFontSize: size);
+    readerFontSize.value = size;
+    await _saveSettings();
+    _log.info('SettingsService', '阅读字号已更新: $size');
   }
 
   /// 释放资源

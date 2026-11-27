@@ -455,10 +455,9 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
                 Expanded(
                   child: Text(
                     '本地模型不需要 API Key',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[600],
+                        ),
                   ),
                 ),
               ],

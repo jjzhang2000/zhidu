@@ -52,6 +52,57 @@ h1 { color: #000000; border-bottom: 1px solid #e8e8e8; margin: 0 0 1rem; }
     expect(result.html, isNot(contains('border-bottom: 1;')));
   });
 
+  test('开头页启用 rem 换算：目录缩进不再丢失', () {
+    const html = '''
+<html><head><style>
+.toc { font-size: 1rem; }
+.toc ul { padding-left: 2rem; }
+</style></head>
+<body><div class="toc"><ul><li><a href="c1">第一章</a></li></ul></div></body></html>
+''';
+    final result = engine().render(html, frontMatter: true);
+    // rem 换算为 px（根字号 16），目录缩进才能被 fwfh 识别
+    expect(result.html, contains('padding-left: 32px'));
+    expect(result.html, contains('font-size: 16px'));
+  });
+
+  test('开头页目录条目缩小字号，并按行首空白做分级缩进', () {
+    const html = '''
+<html><head><style>
+.x1 { font-size: 1.22222em; }
+.x2 { font-size: 1.11111em; }
+</style></head>
+<body>
+<p class="x"><strong>目录</strong></p>
+<div class="toc">
+<p class="x1"><a href="c1">第一章</a></p>
+<p class="x2">\u00A0\u00A0<a href="c2">第一节</a></p>
+</div>
+<p class="x">版权所有 2013</p>
+</body></html>
+''';
+    final result = engine().render(html, frontMatter: true);
+    // 两个目录条目被缩小到相对字号 0.76em（随正文字号缩放）
+    final shrunk = RegExp(r'font-size: 0\.76em').allMatches(result.html).length;
+    expect(shrunk, 2);
+    // 二级条目：两个 &nbsp; 换算为 1em 左侧缩进（相对条目字号）
+    expect(result.html, contains('margin-left: 1.0em'));
+    // 一级条目无额外缩进
+    expect(result.html, isNot(contains('margin-left: 0.5em')));
+  });
+
+  test('非开头页保持 rem 原样（不影响正文既有排版）', () {
+    const html = '''
+<html><head><style>
+p { margin: 0 0 1rem; padding-left: 2rem; }
+</style></head>
+<body><p>正文</p></body></html>
+''';
+    final result = engine().render(html);
+    expect(result.html, contains('margin: 0 0 1rem'));
+    expect(result.html, contains('padding-left: 2rem'));
+  });
+
   test('非法占位符(PrismJS)被消毒，样式表不崩溃', () {
     const html = r'''
 <html><head><style>

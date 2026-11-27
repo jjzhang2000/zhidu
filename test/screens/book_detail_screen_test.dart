@@ -104,6 +104,7 @@ void main() {
       FormatRegistry.register('.epub', MockBookFormatParser());
       FormatRegistry.register('.pdf', MockBookFormatParser());
       PathProviderPlatform.instance = _FakePathProvider();
+      BookScreen.clearChapterCacheForTest();
     });
 
     tearDown(() {

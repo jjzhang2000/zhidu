@@ -29,6 +29,16 @@ class BookScreen extends StatefulWidget {
 
   const BookScreen({super.key, required this.book});
 
+  /// 已解析章节列表的内存缓存（`bookId|filePath` → 章节）
+  ///
+  /// 每次从书架进入详情页都重新解压解析会让转场停顿（大书可达数百毫秒），
+  /// 命中缓存后直接显示章节列表。
+  static final Map<String, List<Chapter>> _chapterCache = {};
+
+  /// 测试用：清空章节缓存
+  @visibleForTesting
+  static void clearChapterCacheForTest() => _chapterCache.clear();
+
   @override
   State<BookScreen> createState() => _BookScreenState();
 }
@@ -77,11 +87,25 @@ class _BookScreenState extends State<BookScreen> {
     _bookService.updateBook(_book);
   }
 
+  /// 当前书籍的章节缓存键
+  String get _chapterCacheKey => '${_book.id}|${_book.filePath}';
+
   /// 加载书籍章节列表
   ///
   /// 使用格式注册表获取对应的解析器（EPUB/PDF），
   /// 解析书籍结构并获取扁平化的章节列表。
   Future<void> _loadChapters() async {
+    // 命中缓存：直接显示，避免重复解析造成的进入停顿
+    final cached = BookScreen._chapterCache[_chapterCacheKey];
+    if (cached != null && cached.isNotEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _flatChapters = cached;
+        _isLoadingChapters = false;
+      });
+      return;
+    }
+
     setState(() => _isLoadingChapters = true);
 
     try {
@@ -96,12 +120,13 @@ class _BookScreenState extends State<BookScreen> {
         return;
       }
 
-      // 第二优先级：出版信息缺失时解析书籍文件内部元数据补充
-      await _fillPublishInfoIfMissing(parser);
-
-      // 解析章节结构
+      // 先解析章节结构并显示（EPUB 解析已在后台 isolate 完成，不阻塞转场动画）
       final chapters = await parser.getChapters(_book.filePath);
+      if (!mounted) return;
 
+      if (chapters.isNotEmpty) {
+        BookScreen._chapterCache[_chapterCacheKey] = chapters;
+      }
       setState(() {
         _flatChapters = chapters;
         _isLoadingChapters = false;
@@ -114,6 +139,9 @@ class _BookScreenState extends State<BookScreen> {
         _book = _book.copyWith(totalChapters: chapters.length);
         await _bookService.updateBook(_book);
       }
+
+      // 出版信息缺失时再解析补充：放在章节显示之后，避免拖慢首屏
+      unawaited(_fillPublishInfoIfMissing(parser));
     } catch (e, stackTrace) {
       _log.e('BookScreen', '加载章节列表失败', e, stackTrace);
       if (mounted) {
@@ -150,6 +178,8 @@ class _BookScreenState extends State<BookScreen> {
 
       _book = _book.copyWith(publisher: publisher, publishDate: publishDate);
       await _bookService.updateBook(_book);
+      // 后台补充完成后刷新头部信息（章节列表已先显示，不阻塞首屏）
+      if (mounted) setState(() {});
     } catch (e) {
       _log.w('BookScreen', '解析书籍文件补充出版信息失败: $e');
     }
@@ -274,7 +304,10 @@ class _BookScreenState extends State<BookScreen> {
     return '$year-${month.padLeft(2, '0')}';
   }
 
-  /// 开始阅读：从书籍开头开始（EPUB：前置页合并内容；PDF：第 1 页）
+  /// 开始阅读：续读上次位置，或从书籍开头页开始
+  ///
+  /// `lastChapterIndex` 语义：-1 = 开头页（目录/版权等未列入章节的前置页），
+  /// 0 起 = 顶层章节索引。
   Future<void> _startReading() async {
     if (_flatChapters.isEmpty) return;
 
@@ -285,34 +318,60 @@ class _BookScreenState extends State<BookScreen> {
     final resumeIndex = _book.lastChapterIndex;
     final resumePage = _book.lastPageIndex ?? 0;
 
+    // PDF：无前置页，从第 1 页开始（有进度则回到上次页）
+    if (_book.format == BookFormat.pdf) {
+      if (resumeIndex != null && resumeIndex > 0) {
+        _resumeReading(resumeIndex);
+        return;
+      }
+      _openChapter(_flatChapters.first,
+          initialPage: resumeIndex != null ? resumePage + 1 : 1);
+      return;
+    }
+
     // 有进度且不在首章：直接续读该章
     if (resumeIndex != null && resumeIndex > 0) {
       _resumeReading(resumeIndex);
       return;
     }
 
-    // PDF：从第 1 页开始（有进度则回到上次页）
-    if (_book.format == BookFormat.pdf) {
-      _openChapter(_flatChapters.first,
-          initialPage: resumeIndex != null ? resumePage + 1 : 1);
+    // 停留在开头页：恢复开头页的页码
+    if (resumeIndex == -1) {
+      final opening = await _loadOpeningContent();
+      if (!mounted) return;
+      if (opening != null) {
+        _openOpening(opening, initialPagedPage: resumePage);
+      } else {
+        _openChapter(_flatChapters.first);
+      }
       return;
     }
 
-    // EPUB：从开头的全部前置页开始，无独立开头页则回退到第一章
+    // 首次阅读：从开头的全部前置页开始，无独立开头页则回退到第一章
+    if (resumeIndex == null) {
+      final opening = await _loadOpeningContent();
+      if (!mounted) return;
+      if (opening != null) {
+        _openOpening(opening);
+      } else {
+        _openChapter(_flatChapters.first);
+      }
+      return;
+    }
+
+    // 停留在第一章：恢复其页码
+    _openChapter(_flatChapters.first, initialPagedPage: resumePage);
+  }
+
+  /// 读取书籍开头内容（EPUB 前置页），无前置页时返回 null
+  Future<RenderedContent?> _loadOpeningContent() async {
     final dot = _book.filePath.lastIndexOf('.');
     final ext = dot == -1 ? '' : _book.filePath.substring(dot).toLowerCase();
     final parser = FormatRegistry.getParser(ext);
-    final opening = parser == null ? null : await parser.getOpeningContent(_book.filePath);
-
-    // 首章进度按「开头页」恢复（首次阅读就是从这里开始的，页码与内容一致）
-    final initialPagedPage = resumeIndex != null ? resumePage : null;
-
-    if (!mounted) return;
-    if (opening != null && opening.html.isNotEmpty) {
-      _openOpening(opening, initialPagedPage: initialPagedPage);
-    } else {
-      _openChapter(_flatChapters.first, initialPagedPage: initialPagedPage);
-    }
+    if (parser == null) return null;
+    final opening = await parser.getOpeningContent(_book.filePath);
+    if (opening == null || opening.html.isEmpty) return null;
+    return opening;
   }
 
   /// 续读：打开上次阅读的章节与页码（EPUB 恢复分页页码，PDF 恢复页）

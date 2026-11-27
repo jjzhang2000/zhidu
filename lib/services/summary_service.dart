@@ -1,6 +1,4 @@
-// 缩写服务
-//
-// 负责章节缩写与译文的存储、读取。
+// 摘要服务：章节缩写与译文的读写、译文流式生成
 
 import 'dart:convert';
 
@@ -15,13 +13,10 @@ import 'storage_config.dart';
 /// 提供章节缩写与译文的读取、存储，以及译文生成。
 /// 缩写与译文以文件形式存储在应用目录中。
 class SummaryService {
-  /// 单例实例
   static final SummaryService _instance = SummaryService._internal();
 
-  /// 工厂构造函数，返回单例实例
   factory SummaryService() => _instance;
 
-  /// 私有构造函数
   SummaryService._internal();
 
   /// AI服务，用于调用大模型生成译文

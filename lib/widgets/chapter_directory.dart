@@ -69,6 +69,8 @@ List<Widget> buildChapterTiles(
   int? currentChapterIndex,
 }) {
   final primary = Theme.of(context).colorScheme.primary;
+  // 章节标题字号基于主题正文字号，随主题/系统字号变化
+  final baseFontSize = Theme.of(context).textTheme.bodyLarge?.fontSize ?? 16;
   final widgets = <Widget>[];
   for (final chapter in chapters) {
     // 根据层级添加缩进（每层缩进16像素）
@@ -85,8 +87,8 @@ List<Widget> buildChapterTiles(
           title: Text(
             chapter.title,
             style: TextStyle(
-              // 字体大小随层级递减
-              fontSize: 15 - chapter.level * 1,
+              // 字体大小随层级递减（相对正文字号）
+              fontSize: baseFontSize - 1 - chapter.level,
               // 子章节颜色较淡；当前章节用主题色
               color: isCurrent
                   ? primary

@@ -221,7 +221,7 @@ class LanguageSettings {
   }
 }
 
-/// 应用完整设置，聚合 AI、主题、语言三类配置，作为 SettingsService 的数据载体
+/// 应用完整设置，聚合 AI、主题、语言、书架排序、阅读字号等配置，作为 SettingsService 的数据载体
 class AppSettings {
   /// AI 设置
   final AiSettings aiSettings;
@@ -241,6 +241,9 @@ class AppSettings {
   /// Calibre 书库文件夹路径（未设置时为 null）
   final String? calibreLibraryPath;
 
+  /// 阅读正文字号（阅读页所有字号都由它按比例推导，便于以后提供字号设置）
+  final double readerFontSize;
+
   /// 设置版本号，用于未来数据迁移
   final int version;
 
@@ -251,6 +254,7 @@ class AppSettings {
     LanguageSettings? languageSettings,
     this.bookshelfSortType = BookSortType.lastRead,
     this.calibreLibraryPath,
+    this.readerFontSize = 21.0,
     this.version = 1,
   })  : aiSettings = aiSettings ?? AiSettings(),
         savedAiConfigs = savedAiConfigs ?? {},
@@ -264,6 +268,7 @@ class AppSettings {
     LanguageSettings? languageSettings,
     BookSortType? bookshelfSortType,
     String? calibreLibraryPath,
+    double? readerFontSize,
     int? version,
   }) {
     return AppSettings(
@@ -273,6 +278,7 @@ class AppSettings {
       languageSettings: languageSettings ?? this.languageSettings,
       bookshelfSortType: bookshelfSortType ?? this.bookshelfSortType,
       calibreLibraryPath: calibreLibraryPath ?? this.calibreLibraryPath,
+      readerFontSize: readerFontSize ?? this.readerFontSize,
       version: version ?? this.version,
     );
   }
@@ -287,6 +293,7 @@ class AppSettings {
       'languageSettings': languageSettings.toJson(),
       'bookshelfSortType': bookshelfSortType.name,
       'calibreLibraryPath': calibreLibraryPath,
+      'readerFontSize': readerFontSize,
       'version': version,
     };
   }
@@ -315,6 +322,7 @@ class AppSettings {
       bookshelfSortType:
           BookSortType.fromString(json['bookshelfSortType'] as String?),
       calibreLibraryPath: json['calibreLibraryPath'] as String?,
+      readerFontSize: (json['readerFontSize'] as num?)?.toDouble() ?? 21.0,
       version: json['version'] ?? 1,
     );
   }

@@ -1,7 +1,4 @@
-// ============================================================================
-// 文件名：home_screen.dart
-// 功能：应用首页界面，包含书架展示、书籍导入、搜索等功能
-// ============================================================================
+// 首页：书架展示、搜索、排序与书籍导入入口
 
 import 'dart:io';
 
@@ -123,10 +120,9 @@ class _HomeScreenState extends State<HomeScreen> {
               _searchQuery.isEmpty
                   ? '(${_bookService.books.length})'
                   : '(${books.length}/${_bookService.books.length})',
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ],
         ),
@@ -143,14 +139,20 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: AppLocalizations.of(context)?.search ?? '搜索',
-                hintStyle: const TextStyle(color: Colors.white70, fontSize: 13),
+                hintStyle: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.white70),
                 border: InputBorder.none,
                 prefixIcon:
                     const Icon(Icons.search, color: Colors.white70, size: 18),
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 isDense: true,
               ),
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: Colors.white),
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
@@ -214,7 +216,10 @@ class _HomeScreenState extends State<HomeScreen> {
             isSearching
                 ? (AppLocalizations.of(context)?.noRelatedBooks ?? '未找到相关书籍')
                 : (AppLocalizations.of(context)?.bookshelfEmpty ?? '书架空空如也'),
-            style: const TextStyle(fontSize: 18, color: Colors.grey),
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(color: Colors.grey),
           ),
           const SizedBox(height: 8),
           Text(
@@ -222,7 +227,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? (AppLocalizations.of(context)?.tryOtherKeywords ?? '请尝试其他关键词')
                 : (AppLocalizations.of(context)?.clickToAddBooks ??
                     '点击右下角按钮添加书籍'),
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: Colors.grey),
           ),
         ],
       ),
@@ -364,12 +372,11 @@ class _BookCardState extends State<BookCard> {
                   ),
                   child: Text(
                     widget.book.format == BookFormat.pdf ? 'PDF' : 'EPUB',
-                    style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      height: 1.0,
-                    ),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          height: 1.0,
+                        ),
                   ),
                 ),
               ),
@@ -387,11 +394,11 @@ class _BookCardState extends State<BookCard> {
                   ),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      const titleStyle = TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        height: 1.2,
-                      );
+                      final titleStyle =
+                          Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                height: 1.2,
+                              );
                       final titlePainter = TextPainter(
                         text: TextSpan(
                           text: widget.book.title,
@@ -423,13 +430,15 @@ class _BookCardState extends State<BookCard> {
                           const SizedBox(height: 2),
                           Text(
                             widget.book.author,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                              height: 1.2,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  height: 1.2,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

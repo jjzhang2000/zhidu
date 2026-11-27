@@ -95,7 +95,7 @@ void main() {
     });
 
     group('chapter navigation tests', () {
-      testWidgets('shows navigation buttons when multiple chapters exist',
+      testWidgets('EPUB 原文不再显示底部大翻页按钮（改用左右 1/3 点击/滚轮）',
           (WidgetTester tester) async {
         final book = _createTestBook();
         final chapters = _createTestChapters(5);
@@ -115,8 +115,8 @@ void main() {
 
         await tester.pump();
 
-        expect(find.byIcon(Icons.keyboard_arrow_left), findsOneWidget);
-        expect(find.byIcon(Icons.keyboard_arrow_right), findsOneWidget);
+        expect(find.byIcon(Icons.keyboard_arrow_left), findsNothing);
+        expect(find.byIcon(Icons.keyboard_arrow_right), findsNothing);
       });
 
       testWidgets('does not show navigation buttons for single chapter',
@@ -268,7 +268,8 @@ void main() {
 
         await tester.pump();
 
-        expect(find.byIcon(Icons.keyboard_arrow_right), findsOneWidget);
+        // 子章节被过滤掉，仅剩两个顶层章节，故不再有底部按钮（EPUB 无翻页按钮）
+        expect(find.byIcon(Icons.keyboard_arrow_right), findsNothing);
       });
     });
 

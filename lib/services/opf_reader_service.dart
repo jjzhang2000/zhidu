@@ -11,13 +11,7 @@ import 'log_service.dart';
 class OpfReaderService {
   static final _log = LogService();
 
-  /// 从指定的OPF文件路径读取元数据
-  ///
-  /// 参数:
-  ///   [opfPath]: OPF文件的完整路径
-  ///
-  /// 返回值:
-  ///   成功时返回OpfMetadata对象，失败时返回null
+  /// 从指定的OPF文件路径读取元数据，文件不存在或解析失败返回 null
   static Future<OpfMetadata?> readFromOpfFile(String opfPath) async {
     try {
       if (!await File(opfPath).exists()) {
@@ -32,13 +26,7 @@ class OpfReaderService {
     }
   }
 
-  /// 从书籍文件同目录下查找并读取metadata.opf
-  ///
-  /// 参数:
-  ///   [bookFilePath]: 书籍文件的完整路径
-  ///
-  /// 返回值:
-  ///   如果找到metadata.opf并成功解析，返回OpfMetadata对象，否则返回null
+  /// 从书籍文件同目录查找 metadata.opf 并读取，未找到或解析失败返回 null
   static Future<OpfMetadata?> readFromSameDirectory(String bookFilePath) async {
     final bookDir = p.dirname(bookFilePath);
     final opfPath = p.join(bookDir, 'metadata.opf');
@@ -51,13 +39,7 @@ class OpfReaderService {
     return null;
   }
 
-  /// 解析OPF文件内容
-  ///
-  /// 参数:
-  ///   [content]: OPF文件的文本内容
-  ///
-  /// 返回值:
-  ///   解析成功返回OpfMetadata对象，失败返回null
+  /// 解析 OPF 文本内容，失败返回 null
   static OpfMetadata? _parseOpfContent(String content) {
     try {
       final document = XmlDocument.parse(content);

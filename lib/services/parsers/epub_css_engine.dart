@@ -59,14 +59,24 @@ class EpubCssEngine {
   EpubCssEngine(this.archive, {this.identifier = ''});
 
   /// 对章节 HTML 做渲染前处理，返回内联后的 HTML 与内嵌字体
-  RenderedContent render(String chapterHtml) {
+  ///
+  /// [frontMatter] 为 true 表示处理书籍开头页（封面/版权/目录等前置页）：
+  /// 只调整目录条目——可点击文字字号偏大（书籍常用 >1em，相对正文 21px 会到
+  /// 23~26px），且分级缩进常用行首空格/`&nbsp;` 表示，会被 HTML 折叠掉。
+  /// 版权页等非链接文字保持原样。
+  RenderedContent render(String chapterHtml, {bool frontMatter = false}) {
     try {
       final document = html_parser.parse(chapterHtml);
 
       final fonts = <EmbeddedFont>[];
       final cssText = _sanitizeCss(_collectCss(document));
       _extractFonts(cssText, fonts);
-      _inlineCss(document, cssText);
+      _inlineCss(document, cssText, convertRem: frontMatter);
+
+      // 目录条目归一化必须在段落缩进处理之前：需要先读取行首空白作为分级缩进
+      if (frontMatter) {
+        _normalizeTocEntries(document);
+      }
 
       final isVertical = _detectVertical(document, cssText);
       if (!isVertical) {
@@ -171,7 +181,8 @@ class EpubCssEngine {
 
   // ---- CSS 内联（级联） ----
 
-  void _inlineCss(dom.Document document, String cssText) {
+  void _inlineCss(dom.Document document, String cssText,
+      {bool convertRem = false}) {
     css.StyleSheet? stylesheet;
     try {
       stylesheet = css_parser.parse(cssText, errors: []);
@@ -220,10 +231,10 @@ class EpubCssEngine {
       final el = entry.key;
       final merged = <String, String>{};
       for (final e in entry.value.entries) {
-        merged[e.key] = e.value.value;
+        merged[e.key] = _convertUnits(e.value.value, convertRem);
       }
       for (final e in _parseInlineDecls(el.attributes['style']).entries) {
-        merged[e.key] = e.value;
+        merged[e.key] = _convertUnits(e.value, convertRem);
       }
       if (merged.isNotEmpty) {
         el.attributes['style'] =
@@ -481,8 +492,105 @@ class EpubCssEngine {
   void _applyReaderTypography(dom.Document document) {
     final leadingWs = RegExp(r'^[\s\u00A0\u3000]+');
     for (final p in document.querySelectorAll('p')) {
+      // 目录条目（内容全部为链接）由 _normalizeTocEntries 处理缩进，
+      // 不能再套用正文的 2em 首行缩进，否则各级条目缩进看起来一样
+      if (_isLinkOnlyBlock(p)) continue;
       _indentParagraph(p, leadingWs);
     }
+  }
+
+  // ---- 开头页目录归一化 ----
+
+  /// 允许作为目录条目容器的块级标签
+  static const Set<String> _tocBlockTags = {
+    'p', 'div', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote',
+  };
+
+  /// 允许出现在目录条目内部的纯内联标签
+  static const Set<String> _inlineTags = {
+    'a', 'strong', 'b', 'em', 'i', 'span', 'u', 'font', 'small', 'sup',
+    'sub', 'br', 'wbr', 'nobr',
+  };
+
+  /// 开头页目录条目归一化
+  ///
+  /// 目录条目（可点击文字）在原始书里常被放大（如 `font-size: 1.22em`，相对正文
+  /// 21px 会到 25px），且分级缩进用行首空格/`&nbsp;` 表示、会被 HTML 折叠掉。
+  /// 这里只处理「内容全部是链接的块级元素」：字号缩到 16px、行高统一 1.8，
+  /// 并把行首空白换算为左侧缩进（2 个空白约等于一级缩进）。版权页等非链接文字
+  /// 不做任何调整。
+  void _normalizeTocEntries(dom.Document document) {
+    final body = document.body;
+    if (body == null) return;
+
+    for (final el in body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6')) {
+      if (!_isLinkOnlyBlock(el)) continue;
+
+      final indent = _consumeLeadingIndent(el);
+      final styles = <String>[
+        // 相对大小：随阅读字号设置缩放（0.76em ≈ 正文 21px 时的 16px）
+        'font-size: 0.76em',
+        'line-height: 1.8',
+        if (indent > 0)
+          'margin-left: ${(indent / 2).clamp(0.5, 6.0).toStringAsFixed(1)}em',
+      ];
+      final existing = el.attributes['style'];
+      el.attributes['style'] = existing == null || existing.isEmpty
+          ? styles.join('; ')
+          : '$existing; ${styles.join('; ')}';
+    }
+  }
+
+  /// 块级元素的内容是否全部由链接（直接或包在内联标签中）组成
+  bool _isLinkOnlyBlock(dom.Element el) {
+    if (!_tocBlockTags.contains(el.localName)) return false;
+
+    var hasLink = false;
+    for (final node in el.nodes) {
+      if (node is dom.Text) {
+        if (node.data.trim().isNotEmpty) return false;
+        continue;
+      }
+      if (node is dom.Element) {
+        if (!_inlineTags.contains(node.localName)) return false;
+        if (node.localName == 'a' || node.querySelector('a') != null) {
+          hasLink = true;
+        } else if (node.text.trim().isNotEmpty) {
+          return false;
+        }
+        continue;
+      }
+      // 注释等其他节点忽略
+    }
+    return hasLink;
+  }
+
+  /// 读取并移除元素开头的缩进空白，返回缩进权重
+  ///
+  /// 每个半角空格 / `&nbsp;` 计 1，制表符与全角空格计 2；每 2 份对应一级缩进
+  /// （1em，随正文字号缩放）。
+  int _consumeLeadingIndent(dom.Element el) {
+    var weight = 0;
+    for (final node in List<dom.Node>.of(el.nodes)) {
+      if (node is! dom.Text) break;
+
+      final data = node.data;
+      var index = 0;
+      while (index < data.length) {
+        final unit = data.codeUnitAt(index);
+        if (unit == 0x20 || unit == 0xA0) {
+          weight += 1;
+        } else if (unit == 0x09 || unit == 0x3000) {
+          weight += 2;
+        } else {
+          break;
+        }
+        index++;
+      }
+      if (index > 0) node.data = data.substring(index);
+      if (node.data.trim().isNotEmpty) break;
+    }
+    return weight;
   }
 
   /// 为单个段落补充首行缩进，并修正 nbsp 造成的半字缩进。
@@ -622,6 +730,29 @@ class EpubCssEngine {
   }
 
   // ---- 工具 ----
+
+  /// 根字号（rem 换算基准，等同浏览器默认 16px）
+  static const double _rootFontSize = 16;
+
+  /// rem 单位换算为 px（仅开头页启用）。
+  ///
+  /// flutter_widget_from_html 只识别 px/pt/em/%，遇到 rem 会丢弃整条声明。
+  /// 而不少 EPUB（Markdown/Calibre 生成）用 `padding-left: 2rem` 做目录缩进、
+  /// `font-size: 1rem` 指定字号；rem 被丢弃后目录既不缩进、字号又回落到正文
+  /// 21px，正是「目录字体太大、缺少分级缩进」的来源。这里按根字号换算。
+  String _convertUnits(String value, bool convertRem) {
+    if (!convertRem || !value.contains('rem')) return value;
+    return value.replaceAllMapped(
+      RegExp(r'(-?\d*\.?\d+)rem\b'),
+      (m) {
+        final px = double.parse(m.group(1)!) * _rootFontSize;
+        final text = px == px.roundToDouble()
+            ? px.round().toString()
+            : px.toStringAsFixed(1);
+        return '${text}px';
+      },
+    );
+  }
 
   String _urlDecode(String src) {
     try {

@@ -9,7 +9,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           main.dart (入口)                               │
-│  initDesktopWindow()  →  window_manager + screen_retriever               │
+│  initDesktopWindow()  →  window_manager + screen_retriever（恢复上次窗口位置/尺寸/最大化） │
 │  Service 初始化链:                                                        │
 │    LogService → SettingsService → FileStorageService → StorageConfig     │
 │    → BookService → AIService → AiPrompts → SummaryService                │
@@ -118,15 +118,16 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen) 书籍详情
     │
     ├── BookScreen.initState()
     │       ├── _updateLastReadAt()  (更新最后阅读时间并持久化)
-    │       └── _loadChapters() → ensureBookFileLocal()（非本地复制到应用目录）→ 解析章节 → 保存 totalChapters
+    │       └── _loadChapters() → 命中内存缓存直接显示；否则 ensureBookFileLocal()（非本地复制到应用目录）→ EpubParser.getChapters()（后台 isolate 解析）→ 保存 totalChapters → 出版信息补充（异步，不阻塞首屏）
     │
     ├── BookScreen.build() (单页：封面行 + 章节列表，无Tab)
     │       ├── 封面行「阅读」按钮 → _startReading()
     │       │       ├── 先 getBookById() 刷新 _book（避免使用过期快照）
     │       │       ├── [lastChapterIndex > 0] _resumeReading(index) → _openChapter(章节, 恢复页码)
-    │       │       ├── [lastChapterIndex == 0] 首章进度按开头页恢复 → _openOpening(opening, initialPagedPage)
+    │       │       ├── [lastChapterIndex == -1] 上次停在开头页 → _loadOpeningContent() → _openOpening(opening, 恢复页码)
+    │       │       ├── [lastChapterIndex == 0] 上次停在第一章 → _openChapter(首章, initialPagedPage)
     │       │       ├── [PDF] _openChapter(首章, initialPage: 1 / lastPage+1)
-    │       │       └── [EPUB] FormatRegistry.getParser(ext).getOpeningContent(filePath)
+    │       │       └── [lastChapterIndex == null] 首次阅读 → _loadOpeningContent()（EPUB 前置页）
     │       │               └── 返回 RenderedContent（spine 首文件，经 EpubCssEngine 内联 CSS/图片 + SVG 封面转 <img> + 提取内嵌字体）
     │       │                       ├── html 非空 → _openOpening(rendered) → ChapterScreen(openingContent + openingFonts + openingIsVertical + openingPlainText)
     │       │                       └── 空 → _openChapter(首章)
@@ -144,8 +145,21 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen) 书籍详情
             ├── 原文 Tab 渲染（_buildOriginalTextView）
             │       ├── [PDF] PdfDocumentViewBuilder 单页查看器（initialPage）
             │       ├── [竖排] VerticalText（tategaki，writing-mode: vertical-rl/lr）
-            │       ├── [分页] PagedReadingView（HTML 块级切分 + HtmlWidget 渲染，默认模式）
+            │       ├── [分页] PagedReadingView（纯视图：渲染页 + 离屏测量，默认模式）
+            │       │       ├── PagedReaderController（章节内容/块/页列表/当前页/目标/过渡）
+            │       │       │       └── open(html)/openPages(pages)：自行测量 或 直接采用后台分页结果
+            │       │       └── 底部页码指示：就绪时显示全书页码（本章起始页 + 页内偏移 / 全书总页数），
+            │       │               否则回退章节内页码（单独 widget，只监听页码信息，避免重绘整页）
             │       └── [滚动] HtmlWidget（flutter_widget_from_html_core）
+            │
+            ├── 全书后台分页（BookPaginator + BookPaginatorHost）
+            │       ├── _onReaderLayout(w,h)（控制器上报可用宽高）→ configure(w,h, exclude: 当前章)
+            │       │       └── 尺寸变化 → 全部失效，按「当前章 → 下一章/上一章 → 前缀章 → 其余」重排
+            │       ├── 逐章 loader(index) → RenderedContent → buildHtmlBlocks → 离屏列测高 → paginateBlocks
+            │       ├── 当前章由控制器测量，测完 adopt() 回填（避免重复测量、页码一致）
+            │       ├── 已分页章节：_navigateToChapter 直接用 pagesFor(index) → _reader.openPages()
+            │       │       （跨章无需现场测量，无白屏等待）
+            │       └── 可视章节页列表变化（尺寸重排）→ _reader.replacePages()（按页起始块保持阅读位置）
             │
             ├── 缩写 Tab → _loadAbbreviation()（仅读缓存，不生成、不调用 AI）
             │       └── SummaryService.getChapterAbbreviation()
@@ -154,16 +168,31 @@ HomeScreen.BookCard.onTap → Navigator.push(BookScreen) 书籍详情
             │       └── SummaryService.ensureChapterTranslation()（读缓存或流式生成）
             │
             ├── 目录 Tab → ChapterDirectory（复用书籍详情页封面 + 章节列表）
-            │       └── _jumpFromDirectory() → _navigateToChapter(index, anchor) / 同章 _positionToken++
+            │       └── _jumpFromDirectory() → 跨章 _navigateToChapter(index, anchor) / 同章 _reader.retarget()
             │
             └── 翻章（上一章/下一章）→ _navigateToChapter()（原地渲染，不触发路由）
                     ├── 更新 _currentIndex/_title，保留旧内容后台加载
-                    ├── _loadChapterContent() → getChapterContentMerged() → RenderedContent（复用 _chapters，无需重复解析）
-                    ├── _loadAbbreviation()（读取新章节缓存缩写）
-                    └── 翻页入口统一：底部大按钮 / 点击左右 1/3 / 键盘 ←→ / 滑动，
-                        到达章节边界均经 PagedReadingView 的 onPrevChapter/onNextChapter
-                        回调跨章；翻回上一章 startAtLastPage=true → 分页稳定后由
-                        _finalizePosition() 定位末页（_pageViewHidden 隐藏期间完成，避免闪动）
+                    ├── _loadChapterContent(target) → getChapterContentMerged() → RenderedContent（复用 _chapters，无需重复解析）
+                    ├── _loadAbbreviation()（读取新章节缓存摘要）
+                    ├── 内容就绪后 _reader.open(html, target)：「打开到某位置」的意图交给控制器
+                    └── 翻页入口统一：点击左右 1/3 / 键盘 ←→ / 鼠标滚轮 / 滑动越界
+                        全部经 PagedReaderController.turnPage(±1)
+                        ├── 章内：页列表还有相邻页 → PageView 翻页
+                        ├── 章节边界：onBoundary(delta) → ChapterScreen._onReaderBoundary()
+                        │       ├── 普通章节：_navigateToChapter()（向后落新章首页、向前落上一章末页）
+                        │       ├── 第一章首页向前翻：_openOpeningPage(lastPage: true) 回到开头页末页
+                        │       │       （开头页 = 封面/目录/版权等未列入章节的前置页，_showingOpening）
+                        │       └── 开头页末页向后翻：_navigateToChapter(0) 进入第一章首页；开头页首页向前翻无操作
+                        ├── _positioning：换章定位完成前忽略翻页输入
+                        ├── _exitingBlocks：过渡中的旧页（滑出）；分页稳定后 260ms 统一过渡
+                        │       （当前页层始终包在同一层级的 SlideTransition，避免过渡结束时
+                        │        PageView 被重建回到第 0 页；旧页层不铺不透明底色，避免白页闪块）
+                        ├── 点击左右 1/3：原始指针 down/up 判定（位移 ≤ kTouchSlop 才算点击）
+                        │       HTML 的 <a> 自带 GestureDetector 会抢走点击，故不用 GestureDetector.onTapUp
+                        ├── 滑动越界：PageView 用 ClampingScrollPhysics（越界时页面不位移，切章不会跳回）；
+                        │       OverscrollNotification 累计超过 12px 才翻章（负=越过开头→上一章、正=越过末尾→下一章），
+                        │       兼容 Bouncing 平台的 ScrollUpdate 越界 pixels 判定
+                        └── _switchingChapter：上一章内容加载完成前忽略新的翻章请求
 ```
 
 ### 3.3 翻译流程
@@ -532,8 +561,10 @@ SummaryService.getChapterAbbreviation()
 │                                                                    │
 │  可复用组件 (lib/widgets/)                                          │
 │  ────────────────                                                 │
-│  PagedReadingView（分页阅读：HTML 块级切分 + HtmlWidget + PageView） │
-│  依赖: HtmlWidget(flutter_widget_from_html_core) / VerticalText(tategaki)│
+│  PagedReadingView + PagedReaderController（分页阅读：控制器持页列表，视图渲染+测量） │
+│  BookPaginator + BookPaginatorHost（全书后台分页：逐章测量缓存、优先当前章、尺寸变化重排） │
+│  html_pagination（buildHtmlBlocks / paginateBlocks / HtmlMeasureColumn 共用分页与测量） │
+│  依赖: HtmlWidget(flutter_widget_from_html_core) / PageView / HtmlWidget 离屏测量列 │
 │                                                                    │
 │  SettingsScreen           AiConfigScreen                          │
 │  ──────────────           ──────────────                          │
@@ -551,7 +582,17 @@ SummaryService.getChapterAbbreviation()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-27 | 阅读字号统一相对化 — 新增 `AppSettings.readerFontSize`（默认 21，`SettingsService.readerFontSize` + `setReaderFontSize()`，暂无 UI）；阅读页字号全部由基准字号推导：正文、竖排（×0.86）、底部页码（×0.57）、开头页目录（`font-size: 0.76em`、缩进 `1em/级`，改为相对单位不再写死 px）；章节列表用 `textTheme.bodyLarge` 派生，阅读/书架/设置页固定 `fontSize` 改为主题文本样式，仅 `app_theme.dart` 保留字号定义 |
+| 2026-11-27 | 修复窗口状态恢复 — ①最大化退出后重进被还原成普通窗口：Windows runner 首帧回调 `Win32Window::Show()` 原用 `SW_SHOWNORMAL`，会把 Dart 已恢复的最大化状态还原，改为 `SW_SHOW`；`initDesktopWindow` 改为「先最大化再 show」，显示后再确认一次最大化（避免普通窗口闪现）；②最小化退出后重进回到默认位置：最小化时 `getBounds()` 返回任务栏图标坐标，`_saveWindowState` 改为最大化/最小化时取 `_lastNormalBounds`、其次上次文件中的尺寸，并校验矩形可用后才写入；`flutter analyze lib` 无告警、`flutter build windows --debug` 通过 |
+| 2026-11-27 | 开头页目录排版 + 详情页进入流畅性 + 窗口状态恢复 — ①`EpubCssEngine.render(html, frontMatter: true)` 只调整目录条目：`_normalizeTocEntries()` 处理「内容全为链接的块级元素」，字号统一 16px、行高 1.8，行首空格/`&nbsp;` 换算为 `margin-left` 分级缩进（2 个空白≈16px 一级）；`_applyReaderTypography` 跳过这些条目，避免统一 2em 首行缩进抹平层级；版权页等非链接文字不变；开头页 rem→px（根字号 16）以兼容 fwfh 不支持 rem；②`EpubParser.getChapters()` 改用 `Isolate.run` 后台解析（isolate 内重建解析器），避免进入书籍详情页转场期间阻塞 UI；`BookScreen` 新增章节内存缓存（`bookId|filePath`），出版信息补充后置；③`main.dart` 新增窗口状态持久化（见下一条修复）；`flutter analyze lib` 无告警、425 个测试通过 |
+| 2026-11-27 | 全书页码 + 后台一次性分页 — ①新增 `lib/widgets/html_pagination.dart`：把「HTML → 块列表 → 按测量高度累积切页」抽成 `buildHtmlBlocks`/`paginateBlocks`/`pageIndexForBlock`/`HtmlMeasureColumn`，分页阅读与后台分页共用同一算法与测量列，保证两套页码一致；②`PagedReaderController` 新增 `openPages(pages, target)`（直接采用后台页列表、不做测量）、`replacePages(pages)`（尺寸重排后按页起始块原地换页、保持位置）、`reportLayout(w,h)` + `onLayout` 回调（把可用几何尺寸上报父级）、`bookPaging`（`BookPageInfo`，页码指示据此显示全书页码；前缀未知时回退章节内页码）、`pageStartBlocks`/`blockTexts` getter；打开/换页期间用 `_updating` 暂停通知，避免父级在「章节已切换但页列表尚未替换」的中间态读到旧页；③新增 `lib/widgets/book_paginator.dart`：`BookPaginator` 进入阅读页/尺寸变化后在后台逐章测量并缓存（`loader(index)` 取 `RenderedContent`，含开头页 index=-1），优先级为「当前章 → 下一章 → 上一章 → 当前章之前的章节（拼出页码前缀）→ 其余」，`adopt()` 回填控制器测量结果避免重复测量，`provideContent()` 复用已解析内容，`configure(w,h, exclude:)` 尺寸变化整体失效重排；`BookPaginatorHost` 作为离屏测量列挂在阅读页 Stack 顶层（切 Tab 不销毁）；④`ChapterScreen` 接线：`_onReaderLayout` 驱动后台重排、`_onPaginatorChanged` 刷新页码并在尺寸重排后替换可视章节页列表、`_navigateToChapter` 命中缓存时直接 `openPages`（跨章不再现场测量，减少闪动/等待）、`_adoptVisibleChapter` 回填；底部页码改为全书页码；⑤`reader_flow_test` 改写为全书页码断言（相邻页 ±1、跨章末页/首页往返），新增 `book_paginator_test`（优先当前章、前缀就绪判断、adopt 不重复测量、尺寸变化重排）；`flutter analyze lib` 无告警、422 个测试通过 |
+| 2026-11-27 | 修复跨章回退跳动 + 开头页可回退 — ①`PageView` 改用 `ClampingScrollPhysics`：越界时页面不再随拖动位移，跨章瞬间旧页快照与画面位置一致，消除「从章节首页向前翻，原首页在屏幕上跳动一次」；越界改为累计 `OverscrollNotification` 超过 12px 才翻章（保留 Bouncing 平台的 `ScrollUpdate` 越界 pixels 判定）；②`ChapterScreen` 新增 `_showingOpening` 把开头页（封面/目录/版权等未列入章节的前置页）作为第一章之前的独立位置：`_onReaderBoundary` 在第一章首页向前翻时经 `_openOpeningPage(lastPage: true)` 回到开头页末页，开头页末页向后翻进入第一章（不再跳过第一章），开头页首页向前翻无操作；开头页优先复用 `BookScreen` 传入的 `openingContent`，否则按 `getOpeningContent()` 解析；③阅读位置以 `lastChapterIndex = -1` 表示开头页，`BookScreen._startReading()` 区分 `-1/0/>0/null`；④点击左右 1/3 改由原始指针 down/up 判定（位移 ≤ `kTouchSlop`）：`<a>` 链接自带的 `GestureDetector` 会抢走点击，导致目录页无法点击翻页；⑤新增用例「越界拖动时页面不位移」「第一章首页向前翻回到开头页末页」「开头页首页向前翻无变化 / 向后翻进入第一章」，`flutter analyze lib` 无告警、420 个测试通过 |
+| 2026-11-27 | 修复真实运行中的翻页错乱/白页/首页无法后退 — ①`PagedReadingView` 当前页层始终包在同一层级 `SlideTransition`，过渡结束不再重建 PageView（否则回到第 0 页，向前翻章落在上一章末页会显示成首页并导致后续翻页跳错章）；②旧页过渡层去掉不透明 `ColoredBox`，避免与阅读区底色不一致造成白页闪块；③滑动越界方向修正（负=越过开头→上一章、正=越过末尾→下一章），并为 `BouncingScrollPhysics` 增加越界 pixels 判定（12px 阈值），修复首页/末页滑动只回弹；④过渡完成用 PageView 实际页码校正控制器；新增 `test/screens/reader_flow_test.dart` 用真实 EPUB + 1280×800 驱动 ChapterScreen 实测页码落点，417 个测试通过 |
+| 2026-11-27 | 分页阅读状态收敛重构 — 新增 `lib/widgets/paged_reader_controller.dart`（`PagedReaderController extends ChangeNotifier`）：统一持有章节 HTML、块列表、页列表、当前页、待定位目标（`PagedOpenTarget`：首页/末页/指定页/锚点）与跨章过渡；`open(html, target)` 为唯一打开入口，`turnPage(±1)` 为唯一翻页入口（点击左右 1/3、键盘、滚轮、overscroll 全部走同一条路径），章内翻页与跨章共用同一页列表模型（章节只是分段，边界经 `onBoundary` 打开相邻章节）；状态收敛为「测量中 `isMeasuring` / 定位中 `isPositioning` / 过渡中 `exitingBlocks` 非空」三个；`PagedReadingView` 重写为纯视图（渲染页与旧页过渡层、离屏测量列、输入转发），`ChapterScreen` 删除 `_pagedController/_pagedCurrentPage/_pagedTotalPages/_startAtLastPage/_initialAnchor/_positionToken/_initialPagedPage` 与 `_onPagedPageChanged` 双向同步，改为 `_reader.open(...)` 表达意图 + 监听控制器按页保存位置；续读、目录锚点、PDF/竖排分支行为不变；分页视图测试改写并新增「章首页向前翻落上一章末页」「点击/方向键/滚轮统一入口」「同章 retarget」用例，`flutter analyze lib` 无告警、412 个测试全部通过 |
+| 2026-11-27 | 修复跨章滑动过渡引入的翻页跳转错乱 — ①`PagedReadingView.didUpdateWidget(htmlChanged)` 复位 `_slideController.value = 0`：过渡结束后 controller 停在 1.0，下次切章的旧页快照会按 1.0 渲染（整体平移到屏幕外），新章测量期间白屏、过渡开始时才突然弹回；②快照清理改由 `_slideController.addStatusListener(completed)` 驱动，不再依赖 `TickerFuture.whenComplete`（动画被 `stop()` 中断时 TickerFuture 永不完成，`_frozenBlocks` 会残留并永久盖住新章）；③新增 `_positioning`（=`_pageViewHidden`）输入锁，`_prevPage`/`_nextPage`/`_onScrollNotification` 在定位完成前忽略输入：此时 PageView 以 Opacity(0) 隐藏、页码仍是上一章遗留值，点击会作用于看不见的新页而误跳章；④`ChapterScreen` 新增 `_switchingChapter`，`_navigateToChapter()` 在上一章内容加载完成前忽略新的翻章请求（此前加载期间连点右侧会依据旧章页码再跳一章、跳过整章），由 `_loadChapterContent().whenComplete` 复位；⑤新增回归用例「连续切章时旧页快照仍显示在屏幕内（过渡进度已复位）」「切章定位完成前点击右侧不触发跨章（防跳过整章）」 |
 | 2026-11-26 | 代码审核清理 + 删除 `PdfReaderScreen` — 删除未被应用流程调用的 `lib/screens/pdf_reader_screen.dart` 及其测试（PDF 阅读实际由 `ChapterScreen` 内置 `PdfDocumentViewBuilder` 处理），同步更新类图、章节原文 Tab 说明与依赖关系；清理恒真分页开关、重复 HTML 渲染、未使用参数与冗长/过时注释，`flutter analyze lib` 无告警 |
+| 2026-11-26 | 跨章翻页改为滑动过渡 — `PagedReadingView.didUpdateWidget(htmlChanged)` 先把当前页冻结为 `_frozenBlocks`（新章测量期间继续显示旧页），新章分页稳定后 `_finalizePosition` 播放 260ms 过渡：旧页向反方向滑出、新章滑入（`_slideDirection` 决定方向）；新增 `_slideController`（SingleTickerProviderStateMixin）与 `_buildPageContent()` 共用单页版式 |
+| 2026-11-26 | 移除底部大翻页按钮、新增滚轮翻页 — `ChapterScreen` 删除 `<<`/`>>`（及 `_prevPageOrChapter`/`_nextPageOrChapter`/`_isPagedOriginalView`/`_hoverPrev`/`_hoverNext`），`_buildNavigationButtons()` 仅 PDF 原文保留 `<`/`>`；`PagedReadingView` 用 `Listener.onPointerSignal` 处理 `PointerScrollEvent`（下滚下一页、上滚上一页，边界跨章，180ms 节流） |
 | 2026-11-26 | 修复续读定位失效 — `PagedReadingView._finalizePosition()` 原在分页稳定后读 `widget.initialPageIndex`，此时父级已把一次性页码清空并改传 `_pagedCurrentPage`(0)，导致跳首页。改为 `_pendingPageIndex` 在 `initState`/`didUpdateWidget(htmlChanged)` 固化目标页、定位后清空；`test/screens/chapter_screen_test.dart` 新增续读定位回归用例 |
 | 2026-11-26 | 清理 metadata.json 冗余字段 — 删除 `Book.currentChapter`（仅写不读，位置语义已由 `lastChapterIndex` 覆盖），同步移除 `copyWith`/`toJson`/`fromJson`/`saveReadingPosition` 及相关测试引用；旧文件残留键由 `fromJson` 忽略，下次写入自动消失 |
 | 2026-11-26 | 修复页码保存为 0（续读失败根因）— 依据 `metadata.json`（`lastChapterIndex:1`、`lastPageIndex:0`）定位：`TabBarView` 的 `PageView` 销毁远离当前页的子页，切到缩写/译文/目录再回原文时 `PagedReadingView` 重建、`_currentPage` 归零并通过 `onPageChanged` 把 `ChapterScreen._pagedCurrentPage` 覆盖为 0，退出即保存 0。修复：`PagedReadingView` 加 `AutomaticKeepAliveClientMixin`（`wantKeepAlive=true`，`build` 调 `super.build`）；`initialPageIndex: _initialPagedPage ?? _pagedCurrentPage` 支持同内容重建回位；`_navigateToChapter()` 重置 `_pagedCurrentPage/_pagedTotalPages`；开头页分支首帧后清空 `_initialPagedPage` |

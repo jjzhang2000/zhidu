@@ -1,19 +1,10 @@
 // 章节阅读界面
 //
-// 这是应用的核心阅读界面，提供以下功能：
-// 1. 查看章节原文（EPUB: HTML渲染，PDF: 单页查看器）
-// 2. 查看章节缩写（已缓存，Markdown渲染）
-// 3. 查看章节译文
-// 4. 章节导航（上一章/下一章）
-// 5. PDF页码翻页（在原文模式下）
-// 6. 目录：全书章节目录，点击跳转
-//
-// 界面切换逻辑：
-// - 左侧垂直Tab：原文/缩写/译文/目录
-// - 原文视图：EPUB显示HTML内容，PDF显示单页PDF查看器
-// - 缩写视图：显示已缓存的章节缩写
-// - 译文视图：显示AI生成的章节译文
-// - 目录视图：显示全书章节列表（复用书籍详情页样式）
+// 核心阅读界面，左侧垂直 Tab 提供 原文 / 缩写 / 译文 / 目录 四个视图：
+// - 原文：EPUB 横排走分页渲染、竖排走 tategaki，PDF 走单页查看器
+// - 缩写 / 译文：只读取已缓存内容，不在本页触发 AI 生成
+// - 目录：全书章节列表，点击原地跳章
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,6 +22,9 @@ import '../services/parsers/rendered_content.dart';
 import '../services/log_service.dart';
 import '../services/settings_service.dart';
 import '../widgets/chapter_directory.dart';
+import '../widgets/book_paginator.dart';
+import '../widgets/html_pagination.dart';
+import '../widgets/paged_reader_controller.dart';
 import '../widgets/paged_reading_view.dart';
 import '../widgets/svg_widget_factory.dart';
 
@@ -54,7 +48,7 @@ class ScrollAnchor {
 /// - [filePath]: 文件路径（用于重新加载内容）
 /// - [chapters]: 章节列表（用于导航）
 /// - [book]: 书籍对象（包含AI更新后的章节标题）
-/// - [openingContent]: 书籍第一页（开头）HTML（可选，用于「阅读」从第一页开始）
+/// - [openingContent]: 书籍开头页 HTML（合并的前置页，可选，用于从开头开始阅读）
 /// - [initialPage]: PDF 起始页码（可选，用于「阅读」从第 1 页开始）
 class ChapterScreen extends StatefulWidget {
   final String bookId;
@@ -127,35 +121,43 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 纯文本（段落已换行），供竖排与分页模式复用
   String _plainText = '';
 
-  /// 分页阅读的 PageController（由父级持有，供底部「上一页/下一页」按钮驱动）
-  final PageController _pagedController = PageController();
+  /// 分页阅读控制器（章节内容、页列表、当前页、目标位置与过渡动画全在其内）
+  late final PagedReaderController _reader;
 
-  /// 分页阅读当前页（0 起）
-  int _pagedCurrentPage = 0;
+  /// 全书后台分页器（页码指示全书化、跨章直接用缓存页列表）
+  BookPaginator? _paginator;
 
-  /// 分页阅读总页数
-  int _pagedTotalPages = 1;
+  /// 已应用到可视章节的后台分页结果版本号
+  int _appliedPagesRevision = 0;
 
-  /// 切换章节后是否定位到末页（翻回上一章时使用）
-  bool _startAtLastPage = false;
+  /// 控制器当前页列表所属的章节（-1 = 开头页），用于避免把旧章页列表回填给新章
+  int? _readerChapterIndex;
+
+  /// 上次观察到的分页页码/总页数，仅在页码变化时触发位置保存
+  int _observedPage = 0;
+  int _observedTotal = 0;
+
+  /// 是否正在切换章节（新章内容加载中）
+  ///
+  /// 加载期间屏幕上仍是旧章内容，若此时再触发翻页/跨章（用户以为没反应而连点），
+  /// 会基于旧章的页码再跳一章，导致跳过整章。加载完成前忽略新的翻章请求。
+  bool _switchingChapter = false;
 
   /// 章节标题（翻章/加载时动态更新）
   String _title = '';
+
+  /// 当前是否显示书籍开头页（封面/目录/版权页等未列入章节的前置页）
+  ///
+  /// 开头页是位于第一章之前的一个独立位置：第一章首页继续向前翻回到开头页末页，
+  /// 开头页末页继续向后翻进入第一章首页。此时 [_currentIndex] 仍为 0（便于复用
+  /// 章节相关逻辑），阅读位置按 -1 保存，与第一章区分。
+  bool _showingOpening = false;
 
   /// 当前章节索引（可在本页内切换章节，不触发页面路由）
   int _currentIndex = 0;
 
   /// PDF 起始页码（仅「阅读」从第一页进入时使用；切换章节后失效）
   int? _initialPage;
-
-  /// 初始定位锚点（子章节标题），首次内容加载后消费并清空
-  String? _initialAnchor;
-
-  /// 分页视图定位请求计数器：同章内从目录跳转时递增，触发重新定位
-  int _positionToken = 0;
-
-  /// 初始分页页码（0 起），首次内容加载后消费并清空
-  int? _initialPagedPage;
 
   /// 阅读位置保存防抖定时器（翻页频繁时不每次都写文件）
   Timer? _savePositionTimer;
@@ -208,12 +210,6 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 译文Tab是否禁用（当书籍语言与目标语言相同时禁用）
   bool _translationTabDisabled = false;
 
-  /// 上一章按钮是否处于鼠标悬停状态
-  bool _hoverPrev = false;
-
-  /// 下一章按钮是否处于鼠标悬停状态
-  bool _hoverNext = false;
-
   /// 译文滚动控制器
   ScrollController? _translationScrollController;
 
@@ -223,8 +219,14 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 当前共享的滚动锚点（用于Tab间同步）
   ScrollAnchor _currentScrollAnchor = const ScrollAnchor();
 
+  /// 阅读正文字号（来自设置，阅读页其余字号均由它按比例推导）
+  late final double _readerFontSize;
+
   /// 摘要/译文/原文通用的正文文本样式
-  static const TextStyle _contentTextStyle = TextStyle(fontSize: 21, height: 1.6);
+  late final TextStyle _contentTextStyle;
+
+  /// 竖排正文相对正文字号的比例
+  static const double _verticalScale = 0.86;
 
   /// 已通过 FontLoader 注册的字体家族（避免重复加载）
   final Set<String> _loadedFontFamilies = {};
@@ -233,17 +235,41 @@ class _ChapterScreenState extends State<ChapterScreen>
   void initState() {
     super.initState();
 
+    // 正文字号取自设置，其余阅读字号（竖排、页码等）按比例推导
+    _readerFontSize = SettingsService().readerFontSize.value;
+    _contentTextStyle = TextStyle(fontSize: _readerFontSize, height: 1.6);
+
     _currentIndex = widget.chapterIndex;
+    _showingOpening =
+        widget.openingContent != null && widget.openingContent!.isNotEmpty;
     _initialPage = widget.initialPage;
-    _initialAnchor = widget.initialAnchor;
-    _initialPagedPage = widget.initialPagedPage;
     _savedChapterIndex = widget.book?.lastChapterIndex;
     _savedPageIndex = widget.book?.lastPageIndex;
     _title = widget.chapterTitle;
 
+    _reader = PagedReaderController(
+      vsync: this,
+      textStyle: _contentTextStyle,
+      onBoundary: _onReaderBoundary,
+      onLayout: _onReaderLayout,
+    )..addListener(_onReaderChanged);
+
     if (widget.chapters != null) {
       _allChapters = List<Chapter>.from(widget.chapters!);
       _chapters = _allChapters.where((c) => c.level == 0).toList();
+    }
+
+    // EPUB 等 HTML 书籍启用全书后台分页（PDF 用页码，不走分页）
+    final isPdf = widget.book?.format == BookFormat.pdf;
+    if (!isPdf) {
+      _paginator = BookPaginator(
+        textStyle: _contentTextStyle,
+        chapterCount: _chapters.length,
+        hasOpening: widget.filePath != null ||
+            (widget.openingContent != null && widget.openingContent!.isNotEmpty),
+        loader: _loadChapterRendered,
+        registerFonts: _loadEmbeddedFonts,
+      )..addListener(_onPaginatorChanged);
     }
 
     _translationScrollController = ScrollController();
@@ -281,7 +307,12 @@ class _ChapterScreenState extends State<ChapterScreen>
     _summaryService.unregisterTranslationCallback(widget.bookId, _currentIndex);
     _translationScrollController?.dispose();
     _originalScrollController?.dispose();
-    _pagedController.dispose();
+    _paginator
+      ?..removeListener(_onPaginatorChanged)
+      ..dispose();
+    _reader
+      ..removeListener(_onReaderChanged)
+      ..dispose();
     _tabController?.dispose();
     super.dispose();
   }
@@ -295,28 +326,41 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 同时检查内容长度，内容过短时自动切换到原文视图
   Future<void> _initializeContent() async {
+    // 恢复上次阅读位置：把一次性页码转成「打开意图」交给控制器消费
+    final initialTarget = PagedOpenTarget.page(widget.initialPagedPage ?? 0);
+
     if (widget.openingContent != null && widget.openingContent!.isNotEmpty) {
       _content = widget.openingContent!;
       _title = widget.chapterTitle;
       _isVertical = widget.openingIsVertical;
       _plainText = widget.openingPlainText;
       _loadEmbeddedFonts(widget.openingFonts ?? const []);
+      _paginator?.provideContent(
+        -1,
+        RenderedContent(
+          _content,
+          fonts: widget.openingFonts ?? const [],
+          isVertical: widget.openingIsVertical,
+          plainText: widget.openingPlainText,
+        ),
+      );
       _checkContentLength();
+      _readerChapterIndex = -1;
+      _reader.open(_content, target: initialTarget);
+      _updateBookPaging();
       if (!mounted) return;
       setState(() => _isLoadingContent = false);
-      // 初始页码只用一次，之后重建按 _pagedCurrentPage 恢复当前位置
-      if (_initialPagedPage != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _initialPagedPage = null;
-        });
-      }
       return;
     }
 
     if (widget.chapterContent != null && widget.chapterContent!.isNotEmpty) {
       _content = widget.chapterContent!;
       _title = widget.chapterTitle;
+      _paginator?.provideContent(_currentIndex, RenderedContent(_content));
       _checkContentLength();
+      _readerChapterIndex = _currentIndex;
+      _reader.open(_content, target: initialTarget);
+      _updateBookPaging();
       if (!mounted) return;
       setState(() => _isLoadingContent = false);
       return;
@@ -325,7 +369,7 @@ class _ChapterScreenState extends State<ChapterScreen>
     if (widget.filePath != null) {
       if (!mounted) return;
       setState(() => _isLoadingContent = true);
-      await _loadChapterContent();
+      await _loadChapterContent(target: initialTarget);
       return;
     }
 
@@ -391,7 +435,9 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 使用FormatRegistry获取对应格式的解析器，
   /// 解析章节列表并获取指定章节的内容
-  Future<void> _loadChapterContent() async {
+  Future<void> _loadChapterContent({
+    PagedOpenTarget target = PagedOpenTarget.first,
+  }) async {
     try {
       // 合并章节内容需要完整章节列表（含子章节），否则顶层章节的正文会丢失
       List<Chapter> chapters =
@@ -411,6 +457,12 @@ class _ChapterScreenState extends State<ChapterScreen>
       _allChapters = chapters;
       final topLevelChapters = chapters.where((c) => c.level == 0).toList();
       _chapters = topLevelChapters;
+      // 章节列表延迟加载时同步给后台分页器
+      _paginator?.syncCounts(
+        chapterCount: topLevelChapters.length,
+        hasOpening: widget.filePath != null ||
+            (widget.openingContent != null && widget.openingContent!.isNotEmpty),
+      );
 
       if (_currentIndex < 0 ||
           _currentIndex >= topLevelChapters.length) {
@@ -454,6 +506,7 @@ class _ChapterScreenState extends State<ChapterScreen>
       }
 
       _loadEmbeddedFonts(rendered.fonts);
+      _paginator?.provideContent(_currentIndex, rendered);
 
       final content = rendered.html;
       final isVertical = rendered.isVertical;
@@ -466,25 +519,12 @@ class _ChapterScreenState extends State<ChapterScreen>
         _isLoadingContent = false;
       });
       _checkContentLength();
-      // 锚点/页码只用一次：内容渲染（PagedReadingView.didUpdateWidget 读取）后清空，
-      // 避免后续翻章时重复定位
-      if (_initialAnchor != null || _initialPagedPage != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _initialAnchor = null;
-          _initialPagedPage = null;
-        });
-      }
+      // 内容就绪后把「打开到某位置」的意图交给分页控制器，由其分页稳定后定位
+      _readerChapterIndex = _currentIndex;
+      _reader.open(content, target: target);
+      _updateBookPaging();
       // 新内容渲染后重置滚动到顶部（翻章后新章节从顶部开始阅读）
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (_originalScrollController?.hasClients == true) {
-          _originalScrollController!.jumpTo(0);
-        }
-        if (_translationScrollController?.hasClients == true) {
-          _translationScrollController!.jumpTo(0);
-        }
-        _currentScrollAnchor = const ScrollAnchor();
-      });
+      _resetScrollAfterChapterChange();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -499,6 +539,113 @@ class _ChapterScreenState extends State<ChapterScreen>
     final lastDot = filePath.lastIndexOf('.');
     if (lastDot == -1) return '';
     return filePath.substring(lastDot).toLowerCase();
+  }
+
+  /// 翻章后把滚动条复位到顶部
+  void _resetScrollAfterChapterChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_originalScrollController?.hasClients == true) {
+        _originalScrollController!.jumpTo(0);
+      }
+      if (_translationScrollController?.hasClients == true) {
+        _translationScrollController!.jumpTo(0);
+      }
+      _currentScrollAnchor = const ScrollAnchor();
+    });
+  }
+
+  /// 后台分页内容加载器：index = -1 为书籍开头页
+  Future<RenderedContent?> _loadChapterRendered(int index) async {
+    final filePath = widget.filePath;
+    if (index < 0) {
+      if (widget.openingContent != null && widget.openingContent!.isNotEmpty) {
+        return RenderedContent(
+          widget.openingContent!,
+          fonts: widget.openingFonts ?? const [],
+          isVertical: widget.openingIsVertical,
+          plainText: widget.openingPlainText,
+        );
+      }
+      if (filePath == null) return null;
+      final parser = FormatRegistry.getParser(_getFileExtension(filePath));
+      return parser?.getOpeningContent(filePath);
+    }
+
+    if (filePath == null || index >= _chapters.length) return null;
+    final parser = FormatRegistry.getParser(_getFileExtension(filePath));
+    if (parser == null) return null;
+    final chapters =
+        _allChapters.isNotEmpty ? _allChapters : (widget.chapters ?? []);
+    return parser.getChapterContentMerged(filePath, _chapters[index], chapters);
+  }
+
+  /// 分页阅读控制器上报可用尺寸：驱动全书后台分页按同一几何尺寸重排
+  void _onReaderLayout(double width, double height) {
+    final paginator = _paginator;
+    if (paginator == null) return;
+    final visible = _showingOpening ? -1 : _currentIndex;
+    paginator.setPriority(visible);
+    paginator.configure(
+      width,
+      height,
+      // 当前章正由控制器测量，后台先跳过它，测完经 adopt 回填，避免重复测最大的一章
+      exclude: _reader.usesExternalPages ? null : visible,
+    );
+  }
+
+  /// 后台分页进度变化：刷新全书页码；界面重排后替换可视章节页列表
+  void _onPaginatorChanged() {
+    if (!mounted) return;
+    final paginator = _paginator;
+    if (paginator == null) return;
+
+    final index = _showingOpening ? -1 : _currentIndex;
+    if (_reader.usesExternalPages) {
+      final revision = paginator.revisionFor(index);
+      if (revision != 0 && revision != _appliedPagesRevision) {
+        final result = paginator.pagesFor(index);
+        if (result != null && result.pages.isNotEmpty) {
+          _appliedPagesRevision = revision;
+          _reader.replacePages(
+            result.pages,
+            pageStartBlocks: result.pageStartBlocks,
+            blockTexts: result.blockTexts,
+          );
+        }
+      }
+    }
+    _updateBookPaging();
+  }
+
+  /// 把后台分页进度同步到页码指示（前缀未知时回退章节内页码）
+  void _updateBookPaging() {
+    final paginator = _paginator;
+    if (paginator == null) return;
+    final index = _showingOpening ? -1 : _currentIndex;
+    _reader.updateBookPaging(
+      pageStart: paginator.startPageFor(index),
+      totalPages: paginator.totalPages,
+    );
+  }
+
+  /// 控制器测完可视章节后，把结果回填给后台分页器（避免重复测量、页码统一）
+  void _adoptVisibleChapter() {
+    final paginator = _paginator;
+    if (paginator == null) return;
+    if (_reader.usesExternalPages || _reader.isMeasuring) return;
+    if (_reader.pages.isEmpty) return;
+    final index = _showingOpening ? -1 : _currentIndex;
+    if (_readerChapterIndex != index) return;
+    paginator.adopt(
+      index,
+      PaginatedBlocks(
+        pages: _reader.pages,
+        pageStartBlocks: _reader.pageStartBlocks,
+        blockTexts: _reader.blockTexts,
+      ),
+      html: _content,
+    );
   }
 
   /// 捕获指定Tab的滚动锚点到共享变量
@@ -664,10 +811,9 @@ class _ChapterScreenState extends State<ChapterScreen>
       appBar: AppBar(
         title: Text(
           _title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
-          ),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
           overflow: TextOverflow.ellipsis,
         ),
         centerTitle: true,
@@ -678,6 +824,15 @@ class _ChapterScreenState extends State<ChapterScreen>
           _buildBody(),
           // 章节导航按钮：多个章节时才显示
           if (_chapters.length > 1) _buildNavigationButtons(),
+          // 全书后台分页的离屏测量列（不参与显示与点击）
+          if (_paginator != null)
+            Positioned(
+              left: -100000,
+              top: 0,
+              child: IgnorePointer(
+                child: BookPaginatorHost(paginator: _paginator!),
+              ),
+            ),
         ],
       ),
     );
@@ -712,10 +867,9 @@ class _ChapterScreenState extends State<ChapterScreen>
           const SizedBox(height: 16),
           Text(
             '正在加载章节内容...',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
           ),
         ],
       ),
@@ -738,19 +892,17 @@ class _ChapterScreenState extends State<ChapterScreen>
             const SizedBox(height: 16),
             Text(
               '出错了',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
-              ),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
               _error!,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -840,12 +992,11 @@ class _ChapterScreenState extends State<ChapterScreen>
     if (index < 0) return;
 
     final anchor = chapter.level > 0 ? chapter.title : null;
-    if (index == _currentIndex) {
-      // 同一章内定位：无需重新加载内容，仅通知分页视图按锚点重新定位
-      setState(() {
-        _initialAnchor = anchor;
-        _positionToken++;
-      });
+    if (!_showingOpening && index == _currentIndex) {
+      // 同一章内定位：无需重新加载内容，控制器直接按锚点重新定位
+      _reader.retarget(
+        anchor == null ? PagedOpenTarget.first : PagedOpenTarget.atAnchor(anchor),
+      );
     } else {
       _navigateToChapter(index, anchor: anchor);
     }
@@ -925,12 +1076,15 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 章节内容不超过一页时显示，提示用户直接阅读原文。
   Widget _buildNoAbbreviationView() {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Text(
           '章节较短，无需缩写',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge
+              ?.copyWith(color: Colors.grey),
         ),
       ),
     );
@@ -966,15 +1120,15 @@ class _ChapterScreenState extends State<ChapterScreen>
   ///
   /// 当没有缩写时显示的空状态
   Widget _buildEmptySummaryView() {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Text(
           '暂无缩写',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey,
-          ),
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge
+              ?.copyWith(color: Colors.grey),
         ),
       ),
     );
@@ -1018,18 +1172,16 @@ class _ChapterScreenState extends State<ChapterScreen>
               const SizedBox(height: 16),
               Text(
                 '书籍语言与译文语言相同',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.grey[600],
+                    ),
               ),
               const SizedBox(height: 8),
               Text(
                 '无需翻译',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[500],
+                    ),
               ),
             ],
           ),
@@ -1059,10 +1211,9 @@ class _ChapterScreenState extends State<ChapterScreen>
             const SizedBox(height: 16),
             Text(
               '翻译中，可能需要几秒钟...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey[600],
+                  ),
             ),
           ],
         ),
@@ -1173,8 +1324,11 @@ class _ChapterScreenState extends State<ChapterScreen>
                     const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                 child: VerticalText(
                   _plainText,
-                  style: const VerticalTextStyle(
-                    baseStyle: TextStyle(fontSize: 18, height: 1.8),
+                  style: VerticalTextStyle(
+                    baseStyle: TextStyle(
+                      fontSize: _readerFontSize * _verticalScale,
+                      height: 1.8,
+                    ),
                   ),
                 ),
               ),
@@ -1186,20 +1340,7 @@ class _ChapterScreenState extends State<ChapterScreen>
 
     // EPUB 分页：HTML 按块级元素切页，保留排版
     if (_content.isNotEmpty) {
-      return PagedReadingView(
-        html: _content,
-        textStyle: _contentTextStyle,
-        controller: _pagedController,
-        onPageChanged: _onPagedPageChanged,
-        startAtLastPage: _startAtLastPage,
-        initialAnchor: _initialAnchor,
-        // 内容未变时（如 Tab 切换后重建）回到当前页，避免页码被重置为 0
-        initialPageIndex: _initialPagedPage ?? _pagedCurrentPage,
-        positionToken: _positionToken,
-        onPrevChapter: () =>
-            _navigateToChapter(_currentIndex - 1, startAtLastPage: true),
-        onNextChapter: () => _navigateToChapter(_currentIndex + 1),
-      );
+      return PagedReadingView(controller: _reader);
     }
 
     // EPUB/其他格式：显示 HTML 内容（背景由父 Container 提供）
@@ -1224,39 +1365,182 @@ class _ChapterScreenState extends State<ChapterScreen>
   }
 
   /// 保存当前阅读位置（章节 + 页码），供下次从书架打开时续读
+  ///
+  /// 开头页不属于任何章节，按 -1 保存，与第一章（0）区分。
   void _saveReadingPosition() {
     final book = widget.book;
     if (book == null) return;
 
-    // PDF 用 1 起的 _pdfCurrentPage，统一转成 0 起存储
-    final page = _pdfTotalPages > 0 ? _pdfCurrentPage - 1 : _pagedCurrentPage;
+    // PDF 用 1 起的 _pdfCurrentPage，统一转成 0 起存储；
+    // 换章内容加载中控制器仍是旧章页码，按新章首页记录，避免串位
+    final page = _pdfTotalPages > 0
+        ? _pdfCurrentPage - 1
+        : (_switchingChapter ? 0 : _reader.currentPage);
+    final chapterKey = _showingOpening ? -1 : _currentIndex;
     // 与已写入的位置相同则跳过，避免翻页时反复写文件
-    if (_savedChapterIndex == _currentIndex && _savedPageIndex == page) {
+    if (_savedChapterIndex == chapterKey && _savedPageIndex == page) {
       return;
     }
-    _savedChapterIndex = _currentIndex;
+    _savedChapterIndex = chapterKey;
     _savedPageIndex = page;
 
-    final progress = _computeProgress(page);
+    final progress = _computeProgress(page, chapterKey);
     _log.d('ChapterScreen',
-        '保存阅读位置: 章节 $_currentIndex 页 $page 进度 ${progress.toStringAsFixed(3)}');
+        '保存阅读位置: 章节 $chapterKey 页 $page 进度 ${progress.toStringAsFixed(3)}');
     BookService()
-        .saveReadingPosition(book.id, _currentIndex, page, progress: progress);
+        .saveReadingPosition(book.id, chapterKey, page, progress: progress);
   }
 
   /// 全书阅读进度（0.0~1.0）：已读章节 + 当前章节内页占比
-  double _computeProgress(int page) {
+  ///
+  /// 开头页位于全书最前面，进度固定为 0。
+  double _computeProgress(int page, int chapterIndex) {
+    if (chapterIndex < 0) return 0;
     final total = _chapters.length;
     if (total <= 0) return 0;
-    final pagesInChapter = _pagedTotalPages <= 0 ? 1 : _pagedTotalPages;
+    final pagesInChapter = _reader.totalPages <= 0 ? 1 : _reader.totalPages;
     final fraction = (page / pagesInChapter).clamp(0.0, 1.0);
-    return ((_currentIndex + fraction) / total).clamp(0.0, 1.0);
+    return ((chapterIndex + fraction) / total).clamp(0.0, 1.0);
   }
 
   /// 翻页后延迟保存阅读位置（防抖，避免每翻一页都写文件）
   void _scheduleSaveReadingPosition() {
     _savePositionTimer?.cancel();
     _savePositionTimer = Timer(const Duration(seconds: 2), _saveReadingPosition);
+  }
+
+  /// 分页控制器到达章节边界时的回调：翻到相邻章节
+  ///
+  /// 向后翻章落在新章首页；向前翻章落在上一章末页。
+  /// 开头页（目录/版权等前置页）是第一章之前的一段：
+  /// 第一章首页向前翻 → 开头页末页；开头页末页向后翻 → 第一章首页。
+  void _onReaderBoundary(int delta) {
+    if (_showingOpening) {
+      // 开头页之前没有内容，向前翻不做事
+      if (delta > 0) _navigateToChapter(0);
+      return;
+    }
+    if (delta < 0 && _currentIndex == 0) {
+      _openOpeningPage(lastPage: true);
+      return;
+    }
+    _navigateToChapter(_currentIndex + delta, lastPage: delta < 0);
+  }
+
+  /// 打开书籍开头页（封面/目录/版权页等未列入章节的前置页）
+  ///
+  /// [lastPage] 为 true 时定位到开头页末页（从第一章首页向前翻时使用）。
+  /// 优先复用 BookScreen 传入的开头内容，避免每次回到开头都重新解压解析。
+  Future<void> _openOpeningPage({bool lastPage = false}) async {
+    if (_switchingChapter) return;
+
+    // 记录离开第一章时的位置（此时仍属于第一章，尚未进入开头页）
+    _saveReadingPosition();
+
+    if (widget.openingContent != null && widget.openingContent!.isNotEmpty) {
+      _applyOpeningContent(
+        widget.openingContent!,
+        fonts: widget.openingFonts ?? const [],
+        isVertical: widget.openingIsVertical,
+        plainText: widget.openingPlainText,
+        lastPage: lastPage,
+      );
+      return;
+    }
+
+    final filePath = widget.filePath;
+    if (filePath == null) return;
+    final parser = FormatRegistry.getParser(_getFileExtension(filePath));
+    if (parser == null) return;
+
+    _switchingChapter = true;
+    try {
+      final opening = await parser.getOpeningContent(filePath);
+      if (!mounted) return;
+      if (opening == null || opening.html.isEmpty) return;
+      _applyOpeningContent(
+        opening.html,
+        fonts: opening.fonts,
+        isVertical: opening.isVertical,
+        plainText: opening.plainText,
+        lastPage: lastPage,
+      );
+    } catch (e) {
+      _log.e('ChapterScreen', '加载书籍开头页失败', e);
+    } finally {
+      _switchingChapter = false;
+    }
+  }
+
+  /// 用开头页内容替换当前正文，并交给分页控制器渲染
+  void _applyOpeningContent(
+    String html, {
+    required List<EmbeddedFont> fonts,
+    required bool isVertical,
+    required String plainText,
+    required bool lastPage,
+  }) {
+    _loadEmbeddedFonts(fonts);
+
+    setState(() {
+      _showingOpening = true;
+      _content = html;
+      _isVertical = isVertical;
+      _plainText = plainText;
+      _title = widget.book?.title ?? widget.chapterTitle;
+      _summaryChapter = null;
+      _translationContent = null;
+      _streamingTranslation = '';
+      _isTranslating = false;
+      _error = null;
+      _pdfCurrentPage = 1;
+      _pdfTotalPages = 0;
+    });
+    _checkContentLength();
+    final target = lastPage ? PagedOpenTarget.last : PagedOpenTarget.first;
+    final paginator = _paginator;
+    paginator?.provideContent(
+      -1,
+      RenderedContent(
+        html,
+        fonts: fonts,
+        isVertical: isVertical,
+        plainText: plainText,
+      ),
+    );
+    paginator?.setPriority(-1);
+
+    final cached = paginator?.pagesFor(-1);
+    if (cached != null && cached.pages.isNotEmpty && !isVertical) {
+      _readerChapterIndex = -1;
+      _reader.openPages(
+        cached.pages,
+        target: target,
+        pageStartBlocks: cached.pageStartBlocks,
+        blockTexts: cached.blockTexts,
+      );
+      _appliedPagesRevision = paginator!.revisionFor(-1);
+    } else {
+      _readerChapterIndex = -1;
+      _reader.open(html, target: target);
+    }
+    _updateBookPaging();
+  }
+
+  /// 分页控制器状态变化：仅在页码/总页数变化时延迟保存阅读位置
+  ///
+  /// 定位中（已换章但未定位到目标页）不保存，避免把临时页码写进存储。
+  void _onReaderChanged() {
+    if (!mounted || _reader.isPositioning) return;
+    // 可视章节测完后回填给后台分页器（全书页码据此计算）
+    _adoptVisibleChapter();
+    if (_reader.currentPage == _observedPage &&
+        _reader.totalPages == _observedTotal) {
+      return;
+    }
+    _observedPage = _reader.currentPage;
+    _observedTotal = _reader.totalPages;
+    _scheduleSaveReadingPosition();
   }
 
   /// 在本页内切换到指定章节（不触发页面路由，避免页面切换动画）
@@ -1267,9 +1551,10 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// - 重置摘要/译文等状态
   ///
   /// 注意：只导航到第一级章节（level=0）
-  void _navigateToChapter(int index,
-      {bool startAtLastPage = false, String? anchor}) {
+  void _navigateToChapter(int index, {bool lastPage = false, String? anchor}) {
     if (index < 0 || index >= _chapters.length) return;
+    // 上一次切章的内容还没加载完：忽略本次请求，避免基于旧章页码再跳一章
+    if (_switchingChapter) return;
 
     // 记录离开前的阅读位置，供下次续读
     _saveReadingPosition();
@@ -1280,14 +1565,14 @@ class _ChapterScreenState extends State<ChapterScreen>
     _currentIndex = index;
     _title = _chapters[index].title;
     _initialPage = null; // 切换章节后不再从第一页开始，改用章节自身页码
-    _pagedCurrentPage = 0; // 新章节从首页开始，避免沿用上一章的页码
-    _pagedTotalPages = 1;
-    _startAtLastPage = startAtLastPage; // 翻回上一章时定位其末页
-    _initialAnchor = anchor; // 从目录跳转子章节时定位到其标题所在页
-    _initialPagedPage = null; // 翻章后不再沿用上次的页码
+
+    final target = lastPage
+        ? PagedOpenTarget.last
+        : (anchor != null ? PagedOpenTarget.atAnchor(anchor) : PagedOpenTarget.first);
 
     setState(() {
       // 保留 _content（旧章节内容）直到新内容加载完成，后台加载无闪动
+      _showingOpening = false;
       _summaryChapter = null;
       _translationContent = null;
       _streamingTranslation = '';
@@ -1297,93 +1582,56 @@ class _ChapterScreenState extends State<ChapterScreen>
       _pdfTotalPages = 0;
     });
 
-    _loadChapterContent();
+    final paginator = _paginator;
+    paginator?.setPriority(index);
+    final cached = paginator?.pagesFor(index);
+
+    if (cached != null && cached.pages.isNotEmpty) {
+      // 后台分页已完成该章：直接采用缓存页列表，省去测量等待（跨章无白屏）
+      setState(() {
+        _content = paginator!.htmlFor(index) ??
+            cached.pages.expand((page) => page).join();
+        _isVertical = false;
+        _plainText = '';
+      });
+      _checkContentLength();
+      _readerChapterIndex = index;
+      _reader.openPages(
+        cached.pages,
+        target: target,
+        pageStartBlocks: cached.pageStartBlocks,
+        blockTexts: cached.blockTexts,
+      );
+      _appliedPagesRevision = paginator!.revisionFor(index);
+      _switchingChapter = false;
+      _updateBookPaging();
+      _resetScrollAfterChapterChange();
+      _loadAbbreviation();
+      return;
+    }
+
+    _switchingChapter = true;
+    _loadChapterContent(target: target).whenComplete(() {
+      if (!mounted) return;
+      _switchingChapter = false;
+      _updateBookPaging();
+    });
     _loadAbbreviation();
   }
 
-  /// 是否为 EPUB 横排原文的分页模式（决定底部按钮为翻页还是翻章）
-  bool get _isPagedOriginalView {
-    final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
-    return !isPdf &&
-        !_isVertical &&
-        _tabController?.index == 0 &&
-        _content.isNotEmpty;
-  }
-
-  /// 分页视图回调：同步当前页/总页数到本 State（用于底部按钮边界判断）
-  void _onPagedPageChanged(int page, int totalPages) {
-    if (_pagedCurrentPage == page && _pagedTotalPages == totalPages) return;
-    if (!mounted) return;
-    setState(() {
-      _pagedCurrentPage = page;
-      _pagedTotalPages = totalPages;
-    });
-    _scheduleSaveReadingPosition();
-  }
-
-  /// 「上一页」：分页模式先翻页，到章节首页则翻上一章（并定位到上一章末页）
-  void _prevPageOrChapter() {
-    if (_isPagedOriginalView && _pagedCurrentPage > 0) {
-      _pagedController.previousPage(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    } else if (_currentIndex > 0) {
-      _navigateToChapter(_currentIndex - 1, startAtLastPage: true);
-    }
-  }
-
-  /// 「下一页」：分页模式先翻页，到章节末页则翻下一章
-  void _nextPageOrChapter() {
-    if (_isPagedOriginalView && _pagedCurrentPage < _pagedTotalPages - 1) {
-      _pagedController.nextPage(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    } else if (_currentIndex < _chapters.length - 1) {
-      _navigateToChapter(_currentIndex + 1);
-    }
-  }
-
-  /// 构建导航按钮
+  /// 构建 PDF 原文页的页码翻页按钮
   ///
-  /// 按钮布局（从左到右）：
-  /// 1. << 上一页/上一章（分页模式翻页，其余模式翻章）
-  /// 2. < 上一页（仅PDF原文模式，页码翻页）
-  /// 3. > 下一页（仅PDF原文模式，页码翻页）
-  /// 4. >> 下一页/下一章（分页模式翻页，其余模式翻章）
-  ///
-  /// PDF翻页逻辑：
-  /// - 只能在当前章节的页码范围内翻页
-  /// - 起始页：chapter.location.startPage
-  /// - 结束页：chapter.location.endPage
+  /// EPUB 分页模式已支持「点击左右 1/3 区域 / 方向键 / 鼠标滚轮 / 滑动」翻页，
+  /// 不再显示底部大圆按钮；仅 PDF 原文保留 < > 页码翻页。
   Widget _buildNavigationButtons() {
-    // 判断边界条件
-    final isFirst = _currentIndex <= 0;
-    final isLast = _currentIndex >= _chapters.length - 1;
-
-    // 分页模式下「上一页/下一页」在章节边界处仍可跨章，故边界判断需结合当前页
-    final canPrev = _isPagedOriginalView
-        ? (_currentIndex > 0 || _pagedCurrentPage > 0)
-        : !isFirst;
-    final canNext = _isPagedOriginalView
-        ? (_currentIndex < _chapters.length - 1 ||
-            _pagedCurrentPage < _pagedTotalPages - 1)
-        : !isLast;
-
-    // 判断是否为 PDF 原文模式
     final isPdf = widget.book != null && widget.book!.format == BookFormat.pdf;
     final isPdfOriginalView = isPdf && (_tabController?.index == 0);
+    if (!isPdfOriginalView) return const SizedBox.shrink();
 
-    // 计算PDF页码翻页范围（仅PDF原文阅读时有效）
     final currentChapter =
         _chapters.isNotEmpty ? _chapters[_currentIndex] : null;
     final startPage = currentChapter?.location.startPage ?? 1;
     final endPage = currentChapter?.location.endPage ?? startPage;
-
-    // 判断是否可以翻页
-    final canPrevPage = isPdfOriginalView && _pdfCurrentPage > startPage;
-    final canNextPage = isPdfOriginalView && _pdfCurrentPage < endPage;
 
     return Positioned(
       left: 16,
@@ -1392,114 +1640,41 @@ class _ChapterScreenState extends State<ChapterScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // << 上一页/上一章按钮
-          MouseRegion(
-            onEnter: (_) => setState(() => _hoverPrev = true),
-            onExit: (_) => setState(() => _hoverPrev = false),
-            child: Opacity(
-              opacity: canPrev ? 1.0 : 0.0,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 45),
-                child: Container(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withAlpha(_hoverPrev ? 102 : 51),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    hoverColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                    onPressed: canPrev ? _prevPageOrChapter : null,
-                    icon: Icon(
-                      Icons.keyboard_arrow_left,
-                      color: _hoverPrev
-                          ? Colors.deepOrange.withAlpha(179)
-                          : Colors.white.withAlpha(89),
-                      size: 56,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          _buildPdfPageButton(
+            icon: Icons.chevron_left,
+            enabled: _pdfCurrentPage > startPage,
+            onPressed: () => setState(() => _pdfCurrentPage--),
           ),
-          // < 上一页按钮（仅PDF原文阅读时显示）
-          if (isPdfOriginalView)
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.black.withAlpha(76),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: canPrevPage
-                    ? () {
-                        setState(() { _pdfCurrentPage--; });
-                      }
-                    : null,
-                icon: Icon(
-                  Icons.chevron_left,
-                  color: canPrevPage ? Colors.white : Colors.grey.shade600,
-                  size: 28,
-                ),
-              ),
-            ),
-          // 空位填充（当不显示翻页按钮时保持布局平衡）
-          if (!isPdfOriginalView) const SizedBox(width: 48),
-          // > 下一页按钮（仅PDF原文阅读时显示）
-          if (isPdfOriginalView)
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.black.withAlpha(76),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: canNextPage
-                    ? () {
-                        setState(() { _pdfCurrentPage++; });
-                      }
-                    : null,
-                icon: Icon(
-                  Icons.chevron_right,
-                  color: canNextPage ? Colors.white : Colors.grey.shade600,
-                  size: 28,
-                ),
-              ),
-            ),
-          // 空位填充（当不显示翻页按钮时保持布局平衡）
-          if (!isPdfOriginalView) const SizedBox(width: 48),
-          // >> 下一页/下一章按钮
-          MouseRegion(
-            onEnter: (_) => setState(() => _hoverNext = true),
-            onExit: (_) => setState(() => _hoverNext = false),
-            child: Opacity(
-              opacity: canNext ? 1.0 : 0.0,
-              child: Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: Colors.black.withAlpha(_hoverNext ? 102 : 51),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  hoverColor: Colors.transparent,
-                  highlightColor: Colors.transparent,
-                  onPressed: canNext ? _nextPageOrChapter : null,
-                  icon: Icon(
-                    Icons.keyboard_arrow_right,
-                    color: _hoverNext
-                        ? Colors.deepOrange.withAlpha(179)
-                        : Colors.white.withAlpha(89),
-                    size: 56,
-                  ),
-                ),
-              ),
-            ),
+          _buildPdfPageButton(
+            icon: Icons.chevron_right,
+            enabled: _pdfCurrentPage < endPage,
+            onPressed: () => setState(() => _pdfCurrentPage++),
           ),
         ],
+      ),
+    );
+  }
+
+  /// PDF 页码翻页按钮（< / >）
+  Widget _buildPdfPageButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(76),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(
+          icon,
+          color: enabled ? Colors.white : Colors.grey.shade600,
+          size: 28,
+        ),
       ),
     );
   }

@@ -1,17 +1,4 @@
-// ============================================================================
-// 文件名：ai_service.dart
-// 功能：AI服务核心模块，负责与大语言模型API的交互
-//
-// 主要职责：
-// - 加载和管理AI配置（API Key、模型、Base URL等）
-// - 封装AI API调用逻辑（兼容智谱/通义千问等OpenAI兼容接口）
-// - 提供章节缩写、翻译等 AI 生成能力（流式）
-//
-// 调用方：
-// - summary_service.dart：摘要生成与翻译
-// - chapter_screen.dart：语言检测与翻译判断
-// - ai_config_screen.dart：连接测试、模型获取
-// ============================================================================
+// AI 服务：封装与大语言模型 API 的交互（配置管理、SSE 流式生成、翻译与语言检测）
 
 import 'dart:convert';
 import 'dart:io';
@@ -26,24 +13,12 @@ import '../models/app_settings.dart';
 import '../l10n/app_localizations.dart';
 
 
-/// 功能：AI服务单例类，封装与大语言模型API的所有交互
-///
-/// 主要职责：
-/// - 初始化时加载AI配置文件
-/// - 提供章节缩写、翻译的流式生成接口
-/// - 提供语言检测与翻译判断
-/// - 封装HTTP请求和SSE流式响应处理
-///
-/// 设计模式：
-/// - 单例模式：确保全局只有一个AIService实例
+/// AI 服务单例：加载配置、流式生成、翻译与语言检测
 class AIService {
-  /// 单例实例
   static final AIService _instance = AIService._internal();
 
-  /// 工厂构造函数，返回单例实例
   factory AIService() => _instance;
 
-  /// 私有构造函数，实现单例模式
   AIService._internal();
 
   /// AI配置对象，初始化时从SettingsService加载
@@ -62,10 +37,7 @@ class AIService {
     AIService._instance._config = null;
   }
 
-  /// 方法名：init
-  /// 功能：初始化AI服务，从SettingsService加载API配置
-  ///
-  /// 调用时机：应用启动时在 main.dart 中调用
+  /// 初始化：加载 AI 配置并监听设置变化（应用启动时在 main.dart 调用）
   Future<void> init() async {
     await reloadConfig();
 
@@ -73,14 +45,12 @@ class AIService {
     SettingsService().aiSettings.addListener(_onAiSettingsChanged);
   }
 
-  /// 方法名：_onAiSettingsChanged
-  /// 功能：AI设置变化时的回调，重新加载配置
+  /// AI 设置变化时重新加载配置
   void _onAiSettingsChanged() {
     reloadConfig();
   }
 
-  /// 方法名：reloadConfig
-  /// 功能：从SettingsService重新加载AI配置，配置无效时记录警告并置空
+  /// 从 SettingsService 重新加载 AI 配置，配置无效时记录警告并置空
   Future<void> reloadConfig() async {
     try {
       final aiSettings = SettingsService().settings.aiSettings;
@@ -104,21 +74,18 @@ class AIService {
   // 区域2：配置管理
   // ==========================================================================
 
-  /// 属性名：isConfigured
-  /// 功能：检查AI服务是否已正确配置
+  /// AI 服务是否已正确配置
   bool get isConfigured => _config?.isValid ?? false;
 
   /// 获取当前AI提供商（如 'zhipu', 'qwen', 'ollama' 等）
   String get currentProvider => _config?.provider ?? '';
 
-  /// 方法名：updateConfig
-  /// 功能：从AiSettings更新AI配置（用于连接测试等临时场景）
+  /// 直接替换当前配置（用于连接测试等临时场景）
   void updateConfig(AiSettings settings) {
     _config = settings;
   }
 
-  /// 方法名：testConnection
-  /// 功能：发送一条简单请求，验证AI配置是否可用
+  /// 发送一条简单请求验证 AI 配置是否可用
   Future<bool> testConnection() async {
     if (!isConfigured) {
       _log.w('AIService', '测试连接失败：配置无效');
@@ -136,10 +103,7 @@ class AIService {
     }
   }
 
-  /// 方法名：fetchAvailableModels
-  /// 功能：从 AI 提供商获取可用模型列表
-  ///
-  /// 调用 OpenAI 兼容的 /v1/models 端点获取模型列表，失败时返回空列表。
+  /// 从 OpenAI 兼容的 /v1/models 端点获取模型列表，失败时返回空列表。
   Future<List<String>> fetchAvailableModels({
     required String baseUrl,
     required String apiKey,
@@ -197,9 +161,9 @@ class AIService {
     final systemPrompt = isAbbreviation
         ? _abbreviationSystemPrompt(actualLanguage)
         : switch (actualLanguage) {
-            'en' => 'Write a book summary in English. Write plain text only, no markdown, no code blocks, no lists, no headers, no XML/HTML tags. Do not include any thinking process, reasoning, or explanation tags such as <thinking>, <think>, or <think>. Do not write any introduction or explanation. Start writing the summary content immediately, without any preamble.',
-            'ja' => '日本語で書籍要約を書いてください。プレーンテキストのみ、マークダウン、コードブロック、リスト、ヘッダー、XML/HTMLタグは不要です。<thinking>、<think>、または <think> などの思考過程、推論、説明タグを含めないでください。導入や説明を書かないでください。要約内容を前置きなしで直に書き始めてください。',
-            _ => '用中文写书籍摘要。只写纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程、推理或解释标签，如 <thinking>、<think> 或 <think>。不要写任何前言或解释。立即开始写摘要内容，不要任何开场白。',
+            'en' => 'Write a book summary in English. Write plain text only, no markdown, no code blocks, no lists, no headers, no XML/HTML tags. Do not include any thinking process, reasoning, or explanation tags such as <thinking> or <think>. Do not write any introduction or explanation. Start writing the summary content immediately, without any preamble.',
+            'ja' => '日本語で書籍要約を書いてください。プレーンテキストのみ、マークダウン、コードブロック、リスト、ヘッダー、XML/HTMLタグは不要です。<thinking>、<think> などの思考過程、推論、説明タグを含めないでください。導入や説明を書かないでください。要約内容を前置きなしで直に書き始めてください。',
+            _ => '用中文写书籍摘要。只写纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程、推理或解释标签，如 <thinking>、<think>。不要写任何前言或解释。立即开始写摘要内容，不要任何开场白。',
           };
     _log.d('AIService', 'systemPrompt[$actualLanguage]: $systemPrompt');
     final messages = <Map<String, String>>[];
@@ -220,7 +184,7 @@ class AIService {
     return switch (language) {
       'en' => 'You are a text condensing assistant. Condense the given chapter content to about one-fifth (1/5) of its original length. Preserve all key information, main ideas, logical structure, and important details while removing redundant descriptions and repetition. Write in the original language. Output plain text only — no markdown, no code blocks, no lists, no headers, no XML/HTML tags. Do not include any thinking tags such as <thinking> or <think>. Do not write any preamble or explanation; output the condensed text directly.',
       'ja' => 'あなたは文章要約アシスタントです。与えられた章の内容を元の長さの約5分の1に凝縮してください。重要な情報、主要な考え、論理構造、重要な詳細をすべて保持し、冗長な説明や繰り返しを削除してください。元の言語で書いてください。プレーンテキストのみ出力し、マークダウン、コードブロック、リスト、見出し、XML/HTMLタグは使わないでください。<thinking>や<think>などの思考タグを含めないでください。前置きや説明を書かず、凝縮した内容を直接出力してください。',
-      _ => '你是一名文本缩写助手。请将给定的章节内容缩写为原文长度的约五分之一，保留所有关键信息、主要观点、逻辑结构和重要细节，删除冗余描述与重复内容。使用原文语言输出。只输出纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程标签（如 <thinking>、）。不要写任何前言或解释，直接输出缩写内容。',
+      _ => '你是一名文本缩写助手。请将给定的章节内容缩写为原文长度的约五分之一，保留所有关键信息、主要观点、逻辑结构和重要细节，删除冗余描述与重复内容。使用原文语言输出。只输出纯文本，不要 markdown、不要代码块、不要列表、不要标题、不要 XML/HTML 标签。不要包含任何思考过程标签（如 <thinking>、<think>）。不要写任何前言或解释，直接输出缩写内容。',
     };
   }
 
@@ -233,25 +197,9 @@ class AIService {
     };
   }
 
-  /// 方法名：_callAIStream
-  /// 功能：调用 AI API 发送流式请求并获取响应
+  /// 调用 AI API 发送流式请求，返回内容片段流（未配置或失败时为空流）
   ///
-  /// 参数：
-  /// - prompt: 发送给 AI 的提示词
-  ///
-  /// 返回值：
-  /// - 成功时返回 AI 生成的内容流
-  /// - 失败时返回空流
-  ///
-  /// 使用场景：
-  /// - 需要流式响应的 AI 调用
-  ///
-  /// 算法逻辑：
-  /// 1. 构建请求 URL：{baseUrl}/chat/completions
-  /// 2. 设置请求头：Content-Type、Authorization、Accept、Cache-Control、Connection
-  /// 3. 构建请求体：模型名称、消息列表、温度参数、最大 token 数、stream: true
-  /// 4. 发送 POST 请求
-  /// 5. 解析 SSE 数据流，逐个 yield 内容片段
+  /// 请求体：模型、消息列表、temperature 0.7、max_tokens 32000、stream: true。
   ///
   /// 请求体格式：
   /// ```json
@@ -391,12 +339,8 @@ class AIService {
 
   /// 生成章节缩写（流式）
   ///
-  /// 将章节正文缩写为原长度的约五分之一，仅在章节超过一页内容时调用。
-  ///
-  /// 参数：
-  /// - content: 章节正文纯文本
-  /// - targetLength: 目标缩写长度（字数，可选）
-  /// - language: 输出语言代码（可选，默认跟随统一语言设置）
+  /// 将章节正文缩写为原长度的约五分之一；[targetLength] 为可选目标字数，
+  /// [language] 缺省时跟随统一语言设置。
   Stream<String> generateChapterAbbreviationStream(
     String content, {
     int? targetLength,
@@ -425,11 +369,10 @@ class AIService {
   }
 
   // ==========================================================================
-  // 区域5：翻译服务 - 非流式封装
+  // 区域5：翻译服务
   // ==========================================================================
 
-  /// 方法名：translateHtmlStream
-  /// 功能：流式翻译HTML内容（保留HTML标签）
+  /// 流式翻译 HTML 内容（保留 HTML 标签）
   Stream<String> translateHtmlStream(
     String content, {
     String? chapterTitle,
@@ -458,17 +401,7 @@ class AIService {
     }
   }
 
-  /// 方法名：translateContent
-  /// 功能：翻译文本内容（收集流式内容，支持进度回调）
-  ///
-  /// 参数：
-  /// - [content]: 待翻译的内容
-  /// - [sourceLang]: 源语言代码
-  /// - [targetLang]: 目标语言代码
-  /// - [chapterTitle]: 章节标题（可选）
-  /// - [onProgress]: 进度回调（当前译文内容）
-  ///
-  /// 返回：完整的译文
+  /// 翻译内容：收集流式译文并返回完整结果，[onProgress] 可实时接收当前译文
   Future<String> translateContent(
     String content, {
     required String sourceLang,

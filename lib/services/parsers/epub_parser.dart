@@ -1,8 +1,10 @@
-import 'dart:io';
-import 'dart:typed_data';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:epub_plus/epub_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:html/parser.dart' as html_parser;
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
@@ -144,7 +146,16 @@ class EpubParser implements BookFormatParser {
   }
 
   @override
-  Future<List<Chapter>> getChapters(String filePath) async {
+  Future<List<Chapter>> getChapters(String filePath) {
+    // 解压与解析在较大书籍上会占用数百毫秒；放到后台 isolate 执行，
+    // 避免阻塞 UI（从书架进入书籍详情页的转场动画期间尤其明显）。
+    // isolate 内重新创建解析器：LogService 持有文件句柄，不能跨 isolate 传递。
+    if (kIsWeb) return _readChapters(filePath);
+    return Isolate.run(() => EpubParser()._readChapters(filePath));
+  }
+
+  /// 解析章节列表（在实际执行的 isolate 内完成解压与解析）
+  Future<List<Chapter>> _readChapters(String filePath) async {
     final file = File(filePath);
     if (!await file.exists()) {
       _log.w('EpubParser', '文件不存在: $filePath');
@@ -678,7 +689,7 @@ class EpubParser implements BookFormatParser {
 
     final merged = buffer.toString().trim();
     if (merged.isEmpty) return null;
-    return _inlineCssAndImages(archive, merged);
+    return _inlineCssAndImages(archive, merged, frontMatter: true);
   }
 
   /// 解析 content.opf 的 spine，按阅读顺序返回所有内容文档（HTML/XHTML）的 href
@@ -1028,9 +1039,10 @@ class EpubParser implements BookFormatParser {
   /// EPUB 正文的样式通常依赖外部 CSS 文件与内部图片资源，直接渲染原始 HTML
   /// 会丢失排版效果。这里交给 [EpubCssEngine] 完成 CSS 级联内联、图片转 data URI，
   /// 并提取 @font-face 字体，使渲染层（flutter_widget_from_html）能完整还原排版。
-  RenderedContent _inlineCssAndImages(Archive archive, String html) {
+  RenderedContent _inlineCssAndImages(Archive archive, String html,
+      {bool frontMatter = false}) {
     return EpubCssEngine(archive, identifier: _readUniqueIdentifier(archive))
-        .render(html);
+        .render(html, frontMatter: frontMatter);
   }
 
   /// 读取 OPF 中由 package 的 unique-identifier 指定的 dc:identifier，

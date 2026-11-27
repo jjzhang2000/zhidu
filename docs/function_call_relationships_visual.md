@@ -1,6 +1,6 @@
 # 智读 (Zhidu) 可视化类/函数调用关系图 (Mermaid)
 
-> **文档版本**: v2.18 | **更新日期**: 2026-11-26
+> **文档版本**: v2.20 | **更新日期**: 2026-11-26
 
 ---
 
@@ -9,7 +9,7 @@
 ```mermaid
 graph TB
     subgraph 入口层["main.dart"]
-        MAIN["main() 函数"] --> IW["initDesktopWindow()"]
+        MAIN["main() 函数"] --> IW["initDesktopWindow()（恢复窗口位置/尺寸/最大化）"]
         MAIN --> INIT["Service 初始化链"]
         MAIN --> ZHIDU["ZhiduApp"]
     end
@@ -159,11 +159,13 @@ flowchart TD
 
     subgraph "BookScreen 书籍详情页"
         BS_INIT["initState()"] --> LU["_updateLastReadAt() → BookService.updateBook()"]
-        BS_INIT --> EL["_loadChapters() → ensureBookFileLocal() → getChapters()"]
+        BS_INIT --> EL["_loadChapters() → 命中缓存直接显示 / ensureBookFileLocal() → getChapters()（后台 isolate）"]
         READ["阅读按钮 → _startReading()"]
-        READ --> |"有上次位置"| RESUME["_resumeReading() → _openChapter(恢复 章节+页码)"]
+        READ --> |"lastChapterIndex > 0"| RESUME["_resumeReading() → _openChapter(恢复 章节+页码)"]
+        READ --> |"lastChapterIndex == -1"| OPEN_RESUME["_loadOpeningContent() → _openOpening(恢复开头页页码)"]
+        READ --> |"lastChapterIndex == 0"| FIRST["_openChapter(首章, initialPagedPage)"]
+        READ --> |"首次(无记录)"| OPEN2["getOpeningContent() → RenderedContent"]
         READ --> |"PDF"| OPEN1["_openChapter(首章, initialPage:1)"]
-        READ --> |"EPUB"| OPEN2["getOpeningContent() → RenderedContent"]
         OPEN2 --> |"html 非空"| OPEN3["_openOpening(rendered) → ChapterScreen(openingContent+fonts+isVertical+plainText)"]
         OPEN2 --> |"空"| OPEN1
         CHAPTER_LIST["章节列表"] --> |"点击章节"| CHAPTER_SCREEN["Navigator.push(ChapterScreen)"]
@@ -174,12 +176,17 @@ flowchart TD
         TAB_ORIG["原文Tab（默认）"]
         TAB_ORIG --> |"PDF"| ORIG_PDF["PdfDocumentViewBuilder 单页"]
         TAB_ORIG --> |"竖排"| ORIG_VERT["VerticalText(tategaki)"]
-        TAB_ORIG --> |"分页(默认)"| ORIG_PAGE["PagedReadingView(HTML块级切分+HtmlWidget)"]
+        TAB_ORIG --> |"分页(默认)"| ORIG_PAGE["PagedReadingView(纯视图) + PagedReaderController(页列表/当前页/过渡)"]
         TAB_ORIG --> |"滚动"| ORIG_SCROLL["HtmlWidget(fwfh_core)"]
+        ORIG_PAGE --> BOOKPAGE["BookPaginator 全书后台分页(优先当前章→相邻章→前缀章) → 底部显示全书页码"]
+        ORIG_PAGE --> INDICATOR["页码指示：全书页码就绪则 本章起始页+页内偏移 / 全书总页数，否则章节内页码"]
         TAB_ABBR["缩写Tab → _loadAbbreviation() → getChapterAbbreviation() 读缓存"]
         TAB_TRANS["译文Tab → _ensureTranslation() → ensureChapterTranslation()"]
         TAB_TOC["目录Tab → ChapterDirectory(封面+章节列表) → _jumpFromDirectory() 原地跳章"]
-        NAV["翻页入口统一(按钮/点击/键盘/滑动) → onPrevChapter/onNextChapter 跨章 → _navigateToChapter() 原地渲染，startAtLastPage 时 _finalizePosition() 定位末页避免闪动"]
+        NAV["翻页入口统一(点击左右1/3/键盘/滚轮/overscroll) → PagedReaderController.turnPage(±1) → 章内翻页或 onBoundary 跨章"]
+        NAV --> |"普通章节边界"| NAV2["_onReaderBoundary() → _navigateToChapter() → 有后台缓存则 _reader.openPages(pages)，否则 _loadChapterContent()+_reader.open(html)"]
+        NAV --> |"第一章首页向前"| NAV3["_openOpeningPage(lastPage:true) → 开头页末页(_showingOpening)"]
+        NAV --> |"开头页末页向后"| NAV4["_navigateToChapter(0) → 第一章首页"]
 
         TAB_TRANS --> TRANS["generateTranslationStream() → AIService.translateContent()"]
         TRANS --> |"SSE流式"| TRANS_UI["UI实时显示译文"]
@@ -556,6 +563,16 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-27 | 阅读字号统一相对化 — 新增 `AppSettings.readerFontSize` 基准字号（默认 21，含 SettingsService 通知与 setter，暂无 UI）；正文/竖排/页码/开头页目录全部按其推导（目录改为 `0.76em`、缩进 `1em/级`），章节列表与各页面文字改用主题文本样式，仅 `app_theme.dart` 保留字号定义 |
+| 2026-11-27 | 修复窗口状态恢复 — 最大化退出重进被还原：Windows runner 首帧 `Show()` 由 `SW_SHOWNORMAL` 改 `SW_SHOW`，Dart 侧先最大化再 show 并在显示后确认；最小化退出重进回默认位置：最小化时 `getBounds()` 为任务栏图标坐标，保存时改取最近一次普通窗口矩形（或上次文件尺寸）并校验后写入 |
+| 2026-11-27 | 开头页目录排版 + 详情页进入流畅性 + 窗口状态恢复 — ①`EpubCssEngine.render(frontMatter: true)` 只调整目录条目：字号 16px、行高 1.8、行首空白换算 `margin-left` 分级缩进，段落缩进跳过目录条目，版权页等非链接文字不变；②`EpubParser.getChapters()` 改用 `Isolate.run`，`BookScreen` 增加章节内存缓存、出版信息补充后置；③`main.dart` 退出时保存窗口矩形与最大化状态到 `window_state.json`，启动时校验可见性后恢复 |
+| 2026-11-27 | 全书页码 + 后台一次性分页 — 新增 `html_pagination`（共用分页算法与离屏测量列）、`BookPaginator`/`BookPaginatorHost`（进入阅读页/窗口变化后后台逐章分页，优先当前章→相邻章→前缀章，`adopt` 回填控制器测量结果）；`PagedReaderController` 新增 `openPages`/`replacePages`/`onLayout`/`bookPaging`；`ChapterScreen` 命中后台缓存时直接 `openPages`（跨章无测量等待、减少闪动），底部页码改为全书页码（前缀未就绪时回退章节内页码）；`reader_flow_test` 改为全书页码断言并新增 `book_paginator_test`，422 个测试通过 |
+| 2026-11-27 | 修复跨章回退跳动 + 开头页可回退 — ①`PageView` 改 `ClampingScrollPhysics`（越界不位移，切章快照接管不再「跳回」），越界累计超过 12px 才翻章；②新增 `_showingOpening`：开头页（目录/版权等前置页）作为第一章之前的位置，第一章首页向前翻回到开头页末页、开头页末页向后翻进入第一章、开头页首页向前翻无操作；阅读位置以 `lastChapterIndex = -1` 表示开头页，`_startReading()` 区分 `-1/0/>0/null`；③点击左右 1/3 改用原始指针 down/up 判定（`<a>` 的 GestureDetector 会抢走点击导致目录页无法翻页）；新增「越界拖动不位移」「第一章首页↔开头页」回归用例 |
+| 2026-11-27 | 修复真实运行翻页错乱 — 当前页层固定包在同一层级 `SlideTransition`（过渡结束不重建 PageView，避免回到第 0 页导致向前跨章显示成首页、后续翻页跳错章）；旧页过渡层取消不透明底色（白页闪块）；滑动越界方向修正并为 BouncingPhysics 增加越界 pixels 判定；新增真实 EPUB + 1280×800 的 ChapterScreen 全流程回归测试 |
+| 2026-11-27 | 分页阅读状态收敛重构 — 新增 `PagedReaderController`（页列表/当前页/待定位目标/过渡动画），`PagedReadingView` 变为纯视图；`turnPage(±1)` 为唯一翻页入口，章内与跨章共用页列表模型；状态收敛为「测量中/定位中/过渡中」三个；`ChapterScreen` 改为 `_reader.open(html, target)` 表达打开意图并监听控制器保存位置；续读/目录锚点/PDF 分支行为不变，412 个测试全部通过 |
+| 2026-11-27 | 修复跨章滑动过渡引入的翻页跳转错乱 — ①切章时复位过渡进度（`_slideController.value = 0`），否则下一次切章的旧页快照按终点值渲染到屏幕外，测量期间白屏后突然弹回；②快照清理改由 `AnimationStatus.completed` 监听驱动，`TickerFuture.whenComplete` 在动画被 `stop()` 中断时永不完成，会导致快照永久残留；③新增 `_positioning` 输入锁：定位完成前忽略点击/键盘/滚轮/overscroll（此前会作用于 Opacity(0) 的新页而误跳章）；④`ChapterScreen._switchingChapter`：内容加载完成前忽略新的翻章请求（此前连点右侧会依据旧章页码跳过整章）；⑤新增两条回归用例 |
+| 2026-11-26 | 跨章翻页改为滑动过渡 — 切章时冻结当前页为旧页快照（测量期间继续显示，避免空白），新章分页稳定后 260ms 滑动：旧页滑出、新章滑入，方向随翻章方向 |
+| 2026-11-26 | 移除底部大翻页按钮（EPUB），仅 PDF 原文保留 `<`/`>`；`PagedReadingView` 新增鼠标滚轮翻页（`PointerScrollEvent`，180ms 节流，边界跨章） |
 | 2026-11-26 | 修复续读定位失效 — `_finalizePosition()` 延迟读 `widget.initialPageIndex` 时该值已被父级重置为 0；改为 `_pendingPageIndex` 在 initState/didUpdateWidget 固化目标页，定位后清空；新增回归测试 |
 | 2026-11-26 | 修复页码保存为 0 — `TabBarView` 销毁远离子页导致 `PagedReadingView` 重建、页码归零并覆盖父级 `_pagedCurrentPage`；加 `AutomaticKeepAliveClientMixin` 保活 + `initialPageIndex: _initialPagedPage ?? _pagedCurrentPage` + 翻章重置页码 |
 | 2026-11-26 | 修复续读位置不准 — `_startReading()` 先 `getBookById()` 刷新 `_book`（否则再次点「阅读」读不到新进度，退回全书首页）；首章进度经 `_openOpening(initialPagedPage:)` 恢复；翻页后 2s 防抖保存 + 已保存位置去重 |
