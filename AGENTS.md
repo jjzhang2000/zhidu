@@ -75,6 +75,7 @@ lib/
 
 ### 版本历史
 
+**2026-11-28**: 配色主题化修复 — ①阅读页 AppBar 标题显式取 `appBarTheme.foregroundColor`：`textTheme.titleMedium` 自带 onSurface 颜色，浅色模式下会在主色背景上显示成黑色；②清理写死颜色：底部页码、加载/错误/空状态/翻译提示、Tab 未选中态与分隔线、书架空状态、默认封面、详情页出版信息、AI 配置提示框与连通性结果等改用 `colorScheme` 语义色（`onSurfaceVariant`/`outline`/`outlineVariant`/`error`/`surfaceContainerHighest`）；③`accentColor` 统一为深橙 `#FF5722`（书架 FAB 与详情页阅读按钮同色），新增 `dangerColor` 深红 `#B71C1C` 用于封面删除按钮，清空书架确认弹窗「移除」按钮改用主题 error 色；`flutter analyze lib` 无告警，相关界面测试通过
 **2026-11-28**: 完善 .gitignore — 取消忽略 `pubspec.lock`（应用需锁定依赖版本，本次一并纳入版本管理），移除过时的 `/books.json`，补充 `/Summaries/`、`.test_temp/`、`.opf_integration_test/`、`.ruff_cache/`、`.screenshots/`、`.sisyphus/` 忽略规则，构建输出改为 `**/build/` 覆盖各平台；取消跟踪历史上误提交的 `android/zhidu_android.iml` 与 `android/build/reports/problems/problems-report.html`
 **2026-11-27**: 阅读字号统一相对化（为字号设置做准备）— 新增设置项底座 `AppSettings.readerFontSize`（默认 21，`SettingsService.readerFontSize` ValueNotifier + `setReaderFontSize()`，暂无 UI），阅读页所有字号均由它推导：正文 `_contentTextStyle`（基准字号 × 行高 1.6）、竖排 `基数×0.86`、底部页码 `正文字号×0.57`、开头页目录条目 `font-size: 0.76em` + 缩进 `1em/级`（改为 em 相对单位，随基准字号缩放，不再写死 16px）；章节列表字号改用 `textTheme.bodyLarge` 派生；阅读页/书架/设置页的固定 `fontSize` 改为主题文本样式（`bodyLarge/bodyMedium/bodySmall/labelSmall/headlineSmall/titleMedium`），仅 `app_theme.dart` 的 textTheme 保留字号定义；`flutter analyze lib` 无告警、425 个测试通过
 

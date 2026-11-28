@@ -19,12 +19,19 @@ class AppTheme {
   /// 色值：#2C3E50（深蓝灰）
   static const Color primaryColor = Color(0xFF2C3E50);
 
-  /// 强调色 - 橙色
+  /// 强调色 - 深橙色
   ///
   /// 用于浮动操作按钮(FAB)、重要按钮、高亮元素等。
   /// 与主色调形成对比，引导用户注意力。
-  /// 色值：#E67E22（暖橙色）
-  static const Color accentColor = Color(0xFFE67E22);
+  /// 色值：#FF5722（Material deepOrange）
+  static const Color accentColor = Color(0xFFFF5722);
+
+  /// 危险色 - 深红色
+  ///
+  /// 用于删除等破坏性操作（书架封面上的删除按钮），
+  /// 与强调色的橙色拉开区分。
+  /// 色值：#B71C1C（Material red 900）
+  static const Color dangerColor = Color(0xFFB71C1C);
 
   /// 背景色 - 浅灰白色
   ///

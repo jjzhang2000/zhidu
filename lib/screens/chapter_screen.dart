@@ -813,6 +813,9 @@ class _ChapterScreenState extends State<ChapterScreen>
           _title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w500,
+                // 显式取 AppBar 前景色：textTheme 自带 onSurface 颜色，浅色模式下
+                // 会让主色背景上的标题变黑、难以辨认
+                color: Theme.of(context).appBarTheme.foregroundColor,
               ),
           overflow: TextOverflow.ellipsis,
         ),
@@ -868,7 +871,7 @@ class _ChapterScreenState extends State<ChapterScreen>
           Text(
             '正在加载章节内容...',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
         ],
@@ -887,21 +890,21 @@ class _ChapterScreenState extends State<ChapterScreen>
             Icon(
               Icons.error_outline,
               size: 64,
-              color: Colors.red[400],
+              color: Theme.of(context).colorScheme.error,
             ),
             const SizedBox(height: 16),
             Text(
               '出错了',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey[700],
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
             ),
             const SizedBox(height: 8),
             Text(
               _error!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
               textAlign: TextAlign.center,
             ),
@@ -924,7 +927,8 @@ class _ChapterScreenState extends State<ChapterScreen>
     final bool abbreviationDisabled = _contentTooShort;
 
     final selectedColor = Theme.of(context).colorScheme.primary.withAlpha(40);
-    final unselectedColor = Colors.grey.withAlpha(80);
+    final unselectedColor =
+        Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(40);
 
     return Padding(
       padding: const EdgeInsets.all(8),
@@ -937,19 +941,25 @@ class _ChapterScreenState extends State<ChapterScreen>
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor),
               Container(
-                  height: 1, width: 44, color: Colors.grey.withAlpha(100)),
+                  height: 1,
+                  width: 44,
+                  color: Theme.of(context).colorScheme.outlineVariant),
               _buildVerticalTab(1, Icons.auto_awesome,
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor,
                   disabled: abbreviationDisabled),
               Container(
-                  height: 1, width: 44, color: Colors.grey.withAlpha(100)),
+                  height: 1,
+                  width: 44,
+                  color: Theme.of(context).colorScheme.outlineVariant),
               _buildVerticalTab(2, Icons.translate,
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor,
                   disabled: _translationTabDisabled),
               Container(
-                  height: 1, width: 44, color: Colors.grey.withAlpha(100)),
+                  height: 1,
+                  width: 44,
+                  color: Theme.of(context).colorScheme.outlineVariant),
               _buildVerticalTab(3, Icons.toc,
                   selectedColor: selectedColor,
                   unselectedColor: unselectedColor),
@@ -1033,10 +1043,10 @@ class _ChapterScreenState extends State<ChapterScreen>
           icon,
           size: 24,
           color: disabled
-              ? Colors.grey.withAlpha(100)
+              ? Theme.of(context).colorScheme.onSurface.withAlpha(90)
               : isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Colors.grey,
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -1084,7 +1094,7 @@ class _ChapterScreenState extends State<ChapterScreen>
           style: Theme.of(context)
               .textTheme
               .bodyLarge
-              ?.copyWith(color: Colors.grey),
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ),
     );
@@ -1128,7 +1138,7 @@ class _ChapterScreenState extends State<ChapterScreen>
           style: Theme.of(context)
               .textTheme
               .bodyLarge
-              ?.copyWith(color: Colors.grey),
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ),
     );
@@ -1151,8 +1161,8 @@ class _ChapterScreenState extends State<ChapterScreen>
     return Container(
       width: 8,
       height: 8,
-      decoration: const BoxDecoration(
-        color: Colors.blue,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
         shape: BoxShape.circle,
       ),
     );
@@ -1168,19 +1178,20 @@ class _ChapterScreenState extends State<ChapterScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.translate, size: 64, color: Colors.grey[400]),
+              Icon(Icons.translate,
+                  size: 64, color: Theme.of(context).colorScheme.outline),
               const SizedBox(height: 16),
               Text(
                 '书籍语言与译文语言相同',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.grey[600],
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
               ),
               const SizedBox(height: 8),
               Text(
                 '无需翻译',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[500],
+                      color: Theme.of(context).colorScheme.outline,
                     ),
               ),
             ],
@@ -1212,7 +1223,7 @@ class _ChapterScreenState extends State<ChapterScreen>
             Text(
               '翻译中，可能需要几秒钟...',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
           ],

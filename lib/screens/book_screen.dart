@@ -18,6 +18,7 @@ import '../services/parsers/book_format_parser.dart';
 import '../services/parsers/rendered_content.dart';
 import '../models/chapter.dart';
 import '../services/log_service.dart';
+import '../utils/app_theme.dart';
 import '../widgets/chapter_directory.dart';
 import 'chapter_screen.dart';
 
@@ -221,12 +222,12 @@ class _BookScreenState extends State<BookScreen> {
     final metaFontSize = metaBase?.fontSize ?? 14;
     // 出版时间/出版方
     final metaStyle = metaBase?.copyWith(
-      color: Colors.grey[600],
+      color: theme.colorScheme.onSurfaceVariant,
       fontSize: metaFontSize + 4,
     );
     // 作者（比出版信息再大2号）
     final authorStyle = metaBase?.copyWith(
-      color: Colors.grey[600],
+      color: theme.colorScheme.onSurfaceVariant,
       fontSize: metaFontSize + 6,
     );
     final titleBase = theme.textTheme.titleLarge;
@@ -283,7 +284,7 @@ class _BookScreenState extends State<BookScreen> {
             onPressed: _startReading,
             icon: const Icon(Icons.auto_stories, size: 36, color: Colors.white),
             style: IconButton.styleFrom(
-              backgroundColor: Colors.deepOrange,
+              backgroundColor: AppTheme.accentColor,
               shape: const CircleBorder(),
               padding: const EdgeInsets.all(14),
             ),
@@ -504,7 +505,7 @@ class _BookScreenState extends State<BookScreen> {
   ///
   /// **样式规则**：
   /// - 字体大小：15 - level * 1（顶层15px，一级14px...）
-  /// - 颜色：子章节使用灰色(Colors.grey[600])，顶层章节使用默认颜色
+  /// - 颜色：子章节使用主题次要文字色，顶层章节使用默认颜色
   /// - 最大显示1行，超出显示省略号
   ///
   /// **交互规则**：

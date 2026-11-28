@@ -10,6 +10,7 @@ import '../services/library_import_service.dart';
 import '../services/settings_service.dart';
 import '../models/app_settings.dart';
 import '../models/book.dart';
+import '../utils/app_theme.dart';
 import 'book_screen.dart';
 import 'settings_screen.dart';
 
@@ -209,17 +210,16 @@ class _HomeScreenState extends State<HomeScreen> {
           Icon(
             isSearching ? Icons.search_off : Icons.library_books,
             size: 80,
-            color: Colors.grey,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 16),
           Text(
             isSearching
                 ? (AppLocalizations.of(context)?.noRelatedBooks ?? '未找到相关书籍')
                 : (AppLocalizations.of(context)?.bookshelfEmpty ?? '书架空空如也'),
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -227,10 +227,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? (AppLocalizations.of(context)?.tryOtherKeywords ?? '请尝试其他关键词')
                 : (AppLocalizations.of(context)?.clickToAddBooks ??
                     '点击右下角按钮添加书籍'),
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
         ],
       ),
@@ -446,7 +445,6 @@ class _BookCardState extends State<BookCard> {
                             const SizedBox(height: 4),
                             LinearProgressIndicator(
                               value: widget.book.readingProgress,
-                              backgroundColor: Colors.grey[200],
                             ),
                           ],
                         ],
@@ -460,7 +458,8 @@ class _BookCardState extends State<BookCard> {
                   right: 4,
                   bottom: 4,
                   child: Material(
-                    color: Colors.red.withValues(alpha: 0.9),
+                    // 深红色，与橙色「+」按钮拉开区分
+                    color: AppTheme.dangerColor.withValues(alpha: 0.9),
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
@@ -498,12 +497,13 @@ class _BookCardState extends State<BookCard> {
 
   Widget _buildDefaultCover() {
     return Container(
-      color: Colors.blueGrey[100],
+      // 跟随主题的表面色，深色模式下不会出现浅色底块
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Center(
         child: Icon(
           Icons.book,
           size: 48,
-          color: Colors.blueGrey[300],
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -539,7 +539,9 @@ class _BookCardState extends State<BookCard> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: Text(AppLocalizations.of(context)?.remove ?? '移除'),
           ),
         ],

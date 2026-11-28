@@ -31,27 +31,28 @@ class BookCover extends StatelessWidget {
           height: height,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) =>
-              _buildDefaultCover(height),
+              _buildDefaultCover(context, height),
         ),
       );
     }
-    return _buildDefaultCover(height);
+    return _buildDefaultCover(context, height);
   }
 
-  Widget _buildDefaultCover(double height) {
+  Widget _buildDefaultCover(BuildContext context, double height) {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: Colors.blueGrey[100],
+          // 跟随主题的表面色，深色模式下不会出现刺眼的浅色底
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: Center(
           child: Icon(
             Icons.book,
             size: width * 0.4,
-            color: Colors.blueGrey[300],
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -89,11 +90,11 @@ List<Widget> buildChapterTiles(
             style: TextStyle(
               // 字体大小随层级递减（相对正文字号）
               fontSize: baseFontSize - 1 - chapter.level,
-              // 子章节颜色较淡；当前章节用主题色
+              // 子章节颜色较淡（跟随主题）；当前章节用主题色
               color: isCurrent
                   ? primary
                   : chapter.level > 0
-                      ? Colors.grey[600]
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
                       : null,
               fontWeight: isCurrent ? FontWeight.bold : null,
             ),

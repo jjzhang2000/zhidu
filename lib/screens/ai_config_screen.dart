@@ -438,17 +438,20 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHighest
+                  .withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Colors.grey.withValues(alpha: 0.3),
+                color: Theme.of(context).colorScheme.outlineVariant,
               ),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.info_outline,
-                  color: Colors.grey[600],
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
@@ -456,7 +459,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
                   child: Text(
                     '本地模型不需要 API Key',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
                 ),
@@ -702,8 +705,8 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
               _testResultMessage!,
               style: TextStyle(
                 color: _testResultSuccess == true
-                    ? Colors.green[700]
-                    : Colors.red[700],
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.error,
               ),
             ),
           ),

@@ -563,6 +563,7 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-28 | 配色主题化修复 — AppBar 标题改用 `appBarTheme.foregroundColor`；阅读页/书架/详情页/设置页写死灰红蓝等颜色改为 `colorScheme` 语义色；`accentColor` 统一深橙 `#FF5722`，新增 `dangerColor` 深红 `#B71C1C`（封面删除），清空书架确认按钮用主题 error 色 |
 | 2026-11-27 | 阅读字号统一相对化 — 新增 `AppSettings.readerFontSize` 基准字号（默认 21，含 SettingsService 通知与 setter，暂无 UI）；正文/竖排/页码/开头页目录全部按其推导（目录改为 `0.76em`、缩进 `1em/级`），章节列表与各页面文字改用主题文本样式，仅 `app_theme.dart` 保留字号定义 |
 | 2026-11-27 | 修复窗口状态恢复 — 最大化退出重进被还原：Windows runner 首帧 `Show()` 由 `SW_SHOWNORMAL` 改 `SW_SHOW`，Dart 侧先最大化再 show 并在显示后确认；最小化退出重进回默认位置：最小化时 `getBounds()` 为任务栏图标坐标，保存时改取最近一次普通窗口矩形（或上次文件尺寸）并校验后写入 |
 | 2026-11-27 | 开头页目录排版 + 详情页进入流畅性 + 窗口状态恢复 — ①`EpubCssEngine.render(frontMatter: true)` 只调整目录条目：字号 16px、行高 1.8、行首空白换算 `margin-left` 分级缩进，段落缩进跳过目录条目，版权页等非链接文字不变；②`EpubParser.getChapters()` 改用 `Isolate.run`，`BookScreen` 增加章节内存缓存、出版信息补充后置；③`main.dart` 退出时保存窗口矩形与最大化状态到 `window_state.json`，启动时校验可见性后恢复 |

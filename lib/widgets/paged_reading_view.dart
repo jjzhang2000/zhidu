@@ -390,14 +390,14 @@ class _PageIndicator extends StatelessWidget {
           total = controller.totalPages;
         }
         if (total <= 0) return const SizedBox.shrink();
-        // 相对正文字号，随阅读字号设置一起缩放
+        // 相对正文字号，随阅读字号设置一起缩放；颜色跟随主题，深色模式自动变浅
         final baseFontSize = controller.textStyle.fontSize;
         return Text(
           '$page / $total',
           style: TextStyle(
             fontSize:
                 baseFontSize == null ? null : baseFontSize * _pageLabelScale,
-            color: Colors.grey[600],
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         );
       },
