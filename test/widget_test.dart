@@ -86,7 +86,7 @@ void main() {
 
     test('AppTheme accentColor is defined', () {
       expect(AppTheme.accentColor, isA<Color>());
-      expect(AppTheme.accentColor.toARGB32(), equals(0xFFE67E22));
+      expect(AppTheme.accentColor.toARGB32(), equals(0xFFFF5722));
     });
 
     test('AppTheme backgroundColor is defined', () {

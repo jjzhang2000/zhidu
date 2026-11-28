@@ -563,6 +563,8 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-28 | 原书排版起步值与重置 — 解析器读取书籍 CSS 得到 `ReaderTypography`；三项排版改为可空全局覆盖值（覆盖 → 原书 → 默认），`+/-` 写覆盖跨书生效，「重置」按项清覆盖回原书值 |
+| 2026-11-28 | 阅读页排版设置菜单 — AppBar `format_size` 按钮弹出「文字/行距/段距」三组 +/-/重置；新增 `readerLineHeight`、`readerParagraphSpacing` 设置；改动即时重排（控制器/后台分页器同步更新排版，保留当前页原地重排） |
 | 2026-11-28 | 配色主题化修复 — AppBar 标题改用 `appBarTheme.foregroundColor`；阅读页/书架/详情页/设置页写死灰红蓝等颜色改为 `colorScheme` 语义色；`accentColor` 统一深橙 `#FF5722`，新增 `dangerColor` 深红 `#B71C1C`（封面删除），清空书架确认按钮用主题 error 色 |
 | 2026-11-27 | 阅读字号统一相对化 — 新增 `AppSettings.readerFontSize` 基准字号（默认 21，含 SettingsService 通知与 setter，暂无 UI）；正文/竖排/页码/开头页目录全部按其推导（目录改为 `0.76em`、缩进 `1em/级`），章节列表与各页面文字改用主题文本样式，仅 `app_theme.dart` 保留字号定义 |
 | 2026-11-27 | 修复窗口状态恢复 — 最大化退出重进被还原：Windows runner 首帧 `Show()` 由 `SW_SHOWNORMAL` 改 `SW_SHOW`，Dart 侧先最大化再 show 并在显示后确认；最小化退出重进回默认位置：最小化时 `getBounds()` 为任务栏图标坐标，保存时改取最近一次普通窗口矩形（或上次文件尺寸）并校验后写入 |

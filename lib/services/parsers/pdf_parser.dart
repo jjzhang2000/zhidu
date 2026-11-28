@@ -4,6 +4,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:image/image.dart' as img;
 
 import '../../models/chapter.dart';
+import '../../models/reader_typography.dart';
 import 'book_format_parser.dart';
 import 'rendered_content.dart';
 import '../log_service.dart';
@@ -275,6 +276,12 @@ class PdfParser implements BookFormatParser {
   /// PDF 无独立开头 HTML，调用方按页码从第 1 页开始
   @override
   Future<RenderedContent?> getOpeningContent(String filePath) async {
+    return null;
+  }
+
+  /// PDF 无原始排版信息（固定版式），返回 null 由阅读页使用应用默认值
+  @override
+  Future<ReaderTypography?> getReaderTypography(String filePath) async {
     return null;
   }
 

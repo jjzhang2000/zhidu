@@ -1,13 +1,7 @@
 // 书籍详情页面
 //
-// 显示书籍的基本信息（封面、书名、作者、出版信息）和章节目录。
-//
-// 核心功能：
-// 1. **书籍信息展示**：封面、书名、作者、出版时间、出版方
-// 2. **章节目录展示**：层级缩进的章节列表
-//
-// 用户交互：
-// - 点击顶层章节 → 进入该章节阅读
+// 展示书籍信息（封面/书名/作者/出版信息）与全层级章节列表；
+// 点击章节进入阅读，「阅读」按钮续读上次位置。
 
 import 'dart:async';
 
@@ -17,14 +11,13 @@ import '../services/book_service.dart';
 import '../services/parsers/book_format_parser.dart';
 import '../services/parsers/rendered_content.dart';
 import '../models/chapter.dart';
+import '../models/reader_typography.dart';
 import '../services/log_service.dart';
 import '../utils/app_theme.dart';
 import '../widgets/chapter_directory.dart';
 import 'chapter_screen.dart';
 
-/// 书籍详情页面的StatefulWidget
-///
-/// 接收一个[Book]对象，显示该书籍的详细信息。
+/// 书籍详情页：展示书籍信息与章节列表
 class BookScreen extends StatefulWidget {
   final Book book;
 
@@ -54,16 +47,14 @@ class _BookScreenState extends State<BookScreen> {
   /// 当前书籍（可能被刷新更新）
   late Book _book;
 
-  /// 扁平化的章节列表（从EPUB/PDF解析）
-  ///
-  /// 存储所有章节的线性列表，每个章节包含：
-  /// - [Chapter.index] 章节索引
-  /// - [Chapter.title] 章节标题
-  /// - [Chapter.level] 层级深度（0=顶层，1=子章节...）
+  /// 扁平化的章节列表（含子章节，level 表示目录层级）
   List<Chapter> _flatChapters = [];
 
   /// 是否正在加载章节列表
   bool _isLoadingChapters = false;
+
+  /// 书籍自身排版（字号/行距/段距），用于阅读页起步值与「重置」目标
+  ReaderTypography? _bookTypography;
 
   @override
   void initState() {
@@ -104,6 +95,8 @@ class _BookScreenState extends State<BookScreen> {
         _flatChapters = cached;
         _isLoadingChapters = false;
       });
+      // 章节已缓存时排版信息在后台补充（用于阅读页起步值与重置）
+      _loadTypographyInBackground();
       return;
     }
 
@@ -122,7 +115,10 @@ class _BookScreenState extends State<BookScreen> {
       }
 
       // 先解析章节结构并显示（EPUB 解析已在后台 isolate 完成，不阻塞转场动画）
+      // 原始排版与章节并行解析，避免串行等待
+      final typographyFuture = parser.getReaderTypography(_book.filePath);
       final chapters = await parser.getChapters(_book.filePath);
+      final typography = await typographyFuture;
       if (!mounted) return;
 
       if (chapters.isNotEmpty) {
@@ -130,6 +126,7 @@ class _BookScreenState extends State<BookScreen> {
       }
       setState(() {
         _flatChapters = chapters;
+        _bookTypography = typography;
         _isLoadingChapters = false;
       });
 
@@ -150,6 +147,19 @@ class _BookScreenState extends State<BookScreen> {
           _isLoadingChapters = false;
         });
       }
+    }
+  }
+
+  /// 后台补充书籍原始排版（章节命中缓存时使用，不阻塞界面）
+  Future<void> _loadTypographyInBackground() async {
+    try {
+      final parser = FormatRegistry.getParser('.${_book.format.name}');
+      if (parser == null) return;
+      final typography = await parser.getReaderTypography(_book.filePath);
+      if (!mounted || typography == null) return;
+      setState(() => _bookTypography = typography);
+    } catch (e) {
+      _log.w('BookScreen', '补充书籍原始排版失败: $e');
     }
   }
 
@@ -213,9 +223,7 @@ class _BookScreenState extends State<BookScreen> {
     );
   }
 
-  /// 构建书籍头部信息
-  ///
-  /// 包含：封面图片、书名、作者、出版时间、出版方
+  /// 构建书籍头部信息（封面、书名、作者、出版方/时间）
   Widget _buildBookHeader() {
     final theme = Theme.of(context);
     final metaBase = theme.textTheme.bodyMedium;
@@ -404,6 +412,7 @@ class _BookScreenState extends State<BookScreen> {
           filePath: _book.filePath,
           chapters: _flatChapters,
           book: _book,
+          bookTypography: _bookTypography,
           openingContent: opening.html,
           openingFonts: opening.fonts,
           openingIsVertical: opening.isVertical,
@@ -431,6 +440,7 @@ class _BookScreenState extends State<BookScreen> {
           filePath: _book.filePath,
           chapters: _flatChapters,
           book: _book,
+          bookTypography: _bookTypography,
           initialPage: initialPage,
           initialPagedPage: initialPagedPage,
           initialAnchor: chapter.level > 0 ? chapter.title : null,
@@ -456,21 +466,12 @@ class _BookScreenState extends State<BookScreen> {
     return _flatChapters.isNotEmpty ? _flatChapters.first : chapter;
   }
 
-  /// 构建封面图片
-  ///
-  /// 封面来源：
-  /// 1. 如果[_book.coverPath]存在且文件有效，显示实际封面
-  /// 2. 否则显示默认封面图标
+  /// 构建封面（实际封面缺失时回退默认图标，逻辑见 [BookCover]）
   Widget _buildCover() {
     return BookCover(book: _book);
   }
 
-  /// 构建章节目录内容
-  ///
-  /// 显示逻辑：
-  /// 1. **加载中**：显示进度指示器
-  /// 2. **无章节**：显示"暂无章节信息"
-  /// 3. **有章节**：显示层级缩进的章节列表
+  /// 构建章节目录内容（加载中 → 进度指示；空 → 提示；否则章节列表）
   Widget _buildChapterStructureContent() {
     if (_isLoadingChapters) {
       return const Center(
@@ -493,25 +494,7 @@ class _BookScreenState extends State<BookScreen> {
     );
   }
 
-  /// 构建章节列表项
-  ///
-  /// 章节列表显示规则：
-  ///
-  /// **缩进规则**：
-  /// - 顶层章节(level=0)：无缩进
-  /// - 一级子章节(level=1)：缩进16像素
-  /// - 二级子章节(level=2)：缩进32像素
-  /// - 以此类推...
-  ///
-  /// **样式规则**：
-  /// - 字体大小：15 - level * 1（顶层15px，一级14px...）
-  /// - 颜色：子章节使用主题次要文字色，顶层章节使用默认颜色
-  /// - 最大显示1行，超出显示省略号
-  ///
-  /// **交互规则**：
-  /// - 所有层级（0/1/2…）都可点击
-  /// - 点击顶层章节直接进入该章
-  /// - 点击子章节进入其所属顶层章节，并定位到该子章节标题所在页
+  /// 构建章节列表项（缩进/字号/配色见 [buildChapterTiles]）
   List<Widget> _buildChapterList() {
     return buildChapterTiles(
       context,

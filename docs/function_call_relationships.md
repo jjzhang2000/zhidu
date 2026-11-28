@@ -582,6 +582,8 @@ SummaryService.getChapterAbbreviation()
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-28 | 原书排版起步值与重置 — 新增 `ReaderTypography` 与 `BookFormatParser.getReaderTypography()`（EpubParser 探针 HTML + EpubCssEngine 读取书籍 CSS 字号/行距/margin-bottom；PdfParser 返回 null）；`BookScreen` 并行解析后传 `ChapterScreen.bookTypography`（缓存命中时后台补充）；全局为默认值时以原书排版起步；三项改为可空「全局覆盖值」，`+/-` 写入覆盖跨书生效，「重置」按项清除覆盖并回到原书值（未定义回退 21/1.6/0.8），旧配置中等于默认值的值按未覆盖迁移 |
+| 2026-11-28 | 阅读页排版设置菜单 — AppBar 新增 `format_size` 按钮（`MenuAnchor`），三组「文字/行距/段距」各含 +/-/重置；新增 `readerLineHeight`(1.6)、`readerParagraphSpacing`(0.8) 设置项与 notifier/setter；`ChapterScreen` 监听设置变化后更新 `_contentTextStyle`，调用 `PagedReaderController.updateTypography` 与 `BookPaginator.updateTypography`，并以 `open(animate:false)` 保留当前页原地重新分页（不播放跨章过渡） |
 | 2026-11-28 | 配色主题化修复 — ①阅读页 AppBar 标题显式取 `appBarTheme.foregroundColor`（`textTheme` 自带 onSurface 色导致浅色模式标题变黑）；②页码、加载/错误/空状态/翻译提示、Tab 未选中与分隔线、书架空状态、默认封面、详情页出版信息、AI 配置提示框等写死颜色改为 `colorScheme` 语义色；③`accentColor` 统一为深橙 `#FF5722`（FAB 与阅读按钮同色），新增 `dangerColor` 深红 `#B71C1C`（封面删除按钮），清空书架确认按钮改用主题 error 色 |
 | 2026-11-27 | 阅读字号统一相对化 — 新增 `AppSettings.readerFontSize`（默认 21，`SettingsService.readerFontSize` + `setReaderFontSize()`，暂无 UI）；阅读页字号全部由基准字号推导：正文、竖排（×0.86）、底部页码（×0.57）、开头页目录（`font-size: 0.76em`、缩进 `1em/级`，改为相对单位不再写死 px）；章节列表用 `textTheme.bodyLarge` 派生，阅读/书架/设置页固定 `fontSize` 改为主题文本样式，仅 `app_theme.dart` 保留字号定义 |
 | 2026-11-27 | 修复窗口状态恢复 — ①最大化退出后重进被还原成普通窗口：Windows runner 首帧回调 `Win32Window::Show()` 原用 `SW_SHOWNORMAL`，会把 Dart 已恢复的最大化状态还原，改为 `SW_SHOW`；`initDesktopWindow` 改为「先最大化再 show」，显示后再确认一次最大化（避免普通窗口闪现）；②最小化退出后重进回到默认位置：最小化时 `getBounds()` 返回任务栏图标坐标，`_saveWindowState` 改为最大化/最小化时取 `_lastNormalBounds`、其次上次文件中的尺寸，并校验矩形可用后才写入；`flutter analyze lib` 无告警、`flutter build windows --debug` 通过 |

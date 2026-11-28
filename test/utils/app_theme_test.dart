@@ -9,7 +9,11 @@ void main() {
     });
 
     test('accentColor should be correct value', () {
-      expect(AppTheme.accentColor, const Color(0xFFE67E22));
+      expect(AppTheme.accentColor, const Color(0xFFFF5722));
+    });
+
+    test('dangerColor should be deep red', () {
+      expect(AppTheme.dangerColor, const Color(0xFFB71C1C));
     });
 
     test('backgroundColor should be correct value', () {

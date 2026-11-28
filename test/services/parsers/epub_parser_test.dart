@@ -18,6 +18,30 @@ void main() {
       nonExistentPath = '/non/existent/path/book.epub';
     });
 
+    test('getReaderTypography 读取书籍 CSS 中的原始排版', () async {
+      final archive = Archive()
+        ..addFile(ArchiveFile.string(
+          'OEBPS/style.css',
+          'body { font-size: 1em; line-height: 1.5; } '
+              'p { margin: 0 0 1em; }',
+        ));
+      final bytes = ZipEncoder().encode(archive);
+      final file = File('${Directory.systemTemp.path}/test_typography.epub');
+      file.writeAsBytesSync(Uint8List.fromList(bytes));
+      addTearDown(() {
+        if (file.existsSync()) file.deleteSync();
+      });
+
+      final typography = await parser.getReaderTypography(file.path);
+
+      expect(typography, isNotNull);
+      // 相对字号 1em 以应用默认 21px 为基准
+      expect(typography!.fontSize, closeTo(21.0, 0.01));
+      expect(typography.lineHeight, closeTo(1.5, 0.01));
+      // margin-bottom: 1em → 段距系数 1.0
+      expect(typography.paragraphSpacing, closeTo(1.0, 0.01));
+    });
+
     group('getChapters', () {
       test('returns empty list when file does not exist', () async {
         final chapters = await parser.getChapters(nonExistentPath);

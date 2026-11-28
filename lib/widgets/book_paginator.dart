@@ -21,16 +21,23 @@ typedef ChapterContentLoader = Future<RenderedContent?> Function(int index);
 /// 由本类驱动：设置待测块 → 等待一帧 → 读取块高度 → 稳定后切页并继续下一章。
 class BookPaginator extends ChangeNotifier {
   BookPaginator({
-    required this.textStyle,
+    required TextStyle textStyle,
+    this.paragraphSpacingFactor = 0.8,
     required int chapterCount,
     required bool hasOpening,
     required this.loader,
     required this.registerFonts,
-  })  : _chapterCount = chapterCount,
+  })  : _textStyle = textStyle,
+        _chapterCount = chapterCount,
         _hasOpening = hasOpening;
 
-  /// 正文文本样式（与分页阅读一致）
-  final TextStyle textStyle;
+  /// 正文文本样式（与分页阅读一致，可随排版设置更新）
+  TextStyle _textStyle;
+
+  /// 段距系数：块间距 = 字号 × 系数
+  double paragraphSpacingFactor;
+
+  TextStyle get textStyle => _textStyle;
 
   /// 章节内容加载器
   final ChapterContentLoader loader;
@@ -85,7 +92,17 @@ class BookPaginator extends ChangeNotifier {
 
   List<GlobalKey> get measuringKeys => _measureKeys;
 
-  double get blockSpacing => (textStyle.fontSize ?? 16) * 0.8;
+  double get blockSpacing =>
+      (textStyle.fontSize ?? 16) * paragraphSpacingFactor;
+
+  /// 排版设置变化：更新样式并整体重排（保留已提供的章节内容，不重新解析）
+  void updateTypography(TextStyle style, double spacingFactor) {
+    if (_disposed) return;
+    if (_textStyle == style && paragraphSpacingFactor == spacingFactor) return;
+    _textStyle = style;
+    paragraphSpacingFactor = spacingFactor;
+    _resetAll();
+  }
 
   /// 全书分页是否完成
   bool get isComplete => _naturalIndices.every(_isReady);

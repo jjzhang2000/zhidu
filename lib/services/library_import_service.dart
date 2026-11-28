@@ -12,7 +12,7 @@ import 'storage_config.dart';
 ///
 /// 负责 Calibre 书库的后台导入与断点续传：
 /// - 导入在后台异步执行，前台不显示进度
-/// - 每导入 50 本或导入完成时通过 [refreshSignal] 通知首页刷新
+/// - 每处理 50 条保存一次进度；每实际新增 50 本刷新一次首页
 /// - 进度持久化到本地文件，程序退出时保存，下次启动自动恢复
 class LibraryImportService {
   LibraryImportService._internal();

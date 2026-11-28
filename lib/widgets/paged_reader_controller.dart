@@ -80,10 +80,11 @@ class BookPageInfo {
 class PagedReaderController extends ChangeNotifier {
   PagedReaderController({
     required TickerProvider vsync,
-    required this.textStyle,
+    required TextStyle textStyle,
+    this.paragraphSpacingFactor = 0.8,
     this.onBoundary,
     this.onLayout,
-  }) {
+  }) : _textStyle = textStyle {
     _pageController = PageController();
     _transition = AnimationController(
       vsync: vsync,
@@ -98,7 +99,12 @@ class PagedReaderController extends ChangeNotifier {
   }
 
   /// 正文文本样式（同时决定块间距，保证测量与渲染一致）
-  final TextStyle textStyle;
+  TextStyle _textStyle;
+
+  TextStyle get textStyle => _textStyle;
+
+  /// 段距系数：块间距 = 字号 × 系数
+  double paragraphSpacingFactor;
 
   /// 章节边界回调，由父级处理翻章（返回后经 [open] 送入新章内容）
   final PagedBoundaryCallback? onBoundary;
@@ -159,6 +165,9 @@ class PagedReaderController extends ChangeNotifier {
   List<String>? _exitingBlocks;
   int _slideDirection = 1;
 
+  /// 排版重排中：旧页快照仅用于遮盖测量期间，完成后直接切换，不播放滑动过渡
+  bool _reflowing = false;
+
   bool _disposed = false;
 
   /// 批量更新中：暂停通知，避免父级在「章节已切换但页列表尚未替换」的中间态读取到旧页
@@ -205,19 +214,40 @@ class PagedReaderController extends ChangeNotifier {
   int get slideDirection => _slideDirection;
 
   /// 块与块之间的间距：fwfh 会剥离 HtmlWidget 根元素的上下外边距，故显式插入
-  double get blockSpacing => (textStyle.fontSize ?? 16) * 0.8;
+  double get blockSpacing =>
+      (textStyle.fontSize ?? 16) * paragraphSpacingFactor;
+
+  /// 排版设置变化：更新样式（由父级随后调用 [open] 重新分页）
+  void updateTypography(TextStyle style, double spacingFactor) {
+    if (_disposed) return;
+    _textStyle = style;
+    paragraphSpacingFactor = spacingFactor;
+  }
 
   /// 打开新内容并定位到 [target]。
   ///
   /// 若当前已有分页结果，会把当前页快照为过渡中滑出的旧页；新内容测量期间
   /// 继续显示该快照，测量稳定后播放「旧页滑出 + 新页滑入」过渡。
-  void open(String html, {PagedOpenTarget target = PagedOpenTarget.first}) {
+  void open(
+    String html, {
+    PagedOpenTarget target = PagedOpenTarget.first,
+    bool animate = true,
+  }) {
     if (_disposed) return;
 
     _updating = true;
-    // 记录当前页作为过渡的旧页；若上一章仍在测量（无页），保留已有快照避免白屏
-    if (_pages.isNotEmpty) {
+    // 记录当前页作为过渡的旧页；若上一章仍在测量（无页），保留已有快照避免白屏。
+    // 排版调整时不播放过渡（animate=false），直接原地重排。
+    if (animate && _pages.isNotEmpty) {
       _exitingBlocks = _pages[_currentPage.clamp(0, _pages.length - 1)];
+      _reflowing = false;
+    } else if (!animate && _pages.isNotEmpty) {
+      // 排版调整：保留旧页快照遮盖测量期，稳定后直接切换到新分页
+      _exitingBlocks = _pages[_currentPage.clamp(0, _pages.length - 1)];
+      _reflowing = true;
+    } else {
+      _exitingBlocks = null;
+      _reflowing = false;
     }
     final hasExit = _exitingBlocks != null;
     _transition.stop();
@@ -278,6 +308,7 @@ class PagedReaderController extends ChangeNotifier {
     _measuredWidth = null;
     _measuredHeight = null;
     _measuring = false;
+    _reflowing = false;
     _measureTimer?.cancel();
     _measureTimer = null;
 
@@ -511,6 +542,22 @@ class PagedReaderController extends ChangeNotifier {
 
     final page = (target == null ? _currentPage : (_resolvePage(target) ?? 0))
         .clamp(0, _totalPages - 1);
+
+    // 排版重排：旧页快照遮盖测量期，定位完成后直接显示新页，不播放滑动过渡
+    if (_reflowing) {
+      _currentPage = page;
+      _positioning = true;
+      _notify();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_disposed) return;
+        if (_pageController.hasClients) _pageController.jumpToPage(page);
+        _positioning = false;
+        _reflowing = false;
+        _exitingBlocks = null;
+        _notify();
+      });
+      return;
+    }
 
     final openAtFirst = target != null &&
         !hasExit &&

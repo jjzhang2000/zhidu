@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zhidu/screens/chapter_screen.dart';
 import 'package:zhidu/models/book.dart';
 import 'package:zhidu/models/chapter.dart';
+import 'package:zhidu/models/reader_typography.dart';
+import 'package:zhidu/services/settings_service.dart';
 
 Book _createTestBook({
   String id = 'test-book-1',
@@ -378,6 +380,86 @@ void main() {
           find.textContaining('段落0：', findRichText: true),
           findsNothing,
         );
+      });
+    });
+    group('typography menu tests', () {
+      testWidgets('format_size 菜单展示三组选项并即时调整字号',
+          (WidgetTester tester) async {
+        SettingsService.resetForTest();
+        addTearDown(SettingsService.resetForTest);
+
+        final book = _createTestBook();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChapterScreen(
+              bookId: book.id,
+              chapterIndex: 0,
+              chapterTitle: '第一章',
+              chapterContent: '<p>测试内容</p>',
+              chapters: _createTestChapters(3),
+              book: book,
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.format_size));
+        await tester.pumpAndSettle();
+
+        expect(find.text('文字'), findsOneWidget);
+        expect(find.text('行距'), findsOneWidget);
+        expect(find.text('段距'), findsOneWidget);
+        expect(find.byTooltip('文字 重置'), findsOneWidget);
+
+        // 未覆盖时应为默认字号 21
+        expect(SettingsService().readerFontSizeOverride.value, isNull);
+        await tester.tap(find.byTooltip('文字 +'));
+        await tester.pumpAndSettle();
+        expect(SettingsService().readerFontSizeOverride.value, 23);
+      });
+      testWidgets('重置恢复原书排版，书籍未定义时用应用默认值',
+          (WidgetTester tester) async {
+        SettingsService.resetForTest();
+        addTearDown(SettingsService.resetForTest);
+
+        final book = _createTestBook();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ChapterScreen(
+              bookId: book.id,
+              chapterIndex: 0,
+              chapterTitle: '第一章',
+              chapterContent: '<p>测试内容</p>',
+              chapters: _createTestChapters(3),
+              book: book,
+              bookTypography: const ReaderTypography(
+                fontSize: 17,
+                lineHeight: 1.4,
+                paragraphSpacing: 0.4,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.format_size));
+        await tester.pumpAndSettle();
+
+        // 无全局覆盖 → 起步值采用原书字号 17；+ 后为 19 并写入全局覆盖
+        expect(SettingsService().readerFontSizeOverride.value, isNull);
+        await tester.tap(find.byTooltip('文字 +'));
+        await tester.pumpAndSettle();
+        expect(SettingsService().readerFontSizeOverride.value, 19);
+
+        // 重置 = 清除字号覆盖，回到原书字号 17
+        await tester.tap(find.byTooltip('文字 重置'));
+        await tester.pumpAndSettle();
+        expect(SettingsService().readerFontSizeOverride.value, isNull);
+
+        // 段距重置 = 清除段距覆盖（行距覆盖不受影响）
+        await tester.tap(find.byTooltip('段距 重置'));
+        await tester.pumpAndSettle();
+        expect(SettingsService().readerParagraphSpacingOverride.value, isNull);
       });
     });
   });

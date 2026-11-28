@@ -1,16 +1,7 @@
-// AI配置页面
+// AI 配置页面
 //
-// 提供AI服务提供商的配置界面，包括：
-// - 提供商选择（智谱/通义千问）
-// - API Key输入（支持显示/隐藏切换）
-// - 模型选择（根据提供商动态变化）
-// - Base URL配置（带默认值）
-// - 连接测试功能
-//
-// 数据流向：
-// - 读取：SettingsService().settings.ai
-// - 保存：SettingsService().updateAiSettings(AiSettings)
-// - 重载：AIService().reloadConfig()
+// 配置提供商（云端/本地）、API Key、模型与 Base URL，并支持连接测试。
+// 保存时写入 SettingsService，并调用 AIService.reloadConfig() 使其生效。
 
 import 'package:flutter/material.dart';
 import 'package:zhidu/l10n/app_localizations.dart';
@@ -19,14 +10,7 @@ import '../services/settings_service.dart';
 import '../services/ai_service.dart';
 import '../services/log_service.dart';
 
-/// AI配置页面组件
-///
-/// 使用StatefulWidget管理表单状态：
-/// - 表单控制器（TextEditingController）
-/// - API Key显示/隐藏状态
-/// - 提供商/模型选择状态
-/// - 表单验证状态
-/// - 保存/测试操作的loading状态
+/// AI 配置页面
 class AiConfigScreen extends StatefulWidget {
   const AiConfigScreen({super.key});
 
@@ -137,9 +121,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 加载当前AI设置
-  ///
-  /// 从SettingsService读取当前配置，初始化表单状态
+  /// 加载当前 AI 设置并初始化表单
   void _loadCurrentSettings() {
     final aiSettings = _settingsService.settings.aiSettings;
     _selectedProvider = aiSettings.provider;
@@ -175,13 +157,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     super.dispose();
   }
 
-  /// 切换提供商
-  ///
-  /// 当用户选择新的提供商时：
-  /// 1. 更新选中的提供商
-  /// 2. 如果该提供商有已保存的配置，自动填充表单
-  /// 3. 如果该提供商是当前有效的配置，自动填充当前配置
-  /// 4. 如果没有已保存的配置，自动切换到该提供商的默认值
+  /// 切换提供商：优先回填已保存配置，其次是当前有效配置，否则用默认值
   void _onProviderChanged(String? newProvider) {
     if (newProvider == null || newProvider == _selectedProvider) return;
 
@@ -214,12 +190,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     _fetchModelsForCurrentProvider();
   }
 
-  /// 获取当前提供商的可用模型列表
-  ///
-  /// 执行流程：
-  /// 1. 清空现有 _availableModels
-  /// 2. 调用 AIService.fetchAvailableModels 联网获取
-  /// 3. 成功则更新 _availableModels，失败静默记录日志
+  /// 获取当前提供商的可用模型列表（失败仅记录日志）
   Future<void> _fetchModelsForCurrentProvider() async {
     final provider = _selectedProvider;
     if (provider.isEmpty) return;
@@ -246,14 +217,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     }
   }
 
-  /// 保存配置
-  ///
-  /// 执行流程：
-  /// 1. 验证表单
-  /// 2. 构建AiSettings对象
-  /// 3. 调用SettingsService保存
-  /// 4. 调用AIService重载配置
-  /// 5. 显示成功提示并返回
+  /// 校验表单并保存配置，成功后重载 AIService 并返回
   Future<void> _saveConfig() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -278,13 +242,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     }
   }
 
-  /// 测试连接
-  ///
-  /// 执行流程：
-  /// 1. 验证表单
-  /// 2. 临时保存当前配置到AIService
-  /// 3. 调用testConnection测试
-  /// 4. 显示测试结果
+  /// 用当前表单配置测试连接（临时更新 AIService，不保存）
   Future<void> _testConnection() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -355,12 +313,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 构建提供商选择区块
-  ///
-  /// 包含：
-  /// - 标签文字
-  /// - 下拉选择框（智谱/通义千问等）
-  /// - 已保存配置的提示图标（书签图标或当前有效配置）
+  /// 构建提供商选择区块（已配置的提供商带 ✓ 标记）
   Widget _buildProviderSection() {
     final currentAiSettings = _settingsService.settings.aiSettings;
 
@@ -414,12 +367,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 构建API Key输入区块
-  ///
-  /// 包含：
-  /// - 标签文字
-  /// - 文本输入框（支持显示/隐藏切换）
-  /// - 对于本地模型（Ollama/LM Studio），显示提示而非输入框
+  /// 构建 API Key 输入区块（本地模型显示无需 Key 的提示）
   Widget _buildApiKeySection() {
     final loc = AppLocalizations.of(context);
 
@@ -510,12 +458,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 构建模型选择区块
-  ///
-  /// 包含：
-  /// - 标签文字
-  /// - 有模型列表时：下拉菜单选择
-  /// - 无模型列表时：点击触发获取模型列表
+  /// 构建模型选择区块（无模型列表时点击触发联网获取）
   Widget _buildModelSection() {
     final models = _availableModels;
     final hasSelectedModel = models.isNotEmpty &&
@@ -574,10 +517,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 计算下拉菜单的弹出位置
-  ///
-  /// 根据 _modelBoxKey 对应 Widget 的实际位置和尺寸，
-  /// 返回菜单应显示的 RelativeRect（紧贴其下方、等宽）。
+  /// 计算菜单弹出位置（紧贴模型框下方、等宽）
   RelativeRect _getMenuPosition() {
     final renderBox =
         _modelBoxKey.currentContext?.findRenderObject() as RenderBox?;
@@ -597,10 +537,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 弹出模型下拉菜单供选择
-  ///
-  /// 先通过 _getMenuPosition 计算位置，再调用 showMenu 弹出已排序的模型列表，
-  /// 选中后将模型名写入 _modelController。
+  /// 弹出已排序的模型下拉菜单，选中后写入 _modelController
   Future<void> _showModelMenu() async {
     final position = _getMenuPosition();
     final renderBox =
@@ -639,12 +576,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     }
   }
 
-  /// 构建Base URL输入区块
-  ///
-  /// 包含：
-  /// - 标签文字
-  /// - 文本输入框
-  /// - 验证：不能为空
+  /// 构建 Base URL 输入区块（校验非空且以 http/https 开头）
   Widget _buildBaseUrlSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,9 +609,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 构建测试结果显示
-  ///
-  /// 显示连接测试的结果（成功或失败）
+  /// 构建连接测试结果提示（成功/失败配色）
   Widget _buildTestResult() {
     return Container(
       width: double.infinity,
@@ -715,11 +645,7 @@ class _AiConfigScreenState extends State<AiConfigScreen> {
     );
   }
 
-  /// 构建操作按钮区块
-  ///
-  /// 包含：
-  /// - 测试连接按钮
-  /// - 保存按钮
+  /// 构建底部操作按钮（测试连接 / 保存）
   Widget _buildActionButtons(AppLocalizations localizations) {
     return Row(
       children: [

@@ -1,4 +1,5 @@
 import '../../models/chapter.dart';
+import '../../models/reader_typography.dart';
 import 'rendered_content.dart';
 
 /// 书籍元数据解析结果（parseMetadata 返回值）
@@ -56,6 +57,12 @@ abstract class BookFormatParser {
   /// 子章节合并为一段完整内容；无子章节的格式（如 PDF）直接返回该章节内容。
   Future<RenderedContent?> getChapterContentMerged(
       String filePath, Chapter chapter, List<Chapter> allChapters);
+
+  /// 获取书籍原始排版（字号/行距/段距）
+  ///
+  /// 读取书籍自身 CSS 中定义的正文排版，用于阅读页排版的起步值与「重置」目标。
+  /// 无排版信息的格式（如 PDF）返回 null，由调用方使用应用默认值。
+  Future<ReaderTypography?> getReaderTypography(String filePath) async => null;
 
   /// 获取书籍开头（前置页）的 HTML 内容
   ///

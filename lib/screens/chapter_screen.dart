@@ -14,6 +14,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:tategaki/tategaki.dart';
 import '../models/chapter.dart';
 import '../models/book.dart';
+import '../models/reader_typography.dart';
 import '../services/ai_service.dart';
 import '../services/book_service.dart';
 import '../services/summary_service.dart';
@@ -58,6 +59,13 @@ class ChapterScreen extends StatefulWidget {
   final String? filePath;
   final List<Chapter>? chapters;
   final Book? book;
+
+  /// 书籍自身排版（字号/行距/段距）
+  ///
+  /// 全局设置为默认值时作为起步值，并始终作为「重置」的恢复目标；
+  /// 书籍未定义的项回退应用默认值（21 / 1.6 / 0.8）。
+  final ReaderTypography? bookTypography;
+
   final String? openingContent;
   final List<EmbeddedFont>? openingFonts;
   final bool openingIsVertical;
@@ -79,6 +87,7 @@ class ChapterScreen extends StatefulWidget {
     this.filePath,
     this.chapters,
     this.book,
+    this.bookTypography,
     this.openingContent,
     this.openingFonts,
     this.openingIsVertical = false,
@@ -219,14 +228,28 @@ class _ChapterScreenState extends State<ChapterScreen>
   /// 当前共享的滚动锚点（用于Tab间同步）
   ScrollAnchor _currentScrollAnchor = const ScrollAnchor();
 
+  /// 设置服务（阅读排版设置来自这里，改动后即时重排）
+  final _settingsService = SettingsService();
+
   /// 阅读正文字号（来自设置，阅读页其余字号均由它按比例推导）
-  late final double _readerFontSize;
+  late double _readerFontSize;
+
+  /// 阅读行高倍数（来自设置）
+  late double _readerLineHeight;
+
+  /// 阅读段距系数（段落间距 = 字号 × 系数）
+  late double _paragraphSpacing;
 
   /// 摘要/译文/原文通用的正文文本样式
-  late final TextStyle _contentTextStyle;
+  late TextStyle _contentTextStyle;
 
   /// 竖排正文相对正文字号的比例
   static const double _verticalScale = 0.86;
+
+  /// 应用默认排版（书籍未定义且全局设置为默认值时使用）
+  static const double _defaultFontSize = 21.0;
+  static const double _defaultLineHeight = 1.6;
+  static const double _defaultParagraphSpacing = 0.8;
 
   /// 已通过 FontLoader 注册的字体家族（避免重复加载）
   final Set<String> _loadedFontFamilies = {};
@@ -235,9 +258,20 @@ class _ChapterScreenState extends State<ChapterScreen>
   void initState() {
     super.initState();
 
-    // 正文字号取自设置，其余阅读字号（竖排、页码等）按比例推导
-    _readerFontSize = SettingsService().readerFontSize.value;
-    _contentTextStyle = TextStyle(fontSize: _readerFontSize, height: 1.6);
+    // 生效排版 = 全局覆盖值 → 原书排版 → 应用默认值
+    _readerFontSize = _effectiveFontSize(
+        _settingsService.readerFontSizeOverride.value);
+    _readerLineHeight = _effectiveLineHeight(
+        _settingsService.readerLineHeightOverride.value);
+    _paragraphSpacing = _effectiveParagraphSpacing(
+        _settingsService.readerParagraphSpacingOverride.value);
+
+    _contentTextStyle =
+        TextStyle(fontSize: _readerFontSize, height: _readerLineHeight);
+    _settingsService.readerFontSizeOverride.addListener(_onTypographyChanged);
+    _settingsService.readerLineHeightOverride.addListener(_onTypographyChanged);
+    _settingsService.readerParagraphSpacingOverride
+        .addListener(_onTypographyChanged);
 
     _currentIndex = widget.chapterIndex;
     _showingOpening =
@@ -250,6 +284,7 @@ class _ChapterScreenState extends State<ChapterScreen>
     _reader = PagedReaderController(
       vsync: this,
       textStyle: _contentTextStyle,
+      paragraphSpacingFactor: _paragraphSpacing,
       onBoundary: _onReaderBoundary,
       onLayout: _onReaderLayout,
     )..addListener(_onReaderChanged);
@@ -264,6 +299,7 @@ class _ChapterScreenState extends State<ChapterScreen>
     if (!isPdf) {
       _paginator = BookPaginator(
         textStyle: _contentTextStyle,
+        paragraphSpacingFactor: _paragraphSpacing,
         chapterCount: _chapters.length,
         hasOpening: widget.filePath != null ||
             (widget.openingContent != null && widget.openingContent!.isNotEmpty),
@@ -304,6 +340,11 @@ class _ChapterScreenState extends State<ChapterScreen>
     // 退出阅读时记录位置，下次从书架打开可直接续读
     _savePositionTimer?.cancel();
     _saveReadingPosition();
+    _settingsService.readerFontSizeOverride.removeListener(_onTypographyChanged);
+    _settingsService.readerLineHeightOverride
+        .removeListener(_onTypographyChanged);
+    _settingsService.readerParagraphSpacingOverride
+        .removeListener(_onTypographyChanged);
     _summaryService.unregisterTranslationCallback(widget.bookId, _currentIndex);
     _translationScrollController?.dispose();
     _originalScrollController?.dispose();
@@ -805,6 +846,151 @@ class _ChapterScreenState extends State<ChapterScreen>
     }
   }
 
+  /// 排版设置变化（字号/行距/段距）：更新样式并就地重新分页
+  void _onTypographyChanged() {
+    if (!mounted) return;
+    final font = _effectiveFontSize(
+        _settingsService.readerFontSizeOverride.value);
+    final line = _effectiveLineHeight(
+        _settingsService.readerLineHeightOverride.value);
+    final spacing = _effectiveParagraphSpacing(
+        _settingsService.readerParagraphSpacingOverride.value);
+    if (font == _readerFontSize &&
+        line == _readerLineHeight &&
+        spacing == _paragraphSpacing) {
+      return;
+    }
+
+    _readerFontSize = font;
+    _readerLineHeight = line;
+    _paragraphSpacing = spacing;
+    _contentTextStyle = TextStyle(fontSize: font, height: line);
+
+    _reader.updateTypography(_contentTextStyle, spacing);
+    _paginator?.updateTypography(_contentTextStyle, spacing);
+
+    // 分页视图：保留当前页重新分页（不播放跨章过渡）；竖排只需重建
+    if (!_isVertical && _content.isNotEmpty) {
+      _reader.open(
+        _content,
+        target: PagedOpenTarget.page(_reader.currentPage),
+        animate: false,
+      );
+    }
+    setState(() {});
+  }
+
+  /// 生效值 = 全局覆盖值 → 原书排版 → 应用默认值
+  double _effectiveFontSize(double? override) =>
+      override ?? widget.bookTypography?.fontSize ?? _defaultFontSize;
+
+  double _effectiveLineHeight(double? override) =>
+      override ?? widget.bookTypography?.lineHeight ?? _defaultLineHeight;
+
+  double _effectiveParagraphSpacing(double? override) =>
+      override ??
+      widget.bookTypography?.paragraphSpacing ??
+      _defaultParagraphSpacing;
+
+  /// 调整字号（步长 2，范围 12~40）
+  void _adjustFontSize(double delta) {
+    final value = (_readerFontSize + delta).clamp(12.0, 40.0);
+    _settingsService.setReaderFontSize(value);
+  }
+
+  /// 调整行距（步长 0.1，范围 1.1~2.4）
+  void _adjustLineHeight(double delta) {
+    final value =
+        (((_readerLineHeight + delta) * 10).round() / 10).clamp(1.1, 2.4);
+    _settingsService.setReaderLineHeight(value);
+  }
+
+  /// 调整段距（步长 0.2，范围 0~2.0，系数相对字号）
+  void _adjustParagraphSpacing(double delta) {
+    final value =
+        (((_paragraphSpacing + delta) * 10).round() / 10).clamp(0.0, 2.0);
+    _settingsService.setReaderParagraphSpacing(value);
+  }
+
+  /// 排版设置菜单（文字 / 行距 / 段距 三组，各含 +、-、重置）
+  Widget _buildTypographyMenu() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTypographyRow(
+            '文字',
+            Icons.text_fields,
+            onIncrease: () => _adjustFontSize(2),
+            onDecrease: () => _adjustFontSize(-2),
+            // 清除全局覆盖，回到当前书籍原书排版（未定义则应用默认值）
+            onReset: () => _settingsService.setReaderFontSize(null),
+          ),
+          const Divider(height: 10),
+          _buildTypographyRow(
+            '行距',
+            Icons.format_line_spacing,
+            onIncrease: () => _adjustLineHeight(0.1),
+            onDecrease: () => _adjustLineHeight(-0.1),
+            onReset: () => _settingsService.setReaderLineHeight(null),
+          ),
+          const Divider(height: 10),
+          _buildTypographyRow(
+            '段距',
+            Icons.space_bar,
+            onIncrease: () => _adjustParagraphSpacing(0.2),
+            onDecrease: () => _adjustParagraphSpacing(-0.2),
+            onReset: () =>
+                _settingsService.setReaderParagraphSpacing(null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 一组排版操作：标签 + 字体/行距/段距图标 + 加/减/重置
+  Widget _buildTypographyRow(
+    String label,
+    IconData icon, {
+    required VoidCallback onIncrease,
+    required VoidCallback onDecrease,
+    required VoidCallback onReset,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 34,
+          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add),
+          iconSize: 18,
+          visualDensity: VisualDensity.compact,
+          tooltip: '$label +',
+          onPressed: onIncrease,
+        ),
+        IconButton(
+          icon: const Icon(Icons.remove),
+          iconSize: 18,
+          visualDensity: VisualDensity.compact,
+          tooltip: '$label -',
+          onPressed: onDecrease,
+        ),
+        IconButton(
+          icon: const Icon(Icons.settings_backup_restore),
+          iconSize: 18,
+          visualDensity: VisualDensity.compact,
+          tooltip: '$label 重置',
+          onPressed: onReset,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -821,6 +1007,18 @@ class _ChapterScreenState extends State<ChapterScreen>
         ),
         centerTitle: true,
         elevation: 0,
+        actions: [
+          // 排版设置：点击后弹出文字/行距/段距三组调节项
+          MenuAnchor(
+            builder: (context, controller, child) => IconButton(
+              icon: const Icon(Icons.format_size),
+              tooltip: '排版设置',
+              onPressed: () =>
+                  controller.isOpen ? controller.close() : controller.open(),
+            ),
+            menuChildren: [_buildTypographyMenu()],
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -1338,7 +1536,7 @@ class _ChapterScreenState extends State<ChapterScreen>
                   style: VerticalTextStyle(
                     baseStyle: TextStyle(
                       fontSize: _readerFontSize * _verticalScale,
-                      height: 1.8,
+                      height: _readerLineHeight,
                     ),
                   ),
                 ),

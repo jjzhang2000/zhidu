@@ -3,22 +3,15 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
-/// 存储配置服务 - 管理应用文件存储路径
-///
-/// 提供统一的文件存储路径管理，所有文件存储在 Documents/zhidu/ 目录下。
-/// 采用单例模式，避免重复创建目录。
+/// 存储配置服务：统一管理应用文件路径，数据均位于 Documents/zhidu/
 ///
 /// 目录结构：
 /// ```
 /// Documents/zhidu/
-/// ├── books.json          # 书籍索引文件
-/// └── books/
-///     └── {bookId}/       # 每本书独立目录
-///         ├── metadata.json      # 书籍元数据
-///         ├── abbr-001-zh.md     # 章节缩写（按章节编号+语言）
-///         ├── abbr-002-zh.md
-///         ├── chapter-001-zh.html  # 章节译文
-///         └── cover.jpg/png     # 封面图片
+/// ├── books.json         # 书架索引
+/// ├── settings.json      # 应用设置
+/// ├── window_state.json  # 桌面窗口状态
+/// └── books/{bookId}/    # 每本书：metadata.json、abbr-*.md、chapter-*.html、cover.*
 /// ```
 class StorageConfig {
   /// 应用数据根目录缓存
@@ -41,19 +34,7 @@ class StorageConfig {
     _testBaseDir = dir;
   }
 
-  /// 获取应用数据根目录
-  ///
-  /// 返回应用专用存储目录 `Documents/zhidu/`。
-  /// 如果目录不存在，会自动创建（包括父目录）。
-  ///
-  /// 示例路径：
-  /// - Windows: `C:\Users\{username}\Documents\zhidu\`
-  /// - macOS: `/Users/{username}/Documents/zhidu/`
-  /// - Android: `/storage/emulated/0/Documents/zhidu/` 或应用私有目录
-  /// - iOS: `/var/mobile/Containers/Data/Application/{uuid}/Documents/zhidu/`
-  ///
-  /// Returns:
-  ///   应用数据根目录 [Directory] 对象
+  /// 获取应用数据根目录 `Documents/zhidu/`，不存在时自动创建
   static Future<Directory> getAppDirectory() async {
     if (_appDir != null) return _appDir!;
 
@@ -72,49 +53,21 @@ class StorageConfig {
     return _appDir!;
   }
 
-  /// 获取书籍索引文件路径
-  ///
-  /// 返回 `Documents/zhidu/books.json` 文件路径。
-  /// 该文件存储所有书籍的简要索引信息，包括：
-  /// - 书籍ID、标题、作者
-  /// - 格式（EPUB/PDF）
-  /// - 原始文件路径
-  /// - 添加时间
-  ///
-  /// Returns:
-  ///   索引文件的完整路径字符串
+  /// 书籍索引文件 `Documents/zhidu/books.json` 的路径
   static Future<String> getBooksIndexPath() async {
     final appDir = await getAppDirectory();
     return p.join(appDir.path, 'books.json');
   }
 
-  /// 获取书籍目录路径（字符串）
+  /// 书籍目录路径 `Documents/zhidu/books/{bookId}/`（不创建目录）
   ///
-  /// 返回指定书籍的存储目录路径 `Documents/zhidu/books/{bookId}/`。
-  /// 与 `getBookDirectory` 不同，此方法**不会**创建目录。
-  /// 适用于删除操作等只需要路径而不需要目录存在的场景。
-  ///
-  /// Parameters:
-  ///   - [bookId]: 书籍唯一标识符
-  ///
-  /// Returns:
-  ///   书籍目录的完整路径字符串
+  /// 与 [getBookDirectory] 的区别仅为不创建目录，适用于删除等只需路径的场景。
   static Future<String> getBookDirectoryPath(String bookId) async {
     final appDir = await getAppDirectory();
     return p.join(appDir.path, 'books', bookId);
   }
 
-  /// 获取书籍目录
-  ///
-  /// 返回指定书籍的存储目录 `Documents/zhidu/books/{bookId}/`。
-  /// 每本书都有独立的目录，存储其元数据、摘要和封面。
-  /// 如果目录不存在，会自动创建。
-  ///
-  /// Parameters:
-  ///   - [bookId]: 书籍唯一标识符
-  ///
-  /// Returns:
-  ///   书籍目录 [Directory] 对象
+  /// 书籍目录 `Documents/zhidu/books/{bookId}/`，不存在时自动创建
   static Future<Directory> getBookDirectory(String bookId) async {
     final bookDirPath = await getBookDirectoryPath(bookId);
     final bookDir = Directory(bookDirPath);
@@ -126,44 +79,15 @@ class StorageConfig {
     return bookDir;
   }
 
-  /// 获取书籍元数据文件路径
-  ///
-  /// 返回 `Documents/zhidu/books/{bookId}/metadata.json` 文件路径。
-  /// 该文件存储书籍的完整元数据，包括：
-  /// - 基本信息：ID、标题、作者、出版社、语言
-  /// - 文件信息：格式、原始路径、文件大小
-  /// - 阅读状态：当前章节、阅读进度
-  /// - 时间戳：添加时间、最后阅读时间
-  /// - 章节列表：章节标题、路径、索引
-  ///
-  /// Parameters:
-  ///   - [bookId]: 书籍唯一标识符
-  ///
-  /// Returns:
-  ///   元数据文件的完整路径字符串
+  /// 书籍元数据文件 `Documents/zhidu/books/{bookId}/metadata.json` 的路径
   static Future<String> getBookMetadataPath(String bookId) async {
     final bookDir = await getBookDirectory(bookId);
     return p.join(bookDir.path, 'metadata.json');
   }
 
-  /// 获取章节缩写文件路径
+  /// 章节缩写文件 `abbr-{index}-{lang}.md` 的路径（索引 3 位补零）
   ///
-  /// 返回 `Documents/zhidu/books/{bookId}/abbr-{index}-{lang}.md` 文件路径。
-  /// 章节索引使用3位数字零填充（如 001, 002, 012, 123）。
-  /// 语言代码为2字母代码（如 en, zh, ja）。
-  ///
-  /// 示例：
-  /// - 第1章中文: `abbr-001-zh.md`
-  /// - 第12章英文: `abbr-012-en.md`
-  /// - 第123章日文: `abbr-123-ja.md`
-  ///
-  /// Parameters:
-  ///   - [bookId]: 书籍唯一标识符
-  ///   - [chapterIndex]: 章节索引（从0或1开始，取决于书籍结构）
-  ///   - [language]: 语言代码（如 'zh', 'en', 'ja'），默认为 'zh'
-  ///
-  /// Returns:
-  ///   章节缩写文件的完整路径字符串
+  /// 例：第 1 章中文 → `abbr-001-zh.md`
   static Future<String> getChapterAbbreviationPath(
       String bookId, int chapterIndex, {String language = 'zh'}) async {
     final bookDir = await getBookDirectory(bookId);
@@ -171,22 +95,9 @@ class StorageConfig {
         bookDir.path, 'abbr-${chapterIndex.toString().padLeft(3, '0')}-$language.md');
   }
 
-  /// 获取章节译文文件路径
+  /// 章节译文文件 `chapter-{index}-{lang}.html` 的路径（索引 3 位补零）
   ///
-  /// 返回 `Documents/zhidu/books/{bookId}/chapter-{index}-{lang}.html` 文件路径。
-  /// 章节索引使用3位数字零填充，语言代码为2字母代码（如 en, zh, ja）。
-  ///
-  /// 示例：
-  /// - 第1章英文译文: `chapter-001-en.html`
-  /// - 第5章日文译文: `chapter-005-ja.html`
-  ///
-  /// Parameters:
-  ///   - [bookId]: 书籍唯一标识符
-  ///   - [chapterIndex]: 章节索引
-  ///   - [targetLang]: 目标语言代码
-  ///
-  /// Returns:
-  ///   译文文件的完整路径字符串
+  /// 例：第 1 章英文译文 → `chapter-001-en.html`
   static Future<String> getChapterTranslationPath(
       String bookId, int chapterIndex, String targetLang) async {
     final bookDir = await getBookDirectory(bookId);
@@ -194,7 +105,7 @@ class StorageConfig {
         bookDir.path, 'chapter-${chapterIndex.toString().padLeft(3, '0')}-$targetLang.html');
   }
 
-  /// 获取封面保存路径（bookDir/cover.{extension}）
+  /// 封面保存路径 `books/{bookId}/cover.{extension}`
   static Future<String> getCoverSavePath(String bookId, String extension) async {
     final bookDir = await getBookDirectory(bookId);
     return p.join(bookDir.path, 'cover.$extension');

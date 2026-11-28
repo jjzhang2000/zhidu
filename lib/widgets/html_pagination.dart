@@ -31,6 +31,17 @@ class PaginatedBlocks {
   int get pageCount => pages.length;
 }
 
+/// 匹配行内样式里的 line-height 声明（含可选分号）
+final RegExp _lineHeightDecl =
+    RegExp("line-height\\s*:\\s*[^;\"']+\\s*;?", caseSensitive: false);
+
+/// 去掉 HTML 中的 line-height 声明
+///
+/// 书籍 CSS 常把行高写死（如 `line-height:1.5`），会覆盖 HtmlWidget 的
+/// `textStyle.height`，导致「行距」设置无效。统一剥离后行高由阅读设置控制。
+String _stripLineHeight(String html) =>
+    html.replaceAll(_lineHeightDecl, '');
+
 /// 把章节 HTML 拆成块级元素列表（已应用 body 级包裹样式）
 ///
 /// 正文常把多个段落包在 `<div>` 里（如 calibre 转换出的 `<div class="calibre1">`
@@ -46,7 +57,8 @@ List<String> buildHtmlBlocks(String html) {
     final el = nodes.first as dom.Element;
     if (el.localName == 'div' &&
         el.attributes.keys.every((k) => k == 'style')) {
-      wrapStyle = el.attributes['style'];
+      final rawWrap = el.attributes['style'];
+      wrapStyle = rawWrap == null ? null : _stripLineHeight(rawWrap);
       nodes = _nonBlankNodes(el.nodes);
     }
   }
@@ -55,7 +67,7 @@ List<String> buildHtmlBlocks(String html) {
   for (final node in _flattenBlocks(nodes)) {
     final String s;
     if (node is dom.Element) {
-      s = node.outerHtml;
+      s = _stripLineHeight(node.outerHtml);
     } else if (node is dom.Text) {
       s = node.data;
     } else {

@@ -221,7 +221,10 @@ class LanguageSettings {
   }
 }
 
-/// 应用完整设置，聚合 AI、主题、语言、书架排序、阅读字号等配置，作为 SettingsService 的数据载体
+/// copyWith 的哨兵值：用于区分「未传参」与「显式传 null（清除覆盖）」
+const Object _unsetReaderValue = Object();
+
+/// 应用完整设置：聚合 AI、主题、语言、书架排序、阅读排版等配置，作为 SettingsService 的数据载体
 class AppSettings {
   /// AI 设置
   final AiSettings aiSettings;
@@ -241,8 +244,14 @@ class AppSettings {
   /// Calibre 书库文件夹路径（未设置时为 null）
   final String? calibreLibraryPath;
 
-  /// 阅读正文字号（阅读页所有字号都由它按比例推导，便于以后提供字号设置）
-  final double readerFontSize;
+  /// 阅读正文字号的全局覆盖值（null 表示未覆盖，由原书排版或应用默认值决定）
+  final double? readerFontSize;
+
+  /// 阅读行高倍数的全局覆盖值（null 表示未覆盖）
+  final double? readerLineHeight;
+
+  /// 阅读段距系数的全局覆盖值（null 表示未覆盖）
+  final double? readerParagraphSpacing;
 
   /// 设置版本号，用于未来数据迁移
   final int version;
@@ -254,7 +263,9 @@ class AppSettings {
     LanguageSettings? languageSettings,
     this.bookshelfSortType = BookSortType.lastRead,
     this.calibreLibraryPath,
-    this.readerFontSize = 21.0,
+    this.readerFontSize,
+    this.readerLineHeight,
+    this.readerParagraphSpacing,
     this.version = 1,
   })  : aiSettings = aiSettings ?? AiSettings(),
         savedAiConfigs = savedAiConfigs ?? {},
@@ -268,7 +279,9 @@ class AppSettings {
     LanguageSettings? languageSettings,
     BookSortType? bookshelfSortType,
     String? calibreLibraryPath,
-    double? readerFontSize,
+    Object? readerFontSize = _unsetReaderValue,
+    Object? readerLineHeight = _unsetReaderValue,
+    Object? readerParagraphSpacing = _unsetReaderValue,
     int? version,
   }) {
     return AppSettings(
@@ -278,7 +291,16 @@ class AppSettings {
       languageSettings: languageSettings ?? this.languageSettings,
       bookshelfSortType: bookshelfSortType ?? this.bookshelfSortType,
       calibreLibraryPath: calibreLibraryPath ?? this.calibreLibraryPath,
-      readerFontSize: readerFontSize ?? this.readerFontSize,
+      readerFontSize: identical(readerFontSize, _unsetReaderValue)
+          ? this.readerFontSize
+          : readerFontSize as double?,
+      readerLineHeight: identical(readerLineHeight, _unsetReaderValue)
+          ? this.readerLineHeight
+          : readerLineHeight as double?,
+      readerParagraphSpacing:
+          identical(readerParagraphSpacing, _unsetReaderValue)
+              ? this.readerParagraphSpacing
+              : readerParagraphSpacing as double?,
       version: version ?? this.version,
     );
   }
@@ -294,6 +316,8 @@ class AppSettings {
       'bookshelfSortType': bookshelfSortType.name,
       'calibreLibraryPath': calibreLibraryPath,
       'readerFontSize': readerFontSize,
+      'readerLineHeight': readerLineHeight,
+      'readerParagraphSpacing': readerParagraphSpacing,
       'version': version,
     };
   }
@@ -322,8 +346,17 @@ class AppSettings {
       bookshelfSortType:
           BookSortType.fromString(json['bookshelfSortType'] as String?),
       calibreLibraryPath: json['calibreLibraryPath'] as String?,
-      readerFontSize: (json['readerFontSize'] as num?)?.toDouble() ?? 21.0,
+      readerFontSize: _legacyOverride(json['readerFontSize'], 21.0),
+      readerLineHeight: _legacyOverride(json['readerLineHeight'], 1.6),
+      readerParagraphSpacing:
+          _legacyOverride(json['readerParagraphSpacing'], 0.8),
       version: json['version'] ?? 1,
     );
+  }
+
+  /// 兼容旧配置：旧版本会把默认值也写入文件，视同「未覆盖」，以便回到原书排版
+  static double? _legacyOverride(Object? raw, double legacyDefault) {
+    final value = (raw as num?)?.toDouble();
+    return value == legacyDefault ? null : value;
   }
 }

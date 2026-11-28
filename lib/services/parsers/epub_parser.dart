@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
 import '../../models/chapter.dart';
+import '../../models/reader_typography.dart';
 import 'book_format_parser.dart';
 import 'epub_css_engine.dart';
 import 'rendered_content.dart';
@@ -1134,6 +1135,169 @@ class EpubParser implements BookFormatParser {
     } catch (e) {
       _log.e('EpubParser', '提取锚点内容失败：anchor=$anchor', e);
       return null;
+    }
+  }
+
+  /// 读取书籍原始排版（字号/行距/段距）
+  ///
+  /// 做法：把一段探针 HTML 交给 EpubCssEngine 套用书籍 CSS，再读取其内联样式。
+  /// - 字号：相对单位（em/%/关键字）按应用默认字号 21px 换算，绝对单位取原值
+  /// - 行距：无单位倍数或百分比/像素换算为倍数
+  /// - 段距：p 的 margin-bottom 换算为「字号 × 系数」
+  /// 解析失败或书籍未定义时返回 null（由调用方回退应用默认值）。
+  @override
+  Future<ReaderTypography?> getReaderTypography(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return null;
+      final bytes = await file.readAsBytes();
+      final result = await Isolate.run(() => _probeTypography(bytes));
+      _log.d('EpubParser', '书籍原始排版: $result');
+      return result;
+    } catch (e) {
+      _log.w('EpubParser', '解析书籍原始排版失败: $e');
+      return null;
+    }
+  }
+
+  /// 探针 HTML：用书籍 CSS 计算正文与段落的实际样式（静态方法，可跨 isolate）
+  static ReaderTypography? _probeTypography(Uint8List bytes) {
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final rendered = EpubCssEngine(archive)
+        .render('<html><head></head><body><p>正</p></body></html>');
+
+    final doc = html_parser.parse(rendered.html);
+    // body 级样式可能被渲染器移到包裹 div 上，两处合并读取
+    final bodyStyle = <String, String>{
+      ..._inlineDeclarations(doc.body?.attributes['style']),
+      ..._inlineDeclarations(doc.querySelector('div[style]')?.attributes['style']),
+    };
+    final pStyle = _inlineDeclarations(
+        doc.querySelector('p')?.attributes['style']);
+
+    // 相对字号以应用默认字号为基准，避免书籍「1em」把正文字号压到 16px
+    const appDefaultFont = 21.0;
+    final bodyFont = _fontSizePx(bodyStyle['font-size'], appDefaultFont);
+    final font = _fontSizePx(pStyle['font-size'], bodyFont ?? appDefaultFont) ??
+        bodyFont;
+
+    final lineRaw = pStyle['line-height'] ?? bodyStyle['line-height'];
+    final lineHeight = _lineHeightMultiplier(lineRaw, font ?? appDefaultFont);
+
+    final spacing = _paragraphSpacingFactor(pStyle, font ?? appDefaultFont);
+
+    final result = ReaderTypography(
+      fontSize: font,
+      lineHeight: lineHeight,
+      paragraphSpacing: spacing,
+    );
+    return result.isEmpty ? null : result;
+  }
+
+  /// 解析内联 style 属性（并展开 margin 简写）
+  static Map<String, String> _inlineDeclarations(String? style) {
+    final map = <String, String>{};
+    if (style == null || style.isEmpty) return map;
+
+    for (final part in style.split(';')) {
+      final index = part.indexOf(':');
+      if (index <= 0) continue;
+      map[part.substring(0, index).trim().toLowerCase()] =
+          part.substring(index + 1).trim();
+    }
+
+    final margin = map['margin'];
+    if (margin != null) {
+      final parts = margin
+          .split(RegExp(r'\s+'))
+          .where((e) => e.isNotEmpty)
+          .toList();
+      if (parts.isNotEmpty) {
+        map['margin-bottom'] ??=
+            parts.length >= 3 ? parts[2] : parts[0];
+      }
+    }
+    return map;
+  }
+
+  /// 字号换算为 px（相对单位基于 [basePx]）
+  static double? _fontSizePx(String? raw, double basePx) {
+    if (raw == null || raw.isEmpty) return null;
+
+    const keywordRatios = {
+      'xx-small': 0.6,
+      'x-small': 0.7,
+      'small': 0.8,
+      'medium': 1.0,
+      'large': 1.2,
+      'x-large': 1.5,
+      'xx-large': 2.0,
+    };
+    final value = raw.trim().toLowerCase();
+    final ratio = keywordRatios[value];
+    if (ratio != null) return (basePx * ratio).clamp(12.0, 40.0);
+
+    final px = _resolveLength(value, basePx);
+    return px?.clamp(12.0, 40.0);
+  }
+
+  /// 行距换算为倍数（无单位 / % / 像素）
+  static double? _lineHeightMultiplier(String? raw, double fontPx) {
+    if (raw == null) return null;
+    final value = raw.trim().toLowerCase();
+    if (value.isEmpty || value == 'normal') return null;
+
+    final unitless = double.tryParse(value);
+    if (unitless != null) {
+      return unitless >= 1.0 && unitless <= 4.0 ? unitless : null;
+    }
+
+    final px = _resolveLength(value, fontPx);
+    if (px == null || fontPx <= 0) return null;
+    final ratio = px / fontPx;
+    return ratio >= 1.0 && ratio <= 4.0 ? ratio : null;
+  }
+
+  /// 段距系数 = p 的 margin-bottom / 字号
+  static double? _paragraphSpacingFactor(
+      Map<String, String> pStyle, double fontPx) {
+    final raw = pStyle['margin-bottom'];
+    if (raw == null) return null;
+    final px = _resolveLength(raw, fontPx);
+    if (px == null || fontPx <= 0) return null;
+    return (px / fontPx).clamp(0.0, 3.0);
+  }
+
+  /// CSS 长度换算为 px（相对单位基于 [basePx]，无单位返回 null）
+  static double? _resolveLength(String raw, double basePx) {
+    final value = raw.trim().toLowerCase();
+    final match = RegExp(r'^(-?\d+(?:\.\d+)?)\s*(px|pt|pc|in|cm|mm|em|rem|ex|%)?$')
+        .firstMatch(value);
+    if (match == null) return null;
+
+    final number = double.parse(match.group(1)!);
+    switch (match.group(2)) {
+      case 'px':
+        return number;
+      case 'pt':
+        return number * 4 / 3;
+      case 'pc':
+        return number * 16;
+      case 'in':
+        return number * 96;
+      case 'cm':
+        return number * 96 / 2.54;
+      case 'mm':
+        return number * 96 / 25.4;
+      case 'em':
+      case 'rem':
+        return number * basePx;
+      case 'ex':
+        return number * basePx * 0.5;
+      case '%':
+        return number / 100 * basePx;
+      default:
+        return null;
     }
   }
 }

@@ -87,9 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 构建区域标题
-  ///
-  /// 统一样式：粗体标题 + 主题色 + 适当间距
+  /// 构建区域标题（粗体 + 主题色）
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -114,11 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 构建AI配置区块
-  ///
-  /// 提供AI服务配置入口：
-  /// - 点击跳转到AI配置页面
-  /// - 显示当前配置状态（provider/model 或 未配置）
+  /// 构建 AI 配置区块（点击进入配置页，显示当前配置状态）
   Widget _buildAiSection() {
     return _buildSection(children: [
         ListenableBuilder(
@@ -316,9 +310,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 构建书库设置区块
-  ///
-  /// 一行内展示：标题 + 文件夹路径输入框（只读）+ 浏览按钮。
+  /// 构建书库设置区块（只读路径输入框 + 浏览/刷新/清空书架）
   Widget _buildLibrarySection() {
     final hasLibrary =
         (SettingsService().calibreLibraryPath.value?.isNotEmpty ?? false);
@@ -457,11 +449,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 获取AI配置状态显示文本
-  ///
-  /// 根据当前AI设置返回描述性文本：
-  /// - 有效配置：显示provider和model
-  /// - 无效配置：提示用户检查设置
+  /// 获取 AI 配置状态文本（有效时显示 provider/model，否则提示未配置）
   String _getAiConfigStatus() {
     final settings = SettingsService().settings.aiSettings;
     if (settings.isValid) {

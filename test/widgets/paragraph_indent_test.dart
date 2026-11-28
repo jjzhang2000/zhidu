@@ -4,8 +4,20 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:zhidu/services/parsers/epub_css_engine.dart';
+import 'package:zhidu/widgets/html_pagination.dart';
 
 void main() {
+  test('buildHtmlBlocks 剥离 line-height，行距交由阅读设置控制', () {
+    final blocks = buildHtmlBlocks(
+      '<p style="line-height: 1.5; margin: 0;">正文</p>',
+    );
+
+    expect(blocks, hasLength(1));
+    expect(blocks.first.toLowerCase(), isNot(contains('line-height')));
+    expect(blocks.first, contains('margin: 0'));
+    expect(blocks.first, contains('正文'));
+  });
+
   testWidgets('text-align: justify 下首行缩进不被剥离', (tester) async {
     const body = '小时候最崇拜的就是三国英雄，历数其中名将谋臣如数家珍。'
         '当时我深深地相信，智的最高境界是诸葛亮。';

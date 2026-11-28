@@ -4,6 +4,7 @@ import 'package:zhidu/screens/home_screen.dart';
 import 'package:zhidu/models/book.dart';
 import 'package:zhidu/models/chapter.dart';
 import 'package:zhidu/services/parsers/book_format_parser.dart';
+import 'package:zhidu/models/reader_typography.dart';
 import 'package:zhidu/services/parsers/rendered_content.dart';
 
 class MockBookFormatParser implements BookFormatParser {
@@ -55,6 +56,9 @@ class MockBookFormatParser implements BookFormatParser {
 
   @override
   Future<RenderedContent?> getOpeningContent(String filePath) async => null;
+
+  @override
+  Future<ReaderTypography?> getReaderTypography(String filePath) async => null;
 }
 
 Book _createTestBook({

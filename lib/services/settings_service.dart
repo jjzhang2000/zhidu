@@ -34,8 +34,14 @@ class SettingsService {
       ValueNotifier(BookSortType.lastRead);
   ValueNotifier<String?> _calibreLibraryPath = ValueNotifier(null);
 
-  /// 阅读正文字号（其余阅读字号按比例推导）
-  ValueNotifier<double> _readerFontSize = ValueNotifier(21.0);
+  /// 阅读正文字号的全局覆盖值（null 表示未覆盖，回到原书排版/应用默认）
+  ValueNotifier<double?> _readerFontSizeOverride = ValueNotifier(null);
+
+  /// 阅读行高倍数的全局覆盖值（null 表示未覆盖）
+  ValueNotifier<double?> _readerLineHeightOverride = ValueNotifier(null);
+
+  /// 阅读段距系数的全局覆盖值（null 表示未覆盖）
+  ValueNotifier<double?> _readerParagraphSpacingOverride = ValueNotifier(null);
 
   /// 主题模式ValueNotifier（用于响应式UI更新）
   ValueNotifier<ThemeMode> get themeMode => _themeMode;
@@ -52,8 +58,16 @@ class SettingsService {
   /// 书库路径ValueNotifier
   ValueNotifier<String?> get calibreLibraryPath => _calibreLibraryPath;
 
-  /// 阅读正文字号ValueNotifier（阅读页其余字号按比例推导）
-  ValueNotifier<double> get readerFontSize => _readerFontSize;
+  /// 阅读正文字号全局覆盖值（null = 未覆盖）
+  ValueNotifier<double?> get readerFontSizeOverride => _readerFontSizeOverride;
+
+  /// 阅读行高全局覆盖值（null = 未覆盖）
+  ValueNotifier<double?> get readerLineHeightOverride =>
+      _readerLineHeightOverride;
+
+  /// 阅读段距全局覆盖值（null = 未覆盖）
+  ValueNotifier<double?> get readerParagraphSpacingOverride =>
+      _readerParagraphSpacingOverride;
 
   /// 测试用：重置服务状态
   @visibleForTesting
@@ -63,14 +77,18 @@ class SettingsService {
     _instance._safeDispose(_instance._languageSettings);
     _instance._safeDispose(_instance._bookshelfSortType);
     _instance._safeDispose(_instance._calibreLibraryPath);
-    _instance._safeDispose(_instance._readerFontSize);
+    _instance._safeDispose(_instance._readerFontSizeOverride);
+    _instance._safeDispose(_instance._readerLineHeightOverride);
+    _instance._safeDispose(_instance._readerParagraphSpacingOverride);
 
     _instance._themeMode = ValueNotifier(ThemeMode.system);
     _instance._aiSettings = ValueNotifier(AiSettings());
     _instance._languageSettings = ValueNotifier(LanguageSettings());
     _instance._bookshelfSortType = ValueNotifier(BookSortType.lastRead);
     _instance._calibreLibraryPath = ValueNotifier(null);
-    _instance._readerFontSize = ValueNotifier(21.0);
+    _instance._readerFontSizeOverride = ValueNotifier(null);
+    _instance._readerLineHeightOverride = ValueNotifier(null);
+    _instance._readerParagraphSpacingOverride = ValueNotifier(null);
 
     _instance._settings = AppSettings();
     _instance._settingsFilePath = null;
@@ -136,7 +154,9 @@ class SettingsService {
     languageSettings.value = _settings.languageSettings;
     bookshelfSortType.value = _settings.bookshelfSortType;
     calibreLibraryPath.value = _settings.calibreLibraryPath;
-    readerFontSize.value = _settings.readerFontSize;
+    readerFontSizeOverride.value = _settings.readerFontSize;
+    readerLineHeightOverride.value = _settings.readerLineHeight;
+    readerParagraphSpacingOverride.value = _settings.readerParagraphSpacing;
   }
 
   /// 获取当前完整设置
@@ -207,13 +227,31 @@ class SettingsService {
     _log.info('SettingsService', '书架排序方式已更新: ${type.name}');
   }
 
-  /// 设置阅读正文字号（阅读页其余字号按比例推导）
-  Future<void> setReaderFontSize(double size) async {
+  /// 设置/清除阅读正文字号的全局覆盖（传 null 表示清除覆盖）
+  Future<void> setReaderFontSize(double? size) async {
     if (_settings.readerFontSize == size) return;
     _settings = _settings.copyWith(readerFontSize: size);
-    readerFontSize.value = size;
+    readerFontSizeOverride.value = size;
     await _saveSettings();
-    _log.info('SettingsService', '阅读字号已更新: $size');
+    _log.info('SettingsService', '阅读字号覆盖: ${size ?? '已清除'}');
+  }
+
+  /// 设置/清除阅读行高的全局覆盖（传 null 表示清除覆盖）
+  Future<void> setReaderLineHeight(double? height) async {
+    if (_settings.readerLineHeight == height) return;
+    _settings = _settings.copyWith(readerLineHeight: height);
+    readerLineHeightOverride.value = height;
+    await _saveSettings();
+    _log.info('SettingsService', '阅读行距覆盖: ${height ?? '已清除'}');
+  }
+
+  /// 设置/清除阅读段距的全局覆盖（传 null 表示清除覆盖）
+  Future<void> setReaderParagraphSpacing(double? factor) async {
+    if (_settings.readerParagraphSpacing == factor) return;
+    _settings = _settings.copyWith(readerParagraphSpacing: factor);
+    readerParagraphSpacingOverride.value = factor;
+    await _saveSettings();
+    _log.info('SettingsService', '阅读段距覆盖: ${factor ?? '已清除'}');
   }
 
   /// 释放资源
