@@ -68,6 +68,11 @@ class MockBookFormatParser implements BookFormatParser {
 
   @override
   Future<ReaderTypography?> getReaderTypography(String filePath) async => null;
+
+  @override
+  Future<String?> getAnchorText(
+          String filePath, String chapterHref, String anchorId) async =>
+      null;
 }
 
 Book _createTestBook({

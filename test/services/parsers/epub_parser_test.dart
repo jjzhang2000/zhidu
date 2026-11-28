@@ -203,6 +203,22 @@ void main() {
       });
     });
 
+    group('getAnchorText', () {
+      test('按 id 返回锚点元素文本，未知 id 返回 null', () async {
+        final path = _buildAnchoredTocEpub();
+        addTearDown(() {
+          final f = File(path);
+          if (f.existsSync()) f.deleteSync();
+        });
+
+        expect(
+            await parser.getAnchorText(path, 'text00000.html#toc1', 'toc1'),
+            '封面');
+        expect(await parser.getAnchorText(path, 'text00000.html#toc1', 'nope'),
+            isNull);
+      });
+    });
+
   });
 }
 

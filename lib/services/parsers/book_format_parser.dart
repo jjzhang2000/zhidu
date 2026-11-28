@@ -70,6 +70,15 @@ abstract class BookFormatParser {
   /// 顶层章节之前的所有文档（封面/版权页/目录等）；无前置页的格式（如 PDF）
   /// 返回 null，由调用方按页码从第 1 页开始。
   Future<RenderedContent?> getOpeningContent(String filePath);
+
+  /// 读取章节文件中指定 id 锚点元素的可见文本
+  ///
+  /// 用于「链接指向 `文件#锚点`」时定位到锚点所在位置：分页渲染会丢弃元素 id，
+  /// 只能在源文件中取该 id 元素的文本，再按文本在渲染结果中定位。
+  /// 不支持锚点的格式（如 PDF）返回 null。
+  Future<String?> getAnchorText(
+          String filePath, String chapterHref, String anchorId) async =>
+      null;
 }
 
 /// 文件格式解析器注册表（注册表模式）

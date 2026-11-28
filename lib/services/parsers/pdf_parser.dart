@@ -279,6 +279,12 @@ class PdfParser implements BookFormatParser {
     return null;
   }
 
+  /// PDF 无 HTML 锚点，直接返回 null
+  @override
+  Future<String?> getAnchorText(
+          String filePath, String chapterHref, String anchorId) async =>
+      null;
+
   /// PDF 无原始排版信息（固定版式），返回 null 由阅读页使用应用默认值
   @override
   Future<ReaderTypography?> getReaderTypography(String filePath) async {

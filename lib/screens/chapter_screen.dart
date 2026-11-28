@@ -1218,43 +1218,78 @@ class _ChapterScreenState extends State<ChapterScreen>
     }
   }
 
-  /// 阅读正文中点击链接：解析 href 并跳到对应章节
+  /// 阅读正文中点击链接：解析 href 并跳到对应章节/锚点位置
   ///
   /// 支持相对路径（如 `text00001.html`、`text00005.html#bw1`）与同文件锚点
-  /// （`#anchor`）；链接指向的锚点若属于某个子章节，则定位到该子章节标题所在页。
-  /// 指向图片的目录项（如「封面」→ `Image00000.jpg`）已在解析阶段作为独立章节
-  /// 插入章节列表，因此普通匹配即可跳转到该图片页。
+  /// （`#anchor`）：锚点若命中某个子章节，定位到该子章节标题所在页；否则按锚点
+  /// id 在目标章节中取文本，定位到该文本所在页（如章节标题链接回目录的对应条目）。
+  /// 指向图片的目录项已在解析阶段作为独立章节，普通匹配即可跳转。
   void _onLinkTap(String href) {
-    final target = _findChapterByHref(href);
-    if (target != null) _gotoChapterNode(target);
-  }
-
-  /// 按链接 href 在章节列表中查找对应章节（相对当前章节文件解析）
-  Chapter? _findChapterByHref(String href) {
     final lower = href.toLowerCase();
-    const externalPrefixes = ['http://', 'https://', 'mailto:', 'tel:', 'javascript:'];
-    if (lower.isEmpty || externalPrefixes.any(lower.startsWith)) return null;
+    const externalPrefixes = [
+      'http://', 'https://', 'mailto:', 'tel:', 'javascript:',
+    ];
+    if (lower.isEmpty || externalPrefixes.any(lower.startsWith)) return;
 
     final resolved = _resolveHref(_currentChapterFile(), href);
-    if (resolved == null) return null;
+    if (resolved == null) return;
     final targetFile = resolved.$1.toLowerCase();
-    final targetAnchor = resolved.$2.toLowerCase();
+    final targetAnchor = resolved.$2;
 
     final list = _allChapters.isNotEmpty ? _allChapters : _chapters;
     Chapter? fileMatch;
+    Chapter? anchorMatch;
     for (final c in list) {
       final parts = _splitHref(c.location.href);
       if (parts == null) continue;
       if (parts.$1.toLowerCase() != targetFile) continue;
 
       fileMatch ??= c;
-      final anchor = parts.$2.toLowerCase();
-      // 锚点完全匹配：优先命中子章节
-      if (targetAnchor.isNotEmpty && anchor == targetAnchor) return c;
-      // 无锚点：命中同文件的顶层章节
-      if (targetAnchor.isEmpty && c.level == 0) return c;
+      if (targetAnchor.isNotEmpty &&
+          parts.$2.toLowerCase() == targetAnchor.toLowerCase()) {
+        anchorMatch = c;
+        break;
+      }
     }
-    return fileMatch;
+
+    if (anchorMatch != null) {
+      _gotoChapterNode(anchorMatch);
+      return;
+    }
+    if (fileMatch == null) return;
+    if (targetAnchor.isEmpty) {
+      _gotoChapterNode(fileMatch);
+      return;
+    }
+    unawaited(_gotoChapterAnchor(fileMatch, targetAnchor));
+  }
+
+  /// 跳到「文件内锚点」位置：按锚点 id 从源文件取文本，再按文本定位到所在页
+  Future<void> _gotoChapterAnchor(Chapter chapter, String anchorId) async {
+    final top = _topLevelChapterOf(chapter);
+    final index = _chapters.indexWhere((c) => c.index == top.index);
+    if (index < 0) return;
+
+    String? anchorText;
+    final filePath = widget.filePath;
+    final chapterHref = chapter.location.href;
+    if (filePath != null && chapterHref != null) {
+      final parser = FormatRegistry.getParser(_getFileExtension(filePath));
+      anchorText =
+          await parser?.getAnchorText(filePath, chapterHref, anchorId);
+    }
+    if (!mounted) return;
+
+    final text = (anchorText != null && anchorText.trim().isNotEmpty)
+        ? anchorText.trim()
+        : null;
+    if (!_showingOpening && index == _currentIndex) {
+      _reader.retarget(
+        text == null ? PagedOpenTarget.first : PagedOpenTarget.atAnchor(text),
+      );
+    } else {
+      _navigateToChapter(index, anchor: text);
+    }
   }
 
   /// 当前正文所对应的文件（用于解析相对 href）

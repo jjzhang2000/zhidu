@@ -719,6 +719,25 @@ class EpubParser implements BookFormatParser {
     return _inlineCssAndImages(archive, merged, frontMatter: true);
   }
 
+  @override
+  Future<String?> getAnchorText(
+      String filePath, String chapterHref, String anchorId) async {
+    if (anchorId.isEmpty) return null;
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return null;
+      final bytes = await file.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final htmlFile = _findHtmlFile(archive, _stripAnchor(chapterHref));
+      if (htmlFile == null) return null;
+      final doc = html_parser.parse(utf8.decode(htmlFile.content as List<int>));
+      final text = doc.getElementById(anchorId)?.text.trim();
+      return (text == null || text.isEmpty) ? null : text;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// href 是否指向图片资源
   bool _isImageHref(String href) {
     const imageExts = {
