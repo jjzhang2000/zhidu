@@ -75,6 +75,7 @@ lib/
 
 ### 版本历史
 
+**2026-11-28**: 完善 .gitignore — 取消忽略 `pubspec.lock`（应用需锁定依赖版本，本次一并纳入版本管理），移除过时的 `/books.json`，补充 `/Summaries/`、`.test_temp/`、`.opf_integration_test/`、`.ruff_cache/`、`.screenshots/`、`.sisyphus/` 忽略规则，构建输出改为 `**/build/` 覆盖各平台；取消跟踪历史上误提交的 `android/zhidu_android.iml` 与 `android/build/reports/problems/problems-report.html`
 **2026-11-27**: 阅读字号统一相对化（为字号设置做准备）— 新增设置项底座 `AppSettings.readerFontSize`（默认 21，`SettingsService.readerFontSize` ValueNotifier + `setReaderFontSize()`，暂无 UI），阅读页所有字号均由它推导：正文 `_contentTextStyle`（基准字号 × 行高 1.6）、竖排 `基数×0.86`、底部页码 `正文字号×0.57`、开头页目录条目 `font-size: 0.76em` + 缩进 `1em/级`（改为 em 相对单位，随基准字号缩放，不再写死 16px）；章节列表字号改用 `textTheme.bodyLarge` 派生；阅读页/书架/设置页的固定 `fontSize` 改为主题文本样式（`bodyLarge/bodyMedium/bodySmall/labelSmall/headlineSmall/titleMedium`），仅 `app_theme.dart` 的 textTheme 保留字号定义；`flutter analyze lib` 无告警、425 个测试通过
 
 **2026-11-27**: 修复窗口状态恢复 — ①最大化退出后重进会被还原成普通窗口：Windows runner 首帧回调 `Win32Window::Show()` 原用 `SW_SHOWNORMAL`，会把 Dart 侧已恢复的最大化状态还原，改为 `SW_SHOW`（保持当前状态），并把「先最大化再 `show()`」以避免普通窗口闪现，显示后再确认一次最大化；②最小化退出后重进回到默认位置/尺寸：最小化时 `getBounds()` 返回任务栏图标坐标（尺寸远小于最小值），`_saveWindowState` 改为「最大化/最小化时取最近一次记录的普通窗口矩形，其次沿用上次文件中的尺寸」，并对矩形做可用性校验后才写入；`flutter analyze lib` 无告警、`flutter build windows --debug` 通过

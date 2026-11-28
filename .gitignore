@@ -1,9 +1,9 @@
 # Flutter/Dart
 #
-/build/
+**/build/
 /.dart_tool/
-/pubspec.lock
 /coverage/
+# 注意：pubspec.lock 需要纳入版本管理（本项目是应用，锁定依赖版本保证构建可复现）
 
 # IDE
 #
@@ -28,7 +28,7 @@ Thumbs.db
 # Generated folders
 #
 /logs/
-/books.json
+/Summaries/
 
 # Build outputs
 *.log
@@ -50,5 +50,12 @@ quick_run.bat
 # Runtime generated data
 /temp_docs/
 
+# 本地工具与代理产物
+/.ruff_cache/
+/.screenshots/
+/.sisyphus/
+
 # Test 临时产物（测试源码纳入版本管理）
 /test/.test_temp/
+/.test_temp/
+/.opf_integration_test/
