@@ -278,7 +278,9 @@ void main() {
             maxRounds: 600),
         isTrue);
     await _settle(tester);
-    await _tapUntil(tester, const Offset(200, 400), () => _pageNo(tester) == 1);
+    // 用左侧留白（阅读区 hPad 内、左侧 Tab 栏右侧）点击翻页：开头页末段是目录，
+    // 文字链接会被点击跳章，只有留白区域才落到「点击左右 1/3 翻页」逻辑
+    await _tapUntil(tester, const Offset(62, 400), () => _pageNo(tester) == 1);
     await _settle(tester);
     expect(_pageNo(tester), 1, reason: '应回到开头页首页（全书第 1 页）');
 

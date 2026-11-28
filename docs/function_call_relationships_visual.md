@@ -563,6 +563,10 @@ erDiagram
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-11-28 | 目录图片项通用插入为独立页 — `EpubParser._injectImageTocEntries()` 把目录中指向图片的条目（未必首项）注入为合成章节，位于上一项与下一项之间；`getChapterContent(Merged)` 渲染单图页；分页层显式认定「1 图片条目 = 1 页」并跳过测量（与像素尺寸无关），`PagedReadingView` 以 `BoxFit.contain` 等比填充整页；图片即普通章节，参与分页/翻页/页码/目录跳转；`getOpeningContent()` 界定前置页时跳过图片章节，避免整本书被当成开头页而重复 |
+| 2026-11-28 | 修复目录章节重复 — `getOpeningContent()` 在 spine 首文件即第一章节（无真正前置页）时返回 `null`，避免把第一章同时当作缩小字号的「开头页」重复出现；`BookScreen` 回退第一章，`BookPaginator` 跳过 null 开头页不占页码 |
+| 2026-11-28 | 阅读页支持点击链接跳章 — `PagedReadingView` 增加 `onLinkTap`（HtmlWidget `onTapUrl`），点中链接优先于「点击左右 1/3 翻页」；`ChapterScreen` 解析相对 href（含 `#anchor`/`../`）并按「文件+锚点」匹配章节，子章节定位到标题所在页；目录点击与正文链接共用跳转逻辑 |
+| 2026-11-28 | 修复目录页链接不可读与源码外露 — `EpubCssEngine` 新增 `_normalizeLinkColors()` 移除 `<a>` 写死的 `color`，改由主题链接色渲染（深色模式可读）；`EpubParser._extractChapterByAnchor()` 锚点回溯补回起始 `<`，避免 `<a ...>封面` 被当纯文本渲染成 `a href=...&gt;封面` 源码 |
 | 2026-11-28 | 原书排版起步值与重置 — 解析器读取书籍 CSS 得到 `ReaderTypography`；三项排版改为可空全局覆盖值（覆盖 → 原书 → 默认），`+/-` 写覆盖跨书生效，「重置」按项清覆盖回原书值 |
 | 2026-11-28 | 阅读页排版设置菜单 — AppBar `format_size` 按钮弹出「文字/行距/段距」三组 +/-/重置；新增 `readerLineHeight`、`readerParagraphSpacing` 设置；改动即时重排（控制器/后台分页器同步更新排版，保留当前页原地重排） |
 | 2026-11-28 | 配色主题化修复 — AppBar 标题改用 `appBarTheme.foregroundColor`；阅读页/书架/详情页/设置页写死灰红蓝等颜色改为 `colorScheme` 语义色；`accentColor` 统一深橙 `#FF5722`，新增 `dangerColor` 深红 `#B71C1C`（封面删除），清空书架确认按钮用主题 error 色 |

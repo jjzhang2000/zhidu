@@ -473,6 +473,19 @@ class PagedReaderController extends ChangeNotifier {
   void _measureAndPaginate(double width, double height) {
     if (_disposed || !_measuring) return;
 
+    // 图片独立页固定占 1 页（与图片像素尺寸无关），不做测量
+    if (isImagePageBlocks(_blocks)) {
+      _applyPages(imagePageResult(_blocks));
+      _measuredWidth = width;
+      _measuredHeight = height;
+      _currentPage = 0;
+      _notify();
+      _measureTimer?.cancel();
+      _measureTimer = null;
+      _finalizePosition();
+      return;
+    }
+
     final heights = <double>[];
     for (final key in _blockKeys) {
       final box = key.currentContext?.findRenderObject() as RenderBox?;

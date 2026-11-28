@@ -312,6 +312,12 @@ class BookPaginator extends ChangeNotifier {
       return;
     }
 
+    // 图片独立页固定占 1 页（与图片像素尺寸无关），不做测量
+    if (isImagePageBlocks(blocks)) {
+      _finishImagePage(index, blocks);
+      return;
+    }
+
     _measuringIndex = index;
     _measureBlocks = blocks;
     _measureKeys = List<GlobalKey>.generate(blocks.length, (_) => GlobalKey());
@@ -360,6 +366,23 @@ class BookPaginator extends ChangeNotifier {
     final result = paginateBlocks(_measureBlocks, heights, blockSpacing, _height);
     _paged[index] = result;
     _bumpRevision(index);
+    _measuringIndex = null;
+    _measureBlocks = const [];
+    _measureKeys = const [];
+    _working = false;
+    notifyListeners();
+    _pump();
+  }
+
+  /// 图片独立页：直接登记为 1 页，跳过测量
+  void _finishImagePage(int index, List<String> blocks) {
+    final result = imagePageResult(blocks);
+    final existing = _paged[index];
+    if (existing == null || !_samePages(existing, result)) {
+      _paged[index] = result;
+      _skipped.remove(index);
+      _bumpRevision(index);
+    }
     _measuringIndex = null;
     _measureBlocks = const [];
     _measureKeys = const [];

@@ -441,6 +441,61 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('点击链接触发 onLinkTap 且不翻页（链接优先于点击翻页）', (tester) async {
+    final tapped = <String>[];
+    final controller = _newController();
+    // 首块是右对齐链接（落在右侧 1/3），后接足量段落形成第二页，
+    // 以此区分「点链接跳转」与「点右侧翻页」
+    final html = '<p style="text-align: right"><a href="next.html">跳转链接</a></p>' +
+        List.generate(
+          120,
+          (i) => '<p>段落$i：这是用于分页测试的一段文本内容。</p>',
+        ).join();
+    controller.open(html);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 480,
+            child: PagedReadingView(
+              controller: controller,
+              onLinkTap: tapped.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settlePaging(tester);
+    expect(controller.currentPage, 0);
+
+    // 找到屏幕内可见的链接 RichText，点击其右端（确保落在右侧 1/3 的文字上）
+    Offset? linkPoint;
+    for (final element
+        in find.textContaining('跳转链接', findRichText: true).evaluate()) {
+      final box = element.renderObject;
+      if (box is! RenderBox || !box.hasSize) continue;
+      final origin = box.localToGlobal(Offset.zero);
+      if (origin.dx > -1 && origin.dx < 320) {
+        linkPoint = origin +
+            Offset(box.size.width - 12, box.size.height / 2);
+        break;
+      }
+    }
+    expect(linkPoint, isNotNull);
+    expect(linkPoint!.dx, greaterThan(320 * 2 / 3),
+        reason: '点击点应落在右侧 1/3，否则无法证明「链接优先于翻页」');
+
+    await tester.tapAt(linkPoint);
+    await tester.pumpAndSettle();
+
+    expect(tapped, ['next.html']);
+    expect(controller.currentPage, 0, reason: '点中链接应跳转而非翻页');
+
+    controller.dispose();
+  });
+
   testWidgets('短文本只占一页', (tester) async {
     final controller = _newController();
     controller.open('<p>短文本</p>');

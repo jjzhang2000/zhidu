@@ -31,6 +31,23 @@ class PaginatedBlocks {
   int get pageCount => pages.length;
 }
 
+/// 图片独立页标记：解析器为「目录图片项」生成的单图页会带此属性
+const String kImagePageMarker = 'data-zhidu-image-page';
+
+/// 是否为「图片独立页」：单个块且带 [kImagePageMarker] 标记
+///
+/// 图片页按「1 个图片条目 = 1 页」固定建模，与图片像素尺寸无关，
+/// 因此无需测量块高度，直接认定为 1 页。
+bool isImagePageBlocks(List<String> blocks) =>
+    blocks.length == 1 && blocks.first.contains(kImagePageMarker);
+
+/// 图片独立页的固定分页结果：恰好 1 页，内容为该图片块
+PaginatedBlocks imagePageResult(List<String> blocks) => PaginatedBlocks(
+      pages: [blocks],
+      pageStartBlocks: const [0],
+      blockTexts: const [''],
+    );
+
 /// 匹配行内样式里的 line-height 声明（含可选分号）
 final RegExp _lineHeightDecl =
     RegExp("line-height\\s*:\\s*[^;\"']+\\s*;?", caseSensitive: false);

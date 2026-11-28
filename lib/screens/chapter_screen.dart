@@ -1195,6 +1195,14 @@ class _ChapterScreenState extends State<ChapterScreen>
 
   /// 目录点击：跳到目标章节（子章节定位到其标题所在页），并切回原文 Tab
   void _jumpFromDirectory(Chapter chapter) {
+    _gotoChapterNode(chapter);
+    _tabController?.animateTo(0);
+  }
+
+  /// 跳转到章节节点：顶层章节跳首页，子章节跳到其标题所在页
+  ///
+  /// 目录点击与正文内链接点击共用此逻辑。
+  void _gotoChapterNode(Chapter chapter) {
     final top = _topLevelChapterOf(chapter);
     final index = _chapters.indexWhere((c) => c.index == top.index);
     if (index < 0) return;
@@ -1208,7 +1216,106 @@ class _ChapterScreenState extends State<ChapterScreen>
     } else {
       _navigateToChapter(index, anchor: anchor);
     }
-    _tabController?.animateTo(0);
+  }
+
+  /// 阅读正文中点击链接：解析 href 并跳到对应章节
+  ///
+  /// 支持相对路径（如 `text00001.html`、`text00005.html#bw1`）与同文件锚点
+  /// （`#anchor`）；链接指向的锚点若属于某个子章节，则定位到该子章节标题所在页。
+  /// 指向图片的目录项（如「封面」→ `Image00000.jpg`）已在解析阶段作为独立章节
+  /// 插入章节列表，因此普通匹配即可跳转到该图片页。
+  void _onLinkTap(String href) {
+    final target = _findChapterByHref(href);
+    if (target != null) _gotoChapterNode(target);
+  }
+
+  /// 按链接 href 在章节列表中查找对应章节（相对当前章节文件解析）
+  Chapter? _findChapterByHref(String href) {
+    final lower = href.toLowerCase();
+    const externalPrefixes = ['http://', 'https://', 'mailto:', 'tel:', 'javascript:'];
+    if (lower.isEmpty || externalPrefixes.any(lower.startsWith)) return null;
+
+    final resolved = _resolveHref(_currentChapterFile(), href);
+    if (resolved == null) return null;
+    final targetFile = resolved.$1.toLowerCase();
+    final targetAnchor = resolved.$2.toLowerCase();
+
+    final list = _allChapters.isNotEmpty ? _allChapters : _chapters;
+    Chapter? fileMatch;
+    for (final c in list) {
+      final parts = _splitHref(c.location.href);
+      if (parts == null) continue;
+      if (parts.$1.toLowerCase() != targetFile) continue;
+
+      fileMatch ??= c;
+      final anchor = parts.$2.toLowerCase();
+      // 锚点完全匹配：优先命中子章节
+      if (targetAnchor.isNotEmpty && anchor == targetAnchor) return c;
+      // 无锚点：命中同文件的顶层章节
+      if (targetAnchor.isEmpty && c.level == 0) return c;
+    }
+    return fileMatch;
+  }
+
+  /// 当前正文所对应的文件（用于解析相对 href）
+  ///
+  /// 开头页由多个前置文件合并，无法精确回溯来源，按首个章节所在目录近似解析。
+  String? _currentChapterFile() {
+    if (_showingOpening) {
+      final first = _allChapters.isNotEmpty ? _allChapters.first : null;
+      return _splitHref(first?.location.href)?.$1;
+    }
+    if (_currentIndex >= 0 && _currentIndex < _chapters.length) {
+      return _splitHref(_chapters[_currentIndex].location.href)?.$1;
+    }
+    return null;
+  }
+
+  /// 拆分 href 为「文件路径 + 锚点」（均未规范化）
+  (String, String)? _splitHref(String? href) {
+    if (href == null || href.isEmpty) return null;
+    final hash = href.indexOf('#');
+    if (hash < 0) return (href, '');
+    return (href.substring(0, hash), href.substring(hash + 1));
+  }
+
+  /// 将 [href] 相对 [currentFile] 解析为「规范化文件路径 + 锚点」
+  (String, String)? _resolveHref(String? currentFile, String href) {
+    final parts = _splitHref(href);
+    if (parts == null) return null;
+    final targetFile = parts.$1;
+    final anchor = parts.$2;
+
+    final String resolvedFile;
+    if (targetFile.isEmpty) {
+      resolvedFile = _normalizePath(currentFile ?? '');
+    } else if (targetFile.startsWith('/')) {
+      resolvedFile = _normalizePath(targetFile.substring(1));
+    } else {
+      final base = _dirname(currentFile ?? '');
+      resolvedFile = _normalizePath(base.isEmpty ? targetFile : '$base/$targetFile');
+    }
+    return (resolvedFile, anchor);
+  }
+
+  /// 取路径所在目录（不含末尾文件名）
+  String _dirname(String path) {
+    final i = path.lastIndexOf('/');
+    return i < 0 ? '' : path.substring(0, i);
+  }
+
+  /// 规范化路径：统一分隔符并折叠 `.` / `..` 段
+  String _normalizePath(String path) {
+    final segments = <String>[];
+    for (final seg in path.replaceAll('\\', '/').split('/')) {
+      if (seg.isEmpty || seg == '.') continue;
+      if (seg == '..') {
+        if (segments.isNotEmpty) segments.removeLast();
+        continue;
+      }
+      segments.add(seg);
+    }
+    return segments.join('/');
   }
 
   /// 找到章节所属的顶层章节（level==0）
@@ -1251,12 +1358,20 @@ class _ChapterScreenState extends State<ChapterScreen>
   }
 
   /// 构建 HTML 渲染组件（统一启用 SVG 图片与错误兜底）
-  Widget _buildHtml(String html) {
+  ///
+  /// [onLinkTap] 非空时启用链接点击跳转（正文原文用；缩写/译文不传）。
+  Widget _buildHtml(String html, {void Function(String href)? onLinkTap}) {
     return HtmlWidget(
       html,
       textStyle: _contentTextStyle,
       factoryBuilder: () => SvgAwareWidgetFactory(),
       onErrorBuilder: htmlErrorBuilder,
+      onTapUrl: onLinkTap == null
+          ? null
+          : (url) {
+              onLinkTap(url);
+              return true;
+            },
     );
   }
 
@@ -1549,7 +1664,7 @@ class _ChapterScreenState extends State<ChapterScreen>
 
     // EPUB 分页：HTML 按块级元素切页，保留排版
     if (_content.isNotEmpty) {
-      return PagedReadingView(controller: _reader);
+      return PagedReadingView(controller: _reader, onLinkTap: _onLinkTap);
     }
 
     // EPUB/其他格式：显示 HTML 内容（背景由父 Container 提供）
@@ -1565,7 +1680,7 @@ class _ChapterScreenState extends State<ChapterScreen>
               padding: const EdgeInsets.all(8),
               // 样式已内联到 HTML（EPUB 的 CSS 与图片已转 data URI），
               // textStyle 仅作为无内联样式时的兜底，不影响 EPUB 原有排版。
-              child: _buildHtml(_content),
+              child: _buildHtml(_content, onLinkTap: _onLinkTap),
             ),
           ),
         );
@@ -1888,3 +2003,4 @@ class _ChapterScreenState extends State<ChapterScreen>
     );
   }
 }
+

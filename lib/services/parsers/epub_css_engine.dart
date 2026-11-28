@@ -78,6 +78,8 @@ class EpubCssEngine {
         _normalizeTocEntries(document);
       }
 
+      _normalizeLinkColors(document);
+
       final isVertical = _detectVertical(document, cssText);
       if (!isVertical) {
         _applyReaderTypography(document);
@@ -651,6 +653,34 @@ class EpubCssEngine {
       }
     }
     return null;
+  }
+
+  /// 去除链接文字写死的颜色声明，交由渲染器按主题取链接色。
+  ///
+  /// 许多 EPUB 用 `a { color: #0000CC }` 之类的深色指定链接颜色，在深色模式下
+  /// 与背景对比度极低而无法辨认。这里移除 `<a>` 及其后代元素内联样式中的
+  /// `color`，让 flutter_widget_from_html 使用主题链接色（浅色/深色均清晰）。
+  void _normalizeLinkColors(dom.Document document) {
+    for (final a in document.querySelectorAll('a')) {
+      _stripColorDecl(a);
+      for (final child in a.querySelectorAll('*')) {
+        _stripColorDecl(child);
+      }
+    }
+  }
+
+  /// 从单个元素的 style 中移除 color 声明
+  void _stripColorDecl(dom.Element el) {
+    final style = el.attributes['style'];
+    if (style == null || style.isEmpty) return;
+    final decls = _parseInlineDecls(style);
+    if (decls.remove('color') == null) return;
+    if (decls.isEmpty) {
+      el.attributes.remove('style');
+    } else {
+      el.attributes['style'] =
+          decls.entries.map((e) => '${e.key}: ${e.value}').join('; ');
+    }
   }
 
   void _removeLinkAndStyle(dom.Document document) {

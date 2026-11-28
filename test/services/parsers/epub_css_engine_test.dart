@@ -150,6 +150,30 @@ h2 { color: #24292e; }
     expect(result.html, isNot(contains('inline-block')));
   });
 
+  test('去除链接写死的颜色，交由主题决定（深色模式仍可读）', () {
+    const html = '''
+<html><head><style>a { color: #0000CC; }</style></head>
+<body><p><a href="c1" id="toc1">封面</a></p></body></html>
+''';
+    final result = engine().render(html);
+    // 链接自身的深色 color 被移除（否则深色模式下与背景几乎同色）
+    expect(result.html, isNot(contains('#0000CC')));
+    // 链接结构保持完整，仍可点击渲染
+    expect(result.html, contains('<a href="c1"'));
+    expect(result.html, contains('封面'));
+  });
+
+  test('链接内嵌元素写死的颜色同样被移除', () {
+    const html = '''
+<html><body>
+<p><a href="c1"><span style="color: #123456">正文链接</span></a></p>
+</body></html>
+''';
+    final result = engine().render(html);
+    expect(result.html, isNot(contains('#123456')));
+    expect(result.html, contains('正文链接'));
+  });
+
   test('图片 src 相对路径(../)与绝对路径(/)均转为 data URI', () {
     final archive = Archive()
       ..addFile(ArchiveFile(

@@ -84,6 +84,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('图片独立页固定占 1 页（与图片像素尺寸无关）', (tester) async {
+    final paginator = BookPaginator(
+      textStyle: _textStyle,
+      chapterCount: 3,
+      hasOpening: false,
+      loader: (index) async {
+        if (index == 1) {
+          // 超大尺寸图片页：仍应固定为 1 页，不按像素尺寸计算
+          return RenderedContent(
+            '<html><body>'
+            '<div data-zhidu-image-page="1" style="text-align: center">'
+            '<img src="data:image/jpeg;base64,AAAA" width="4000" height="6000" />'
+            '</div></body></html>',
+          );
+        }
+        return RenderedContent(_chapterHtml('章$index'));
+      },
+      registerFonts: (_) {},
+    );
+    addTearDown(paginator.dispose);
+
+    paginator.configure(_width, _height);
+    await tester.pumpWidget(_wrap(paginator));
+    expect(await _pumpUntil(tester, () => paginator.isComplete), isTrue,
+        reason: '全书分页未完成');
+
+    expect(paginator.pagesFor(1)!.pageCount, 1, reason: '图片条目应恒为 1 页');
+    expect(paginator.startPageFor(2),
+        1 + paginator.pagesFor(0)!.pageCount);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('采用控制器测量结果后不再重复测量，尺寸变化整体重排', (tester) async {
     final loaded = <int>[];
     final paginator = BookPaginator(

@@ -1,4 +1,6 @@
 import 'package:flutter/gestures.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
@@ -20,9 +22,15 @@ import 'svg_widget_factory.dart';
 class PagedReadingView extends StatefulWidget {
   final PagedReaderController controller;
 
+  /// 点击 HTML 链接时的处理回调（传入原始 href）。
+  ///
+  /// 非空时链接可点击并优先于「点击左右 1/3 翻页」：点中链接执行跳转而不翻页。
+  final void Function(String href)? onLinkTap;
+
   const PagedReadingView({
     super.key,
     required this.controller,
+    this.onLinkTap,
   });
 
   @override
@@ -55,6 +63,9 @@ class _PagedReadingViewState extends State<PagedReadingView>
   /// 按下位置与指针 id，用于判定一次点击（而非拖动）
   Offset? _tapDownPosition;
   int? _tapPointer;
+
+  /// 本次点击是否已被 HTML 链接消费（点中链接时不翻页）
+  bool _linkTapped = false;
 
   PagedReaderController get _controller => widget.controller;
 
@@ -227,6 +238,17 @@ class _PagedReadingViewState extends State<PagedReadingView>
 
   /// 构建单页内容（分页渲染与跨章滑动的旧页快照共用，保证两者版式一致）
   Widget _buildPageContent(List<String> blocks, double hPad, double vPad) {
+    // 图片独立页：以「等比缩放填充整页」渲染，使任意尺寸图片都自适应屏幕
+    if (blocks.length == 1 && blocks.first.contains('data-zhidu-image-page')) {
+      final bytes = _imagePageBytes(blocks.first);
+      if (bytes != null) {
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+          child: Center(child: Image.memory(bytes, fit: BoxFit.contain)),
+        );
+      }
+    }
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
       child: SingleChildScrollView(
@@ -242,6 +264,13 @@ class _PagedReadingViewState extends State<PagedReadingView>
                 textStyle: _controller.textStyle,
                 factoryBuilder: () => SvgAwareWidgetFactory(),
                 onErrorBuilder: htmlErrorBuilder,
+                onTapUrl: widget.onLinkTap == null
+                    ? null
+                    : (url) {
+                        _linkTapped = true;
+                        widget.onLinkTap!(url);
+                        return true;
+                      },
               ),
               if (i < blocks.length - 1)
                 SizedBox(height: _controller.blockSpacing),
@@ -252,14 +281,27 @@ class _PagedReadingViewState extends State<PagedReadingView>
     );
   }
 
+  /// 从图片页 HTML 中取出内联 data URI 图片字节
+  Uint8List? _imagePageBytes(String block) {
+    final match = RegExp(r'src="([^"]+)"').firstMatch(block);
+    final src = match?.group(1);
+    if (src == null) return null;
+    return Uri.tryParse(src)?.data?.contentAsBytes();
+  }
+
   /// 记录按下位置，供 [Listener.onPointerUp] 判定是否为点击
   void _onPointerDown(PointerDownEvent event) {
     if (event.buttons != kPrimaryButton) return;
+    _linkTapped = false;
     _tapDownPosition = event.localPosition;
     _tapPointer = event.pointer;
   }
 
   /// 指针抬起：位移小于触摸阈值视为点击，按左右 1/3 区域翻页
+  ///
+  /// 点中 HTML 链接时链接自身的 GestureDetector 会消费该次点击（经 onTapUrl
+  /// 置 [_linkTapped]）。原始指针回调先于手势竞技场判定触发，故把翻页延后到
+  /// 微任务，届时若已被链接消费则跳过翻页，避免「点链接却翻页」。
   void _onPointerUp(PointerUpEvent event, double width) {
     final down = _tapDownPosition;
     final pointer = _tapPointer;
@@ -269,11 +311,28 @@ class _PagedReadingViewState extends State<PagedReadingView>
     if ((event.localPosition - down).distance > kTouchSlop) return;
 
     final dx = event.localPosition.dx;
+    final int turn;
     if (dx < width / 3) {
-      _controller.turnPage(-1);
+      turn = -1;
     } else if (dx > width * 2 / 3) {
-      _controller.turnPage(1);
+      turn = 1;
+    } else {
+      return;
     }
+
+    // 未启用链接点击时保持同步翻页（与原行为一致）
+    if (widget.onLinkTap == null) {
+      _controller.turnPage(turn);
+      return;
+    }
+    scheduleMicrotask(() {
+      if (!mounted) return;
+      if (_linkTapped) {
+        _linkTapped = false;
+        return;
+      }
+      _controller.turnPage(turn);
+    });
   }
 
   /// 通知控制器按当前布局尺寸重新测量分页（控制器负责读取块高度与重测）

@@ -175,7 +175,7 @@ class EpubParser implements BookFormatParser {
         chapterInfos.addAll(_extractChapterInfosFromNavigation(
             epubBook.schema!.navigation!.navMap!.points));
         if (chapterInfos.isNotEmpty) {
-          return _convertToChapters(chapterInfos);
+          return _convertToChapters(_injectImageTocEntries(bytes, chapterInfos));
         }
       }
 
@@ -183,7 +183,7 @@ class EpubParser implements BookFormatParser {
         chapterInfos.addAll(_extractChapterInfosFromContent(
             epubBook.content!.html, epubBook.schema?.package?.spine?.items));
         if (chapterInfos.isNotEmpty) {
-          return _convertToChapters(chapterInfos);
+          return _convertToChapters(_injectImageTocEntries(bytes, chapterInfos));
         }
       }
     } catch (e) {
@@ -193,11 +193,11 @@ class EpubParser implements BookFormatParser {
     final archive = ZipDecoder().decodeBytes(bytes);
     final chaptersFromNcx = _extractChapterInfosFromNcxArchive(archive);
     if (chaptersFromNcx.isNotEmpty) {
-      return _convertToChapters(chaptersFromNcx);
+      return _convertToChapters(_injectImageTocEntries(bytes, chaptersFromNcx));
     }
 
     final flatChapters = _extractChapterInfosFromArchive(archive);
-    return _convertToChapters(flatChapters);
+    return _convertToChapters(_injectImageTocEntries(bytes, flatChapters));
   }
 
   /// 统计章节数量（递归遍历 subChapters）
@@ -523,6 +523,20 @@ class EpubParser implements BookFormatParser {
       return chapter;
     }
 
+    // 图片类章节（目录项指向独立图片）：直接生成单图页面
+    if (_isImageHref(href)) {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final page = _renderImageChapterPage(archive, href);
+      return Chapter(
+        bookId: chapter.bookId,
+        index: chapter.index,
+        title: chapter.title,
+        location: chapter.location,
+        level: chapter.level,
+        htmlContent: page?.html ?? '',
+      );
+    }
+
     _log.d('EpubParser', '准备提取章节内容，href: $href');
 
     try {
@@ -590,6 +604,12 @@ class EpubParser implements BookFormatParser {
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
 
+    // 图片类章节（目录项指向独立图片）：生成单图页面，作为独立一页参与翻页
+    final chapterHref = chapter.location.href;
+    if (chapterHref != null && _isImageHref(chapterHref)) {
+      return _renderImageChapterPage(archive, chapterHref);
+    }
+
     final buffer = StringBuffer();
     // 已整文件读取的文件名（小写），用于去重：同一文件内的子章节锚点不再重复提取
     final readFullFiles = <String>{};
@@ -643,7 +663,7 @@ class EpubParser implements BookFormatParser {
   ///
   /// 解析 content.opf 的 spine 顺序，合并从第一个内容文档到第一个正文顶层章节
   /// 之前的所有文档，使「阅读」按真实阅读顺序呈现前置页，而非只显示封面后直接
-  /// 跳到第一章。无前置页时退化为只返回第一个内容文档。
+  /// 跳到第一章。无前置页（第一个内容文档即第一章）时返回 null，避免与第一章重复。
   @override
   Future<RenderedContent?> getOpeningContent(String filePath) async {
     final file = File(filePath);
@@ -658,12 +678,16 @@ class EpubParser implements BookFormatParser {
     final spineHrefs = _getSpineHtmlHrefs(archive);
     if (spineHrefs.isEmpty) return null;
 
-    // 第一个顶层章节的 href，用于界定前置页范围
+    // 第一个「HTML」顶层章节的 href，用于界定前置页范围。
+    // 注意跳过图片类章节（目录图片项被注入为独立章节，href 是图片文件而非 spine
+    // 文档）；否则会把它当成首章节、导致所有 spine 文档都被当作前置页，整本书
+    // 先作为开头页出现、再在图片页之后重复一遍。
     String? firstChapterHref;
     final chapters = await getChapters(filePath);
     for (final c in chapters) {
-      if (c.level == 0 && c.location.href != null) {
-        firstChapterHref = c.location.href;
+      final href = c.location.href;
+      if (c.level == 0 && href != null && href.isNotEmpty && !_isImageHref(href)) {
+        firstChapterHref = href;
         break;
       }
     }
@@ -677,7 +701,9 @@ class EpubParser implements BookFormatParser {
         if (_sameFile(href, firstChapterHref)) break;
         openingHrefs.add(href);
       }
-      if (openingHrefs.isEmpty) openingHrefs.add(spineHrefs.first);
+      // 第一个内容文档就是第一个章节（无真正的前置页）：返回 null，避免把第一章
+      // 同时当作「开头页」和「第一章」重复出现（图片类目录项作为独立章节处理）。
+      if (openingHrefs.isEmpty) return null;
     }
 
     final buffer = StringBuffer();
@@ -691,6 +717,127 @@ class EpubParser implements BookFormatParser {
     final merged = buffer.toString().trim();
     if (merged.isEmpty) return null;
     return _inlineCssAndImages(archive, merged, frontMatter: true);
+  }
+
+  /// href 是否指向图片资源
+  bool _isImageHref(String href) {
+    const imageExts = {
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg',
+    };
+    final lower = href.toLowerCase();
+    final hash = lower.indexOf('#');
+    final path = hash >= 0 ? lower.substring(0, hash) : lower;
+    final dot = path.lastIndexOf('.');
+    return dot >= 0 && imageExts.contains(path.substring(dot));
+  }
+
+  /// 生成「单张图片」页面 HTML（供图片类章节/独立页使用）
+  ///
+  /// 带 `data-zhidu-image-page` 标记，分页层据此把该章固定视为 1 页（1 个图片条目
+  /// = 1 页，与图片像素尺寸无关，不做测量）；图片本身在阅读视图中以
+  /// 「等比缩放填充整页」渲染（见 PagedReadingView），`src` 已内联为 data URI。
+  RenderedContent? _renderImageChapterPage(Archive archive, String href) {
+    final html = '<html><body>'
+        '<div data-zhidu-image-page="1" style="text-align: center">'
+        '<img src="$href" />'
+        '</div></body></html>';
+    return _inlineCssAndImages(archive, html);
+  }
+
+  /// 把目录中「指向独立图片」的条目插入章节列表，使其成为可翻页的独立一页
+  ///
+  /// 部分书籍（Calibre 生成常见）把「封面」等图片作为目录项直接指向图片文件，
+  /// 但没有任何 HTML 页面包含它。这里以第一个顶层章节的 HTML 作为目录页，读取其
+  /// 链接顺序：图片项插入到「前一个可匹配章节」之后（无则最前），从而在阅读顺序
+  /// 中位于上一项末页与下一项首页之间，并作为普通章节参与分页/翻页/页码。
+  List<_ChapterInfoInternal> _injectImageTocEntries(
+      Uint8List bytes, List<_ChapterInfoInternal> infos) {
+    if (infos.isEmpty) return infos;
+    final firstTop =
+        infos.firstWhere((i) => i.level == 0, orElse: () => infos.first);
+    final firstHref = firstTop.href;
+    if (firstHref == null || firstHref.isEmpty) return infos;
+
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final tocHref = _stripAnchor(firstHref);
+      final tocFile = _findHtmlFile(archive, tocHref);
+      if (tocFile == null) return infos;
+
+      final doc = html_parser.parse(utf8.decode(tocFile.content as List<int>));
+      final tocDir = _dirnameOf(tocHref);
+
+      int matchIndex(String target) {
+        final targetAnchor = _anchorOf(target);
+        var fallback = -1;
+        for (var i = 0; i < infos.length; i++) {
+          final h = infos[i].href;
+          if (h == null || h.isEmpty || !_sameFile(h, target)) continue;
+          if (fallback < 0) fallback = i;
+          if (targetAnchor.isNotEmpty && _anchorOf(h) == targetAnchor) return i;
+        }
+        return fallback;
+      }
+
+      final entries = <_TocEntry>[];
+      for (final a in doc.querySelectorAll('a')) {
+        final href = a.attributes['href'];
+        final text = a.text.trim();
+        if (href == null || href.isEmpty || text.isEmpty) continue;
+        if (_isImageHref(href)) {
+          entries
+              .add(_TocEntry.image(text, _joinPath(tocDir, _stripAnchor(href))));
+        } else {
+          final idx = matchIndex(href);
+          if (idx >= 0) entries.add(_TocEntry.chapter(idx));
+        }
+      }
+      if (!entries.any((e) => e.isImage)) return infos;
+
+      final insertions = <int, List<_ChapterInfoInternal>>{};
+      var lastChapterIdx = -1;
+      for (final e in entries) {
+        if (e.isImage) {
+          final target = lastChapterIdx >= 0 ? lastChapterIdx + 1 : 0;
+          insertions.putIfAbsent(target, () => []).add(_ChapterInfoInternal(
+              title: e.title!, href: e.imageHref, level: 0));
+        } else {
+          lastChapterIdx = e.index;
+        }
+      }
+      if (insertions.isEmpty) return infos;
+
+      final result = <_ChapterInfoInternal>[];
+      for (var i = 0; i <= infos.length; i++) {
+        final add = insertions[i];
+        if (add != null) result.addAll(add);
+        if (i < infos.length) result.add(infos[i]);
+      }
+      return result;
+    } catch (_) {
+      return infos;
+    }
+  }
+
+  static String _stripAnchor(String href) {
+    final h = href.indexOf('#');
+    return h >= 0 ? href.substring(0, h) : href;
+  }
+
+  static String _anchorOf(String href) {
+    final h = href.indexOf('#');
+    return h >= 0 ? href.substring(h + 1) : '';
+  }
+
+  static String _dirnameOf(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final i = normalized.lastIndexOf('/');
+    return i < 0 ? '' : normalized.substring(0, i);
+  }
+
+  static String _joinPath(String dir, String href) {
+    if (href.startsWith('/')) return href.substring(1);
+    return dir.isEmpty ? href : '$dir/$href';
   }
 
   /// 解析 content.opf 的 spine，按阅读顺序返回所有内容文档（HTML/XHTML）的 href
@@ -1101,10 +1248,13 @@ class EpubParser implements BookFormatParser {
       }
 
       // 定位锚点所属元素的起始标签 <
+      // 循环停在 '<' 之后的第一个字符，需再回退一格把 '<' 本身包含进来，
+      // 否则片段会以标签名开头（如 `a href="...">`），被当作纯文本渲染出源码。
       int elementStart = anchorMatch.start;
       while (elementStart > 0 && fullHtml[elementStart - 1] != '<') {
         elementStart--;
       }
+      if (elementStart > 0) elementStart--;
 
       // 提取锚点元素的标签名
       final tagNameMatch = RegExp(r'<(\w+)').firstMatch(fullHtml.substring(elementStart));
@@ -1313,4 +1463,18 @@ class _ChapterInfoInternal {
     this.href,
     required this.level,
   });
+}
+
+/// 目录解析中间项：指向图片的条目 或 已匹配到的章节下标
+class _TocEntry {
+  final String? title;
+  final String? imageHref;
+  final int index;
+
+  const _TocEntry.image(this.title, this.imageHref) : index = -1;
+  const _TocEntry.chapter(this.index)
+      : title = null,
+        imageHref = null;
+
+  bool get isImage => imageHref != null;
 }
